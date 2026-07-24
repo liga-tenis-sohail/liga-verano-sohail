@@ -3178,6 +3178,8 @@ function resetCycleUI(n){
   // reseteaba la estructura entera al estado inicial (C1 hardcodeado), lo que perdía
   // todos los movimientos de jugadores que el admin había hecho durante el ciclo.
   matches=matches.filter(m=>m.cycle!==n);
+  // Limpiar editMode colgado (el ciclo pasa a activo normal, no necesita el flag).
+  cycles.forEach(cx=>delete cx.editMode);
   // El ciclo se reabre (status='active') y todos los ciclos posteriores se bloquean.
   cycles[n-1].status='active';
   for(let i=n;i<cycles.length;i++){
@@ -3229,6 +3231,9 @@ function retrocederCicloUI(){
     +'¿Continuar?'))return;
   // Borrar partidos del ciclo actual (el que se está "deshaciendo")
   matches=matches.filter(m=>m.cycle!==activeN);
+  // Limpiar cualquier editMode colgado: al retroceder, el ciclo destino pasa a ser
+  // el activo normal (no necesita editMode) y el descartado deja de existir.
+  cycles.forEach(cx=>delete cx.editMode);
   // Desbloquear el ciclo anterior
   cycles[cycAnterior-1].status='active';
   // Borrar la estructura del ciclo actual (que se armó al cerrar el anterior)
