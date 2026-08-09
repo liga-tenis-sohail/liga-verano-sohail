@@ -240,6 +240,16 @@ async function upsertJugador(jug){
   });
   if(!r.ok) throw new Error('Supabase upsert jugador ' + r.status + ' ' + (await r.text()));
 }
+// Borra un jugador del catálogo global. Sus partidos NO se tocan: están guardados
+// por nombre en cada liga, así que resultados y estadísticas quedan intactos.
+async function borrarJugador(jugadorId){
+  if(!jugadorId || typeof jugadorId !== 'string') throw new Error('id de jugador inválido');
+  const r = await fetch(SUPA_URL + '/rest/v1/jugadores?id=eq.' + encodeURIComponent(jugadorId), {
+    method: 'DELETE',
+    headers: supaHeaders({ Prefer: 'return=minimal' })
+  });
+  if(!r.ok) throw new Error('Supabase delete jugador ' + r.status + ' ' + (await r.text()));
+}
 
 // =====================================================================
 // ÍNDICE DE LIGAS (tabla `liga_index`)
@@ -293,6 +303,21 @@ async function setEstadoLiga(ligaId, estado){
   if(!r.ok) throw new Error('Supabase setEstadoLiga ' + r.status + ' ' + (await r.text()));
 }
 
+// Cambia solo el nombre visible de una liga en el índice (el id no se toca).
+async function renombrarLigaIndex(ligaId, nombre){
+  if(!ligaIdOK(ligaId)) throw new Error('ligaId inválido');
+  if(!nombre || !String(nombre).trim()) throw new Error('nombre vacío');
+  const r = await fetch(SUPA_URL + '/rest/v1/liga_index?id=eq.' + encodeURIComponent(ligaId), {
+    method: 'PATCH',
+    headers: supaHeaders({
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal'
+    }),
+    body: JSON.stringify({ nombre: String(nombre).trim() })
+  });
+  if(!r.ok) throw new Error('Supabase renombrarLigaIndex ' + r.status + ' ' + (await r.text()));
+}
+
 // Borra una liga por completo: su estado y su entrada del índice. Los jugadores
 // del catálogo NO se tocan (siguen existiendo para otras ligas).
 async function borrarLiga(ligaId){
@@ -313,6 +338,6 @@ module.exports = {
   readState, writeState, envOK, SESSION_MIN, SUPER_HASH,
   // Sistema unificado (Fase 1):
   LIGA_DEFAULT, ligaIdOK,
-  readCatalogo, buscarJugadorPorEmail, upsertJugador,
-  readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga
+  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador,
+  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga
 };
