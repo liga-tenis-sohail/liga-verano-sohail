@@ -1716,7 +1716,7 @@ function renderReglamento(){
     if(vacio){
       h+='<p class="legend-txt">'+t('rg_empty')+'</p>';
     } else {
-      h+='<div class="rg-content">'+REGLAMENTO+'</div>';   // ya es HTML seguro (sanitizado al guardar)
+      h+='<div class="rg-content">'+sanitizarReglamento(REGLAMENTO)+'</div>';   // sanitizado al vuelo (limpia contenido viejo)
     }
     if(admin){
       h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:12px">';
@@ -1816,28 +1816,49 @@ function sanitizarReglamento(html){
   const tmp=document.createElement('div');
   tmp.innerHTML=html||'';
   const OK={B:1,STRONG:1,I:1,EM:1,U:1,BR:1,P:1,DIV:1,SPAN:1,UL:1,OL:1,LI:1,FONT:1,IMG:1,H1:1,H2:1,H3:1,H4:1};
+  // Solo estas propiedades de estilo sobreviven. Nada de font-size gigante,
+  // background, position, width fijos, etc. que rompen el layout de la app.
+  function filtrarStyle(valor, esImg){
+    const permitidas=['font-weight','font-style','text-decoration','text-align'];
+    const out=[];
+    String(valor||'').split(';').forEach(par=>{
+      const idx=par.indexOf(':'); if(idx<0)return;
+      const prop=par.slice(0,idx).trim().toLowerCase();
+      const val=par.slice(idx+1).trim();
+      if(/javascript:|expression|@import|url\(/i.test(val))return;   // nada peligroso
+      if(permitidas.includes(prop)) out.push(prop+':'+val);
+    });
+    if(esImg){ out.push('max-width:100%'); out.push('height:auto'); }   // imagen siempre acotada
+    return out.join(';');
+  }
   (function limpiar(node){
     const hijos=Array.prototype.slice.call(node.childNodes);
     hijos.forEach(n=>{
       if(n.nodeType===1){ // elemento
-        if(!OK[n.tagName]){ // etiqueta no permitida: la reemplazamos por su texto
-          const txt=document.createTextNode(n.textContent||'');
-          node.replaceChild(txt,n); return;
+        if(!OK[n.tagName]){ // etiqueta no permitida: se reemplaza por su contenido
+          while(n.firstChild) node.insertBefore(n.firstChild, n);
+          node.removeChild(n); return;
         }
-        // Quitar todos los atributos peligrosos; conservar solo los seguros.
+        const esImg=(n.tagName==='IMG');
         Array.prototype.slice.call(n.attributes).forEach(a=>{
           const an=a.name.toLowerCase();
-          const permitido=(n.tagName==='IMG'&&(an==='src'||an==='style'))||(an==='style')||(n.tagName==='FONT'&&(an==='size'||an==='color'));
-          if(!permitido){ n.removeAttribute(a.name); return; }
-          // src de imagen: solo data: o https (nada de javascript:)
-          if(an==='src'){ const v=(a.value||'').trim().toLowerCase(); if(!(v.startsWith('data:image/')||v.startsWith('https://'))){ n.removeAttribute(a.name); } }
-          // style: quitar cualquier cosa con 'expression', 'javascript', 'url(' que no sea segura
-          if(an==='style'){ if(/javascript:|expression|@import/i.test(a.value)){ n.removeAttribute(a.name); } }
+          if(an==='src' && esImg){
+            const v=(a.value||'').trim().toLowerCase();
+            if(!(v.startsWith('data:image/')||v.startsWith('https://'))) n.removeAttribute(a.name);
+            return;
+          }
+          if(an==='style'){
+            const limpio=filtrarStyle(a.value, esImg);
+            if(limpio) n.setAttribute('style', limpio); else n.removeAttribute('style');
+            return;
+          }
+          // FONT size/color: se descartan los tamaños externos gigantes; el formato
+          // va por los botones del editor (que usan etiquetas, no font-size libre).
+          n.removeAttribute(a.name);
         });
+        // Quitar font-size heredado que quedara en FONT sin size real
         limpiar(n);
-      } else if(n.nodeType===8){ // comentarios fuera
-        node.removeChild(n);
-      }
+      } else if(n.nodeType===8){ node.removeChild(n); }
     });
   })(tmp);
   return tmp.innerHTML;
@@ -1944,7 +1965,7 @@ async function doLogin(){
 function doLogout(){closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='block';document.getElementById('login-pass').value='';initLogin();}
 function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
 function renderCycleBar(){const bar=document.getElementById('cycle-bar');let html='';cycles.forEach(c=>{const playable=!!c.groups;const isView=viewCycle===c.n;const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;});const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;bar.innerHTML=html;}
-function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');}
+function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
   viewCycle=n;
   if(n==='po'){
