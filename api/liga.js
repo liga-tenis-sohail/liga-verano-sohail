@@ -12,7 +12,7 @@
 const {
   auth, envOK, sesionEsAdmin, readState, writeState,
   readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga,
-  readCatalogo, buscarJugadorPorEmail, upsertJugador,
+  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador,
   ligaIdOK, hashV2
 } = require('./_lib');
 
@@ -119,6 +119,58 @@ module.exports = async function handler(req, res){
     return res.status(200).json({ jugadores });
   }
 
+  // ---- JUGADORES: lista completa + en cuántas ligas y partidos aparece cada uno ----
+  // Para el tab de gestión de jugadores del superadmin.
+  if(accion === 'jugadores'){
+    let cat = {};
+    try { cat = await readCatalogo(); } catch(e){ cat = {}; }
+    let idx = [];
+    try { idx = await readLigaIndex(); } catch(e){ idx = []; }
+    // Contar en cuántas ligas juega cada nombre y cuántos partidos tiene en total.
+    const porNombre = {};   // nombre -> { ligas:Set, partidos:n }
+    for(const l of idx){
+      let est;
+      try { est = await readState(l.id); } catch(e){ continue; }
+      if(!est) continue;
+      const ms = est.matches || [];
+      const nombresConPartido = new Set();
+      ms.forEach(m => { if(m){ if(m.aName) nombresConPartido.add(m.aName); if(m.bName) nombresConPartido.add(m.bName); } });
+      // partidos por nombre
+      const cuenta = {};
+      ms.forEach(m => { if(m){ if(m.aName) cuenta[m.aName]=(cuenta[m.aName]||0)+1; if(m.bName) cuenta[m.bName]=(cuenta[m.bName]||0)+1; } });
+      Object.keys(cuenta).forEach(nom => {
+        if(!porNombre[nom]) porNombre[nom] = { ligas: new Set(), partidos: 0 };
+        porNombre[nom].ligas.add(l.id);
+        porNombre[nom].partidos += cuenta[nom];
+      });
+    }
+    const jugadores = Object.keys(cat).map(id => {
+      const nom = (cat[id] && cat[id].nombre) || '';
+      const info = porNombre[nom] || { ligas: new Set(), partidos: 0 };
+      return {
+        jugadorId: id,
+        nombre: nom,
+        email: (cat[id] && cat[id].email) || '',
+        ligas: info.ligas.size,
+        partidos: info.partidos
+      };
+    }).sort((a,b)=> a.nombre.localeCompare(b.nombre));
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ jugadores });
+  }
+
+  // ---- ELIMINAR JUGADOR: solo superadmin. Borra del catálogo, NO toca partidos ----
+  if(accion === 'eliminarJugador'){
+    if(!(session && session.r === 'superadmin')){
+      return res.status(403).json({ error: 'Solo el super administrador puede eliminar jugadores de la base.' });
+    }
+    const jid = String(body.jugadorId || '');
+    if(!jid) return res.status(400).json({ error: 'Falta el jugador.' });
+    try { await borrarJugador(jid); }
+    catch(e){ return res.status(503).json({ error: 'No se pudo eliminar: ' + e.message }); }
+    return res.status(200).json({ ok: true, jugadorId: jid });
+  }
+
   const id = String(body.id || '');
   if(accion !== 'crear' && !ligaIdOK(id)){
     return res.status(400).json({ error: 'Falta el identificador de la liga o es inválido.' });
@@ -207,6 +259,27 @@ module.exports = async function handler(req, res){
     try { await setEstadoLiga(id, 'activa'); }
     catch(e){ return res.status(503).json({ error: 'No se pudo reabrir la liga: ' + e.message }); }
     return res.status(200).json({ ok: true, id, estado: 'activa' });
+  }
+
+  // ================= RENOMBRAR =================
+  // Cambia solo el nombre visible (el id interno queda fijo para no romper referencias).
+  // Actualiza tanto el índice como el LEAGUE_NAME dentro del estado de la liga.
+  if(accion === 'renombrar'){
+    const nuevoNombre = String(body.nombre || '').trim();
+    if(!nuevoNombre) return res.status(400).json({ error: 'Falta el nombre nuevo.' });
+    if(nuevoNombre.length > 80) return res.status(400).json({ error: 'El nombre es demasiado largo (máximo 80).' });
+    let idx;
+    try { idx = await readLigaIndex(); } catch(e){ return res.status(503).json({ error: 'No se pudo leer el índice.' }); }
+    const entry = idx.find(l => l.id === id);
+    if(!entry) return res.status(404).json({ error: 'Esa liga no existe.' });
+    try {
+      // 1) Actualizar el índice conservando estado y orden.
+      await upsertLigaIndex({ id, nombre: nuevoNombre, estado: entry.estado, orden: entry.orden });
+      // 2) Actualizar el LEAGUE_NAME dentro del estado, para que se vea en la liga.
+      const estado = await readState(id);
+      if(estado){ estado.LEAGUE_NAME = nuevoNombre; await writeState(id, estado); }
+    } catch(e){ return res.status(503).json({ error: 'No se pudo renombrar: ' + e.message }); }
+    return res.status(200).json({ ok: true, id, nombre: nuevoNombre });
   }
 
   // ================= ELIMINAR =================
