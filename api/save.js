@@ -3,7 +3,7 @@
 // Sin token no se escribe nada. Y lo que un jugador nunca vio,
 // tampoco lo puede pisar: se reinyecta desde la base.
 // =====================================================================
-const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser } = require('./_lib');
+const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
 module.exports = async function handler(req, res){
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
@@ -16,6 +16,9 @@ module.exports = async function handler(req, res){
   if(!incoming || typeof incoming !== 'object' || !incoming.users || !incoming.cycles){
     return res.status(400).json({ error: 'Estado inválido: no se guarda.' });
   }
+
+  // Qué liga: viene en el body. Si no (cliente viejo), la liga por defecto.
+  const ligaId = (req.body && ligaIdOK(req.body.ligaId)) ? req.body.ligaId : LIGA_DEFAULT;
 
   // Techo de tamaño: sin esto, cualquiera con sesión puede inflar la base.
   const bytes = JSON.stringify(incoming).length;
@@ -85,7 +88,7 @@ module.exports = async function handler(req, res){
   }
 
   let current;
-  try { current = await readState(); }
+  try { current = await readState(ligaId); }
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la base de datos; no se guardó nada.' }); }
 
   // Nunca sobrescribimos una base que no pudimos leer: misma protección que ya
@@ -312,7 +315,7 @@ module.exports = async function handler(req, res){
     }
   }
 
-  try { await writeState(incoming); }
+  try { await writeState(ligaId, incoming); }
   catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
