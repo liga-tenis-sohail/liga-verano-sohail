@@ -192,12 +192,15 @@ module.exports = async function handler(req, res){
 
     const estado = estadoInicial(nombre);
 
-    // Preservar el superadmin: la liga nueva hereda al superadmin actual para no
-    // quedar sin dueño. Se copia del estado donde está logueado el admin.
+    // Preservar las cuentas de sistema: la liga nueva hereda al superadmin Y al
+    // admin actuales (con sus contraseñas), para no quedar sin dueño y para que
+    // la clave del admin sea la misma en todas las ligas.
     if(sesionState && sesionState.users){
       for(const k of Object.keys(sesionState.users)){
         const su = sesionState.users[k];
-        if(su && su.role === 'superadmin'){ estado.users[k] = { ...su }; break; }
+        if(su && (su.role === 'superadmin' || su.role === 'admin')){
+          estado.users[k] = { ...su };
+        }
       }
     }
 
