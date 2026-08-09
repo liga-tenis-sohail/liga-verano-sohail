@@ -26,14 +26,26 @@ function idDeJugador(nombre){
 
 // Estado inicial de una liga nueva: mismo formato que el resto del sistema.
 // Un ciclo activo vacío, sin playoff. Los grupos se arman después en la app.
-function estadoInicial(nombreLiga){
+function estadoInicial(nombreLiga, numGrupos, numCiclos){
+  // Cantidad de grupos y ciclos elegida por el admin (con topes razonables).
+  const nG = Math.max(1, Math.min(30, parseInt(numGrupos, 10) || 1));
+  const nC = Math.max(1, Math.min(12, parseInt(numCiclos, 10) || 1));
+  // El primer ciclo arranca activo con nG grupos vacíos; el resto quedan bloqueados.
+  const cycles = [];
+  for(let i = 0; i < nC; i++){
+    if(i === 0){
+      cycles.push({ n: 1, status: 'active', groups: Array.from({ length: nG }, () => ({ players: [] })) });
+    } else {
+      cycles.push({ n: i + 1, status: 'locked', groups: null });
+    }
+  }
   return {
     _v: 1,
     users: {},
     matches: [],
     matchId: 1,
     activeN: 1,
-    cycles: [{ n: 1, status: 'active', groups: [] }],
+    cycles: cycles,
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
     DESTINO: {}, FECHAS: [], PO_FECHAS: {},
     ALLNAMES: [],
@@ -190,7 +202,7 @@ module.exports = async function handler(req, res){
       return res.status(409).json({ error: 'Ya existe una liga con ese identificador.' });
     }
 
-    const estado = estadoInicial(nombre);
+    const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
 
     // Preservar las cuentas de sistema: la liga nueva hereda al superadmin Y al
     // admin actuales (con sus contraseñas), para no quedar sin dueño y para que
