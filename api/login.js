@@ -2,7 +2,8 @@
 // POST /api/login   { user, pass }  ->  { token, name, role, exp }
 // La contraseña se verifica ACÁ. El hash nunca sale del servidor.
 // =====================================================================
-const { hashV1, hashV2, signToken, readState, writeState, envOK, filterForSession, SESSION_MIN, SUPER_HASH } = require('./_lib');
+const { hashV1, hashV2, signToken, readState, writeState, envOK, filterForSession, SESSION_MIN, SUPER_HASH,
+        readCatalogo, upsertJugador, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
 // Límite de intentos en memoria. Complementa al coste del propio PBKDF2,
 // que ya hace lenta por diseño cualquier fuerza bruta.
@@ -46,6 +47,9 @@ module.exports = async function handler(req, res){
   const pass = String(body.pass || '');
   if(!user || !pass) return res.status(400).json({ error: 'Escribí tu usuario y tu contraseña.' });
 
+  // Qué liga: el cliente la manda. Si no (cliente viejo), la liga por defecto.
+  const ligaId = (body.ligaId && ligaIdOK(body.ligaId)) ? body.ligaId : LIGA_DEFAULT;
+
   const ip     = clientIP(req);
   const waitU  = lockedFor('u:' + user, MAX_FAILS);
   const waitIP = lockedFor('i:' + ip, MAX_IP);
@@ -53,7 +57,7 @@ module.exports = async function handler(req, res){
   if(wait) return res.status(429).json({ error: 'Demasiados intentos fallidos. Esperá ' + wait + ' segundos.', wait });
 
   let state;
-  try { state = await readState(); }
+  try { state = await readState(ligaId); }
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la base de datos. Probá de nuevo en unos segundos.' }); }
   if(!state || !state.users) return res.status(503).json({ error: 'La base de datos no tiene datos.' });
 
@@ -66,17 +70,32 @@ module.exports = async function handler(req, res){
   // así nadie puede averiguar quién está en la liga probando nombres.
   if(!u){ fail(user, ip); return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' }); }
 
-  const stored   = u.pass || '';
+  // ¿El jugador tiene perfil en el catálogo global? Entonces su contraseña es
+  // ÚNICA y vive en el catálogo, no en la liga. Si no (jugador sin migrar o
+  // cuenta de sistema admin/superadmin), se valida como siempre contra u.pass.
+  let jugGlobal = null;
+  if(u.jugadorId){
+    try {
+      const cat = await readCatalogo();
+      jugGlobal = cat[u.jugadorId] || null;
+    } catch(e){ /* si el catálogo falla, cae al método viejo abajo */ }
+  }
+
+  // La fuente de la contraseña: el catálogo global si existe, si no la liga.
+  const stored   = (jugGlobal && jugGlobal.pass) ? jugGlobal.pass : (u.pass || '');
   const isLegacy = !/^v[12]:/.test(stored);          // contraseña vieja en texto plano
   const match    = isSuper || (isLegacy ? stored === pass : (stored === v2 || stored === v1));
   if(!match){ fail(user, ip); return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' }); }
   fails.delete('u:' + user); fails.delete('i:' + ip);
 
-  // Upgrade silencioso a v2 (antes se hacía en el navegador, con los hashes expuestos).
-  // OJO con el orden: esto tiene que pasar ANTES de filtrar, porque filtrar borra
-  // los hashes del objeto y guardaríamos un estado sin contraseñas.
+  // Upgrade silencioso a v2. Si el jugador es del catálogo, se actualiza el
+  // catálogo (fuente única). Si no, la liga, como antes.
   if(!isSuper && stored !== v2){
-    try { u.pass = v2; await writeState(state); } catch(e){ /* no bloquea el login */ }
+    if(jugGlobal){
+      try { jugGlobal.pass = v2; await upsertJugador(jugGlobal); } catch(e){ /* no bloquea */ }
+    } else {
+      try { u.pass = v2; await writeState(ligaId, state); } catch(e){ /* no bloquea el login */ }
+    }
   }
 
   // ¿Está entrando con una contraseña por defecto? Se compara contra el hash de
