@@ -6,7 +6,7 @@
 // El login ya trae el estado en su propia respuesta, así que esto queda
 // para recargas y para cualquier refresco posterior.
 // =====================================================================
-const { auth, readState, envOK, filterForSession, renewIfStale, blockedUser } = require('./_lib');
+const { auth, readState, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
 module.exports = async function handler(req, res){
   if(!envOK(res)) return;
@@ -14,8 +14,12 @@ module.exports = async function handler(req, res){
   const session = auth(req);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
+  // Qué liga: viene por query (?liga=anual-2026). Si no, la liga por defecto.
+  const q = (req.query && req.query.liga) ? String(req.query.liga) : '';
+  const ligaId = ligaIdOK(q) ? q : LIGA_DEFAULT;
+
   let state;
-  try { state = await readState(); }
+  try { state = await readState(ligaId); }
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la base de datos.' }); }
 
   if(!state) return res.status(200).json({ empty: true });
