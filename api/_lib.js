@@ -132,8 +132,20 @@ function supaHeaders(extra){
   return h;
 }
 
-async function readState(){
-  const r = await fetch(SUPA_URL + '/rest/v1/liga_state?id=eq.1&select=data', {
+// La liga por defecto: si un endpoint todavía no pasa ligaId, trabaja sobre la
+// liga histórica. Así la migración es gradual y nada se rompe en el camino.
+const LIGA_DEFAULT = 'liga-actual';
+
+// Sanea el id de liga: solo minúsculas, números y guiones. Evita inyección en la
+// URL de Supabase y mantiene los ids predecibles ("anual-2026").
+function ligaIdOK(id){
+  return typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(id);
+}
+
+async function readState(ligaId){
+  const id = ligaId || LIGA_DEFAULT;
+  if(!ligaIdOK(id)) throw new Error('ligaId inválido');
+  const r = await fetch(SUPA_URL + '/rest/v1/liga_state?id=eq.' + encodeURIComponent(id) + '&select=data', {
     headers: supaHeaders()
   });
   if(!r.ok) throw new Error('Supabase read ' + r.status);
@@ -144,14 +156,22 @@ async function readState(){
 }
 
 // Se guarda igual que antes: la columna `data` recibe el JSON como texto.
-async function writeState(obj){
+// Ahora la fila destino la define ligaId (default: la liga histórica).
+async function writeState(ligaId, obj){
+  // Compatibilidad: si llega un solo argumento (el objeto), es una llamada vieja
+  // que apunta a la liga por defecto. Detectamos por tipo.
+  if(obj === undefined && ligaId && typeof ligaId === 'object'){
+    obj = ligaId; ligaId = LIGA_DEFAULT;
+  }
+  const id = ligaId || LIGA_DEFAULT;
+  if(!ligaIdOK(id)) throw new Error('ligaId inválido');
   const r = await fetch(SUPA_URL + '/rest/v1/liga_state', {
     method: 'POST',
     headers: supaHeaders({
       'Content-Type': 'application/json',
       Prefer: 'resolution=merge-duplicates,return=minimal'
     }),
-    body: JSON.stringify({ id: 1, data: JSON.stringify(obj) })
+    body: JSON.stringify({ id: id, data: JSON.stringify(obj) })
   });
   if(!r.ok) throw new Error('Supabase write ' + r.status + ' ' + (await r.text()));
 }
@@ -168,7 +188,131 @@ function envOK(res){
   return true;
 }
 
+// =====================================================================
+// CATÁLOGO GLOBAL DE JUGADORES (tabla `jugadores`)
+// Una persona = una fila. Su identidad y contraseña viven acá, compartidas
+// por todas las ligas. El email (opcional) sirve para vincular identidad.
+// =====================================================================
+
+// Lee todo el catálogo como un mapa { id: {id,nombre,email,pass} }.
+async function readCatalogo(){
+  const r = await fetch(SUPA_URL + '/rest/v1/jugadores?select=id,nombre,email,pass', {
+    headers: supaHeaders()
+  });
+  if(!r.ok) throw new Error('Supabase catálogo read ' + r.status);
+  const rows = await r.json();
+  const map = {};
+  if(Array.isArray(rows)) for(const j of rows) map[j.id] = j;
+  return map;
+}
+
+// Busca un jugador por email (para vincular identidad entre ligas).
+// Devuelve la fila o null. Case-insensitive.
+async function buscarJugadorPorEmail(email){
+  if(!email) return null;
+  const e = String(email).trim().toLowerCase();
+  if(!e) return null;
+  const r = await fetch(SUPA_URL + '/rest/v1/jugadores?email=ilike.' + encodeURIComponent(e) + '&select=id,nombre,email,pass', {
+    headers: supaHeaders()
+  });
+  if(!r.ok) throw new Error('Supabase catálogo email ' + r.status);
+  const rows = await r.json();
+  return (Array.isArray(rows) && rows.length) ? rows[0] : null;
+}
+
+// Crea o actualiza un jugador del catálogo (upsert por id).
+async function upsertJugador(jug){
+  if(!jug || !jug.id || !jug.nombre) throw new Error('jugador inválido');
+  const row = {
+    id: jug.id,
+    nombre: jug.nombre,
+    email: (jug.email || null),
+    pass: (jug.pass || null),
+    actualizado: new Date().toISOString()
+  };
+  const r = await fetch(SUPA_URL + '/rest/v1/jugadores', {
+    method: 'POST',
+    headers: supaHeaders({
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=minimal'
+    }),
+    body: JSON.stringify(row)
+  });
+  if(!r.ok) throw new Error('Supabase upsert jugador ' + r.status + ' ' + (await r.text()));
+}
+
+// =====================================================================
+// ÍNDICE DE LIGAS (tabla `liga_index`)
+// La lista de ligas: cuál está activa, cuáles son pasadas. Alimenta el
+// desplegable público de ligas pasadas.
+// =====================================================================
+
+// Lee el índice ordenado. Público en lectura (no expone datos sensibles).
+async function readLigaIndex(){
+  const r = await fetch(SUPA_URL + '/rest/v1/liga_index?select=id,nombre,estado,orden&order=orden.asc', {
+    headers: supaHeaders()
+  });
+  if(!r.ok) throw new Error('Supabase liga_index ' + r.status);
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+// Crea o actualiza una entrada del índice (al crear/cerrar/reabrir una liga).
+async function upsertLigaIndex(entry){
+  if(!entry || !ligaIdOK(entry.id) || !entry.nombre) throw new Error('entrada de índice inválida');
+  const row = {
+    id: entry.id,
+    nombre: entry.nombre,
+    estado: (entry.estado === 'finalizada' ? 'finalizada' : 'activa'),
+    orden: (typeof entry.orden === 'number' ? entry.orden : 0)
+  };
+  const r = await fetch(SUPA_URL + '/rest/v1/liga_index', {
+    method: 'POST',
+    headers: supaHeaders({
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates,return=minimal'
+    }),
+    body: JSON.stringify(row)
+  });
+  if(!r.ok) throw new Error('Supabase upsert liga_index ' + r.status + ' ' + (await r.text()));
+}
+
+// Cambia SOLO el estado de una liga en el índice ('activa' | 'finalizada').
+// Para cerrar/reabrir sin reescribir el resto de la entrada.
+async function setEstadoLiga(ligaId, estado){
+  if(!ligaIdOK(ligaId)) throw new Error('ligaId inválido');
+  const est = (estado === 'finalizada' ? 'finalizada' : 'activa');
+  const r = await fetch(SUPA_URL + '/rest/v1/liga_index?id=eq.' + encodeURIComponent(ligaId), {
+    method: 'PATCH',
+    headers: supaHeaders({
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal'
+    }),
+    body: JSON.stringify({ estado: est })
+  });
+  if(!r.ok) throw new Error('Supabase setEstadoLiga ' + r.status + ' ' + (await r.text()));
+}
+
+// Borra una liga por completo: su estado y su entrada del índice. Los jugadores
+// del catálogo NO se tocan (siguen existiendo para otras ligas).
+async function borrarLiga(ligaId){
+  if(!ligaIdOK(ligaId)) throw new Error('ligaId inválido');
+  // Primero el estado, después el índice. Si el primero falla, no seguimos.
+  const r1 = await fetch(SUPA_URL + '/rest/v1/liga_state?id=eq.' + encodeURIComponent(ligaId), {
+    method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' })
+  });
+  if(!r1.ok) throw new Error('Supabase borrar estado ' + r1.status);
+  const r2 = await fetch(SUPA_URL + '/rest/v1/liga_index?id=eq.' + encodeURIComponent(ligaId), {
+    method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' })
+  });
+  if(!r2.ok) throw new Error('Supabase borrar índice ' + r2.status);
+}
+
 module.exports = {
   hashV1, hashV2, signToken, verifyToken, auth, isAdminRole, sesionEsAdmin, puedeGestionarAdmins, filterForSession, renewIfStale, blockedUser,
-  readState, writeState, envOK, SESSION_MIN, SUPER_HASH
+  readState, writeState, envOK, SESSION_MIN, SUPER_HASH,
+  // Sistema unificado (Fase 1):
+  LIGA_DEFAULT, ligaIdOK,
+  readCatalogo, buscarJugadorPorEmail, upsertJugador,
+  readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga
 };
