@@ -12,25 +12,33 @@
 // Devuelve el mínimo: nombre, sección y marca de inactivo.
 // Nada de emails, teléfonos, hashes ni resultados.
 // =====================================================================
-const { readState, envOK } = require('./_lib');
+const { readState, envOK, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
-// Caché en memoria. Este endpoint es público y leía los ~125 KB completos de la
-// base en CADA carga del login: un script apuntándole agotaba el egress gratis
+// Caché en memoria POR LIGA. Este endpoint es público y leía los ~125 KB completos
+// de la base en CADA carga del login: un script apuntándole agotaba el egress gratis
 // de Supabase en unas 40.000 peticiones. Con 30 segundos, mil visitas seguidas
 // cuestan una sola lectura, y un jugador nuevo igual aparece casi al instante.
-let cache = null, cacheAt = 0;
+//
+// El caché es un mapa {ligaId: {data, at}}: si fuera una sola variable global,
+// pedir la liga A y después la B devolvería los jugadores de A para B.
+const cacheByLiga = new Map();
 const CACHE_MS = 30 * 1000;
 
 module.exports = async function handler(req, res){
   if(!envOK(res)) return;
 
-  if(cache && (Date.now() - cacheAt) < CACHE_MS){
+  // Qué liga: viene por query (?liga=anual-2026). Si no, la liga por defecto.
+  const q = (req.query && req.query.liga) ? String(req.query.liga) : '';
+  const ligaId = ligaIdOK(q) ? q : LIGA_DEFAULT;
+
+  const hit = cacheByLiga.get(ligaId);
+  if(hit && (Date.now() - hit.at) < CACHE_MS){
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json(cache);
+    return res.status(200).json(hit.data);
   }
 
   let state;
-  try { state = await readState(); }
+  try { state = await readState(ligaId); }
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de usuarios.' }); }
   if(!state || !state.users) return res.status(200).json({ mode: 'cyc', sections: [], loose: [] });  // sin cachear: puede ser un fallo transitorio
 
@@ -78,8 +86,8 @@ module.exports = async function handler(req, res){
     .sort(abc)
     .map(n => ({ v: n, i: inact(n) }));
 
-  cache = { mode, sections, loose };
-  cacheAt = Date.now();
+  const result = { mode, sections, loose };
+  cacheByLiga.set(ligaId, { data: result, at: Date.now() });
   res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json(cache);
+  return res.status(200).json(result);
 };
