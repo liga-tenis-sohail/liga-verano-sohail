@@ -4646,7 +4646,7 @@ function partidosEntre(a, b, estado, ligaNombre){
     if(ganoA)gA++;else gB++;
     // Marcador orientado desde A
     const sc = (esPO&&m.wo)?'W.O.':(m.sets||[]).map(s=>Array.isArray(s)?(aEsA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join('  ');
-    filas.push({sc, ganoA, ligaNombre: ligaNombre||''});
+    filas.push({sc, ganoA, ligaNombre: ligaNombre||'', fecha: m.date||'', mid: m.id||0});
   });
   return {gA, gB, filas};
 }
@@ -4676,8 +4676,13 @@ async function abrirH2H(a, b){
         if(res.filas.length){ gA+=res.gA; gB+=res.gB; res.filas.forEach(f=>todasLasFilas.push(f)); }
       }catch(_){}
     }
-    // Una sola lista corrida con todos los enfrentamientos. Cada fila lleva una
-    // etiqueta chica de la liga donde se jugó, sin separarlos en bloques.
+    // Una sola lista corrida con todos los enfrentamientos, ordenados del más
+    // reciente al más antiguo (por fecha; si empatan, por id de partido).
+    todasLasFilas.sort((x,y)=>{
+      const fx=x.fecha||'', fy=y.fecha||'';
+      if(fx!==fy) return fy.localeCompare(fx);   // fecha desc (más nuevo arriba)
+      return (y.mid||0)-(x.mid||0);              // desempate: id desc
+    });
     filasHTML='<div class="h2h-list">'+todasLasFilas.map(f=>
       '<div class="h2h-row"><span class="h2h-wl '+(f.ganoA?'w':'l')+'">'+(f.ganoA?t('win_short'):t('loss_short'))+'</span>'
       +'<span class="h2h-sc">'+escPast(f.sc)+'</span>'
