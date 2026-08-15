@@ -342,30 +342,31 @@ function renderRating(){
     return;
   }
   const yo = currentUser ? currentUser.name : null;
+  const pc=['p1','p2','p3'];
   const rows = filas.map((f,i)=>{
     const pos = i+1;
-    const medal = pos===1?'pos-1':pos===2?'pos-2':pos===3?'pos-3':'';
+    const posCls = pc[i]||'pn';
     const prov = f.provisional ? `<span class="rt-prov" title="${t('rt_prov_t')}">${t('rt_prov')}</span>` : '';
     const manual = f.manual ? `<span class="rt-manual" title="${t('rt_manual_t')}">${t('rt_manual')}</span>` : '';
     const accion = admin
-      ? `<td class="rt-actions"><button class="btn btn-sm" onclick="abrirAjusteRating('${jsq(f.name)}')"><i class="ti ti-adjustments"></i> ${t('rt_adjust')}</button></td>`
+      ? `<td><button class="btn btn-sm" onclick="abrirAjusteRating('${jsq(f.name)}')"><i class="ti ti-adjustments"></i> ${t('rt_adjust')}</button></td>`
       : '';
-    const meRow = (yo && f.name===yo) ? ' me-row' : '';
-    return `<tr class="${meRow}">
-      <td><span class="pos-badge ${medal}">${pos}</span></td>
-      <td class="rt-name"><span class="avatar">${getInitials(f.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(f.name)}')">${attr(f.name)}</span></td>
-      <td class="rt-big">${f.rating.toFixed(2)}${prov}${manual}</td>
-      <td class="rt-pj">${f.partidos}</td>
-      <td class="rt-d">${f.seed!=null?f.seed.toFixed(2):'<span class="rt-none">·</span>'}</td>
-      <td class="rt-d">${f.manual?f.ratingCalculado.toFixed(2):'<span class="rt-none">·</span>'}</td>
-      <td class="rt-d">${f.vict}-${f.der}</td>
-      <td class="rt-d rt-gg">${f.gGanados}</td>
-      <td class="rt-d rt-gp">${f.gPerdidos}</td>
-      <td class="rt-d">${f.pctGames!=null?Math.round(f.pctGames*100)+'%':'·'}</td>
-      <td class="rt-d">${f.nivelRivales!=null?f.nivelRivales.toFixed(2):'·'}</td>
-      <td class="rt-d">${f.fiab}%</td>
-      ${accion}
-    </tr>`;
+    const me = (yo && f.name===yo) ? ' me-row' : '';
+    return `<tr class="${me}">`
+      + `<td><span class="pos ${posCls}">${pos}</span></td>`
+      + `<td><span class="avatar">${getInitials(f.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(f.name)}')">${attr(f.name)}</span></td>`
+      + `<td><strong>${f.rating.toFixed(2)}</strong>${prov}${manual}</td>`
+      + `<td>${f.partidos}</td>`
+      + `<td>${f.seed!=null?f.seed.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
+      + `<td>${f.manual?f.ratingCalculado.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
+      + `<td>${f.vict}-${f.der}</td>`
+      + `<td class="rt-gg">${f.gGanados}</td>`
+      + `<td class="rt-gp">${f.gPerdidos}</td>`
+      + `<td>${f.pctGames!=null?Math.round(f.pctGames*100)+'%':'<span class="gen-dash">—</span>'}</td>`
+      + `<td>${f.nivelRivales!=null?f.nivelRivales.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
+      + `<td>${f.fiab}%</td>`
+      + accion
+      + `</tr>`;
   }).join('');
   const thAcc = admin ? `<th>${t('rt_adjust')}</th>` : '';
   box.innerHTML = `
