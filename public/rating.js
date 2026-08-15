@@ -372,7 +372,7 @@ function renderRating(){
     <div class="card">
       <div class="section-lbl">${t('rating_title')}</div>
       <div class="rt-sub">${t('rt_desc_utr')}</div>
-      <div class="table-wrap overflow-x">
+      <div class="overflow-x">
         <table class="gen-table rt-table">
           <thead><tr>
             <th>#</th><th>${t('player')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
