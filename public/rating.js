@@ -182,9 +182,11 @@ function utrCalcular(jugadores, partidos, semillas, overrides){
       seed: (semillas && semillas[j] != null) ? +semillas[j] : null,   // punto de partida del admin
       partidos: nP,
       provisional: !tieneOverride && nP < UTR_PROV,   // un valor manual no es provisional
-      fiab: Math.min(100, Math.round(100 * nP / UTR_PROV)),
+      fiab: Math.min(100, Math.round(100 * nP / UTR_VENTANA)),   // sobre los 50 ideales, no sobre 10
       vict: st.vict,                      // victorias en la ventana
       der: st.der,                        // derrotas en la ventana
+      gGanados: st.gGanados,              // games ganados en total
+      gPerdidos: st.gTotal - st.gGanados, // games perdidos en total
       pctGames: st.gTotal > 0 ? (st.gGanados / st.gTotal) : null,      // % de games ganados
       nivelRivales: st.nRival > 0 ? (st.sumRival / st.nRival) : null   // rating medio de los rivales
     };
@@ -339,7 +341,7 @@ function renderRating(){
     box.innerHTML = `<div class="card"><div class="lock-note" style="padding:1rem 0;text-align:center">${t('rating_empty')}</div></div>`;
     return;
   }
-  const det = _ratingDetalle;   // si el detalle está desplegado
+  const yo = currentUser ? currentUser.name : null;
   const rows = filas.map((f,i)=>{
     const pos = i+1;
     const medal = pos===1?'pos-1':pos===2?'pos-2':pos===3?'pos-3':'';
@@ -348,54 +350,56 @@ function renderRating(){
     const accion = admin
       ? `<td class="rt-actions"><button class="btn btn-sm" onclick="abrirAjusteRating('${jsq(f.name)}')"><i class="ti ti-adjustments"></i> ${t('rt_adjust')}</button></td>`
       : '';
-    // Columnas de detalle (transparencia del cálculo)
-    const colsDet = det ? `
-      <td class="rt-d">${f.seed!=null?f.seed.toFixed(2):'<span class="rt-none">·</span>'}</td>
-      <td class="rt-d">${f.manual?f.ratingCalculado.toFixed(2):'<span class="rt-none">·</span>'}</td>
-      <td class="rt-d">${f.vict}-${f.der}</td>
-      <td class="rt-d">${f.pctGames!=null?Math.round(f.pctGames*100)+'%':'·'}</td>
-      <td class="rt-d">${f.nivelRivales!=null?f.nivelRivales.toFixed(2):'·'}</td>
-      <td class="rt-d">${f.fiab}%</td>` : '';
-    return `<tr>
+    const meRow = (yo && f.name===yo) ? ' me-row' : '';
+    return `<tr class="${meRow}">
       <td><span class="pos-badge ${medal}">${pos}</span></td>
       <td class="rt-name"><span class="avatar">${getInitials(f.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(f.name)}')">${attr(f.name)}</span></td>
       <td class="rt-big">${f.rating.toFixed(2)}${prov}${manual}</td>
       <td class="rt-pj">${f.partidos}</td>
-      ${colsDet}
+      <td class="rt-d">${f.seed!=null?f.seed.toFixed(2):'<span class="rt-none">·</span>'}</td>
+      <td class="rt-d">${f.manual?f.ratingCalculado.toFixed(2):'<span class="rt-none">·</span>'}</td>
+      <td class="rt-d">${f.vict}-${f.der}</td>
+      <td class="rt-d rt-gg">${f.gGanados}</td>
+      <td class="rt-d rt-gp">${f.gPerdidos}</td>
+      <td class="rt-d">${f.pctGames!=null?Math.round(f.pctGames*100)+'%':'·'}</td>
+      <td class="rt-d">${f.nivelRivales!=null?f.nivelRivales.toFixed(2):'·'}</td>
+      <td class="rt-d">${f.fiab}%</td>
       ${accion}
     </tr>`;
   }).join('');
   const thAcc = admin ? `<th>${t('rt_adjust')}</th>` : '';
-  const thDet = det ? `
-      <th title="${t('rt_seed_lbl')}">${t('rt_col_seed')}</th>
-      <th title="${t('rt_calc_now')}">${t('rt_col_calc')}</th>
-      <th title="${t('rt_col_vd_t')}">${t('rt_col_vd')}</th>
-      <th title="${t('rt_col_pct_t')}">${t('rt_col_pct')}</th>
-      <th title="${t('rt_col_riv_t')}">${t('rt_col_riv')}</th>
-      <th title="${t('rt_col_fiab_t')}">${t('rt_col_fiab')}</th>` : '';
-  const btnDet = `<button class="btn btn-sm" onclick="toggleRatingDetalle()"><i class="ti ti-${det?'eye-off':'eye'}"></i> ${det?t('rt_hide_detail'):t('rt_show_detail')}</button>`;
   box.innerHTML = `
     <div class="card">
       <div class="rt-header">
         <div><h3 style="margin:0">${t('rating_title')}</h3><div class="rt-sub">${t('rt_desc_utr')}</div></div>
-        <div>${btnDet}</div>
       </div>
       <div class="table-wrap">
         <table class="tbl rt-table">
-          <thead><tr><th>#</th><th>${t('player')}</th><th>${t('rating_col')}</th><th>${t('rt_pj')}</th>${thDet}${thAcc}</tr></thead>
+          <thead><tr>
+            <th>#</th><th>${t('player')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
+            <th title="${t('rt_seed_lbl')}">${t('rt_col_seed')}</th>
+            <th title="${t('rt_calc_now')}">${t('rt_col_calc')}</th>
+            <th title="${t('rt_col_vd_t')}">${t('rt_col_vd')}</th>
+            <th title="${t('rt_col_gg_t')}">${t('rt_col_gg')}</th>
+            <th title="${t('rt_col_gp_t')}">${t('rt_col_gp')}</th>
+            <th title="${t('rt_col_pct_t')}">${t('rt_col_pct')}</th>
+            <th title="${t('rt_col_riv_t')}">${t('rt_col_riv')}</th>
+            <th title="${t('rt_col_fiab_t')}">${t('rt_col_fiab')}</th>
+            ${thAcc}
+          </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
-      ${det ? `<div class="rt-detail-help">${t('rt_detail_help')}</div>` : ''}
+      <div class="rt-howto">
+        <div class="rt-howto-t"><i class="ti ti-info-circle"></i> ${t('rt_howto_title')}</div>
+        <div class="rt-howto-b">${t('rt_howto_body')}</div>
+      </div>
       <div class="rt-legend">
         <span><span class="rt-prov">${t('rt_prov')}</span> ${t('rt_prov_leg')}</span>
         <span><span class="rt-manual">${t('rt_manual')}</span> ${t('rt_manual_leg')}</span>
       </div>
     </div>`;
 }
-// Toggle del detalle del cálculo en la pestaña de rating.
-let _ratingDetalle = false;
-function toggleRatingDetalle(){ _ratingDetalle = !_ratingDetalle; renderRating(); }
 
 function abrirAjusteRating(name){
   const info = ratingUTRDe(name) || {};
@@ -459,7 +463,6 @@ window.ciclosDeJugador = ciclosDeJugador;
 window.tablaRating = tablaRating;
 window.ratingDe = ratingDe;
 window.renderRating = renderRating;
-window.toggleRatingDetalle = toggleRatingDetalle;
 window.abrirAjusteRating = abrirAjusteRating;
 window.guardarAjusteRating = guardarAjusteRating;
 window.ratingFichaHTML = ratingFichaHTML;
