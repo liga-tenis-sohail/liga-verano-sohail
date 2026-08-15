@@ -161,9 +161,9 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
   /* Rating UTR */
   .rt-prov{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
   .rt-manual{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#5b21b6;background:#ede9fe;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
-  .rt-big{font-size:16px;font-weight:800;color:var(--pri);font-variant-numeric:tabular-nums}
+  .rt-big{font-weight:800;color:var(--pri);font-variant-numeric:tabular-nums}
   .rt-table th,.rt-table td{vertical-align:middle}
-  .rt-pj{text-align:center;color:var(--text2);font-size:13px}
+  .rt-pj{text-align:center}
   .rt-actions{text-align:right}
   .rt-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
   .rt-sub{font-size:12px;color:var(--text2);margin:0 0 .5rem;max-width:680px;line-height:1.55}
@@ -171,7 +171,7 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
   .rt-adj-calc{background:var(--hover,#f1f5f9);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);margin-bottom:14px}
   .rt-adj-lbl{display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:3px}
   .rt-adj-hint{font-size:11px;color:var(--text2);margin-bottom:6px;line-height:1.5}
-  .rt-d{text-align:center;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rt-d{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
   .rt-detail-help{font-size:11px;color:var(--text2);background:var(--hover,#f1f5f9);border-radius:8px;padding:9px 12px;margin-top:10px;line-height:1.6}
   .rt-table th,.rt-table td{padding-left:10px;padding-right:10px}
   .rt-table th:first-child,.rt-table td:first-child{padding-left:8px}
@@ -184,20 +184,19 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
   .rt-howto-b{font-size:11.5px;color:var(--text2);line-height:1.65}
   .rt-cols-leg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:10px;font-size:11px;color:var(--text2)}
   .rt-cols-leg b{color:var(--text);font-weight:700}
-  /* Header fijo (sticky) para rating y clasificación — mismo estilo azul */
-  .rt-table thead th, .gen-table thead th{
-    position:sticky; top:0; z-index:5;
-    background:var(--soft); color:var(--pri); font-weight:700;
-    box-shadow:inset 0 -2px 0 var(--soft);
+  /* Header fijo (sticky) para rating y clasificación — mismo estilo azul.
+     Funciona en desktop Y móvil: el contenedor scrollea (x e y) con una
+     altura máxima, y el thead se pega al tope de ESE contenedor. */
+  #view-rating .overflow-x, #view-general .overflow-x{
+    max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch;
   }
-  /* Filas el doble de alto (más aire vertical) en ambas tablas */
-  .rt-table td, .gen-table td{ padding-top:11px; padding-bottom:11px; }
-  .rt-table thead th, .gen-table thead th{ padding-top:9px; padding-bottom:9px; }
-  /* Textos y números del rating en el azul oscuro de la liga */
-  .rt-big{ color:var(--pri); font-weight:800; font-size:15px; }
-  .rt-d{ color:var(--pri); }
-  .rt-pj{ color:var(--pri); }
-  .rt-table td:nth-child(2){ color:var(--pri); }
+  .rt-table thead th, .gen-table thead th{
+    position:-webkit-sticky; position:sticky; top:0; z-index:5;
+    background:var(--soft); color:var(--pri); font-weight:700;
+  }
+  /* Línea inferior del header que no desaparece al scrollear */
+  .rt-table thead th, .gen-table thead th{ border-bottom:2px solid var(--soft); }
+  /* El rating hereda TODO de gen-table para ser idéntico */
   .rt-ficha{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--pri),var(--pri-dark,#1e3a8a));color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px}
   .rt-ficha-num{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
   .rt-ficha-side{flex:1}
@@ -362,7 +361,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .rt-table th{white-space:nowrap;cursor:help}
 .rt-table td{white-space:nowrap}
 .rt-name{text-align:left!important}
-.rt-big{font-weight:800;color:var(--priD);font-size:1.05em}.err-txt{color:#c0392b!important;font-style:normal}
+.rt-big{font-weight:800;color:var(--pri)}.err-txt{color:#c0392b!important;font-style:normal}
 .nm-link{cursor:pointer;border-bottom:1px dotted currentColor}.nm-link:hover{opacity:.6}
 .hist-row .avatar{margin-right:6px}
 .avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;margin-right:5px;background:var(--soft);color:var(--pri)}
