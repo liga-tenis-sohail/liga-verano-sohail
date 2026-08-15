@@ -238,7 +238,8 @@ async function _handlerSave(req, res){
   // Lo peor que puede pasar es que la liga quede fea, y se deshace en un click.
   if(!admin){
     const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LEAGUE_COLOR_PRI',
-                       'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON'];
+                       'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON',
+                         'RATING_SEEDS','RATING_OVERRIDES'];
     for(const k of COSMETICO){
       if(JSON.stringify(incoming[k]) !== JSON.stringify(current[k])){
         return res.status(403).json({ error: 'Solo un administrador puede cambiar la apariencia de la liga.' });
