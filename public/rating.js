@@ -370,11 +370,10 @@ function renderRating(){
   const thAcc = admin ? `<th>${t('rt_adjust')}</th>` : '';
   box.innerHTML = `
     <div class="card">
-      <div class="rt-header">
-        <div><h3 style="margin:0">${t('rating_title')}</h3><div class="rt-sub">${t('rt_desc_utr')}</div></div>
-      </div>
-      <div class="table-wrap">
-        <table class="tbl rt-table">
+      <div class="section-lbl">${t('rating_title')}</div>
+      <div class="rt-sub">${t('rt_desc_utr')}</div>
+      <div class="table-wrap overflow-x">
+        <table class="gen-table rt-table">
           <thead><tr>
             <th>#</th><th>${t('player')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
             <th title="${t('rt_seed_lbl')}">${t('rt_col_seed')}</th>
@@ -389,6 +388,18 @@ function renderRating(){
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
+      </div>
+      <div class="rt-cols-leg">
+        <span><b>${t('rating_col')}</b> ${t('rt_leg_rating')}</span>
+        <span><b>${t('rt_pj')}</b> ${t('rt_leg_pj')}</span>
+        <span><b>${t('rt_col_seed')}</b> ${t('rt_leg_seed')}</span>
+        <span><b>${t('rt_col_calc')}</b> ${t('rt_leg_calc')}</span>
+        <span><b>${t('rt_col_vd')}</b> ${t('rt_leg_vd')}</span>
+        <span><b>${t('rt_col_gg')}</b> ${t('rt_leg_gg')}</span>
+        <span><b>${t('rt_col_gp')}</b> ${t('rt_leg_gp')}</span>
+        <span><b>${t('rt_col_pct')}</b> ${t('rt_leg_pct')}</span>
+        <span><b>${t('rt_col_riv')}</b> ${t('rt_leg_riv')}</span>
+        <span><b>${t('rt_col_fiab')}</b> ${t('rt_leg_fiab')}</span>
       </div>
       <div class="rt-howto">
         <div class="rt-howto-t"><i class="ti ti-info-circle"></i> ${t('rt_howto_title')}</div>
