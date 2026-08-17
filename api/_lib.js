@@ -339,5 +339,6 @@ module.exports = {
   // Sistema unificado (Fase 1):
   LIGA_DEFAULT, ligaIdOK,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador,
-  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga
+  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga,
+  supaHeaders, SUPA_URL
 };
