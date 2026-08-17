@@ -2080,17 +2080,32 @@ async function activarPasskey(){
   if(!_token){ toast(t('pk_need_login')); return; }
   try{
     // 1) Pedir opciones de registro (requiere token del login con clave)
-    const r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-start'})});
-    const opts=await r1.json();
-    if(!r1.ok) throw new Error(opts.error||'No se pudo iniciar el registro.');
+    let r1, opts;
+    try{
+      r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-start'})});
+    }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 1). ¿Está subido /api/passkey?'); }
+    const txt1=await r1.text();
+    try{ opts=JSON.parse(txt1); }catch(_){ throw new Error('El servidor no respondió bien (paso 1). Código '+r1.status+'. ¿Falta el package.json o la librería en Vercel?'); }
+    if(!r1.ok) throw new Error((opts&&opts.error)||('Error del servidor al iniciar (código '+r1.status+').'));
     // 2) El dispositivo crea la passkey (aparece el Face ID / Touch ID)
-    const cred=await SimpleWebAuthnBrowser.startRegistration({optionsJSON:opts});
+    let cred;
+    try{
+      cred=await SimpleWebAuthnBrowser.startRegistration({optionsJSON:opts});
+    }catch(devErr){
+      if(devErr&&devErr.name==='NotAllowedError'){ toast(t('pk_cancelled')); return; }
+      if(devErr&&devErr.name==='InvalidStateError'){ toast('Este dispositivo ya tiene una passkey registrada para tu cuenta.'); return; }
+      throw new Error('El dispositivo no pudo crear la passkey: '+(devErr&&devErr.message||devErr&&devErr.name||'desconocido'));
+    }
     // 3) Un nombre para reconocer el dispositivo
     const deviceLabel=navigator.platform||navigator.userAgent.slice(0,40)||'Mi dispositivo';
     // 4) Guardar en el servidor
-    const r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-finish',cred,deviceLabel})});
-    const d=await r2.json();
-    if(!r2.ok) throw new Error(d.error||'No se pudo guardar.');
+    let r2, d;
+    try{
+      r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-finish',cred,deviceLabel})});
+    }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 4).'); }
+    const txt2=await r2.text();
+    try{ d=JSON.parse(txt2); }catch(_){ throw new Error('El servidor no respondió bien al guardar (paso 4). Código '+r2.status+'. ¿Creaste la tabla passkeys en Supabase?'); }
+    if(!r2.ok) throw new Error((d&&d.error)||('Error al guardar la passkey (código '+r2.status+').'));
     toast(t('pk_activated'));
     try{ localStorage.setItem('pk_hint','1'); }catch(_){}
   }catch(err){
@@ -4950,7 +4965,10 @@ function renderPlayerList(players, filter) {
         <div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem;background:var(--surface)">
         <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-user"></i> Perfil del jugador</div>
         <div class="form-row">
-          <div class="form-group"><label>Nombre completo</label><input type="text" id="pe-name-${attr(p.name)}" value="${attr(p.name)}"></div>
+          <div class="form-group"><label>Nombre</label><input type="text" id="pe-nombre-${attr(p.name)}" value="${attr(p.nombre!=null?p.nombre:_splitNom(p.name).nombre)}"></div>
+          <div class="form-group"><label>Apellido</label><input type="text" id="pe-apellido-${attr(p.name)}" value="${attr(p.apellido!=null?p.apellido:_splitNom(p.name).apellido)}"></div>
+        </div>
+        <div class="form-row">
           <div class="form-group"><label>Email</label><input type="email" id="pe-email-${attr(p.name)}" value="${attr(p.email||'')}"></div>
         </div>
         <div class="form-row">
@@ -5066,9 +5084,21 @@ function renamePlayerEverywhere(oldName,newName){
   }
 }
 
+// Separa un nombre completo en {nombre, apellido} para jugadores que ya existen
+// (los que se crearon antes de tener campos separados). La primera palabra es el
+// nombre; el resto, el apellido. Es solo un valor inicial editable por el admin.
+function _splitNom(full){
+  const partes=(full||'').trim().split(/\s+/);
+  if(partes.length<=1) return { nombre: partes[0]||'', apellido: '' };
+  return { nombre: partes[0], apellido: partes.slice(1).join(' ') };
+}
+
 function savePlayerAdmin(oldName){
   if(esCuentaSistema(oldName)){toast('No se puede editar al administrador desde aquí.');return;}
-  const newName=(document.getElementById('pe-name-'+oldName).value||'').trim();
+  const nombre=(document.getElementById('pe-nombre-'+oldName).value||'').trim();
+  const apellido=(document.getElementById('pe-apellido-'+oldName).value||'').trim();
+  // El nombre completo (identidad del jugador) es la unión de ambos.
+  const newName=(nombre+' '+apellido).trim().replace(/\s+/g,' ');
   const email=(document.getElementById('pe-email-'+oldName).value||'').trim();
   const tel=(document.getElementById('pe-tel-'+oldName).value||'').trim();
   const grpEl=document.getElementById('pe-grp-'+oldName);
@@ -5078,7 +5108,7 @@ function savePlayerAdmin(oldName){
   const loc=findLoc(oldName,activeN);
   if(loc&&!isNaN(newGrp)&&loc.g!==newGrp){movePlayer(oldName,loc.g,newGrp);}
   else if(!loc&&!isNaN(newGrp)){addPlayerToCycle(oldName,newGrp);}
-  u.email=email;u.tel=tel;
+  u.email=email;u.tel=tel;u.nombre=nombre;u.apellido=apellido;
   if(newName!==oldName){
     if(USERS[newName]){toast('Ya existe un jugador llamado "'+newName+'". Elegí otro nombre.');renderPerfil();return;}
     renamePlayerEverywhere(oldName,newName);
