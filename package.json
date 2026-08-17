@@ -1,0 +1,9 @@
+{
+  "name": "liga-tenis-sohail",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Liga de Tenis Sohail — app de gestión de liga con rating estilo UTR y login con passkeys.",
+  "dependencies": {
+    "@simplewebauthn/server": "13.3.2"
+  }
+}
