@@ -20,6 +20,7 @@ const UTR_PROV = 15;           // partidos para dejar de ser provisional
 const UTR_DECAY = 0.97;        // recencia: peso = DECAY^(antigüedad en partidos)
 const UTR_STB_PESO = 0.4;      // un supertiebreak pesa como 0.4 de un set normal
 const UTR_VENTANA = 50;        // solo los últimos N partidos de cada jugador (sin límite de tiempo)
+const UTR_GRUPO_PESO = 5;      // cuánto tira el grupo con 0 partidos (se diluye a 0 hacia UTR_PROV)
 const UTR_ITER = 60, UTR_K = 0.35;
 
 // Marca, para cada partido, si entra en la ventana de últimos UTR_VENTANA de
@@ -40,6 +41,23 @@ function utrMarcarVentana(partidos, jugadores){
 
 // % de games esperado para A según la diferencia de rating con B (logística)
 function utrExpected(rA, rB){ return 1 / (1 + Math.pow(10, -(rA - rB) / UTR_ESCALA)); }
+
+// Rating "esperado" para un grupo. Grupos van de 1 (mejor) a totalGrupos (peor).
+// Grupo 1 arranca alto, el último grupo arranca bajo. Sirve de seed automático
+// para que un jugador nuevo de grupo alto no quede por debajo de uno de grupo bajo.
+function grupoASeed(grupo, totalGrupos){
+  if(!grupo || grupo < 1 || !totalGrupos) return null;
+  if(totalGrupos <= 1) return (UTR_MIN + UTR_MAX) / 2;
+  const techo = UTR_MAX - 2;   // el grupo 1 arranca acá (~14)
+  const piso  = UTR_MIN + 2;   // el último grupo arranca acá (~3)
+  const t = Math.min(1, (grupo - 1) / (totalGrupos - 1));  // 0 (grupo1) .. 1 (último)
+  return techo - t * (techo - piso);
+}
+// Cuánto pesa el seed de grupo según los partidos jugados: fuerte al principio,
+// se diluye a 0 hacia UTR_PROV (15) partidos, para que después mande el juego real.
+function pesoGrupoSeed(nPartidos){
+  return Math.max(0, UTR_GRUPO_PESO - nPartidos * (UTR_GRUPO_PESO / UTR_PROV));
+}
 
 // Extrae de un partido los games de cada lado y si tuvo supertiebreak.
 // sets = [[6,4],[3,6],[1,0]] → los 2 primeros son sets, el 3ro (si está) es STB.
@@ -91,10 +109,17 @@ function utrPartidosDeEstado(estado){
 //   semillas: {jugador: valor} punto de partida que da el admin (opcional)
 //   overrides: {jugador: valor} rating FIJO puesto a mano por el admin (opcional).
 //     Si un jugador tiene override, ese valor manda y reemplaza el calculado.
-function utrCalcular(jugadores, partidos, semillas, overrides){
+function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
   overrides = overrides || {};
+  grupos = grupos || {};
   const R = {};
-  jugadores.forEach(j => R[j] = (semillas && semillas[j] != null) ? semillas[j] : 8);
+  // Inicializar: si hay seed manual usa eso; si no, si hay grupo usa el seed de grupo; si no, 8.
+  jugadores.forEach(j => {
+    if(semillas && semillas[j] != null){ R[j] = semillas[j]; return; }
+    const gi = grupos[j];
+    const sg = gi ? grupoASeed(gi.grupo, gi.totalGrupos) : null;
+    R[j] = (sg != null) ? sg : 8;
+  });
 
   // Marca qué partidos entran en la ventana de últimos 50 de cada jugador.
   const marca = utrMarcarVentana(partidos, jugadores);
@@ -139,10 +164,19 @@ function utrCalcular(jugadores, partidos, semillas, overrides){
       const nP = idxPorJugador[j].length;
       if(pes[j] > 0){
         let target = acc[j] / pes[j];
-        // La semilla actúa como un "partido virtual" que se diluye con más partidos.
+        // La semilla manual actúa como un "partido virtual" que se diluye con más partidos.
         if(semillas && semillas[j] != null){
           const pesoSemilla = Math.max(0, 3 - nP * 0.3); // ~3 al inicio → 0 tras 10 partidos
           if(pesoSemilla > 0) target = (target * pes[j] + semillas[j] * pesoSemilla) / (pes[j] + pesoSemilla);
+        } else {
+          // Si NO hay seed manual, el GRUPO actúa como seed automático:
+          // ubica al jugador según su grupo y se diluye con los partidos.
+          const gi = grupos[j];
+          const sg = gi ? grupoASeed(gi.grupo, gi.totalGrupos) : null;
+          if(sg != null){
+            const pesoG = pesoGrupoSeed(nP);
+            if(pesoG > 0) target = (target * pes[j] + sg * pesoG) / (pes[j] + pesoG);
+          }
         }
         R[j] = R[j] * (1 - UTR_K) + target * UTR_K;
         R[j] = Math.max(UTR_MIN, Math.min(UTR_MAX, R[j]));
@@ -235,8 +269,22 @@ async function calcularRatingGlobal(force){
     todos.forEach(p=>{ setJ[p.a]=1; setJ[p.b]=1; });
     Object.keys(USERS||{}).forEach(n=>{ if(!esCuentaSistema(n)) setJ[n]=1; });
     const jugadores = Object.keys(setJ);
-    // 5) Calcular con seeds y overrides del admin
-    const info = utrCalcular(jugadores, todos, _ratingSeeds(), _ratingOverrides());
+    // 4b) Mapa de grupos: grupo actual de cada jugador en el ciclo activo de la
+    //     liga en memoria. Sirve para que el grupo influya en el rating (un grupo
+    //     alto no queda por debajo de uno bajo, sobre todo con pocos partidos).
+    const grupos = {};
+    try{
+      const cyc = (typeof cycles!=='undefined' && cycles) ? cycles[activeN-1] : null;
+      const totalG = (cyc && cyc.groups) ? cyc.groups.length : 0;
+      if(totalG > 0){
+        jugadores.forEach(n=>{
+          const loc = (typeof findLoc==='function') ? findLoc(n, activeN) : null;
+          if(loc && loc.g) grupos[n] = { grupo: loc.g, totalGrupos: totalG };
+        });
+      }
+    }catch(_){}
+    // 5) Calcular con seeds, overrides del admin y el grupo de cada jugador
+    const info = utrCalcular(jugadores, todos, _ratingSeeds(), _ratingOverrides(), grupos);
     _ratingCache = { info, ts: new Date() };
     return _ratingCache;
   } finally {
@@ -346,6 +394,13 @@ function renderRating(){
   const rows = filas.map((f,i)=>{
     const pos = i+1;
     const posCls = pc[i]||'pn';
+    // Grupo dinámico: ubicación del jugador en el ciclo ACTUALMENTE activo.
+    // Si el ciclo cambia (se cierra el 2 y se abre el 3), esto se actualiza solo.
+    let grpTxt = '<span class="gen-dash">—</span>';
+    try{
+      const loc = (typeof findLoc==='function') ? findLoc(f.name, activeN) : null;
+      if(loc && loc.g) grpTxt = 'C'+activeN+' · G'+loc.g;
+    }catch(_){}
     const prov = f.provisional ? `<span class="rt-prov" title="${t('rt_prov_t')}">${t('rt_prov')}</span>` : '';
     const accion = admin
       ? `<td><button class="btn btn-sm" onclick="abrirAjusteRating('${jsq(f.name)}')"><i class="ti ti-adjustments"></i> ${t('rt_adjust')}</button></td>`
@@ -354,6 +409,7 @@ function renderRating(){
     return `<tr class="${me}">`
       + `<td><span class="pos ${posCls}">${pos}</span></td>`
       + `<td><span class="avatar">${getInitials(f.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(f.name)}')">${attr(f.name)}</span></td>`
+      + `<td class="rt-grp">${grpTxt}</td>`
       + `<td><strong>${f.rating.toFixed(2)}</strong>${prov}</td>`
       + `<td>${f.partidos}</td>`
       + `<td>${f.seed!=null?f.seed.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
@@ -374,7 +430,7 @@ function renderRating(){
       <div class="overflow-x">
         <table class="gen-table rt-table">
           <thead><tr>
-            <th>#</th><th>${t('player')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
+            <th>#</th><th>${t('player')}</th><th title="${t('rt_grp_t')}">${t('rt_grp')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
             <th title="${t('rt_seed_lbl')}">${t('rt_col_seed')}</th>
             <th title="${t('rt_col_vd_t')}">${t('rt_col_vd')}</th>
             <th title="${t('rt_col_gg_t')}">${t('rt_col_gg')}</th>
