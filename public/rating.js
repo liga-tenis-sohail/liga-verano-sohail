@@ -16,7 +16,7 @@
 // Constantes del rating (ajustables desde un solo lugar)
 const UTR_MIN = 1, UTR_MAX = 16;
 const UTR_ESCALA = 4;          // puntos UTR por "década" de la curva logística
-const UTR_PROV = 10;           // partidos para dejar de ser provisional
+const UTR_PROV = 15;           // partidos para dejar de ser provisional
 const UTR_DECAY = 0.97;        // recencia: peso = DECAY^(antigüedad en partidos)
 const UTR_STB_PESO = 0.4;      // un supertiebreak pesa como 0.4 de un set normal
 const UTR_VENTANA = 50;        // solo los últimos N partidos de cada jugador (sin límite de tiempo)
@@ -347,7 +347,6 @@ function renderRating(){
     const pos = i+1;
     const posCls = pc[i]||'pn';
     const prov = f.provisional ? `<span class="rt-prov" title="${t('rt_prov_t')}">${t('rt_prov')}</span>` : '';
-    const manual = f.manual ? `<span class="rt-manual" title="${t('rt_manual_t')}">${t('rt_manual')}</span>` : '';
     const accion = admin
       ? `<td><button class="btn btn-sm" onclick="abrirAjusteRating('${jsq(f.name)}')"><i class="ti ti-adjustments"></i> ${t('rt_adjust')}</button></td>`
       : '';
@@ -355,10 +354,9 @@ function renderRating(){
     return `<tr class="${me}">`
       + `<td><span class="pos ${posCls}">${pos}</span></td>`
       + `<td><span class="avatar">${getInitials(f.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(f.name)}')">${attr(f.name)}</span></td>`
-      + `<td><strong>${f.rating.toFixed(2)}</strong>${prov}${manual}</td>`
+      + `<td><strong>${f.rating.toFixed(2)}</strong>${prov}</td>`
       + `<td>${f.partidos}</td>`
       + `<td>${f.seed!=null?f.seed.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
-      + `<td>${f.manual?f.ratingCalculado.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
       + `<td>${f.vict}-${f.der}</td>`
       + `<td class="rt-gg">${f.gGanados}</td>`
       + `<td class="rt-gp">${f.gPerdidos}</td>`
@@ -378,7 +376,6 @@ function renderRating(){
           <thead><tr>
             <th>#</th><th>${t('player')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
             <th title="${t('rt_seed_lbl')}">${t('rt_col_seed')}</th>
-            <th title="${t('rt_calc_now')}">${t('rt_col_calc')}</th>
             <th title="${t('rt_col_vd_t')}">${t('rt_col_vd')}</th>
             <th title="${t('rt_col_gg_t')}">${t('rt_col_gg')}</th>
             <th title="${t('rt_col_gp_t')}">${t('rt_col_gp')}</th>
@@ -394,7 +391,6 @@ function renderRating(){
         <span><b>${t('rating_col')}</b> ${t('rt_leg_rating')}</span>
         <span><b>${t('rt_pj')}</b> ${t('rt_leg_pj')}</span>
         <span><b>${t('rt_col_seed')}</b> ${t('rt_leg_seed')}</span>
-        <span><b>${t('rt_col_calc')}</b> ${t('rt_leg_calc')}</span>
         <span><b>${t('rt_col_vd')}</b> ${t('rt_leg_vd')}</span>
         <span><b>${t('rt_col_gg')}</b> ${t('rt_leg_gg')}</span>
         <span><b>${t('rt_col_gp')}</b> ${t('rt_leg_gp')}</span>
@@ -408,7 +404,6 @@ function renderRating(){
       </div>
       <div class="rt-legend">
         <span><span class="rt-prov">${t('rt_prov')}</span> ${t('rt_prov_leg')}</span>
-        <span><span class="rt-manual">${t('rt_manual')}</span> ${t('rt_manual_leg')}</span>
       </div>
     </div>`;
 }
@@ -455,11 +450,10 @@ function ratingFichaHTML(name){
   const r = ratingUTRDe(name);
   if(!r || typeof r.rating !== 'number') return '';
   const prov = r.provisional ? `<span class="rt-prov">${t('rt_prov')}</span>` : '';
-  const manual = r.manual ? `<span class="rt-manual">${t('rt_manual')}</span>` : '';
   return `<div class="rt-ficha">
     <div class="rt-ficha-num">${r.rating.toFixed(2)}</div>
     <div class="rt-ficha-side">
-      <div class="rt-ficha-lbl">${t('rating_title')} ${prov}${manual}</div>
+      <div class="rt-ficha-lbl">${t('rating_title')} ${prov}</div>
       <div class="rt-ficha-sub">${r.partidos} ${t('rt_pj_lc')} · ${t('rt_scale')}</div>
     </div>
   </div>`;
