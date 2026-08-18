@@ -1,4 +1,8 @@
 <!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script>(function(){try{
+  // Tema: leer preferencia del usuario y aplicar ANTES del primer paint (sin flash).
+  // Valores: 'light' | 'dark' | 'system' (default). Se guarda por dispositivo.
+  var tm=localStorage.getItem('theme');
+  if(tm==='light'||tm==='dark'){document.documentElement.setAttribute('data-theme',tm);}
   // Restaurar colores sin flash
   var c=JSON.parse(localStorage.getItem('lsc')||'null');
   if(c&&c.p&&c.a){var r=document.documentElement.style;r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);r.setProperty('--soft',c.s||'#E6F1FB');r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);r.setProperty('--accT',c.at||c.p);r.setProperty('--winrow',c.wr||'#FAEEDA');r.setProperty('--cream',c.cr||'#fffbf0');r.setProperty('--hl',c.hl||'#FFEDD5');}
@@ -15,15 +19,58 @@
 --success:#16a34a;--successBg:#dcfce7;--successT:#166534;
 --warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
 --hover:rgba(0,0,0,.04);--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
---ring:0 0 0 3px rgba(27,79,156,.15)}
+--ring:0 0 0 3px rgba(27,79,156,.15);
+/* Tokens agregados post-tanda 3 para arreglar el dark mode:
+   - reqBg/reqBorder: fondo cream + borde negro del bloque "Reportar resultado" cuando falta info
+   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo está vacío
+   - meRowText: color del texto en la fila destacada del usuario logueado (era priD hardcoded, invisible en dark)
+   - btnLightBg: fondo claro para botoncitos "sobre-blanco" (borrar en playoff bracket, recargar en errores) */
+--reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--reqEmptyBorder:var(--danger);
+--meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626}
 
-/* Dark mode automático: se activa según la preferencia del sistema operativo.
+/* ==== Toggle manual de tema (data-theme) — sobreescribe prefers-color-scheme.
+   El script en <head> lee localStorage al inicio y setea data-theme en <html>
+   ANTES del primer paint, así no hay flash. */
+
+/* Cuando el usuario elige explícitamente "claro", forzamos light aunque el OS
+   esté en oscuro. */
+html[data-theme="light"]{
+  --bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;
+  --border:#e2e7ef;--border2:#c8d0dc;--soft:#E6F1FB;--winrow:#FAEEDA;--hl:#FFEDD5;
+  --dangerBg:#FCEBEB;--dangerT:#791F1F;--successBg:#dcfce7;--successT:#166534;
+  --warnBg:#fef3c7;--warnT:#92400e;--hover:rgba(0,0,0,.04);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
+  --ring:0 0 0 3px rgba(27,79,156,.15);
+  --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--meRowText:var(--priD);
+  --cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+}
+html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+
+/* Cuando el usuario elige "oscuro" explícito */
+html[data-theme="dark"]{
+  --bg:#0f172a;--surface:#1e293b;--surface2:#172033;--text:#f1f5f9;--text2:#94a3b8;
+  --border:#334155;--border2:#475569;--soft:#1e3a5f;--winrow:#3d2f14;--hl:#3d2a14;
+  --dangerBg:#4a1d1d;--dangerT:#fca5a5;--successBg:#14361f;--successT:#86efac;
+  --warnBg:#3d2a10;--warnT:#fcd34d;--hover:rgba(255,255,255,.06);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow-md:0 4px 12px rgba(0,0,0,.5);--shadow-lg:0 18px 50px rgba(0,0,0,.6);
+  --ring:0 0 0 3px rgba(27,79,156,.35);
+  /* Los tokens nuevos, adaptados a dark: el cream ámbar de .req pasa a marrón
+     oscuro con borde ámbar; el texto sobre me-row usa amarillo accent para que
+     contraste sobre el marrón; los botoncitos "sobre-blanco" se invierten. */
+  --reqBg:#2a2415;--reqBorder:var(--acc);--reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+  --meRowText:var(--acc);--cream:#2a2415;
+  --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
+}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+
+/* Dark mode automático: se activa según la preferencia del sistema operativo
+   SOLO cuando el usuario no forzó un tema manual (no hay data-theme).
    Solo cambiamos los tokens de "chrome" (fondo, texto, bordes, sombras).
    Los colores de identidad (--pri, --acc, colores de club) se mantienen para
    preservar la marca. Los estados semánticos (--danger/success/warn) se aclaran
    un pelo para conservar contraste sobre fondos oscuros. */
 @media (prefers-color-scheme: dark){
-  :root{
+  html:not([data-theme]){
     --bg:#0f172a;
     --surface:#1e293b;
     --surface2:#172033;
@@ -45,11 +92,14 @@
     --shadow-md:0 4px 12px rgba(0,0,0,.5);
     --shadow-lg:0 18px 50px rgba(0,0,0,.6);
     --ring:0 0 0 3px rgba(27,79,156,.35);
+    --reqBg:#2a2415;--reqBorder:var(--acc);--reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+    --meRowText:var(--acc);--cream:#2a2415;
+    --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
   }
   /* Los colores de club se mantienen claros y el texto sigue calculándose con
      deepColor() (siempre oscuro sobre fondo claro): quedan como "islas" de color
      de identidad. Los inputs invierten para que se lea el texto. */
-  input,select,textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+  html:not([data-theme]) input,html:not([data-theme]) select,html:not([data-theme]) textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
   /* Imágenes con fondos claros no se invierten (para no romper logos ni fotos) */
 }
 
@@ -372,7 +422,11 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .cls-table td,.gen-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
 .cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
 .cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
-.gen-table .me-row td{background:var(--winrow)}.cls-table .me-row td{background:var(--winrow)}.res-table .me-mtx{background:var(--winrow)!important;color:var(--priD)!important;font-weight:700}
+.gen-table .me-row td{background:var(--winrow)}.cls-table .me-row td{background:var(--winrow)}.res-table .me-mtx{background:var(--winrow)!important;color:var(--meRowText)!important;font-weight:700}
+/* En dark mode, el texto de las filas destacadas del usuario logueado (rating, clasificación, grupos)
+   pasa a color acento para contrastar con el fondo marrón oscuro de --winrow. */
+html[data-theme="dark"] .gen-table .me-row td,html[data-theme="dark"] .cls-table .me-row td,html[data-theme="dark"] .rt-table tr.me-row td{color:var(--meRowText)}
+@media (prefers-color-scheme: dark){html:not([data-theme]) .gen-table .me-row td,html:not([data-theme]) .cls-table .me-row td,html:not([data-theme]) .rt-table tr.me-row td{color:var(--meRowText)}}
 .gen-cyc{font-size:11px;color:var(--text2)}
 .gen-po{white-space:nowrap}
 .gen-dash{color:#c8d0dc}
@@ -397,9 +451,9 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
 .form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
 .form-group select,.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
-.req{border:2px solid #111!important;background:#FFFDF2!important}.req-empty,.req-empty input,.req-empty select{border:2px solid #c0392b!important;background:#fff4f3!important}
+.req{border:2px solid var(--reqBorder)!important;background:var(--reqBg)!important}.req-empty,.req-empty input,.req-empty select{border:2px solid var(--reqEmptyBorder)!important;background:var(--reqEmptyBg)!important}
 .reqmark{display:inline-block;color:#fff;background:var(--danger);font-size:9px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:5px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
-.req-wrap{border:2px dashed #111;border-radius:10px;padding:.6rem .7rem;background:#FFFDF2}
+.req-wrap{border:2px dashed var(--reqBorder);border-radius:10px;padding:.6rem .7rem;background:var(--reqBg)}
 .set-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .set-row label{font-size:12px;color:var(--text2);width:64px;flex-shrink:0;font-weight:600}
 .set-row input,.po-in{width:52px;padding:6px;text-align:center;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px}
@@ -482,7 +536,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 /* Round column spacing */
 .round+.round{margin-left:24px}
 .slot{display:flex;align-items:center;gap:5px;padding:6px 9px;font-size:12px;border-bottom:1px solid var(--border)}
-.slot:last-child{border-bottom:none}.slot.winner{background:var(--winrow);font-weight:700;color:var(--priD)}
+.slot:last-child{border-bottom:none}.slot.winner{background:var(--winrow);font-weight:700;color:var(--meRowText)}
 .slot.empty-slot{color:var(--text2);font-style:italic}.slot .nm{flex:1}
 .slot-foot{justify-content:space-between;background:var(--surface2)}.slot-center{justify-content:center}.slot-win{font-size:10px;color:#085041;font-weight:700}
 .seed{font-size:10px;color:var(--text2);min-width:16px}
@@ -800,7 +854,7 @@ pending_match:'Pendiente de juego',
 po_started_toast:'Play Offs iniciados.',po_confirmed_toast:'¡Play Offs iniciados! Ya son visibles para los jugadores.',po_preview_toast:'Previsualización lista. Ajustá los jugadores y confirmá el inicio.',po_need_3cycles:'Primero cerrá todos los ciclos.',po_seed_removed:'{name} quitado del Cuadro (pasa uno por bye).',po_seed_added:'{name} agregado al Cuadro.',po_choose_add:'Elegí un jugador para agregar.',po_report_no_players:'Ese partido todavía no tiene los dos jugadores.',po_locked:'Resultado ya validado. Solo el admin puede editarlo.',po_not_yours:'Solo los jugadores de ese partido (o el admin) pueden cargarlo.',po_validated:'Resultado de Play Off validado.',po_sent:'Resultado enviado. El admin lo validará.',
 stage_dates:'Fechas de las etapas',stage_dates_hint:'Para cada ronda elegí "Semana de juego" (rango desde–hasta) o "Fecha única".',single_date:'Fecha única',week_play:'Semana de juego',from_date:'Desde',until_date:'Hasta',
 round_final:'Final',round_semi:'Semifinales',round_quarters:'Cuartos',round_16:'Octavos',round_32:'16avos',round_64:'32avos',round_n:'Ronda {n}',
-my_profile:'My profile',full_name:'Nombre completo',email:'Email',phone:'Teléfono',save_data:'Guardar datos',change_password:'Cambiar contraseña',current_pass:'Contraseña actual',new_pass:'Nueva contraseña',repeat_pass:'Repetir nueva contraseña',save_pass:'Guardar contraseña',pass_wrong:'La contraseña actual no es correcta.',pass_short:'La nueva contraseña debe tener al menos 4 caracteres.',pass_no_match:'Las contraseñas nuevas no coinciden.',pass_ok:'✓ Contraseña actualizada.',profile_saved:'✓ Datos actualizados.',name_empty:'Name cannot be empty.',name_exists:'Ya existe un jugador con ese nombre.',role_admin:'Administrador',role_player:'Jugador',current_group_label:'Grupo actual',pk_section:'Ingreso rápido sin contraseña',pk_section_hint:'Activá el ingreso rápido en este dispositivo para entrar sin escribir la contraseña. Funciona con Face ID, Touch ID, huella o Windows Hello. Podés activarlo en cada dispositivo que uses (celular, computadora, tablet). Tu contraseña sigue funcionando como respaldo.',pk_activate_btn:'Activar en este dispositivo',pk_activated:'Listo. Ya podés entrar sin contraseña en este dispositivo.',pk_unsupported:'Este dispositivo no admite el ingreso rápido.',pk_need_login:'Iniciá sesión con tu clave primero.',pk_cancelled:'Cancelaste el ingreso rápido.',pk_login_err:'No se pudo entrar sin contraseña. Usá tu contraseña.',pk_reg_err:'No se pudo activar. Probá de nuevo.',pk_status_active:'Ingreso rápido activado',pk_status_active_hint:'Podés entrar en este dispositivo sin escribir la contraseña. Si perdés el acceso al dispositivo, tu contraseña sigue funcionando.',pk_devices_lbl:'Dispositivos activados',pk_added_more:'Activar en otro dispositivo también',pk_registered_at:'Registrado',pk_last_used:'Último uso',pk_never_used:'todavía no usado',pk_device_deactivate:'Desactivar',pk_device_deactivate_confirm:'¿Desactivar el ingreso rápido en «{n}»? Vas a tener que usar tu contraseña en ese dispositivo hasta que lo actives de nuevo.',pk_device_deactivated:'Ingreso rápido desactivado en «{n}».',pk_device_deactivate_err:'No se pudo desactivar. Probá de nuevo.',pk_list_err:'No se pudo cargar la lista de dispositivos.',pwf_pk_offer:'Activar también el ingreso rápido en este dispositivo (Face ID / Touch ID).',pwf_pk_offer_after:'Vas a tener que confirmar con Face ID / Touch ID en la ventana que aparece a continuación.',pk_rename_title:'Renombrar dispositivo',pk_rename_prompt:'Elegí un nombre para reconocer este dispositivo.',pk_rename_empty:'El nombre no puede estar vacío.',pk_renamed:'Dispositivo renombrado.',pk_rename_err:'No se pudo renombrar.',forgot_pass:'Olvidé mi contraseña',forgot_title:'¿Olvidaste tu contraseña?',forgot_msg:'Contactá al administrador de la liga para que te reset la contraseña. Cuando lo haga, vas a entrar con la clave por defecto y la app te va a pedir elegir una nueva.',forgot_ok:'Entendido',pk_admin_title:'Ingreso rápido de los jugadores',pk_admin_desc:'Vé quién tiene activado el ingreso rápido y desactivalo si perdieron el dispositivo. La cuenta sigue funcionando con contraseña.',pk_admin_col_user:'Jugador',pk_admin_col_devices:'Dispositivos',pk_admin_col_last:'Último uso',pk_admin_none:'Ningún jugador tiene ingreso rápido activado todavía.',pk_admin_devices_of:'Dispositivos de {n}',pk_admin_del_confirm:'¿Desactivar el dispositivo «{d}» de {n}? Va a tener que entrar con contraseña hasta que lo reactive.',pk_admin_del_ok:'Dispositivo desactivado.',pk_admin_del_err:'No se pudo desactivar.',pk_admin_metric_lbl:'Adopción de ingreso rápido',pk_admin_metric_users:'jugadores lo usan',pk_admin_metric_devices:'dispositivos activados',pk_admin_metric_pct:'% de adopción',export_title:'Exportar liga',export_desc:'Descargá un Excel con todo: jugadores, clasificación, partidos, ciclos y playoffs.',export_btn:'Descargar Excel',export_working:'Preparando Excel…',export_ok:'Excel descargado.',export_err:'No se pudo exportar.',export_sheet_jugadores:'Jugadores',export_sheet_general:'Clasificación general',export_sheet_partidos:'Partidos',export_sheet_ciclos:'Ciclos',export_sheet_playoff:'Playoffs',
+my_profile:'My profile',full_name:'Nombre completo',email:'Email',phone:'Teléfono',save_data:'Guardar datos',change_password:'Cambiar contraseña',current_pass:'Contraseña actual',new_pass:'Nueva contraseña',repeat_pass:'Repetir nueva contraseña',save_pass:'Guardar contraseña',pass_wrong:'La contraseña actual no es correcta.',pass_short:'La nueva contraseña debe tener al menos 4 caracteres.',pass_no_match:'Las contraseñas nuevas no coinciden.',pass_ok:'✓ Contraseña actualizada.',profile_saved:'✓ Datos actualizados.',name_empty:'Name cannot be empty.',name_exists:'Ya existe un jugador con ese nombre.',role_admin:'Administrador',role_player:'Jugador',current_group_label:'Grupo actual',pk_section:'Ingreso rápido sin contraseña',pk_section_hint:'Activá el ingreso rápido en este dispositivo para entrar sin escribir la contraseña. Funciona con Face ID, Touch ID, huella o Windows Hello. Podés activarlo en cada dispositivo que uses (celular, computadora, tablet). Tu contraseña sigue funcionando como respaldo.',pk_activate_btn:'Activar en este dispositivo',pk_activated:'Listo. Ya podés entrar sin contraseña en este dispositivo.',pk_unsupported:'Este dispositivo no admite el ingreso rápido.',pk_need_login:'Iniciá sesión con tu clave primero.',pk_cancelled:'Cancelaste el ingreso rápido.',pk_login_err:'No se pudo entrar sin contraseña. Usá tu contraseña.',pk_reg_err:'No se pudo activar. Probá de nuevo.',pk_status_active:'Ingreso rápido activado',pk_status_active_hint:'Podés entrar en este dispositivo sin escribir la contraseña. Si perdés el acceso al dispositivo, tu contraseña sigue funcionando.',pk_devices_lbl:'Dispositivos activados',pk_added_more:'Activar en otro dispositivo también',pk_registered_at:'Registrado',pk_last_used:'Último uso',pk_never_used:'todavía no usado',pk_device_deactivate:'Desactivar',pk_device_deactivate_confirm:'¿Desactivar el ingreso rápido en «{n}»? Vas a tener que usar tu contraseña en ese dispositivo hasta que lo actives de nuevo.',pk_device_deactivated:'Ingreso rápido desactivado en «{n}».',pk_device_deactivate_err:'No se pudo desactivar. Probá de nuevo.',pk_list_err:'No se pudo cargar la lista de dispositivos.',pwf_pk_offer:'Activar también el ingreso rápido en este dispositivo (Face ID / Touch ID).',pwf_pk_offer_after:'Vas a tener que confirmar con Face ID / Touch ID en la ventana que aparece a continuación.',pk_rename_title:'Renombrar dispositivo',pk_rename_prompt:'Elegí un nombre para reconocer este dispositivo.',pk_rename_empty:'El nombre no puede estar vacío.',pk_renamed:'Dispositivo renombrado.',pk_rename_err:'No se pudo renombrar.',forgot_pass:'Olvidé mi contraseña',forgot_title:'¿Olvidaste tu contraseña?',forgot_msg:'Contactá al administrador de la liga para que te reset la contraseña. Cuando lo haga, vas a entrar con la clave por defecto y la app te va a pedir elegir una nueva.',forgot_ok:'Entendido',theme_section:'Apariencia',theme_hint:'Elegí cómo querés ver la app en este dispositivo. La preferencia se guarda solo en este equipo.',theme_system:'Sistema',theme_light:'Claro',theme_dark:'Oscuro',theme_saved:'Apariencia actualizada.',pk_admin_title:'Ingreso rápido de los jugadores',pk_admin_desc:'Vé quién tiene activado el ingreso rápido y desactivalo si perdieron el dispositivo. La cuenta sigue funcionando con contraseña.',pk_admin_col_user:'Jugador',pk_admin_col_devices:'Dispositivos',pk_admin_col_last:'Último uso',pk_admin_none:'Ningún jugador tiene ingreso rápido activado todavía.',pk_admin_devices_of:'Dispositivos de {n}',pk_admin_del_confirm:'¿Desactivar el dispositivo «{d}» de {n}? Va a tener que entrar con contraseña hasta que lo reactive.',pk_admin_del_ok:'Dispositivo desactivado.',pk_admin_del_err:'No se pudo desactivar.',pk_admin_metric_lbl:'Adopción de ingreso rápido',pk_admin_metric_users:'jugadores lo usan',pk_admin_metric_devices:'dispositivos activados',pk_admin_metric_pct:'% de adopción',export_title:'Exportar liga',export_desc:'Descargá un Excel con todo: jugadores, clasificación, partidos, ciclos y playoffs.',export_btn:'Descargar Excel',export_working:'Preparando Excel…',export_ok:'Excel descargado.',export_err:'No se pudo exportar.',export_sheet_jugadores:'Jugadores',export_sheet_general:'Clasificación general',export_sheet_partidos:'Partidos',export_sheet_ciclos:'Ciclos',export_sheet_playoff:'Playoffs',
 admin_profile:'My profile — Administrador',player_mgmt:'Gestión de jugadores',player_mgmt_hint:'Ordenados alfabéticamente. Buscá por nombre. Podés editar nombre, email, teléfono, resetear contraseña, cambiar de grupo o eliminar.',search_player:'Buscar jugador…',refresh_list:'Actualizar lista',no_results:'Sin resultados',save:'Guardar',reset_pass:'Resetear clave',reset_done:'{name}: contraseña reseteada a la clave por defecto.',save_done:'{name}: datos actualizados.',
 toast_confirmed:'¡Resultado confirmado y validado!',toast_disputed:'Resultado disputado. El admin lo revisará.',toast_pending_confirmed:'Pendientes confirmados.',toast_simulated:'Ciclo simulado y validado.',toast_dispute_resolved:'Disputa resuelta.',
 reset_playoffs:'Reiniciar Play Offs',
@@ -861,7 +915,7 @@ pending_match:'Pending match',
 po_started_toast:'Play Offs started.',po_confirmed_toast:'Play Offs started! Now visible to players.',po_preview_toast:'Preview ready. Adjust players and confirm the start.',po_need_3cycles:'Close all cycles first.',po_seed_removed:'{name} removed from Draw (another player gets a bye).',po_seed_added:'{name} added to Draw.',po_choose_add:'Choose a player to add.',po_report_no_players:"That match doesn't have both players yet.",po_locked:'Result already validated. Only the admin can edit it.',po_not_yours:'Only the players in that match (or the admin) can upload it.',po_validated:'Play Off result validated.',po_sent:'Result submitted. The admin will validate it.',
 stage_dates:'Stage dates',stage_dates_hint:'For each round choose "Match week" (date range) or "Single date".',single_date:'Single date',week_play:'Match week',from_date:'From',until_date:'To',
 round_final:'Final',round_semi:'Semifinals',round_quarters:'Quarterfinals',round_16:'Round of 16',round_32:'Round of 32',round_64:'Round of 64',round_n:'Round {n}',
-my_profile:'My profile',full_name:'Full name',email:'Email',phone:'Phone',save_data:'Save details',change_password:'Change password',current_pass:'Current password',new_pass:'New password',repeat_pass:'Repeat new password',save_pass:'Save password',pass_wrong:'Current password is incorrect.',pass_short:'New password must be at least 4 characters.',pass_no_match:'New passwords do not match.',pass_ok:'✓ Password updated.',profile_saved:'✓ Details updated.',name_empty:'Name cannot be empty.',name_exists:'A player with that name already exists.',role_admin:'Administrator',role_player:'Player',current_group_label:'Current group',pk_section:'Passwordless sign-in',pk_section_hint:'Enable passwordless sign-in on this device to log in without typing your password. Works with Face ID, Touch ID, fingerprint or Windows Hello. You can enable it on every device you use (phone, computer, tablet). Your password still works as a backup.',pk_activate_btn:'Enable on this device',pk_activated:'Done. You can now sign in without a password on this device.',pk_unsupported:'This device does not support passwordless sign-in.',pk_need_login:'Sign in with your password first.',pk_cancelled:'You cancelled passwordless sign-in.',pk_login_err:'Could not sign in without a password. Use your password.',pk_reg_err:'Could not enable it. Please try again.',pk_status_active:'Passwordless sign-in enabled',pk_status_active_hint:'You can sign in on this device without typing your password. If you lose access to the device, your password still works.',pk_devices_lbl:'Enabled devices',pk_added_more:'Enable on another device too',pk_registered_at:'Registered',pk_last_used:'Last used',pk_never_used:'not used yet',pk_device_deactivate:'Disable',pk_device_deactivate_confirm:'Disable passwordless sign-in on "{n}"? You will need to use your password on that device until you enable it again.',pk_device_deactivated:'Passwordless sign-in disabled on "{n}".',pk_device_deactivate_err:'Could not disable it. Please try again.',pk_list_err:'Could not load the device list.',pwf_pk_offer:'Also enable passwordless sign-in on this device (Face ID / Touch ID).',pwf_pk_offer_after:'You will need to confirm with Face ID / Touch ID in the window that appears next.',pk_rename_title:'Rename device',pk_rename_prompt:'Choose a name to recognise this device.',pk_rename_empty:'Name cannot be empty.',pk_renamed:'Device renamed.',pk_rename_err:'Could not rename it.',forgot_pass:'Forgot password',forgot_title:'Forgot your password?',forgot_msg:'Contact the league administrator to reset your password. Once they do, you will sign in with the default password and the app will ask you to choose a new one.',forgot_ok:'Got it',pk_admin_title:'Players passwordless sign-in',pk_admin_desc:'See who has passwordless sign-in enabled and disable it if they lost the device. Their account still works with password.',pk_admin_col_user:'Player',pk_admin_col_devices:'Devices',pk_admin_col_last:'Last used',pk_admin_none:'No player has enabled passwordless sign-in yet.',pk_admin_devices_of:'Devices of {n}',pk_admin_del_confirm:'Disable the device "{d}" of {n}? They will need to sign in with password until they enable it again.',pk_admin_del_ok:'Device disabled.',pk_admin_del_err:'Could not disable.',pk_admin_metric_lbl:'Passwordless sign-in adoption',pk_admin_metric_users:'players using it',pk_admin_metric_devices:'devices enabled',pk_admin_metric_pct:'% adoption',export_title:'Export league',export_desc:'Download an Excel with everything: players, standings, matches, cycles and playoffs.',export_btn:'Download Excel',export_working:'Preparing Excel…',export_ok:'Excel downloaded.',export_err:'Could not export.',export_sheet_jugadores:'Players',export_sheet_general:'Standings',export_sheet_partidos:'Matches',export_sheet_ciclos:'Cycles',export_sheet_playoff:'Playoffs',
+my_profile:'My profile',full_name:'Full name',email:'Email',phone:'Phone',save_data:'Save details',change_password:'Change password',current_pass:'Current password',new_pass:'New password',repeat_pass:'Repeat new password',save_pass:'Save password',pass_wrong:'Current password is incorrect.',pass_short:'New password must be at least 4 characters.',pass_no_match:'New passwords do not match.',pass_ok:'✓ Password updated.',profile_saved:'✓ Details updated.',name_empty:'Name cannot be empty.',name_exists:'A player with that name already exists.',role_admin:'Administrator',role_player:'Player',current_group_label:'Current group',pk_section:'Passwordless sign-in',pk_section_hint:'Enable passwordless sign-in on this device to log in without typing your password. Works with Face ID, Touch ID, fingerprint or Windows Hello. You can enable it on every device you use (phone, computer, tablet). Your password still works as a backup.',pk_activate_btn:'Enable on this device',pk_activated:'Done. You can now sign in without a password on this device.',pk_unsupported:'This device does not support passwordless sign-in.',pk_need_login:'Sign in with your password first.',pk_cancelled:'You cancelled passwordless sign-in.',pk_login_err:'Could not sign in without a password. Use your password.',pk_reg_err:'Could not enable it. Please try again.',pk_status_active:'Passwordless sign-in enabled',pk_status_active_hint:'You can sign in on this device without typing your password. If you lose access to the device, your password still works.',pk_devices_lbl:'Enabled devices',pk_added_more:'Enable on another device too',pk_registered_at:'Registered',pk_last_used:'Last used',pk_never_used:'not used yet',pk_device_deactivate:'Disable',pk_device_deactivate_confirm:'Disable passwordless sign-in on "{n}"? You will need to use your password on that device until you enable it again.',pk_device_deactivated:'Passwordless sign-in disabled on "{n}".',pk_device_deactivate_err:'Could not disable it. Please try again.',pk_list_err:'Could not load the device list.',pwf_pk_offer:'Also enable passwordless sign-in on this device (Face ID / Touch ID).',pwf_pk_offer_after:'You will need to confirm with Face ID / Touch ID in the window that appears next.',pk_rename_title:'Rename device',pk_rename_prompt:'Choose a name to recognise this device.',pk_rename_empty:'Name cannot be empty.',pk_renamed:'Device renamed.',pk_rename_err:'Could not rename it.',forgot_pass:'Forgot password',forgot_title:'Forgot your password?',forgot_msg:'Contact the league administrator to reset your password. Once they do, you will sign in with the default password and the app will ask you to choose a new one.',forgot_ok:'Got it',theme_section:'Appearance',theme_hint:'Choose how you want to see the app on this device. The preference is saved locally.',theme_system:'System',theme_light:'Light',theme_dark:'Dark',theme_saved:'Appearance updated.',pk_admin_title:'Players passwordless sign-in',pk_admin_desc:'See who has passwordless sign-in enabled and disable it if they lost the device. Their account still works with password.',pk_admin_col_user:'Player',pk_admin_col_devices:'Devices',pk_admin_col_last:'Last used',pk_admin_none:'No player has enabled passwordless sign-in yet.',pk_admin_devices_of:'Devices of {n}',pk_admin_del_confirm:'Disable the device "{d}" of {n}? They will need to sign in with password until they enable it again.',pk_admin_del_ok:'Device disabled.',pk_admin_del_err:'Could not disable.',pk_admin_metric_lbl:'Passwordless sign-in adoption',pk_admin_metric_users:'players using it',pk_admin_metric_devices:'devices enabled',pk_admin_metric_pct:'% adoption',export_title:'Export league',export_desc:'Download an Excel with everything: players, standings, matches, cycles and playoffs.',export_btn:'Download Excel',export_working:'Preparing Excel…',export_ok:'Excel downloaded.',export_err:'Could not export.',export_sheet_jugadores:'Players',export_sheet_general:'Standings',export_sheet_partidos:'Matches',export_sheet_ciclos:'Cycles',export_sheet_playoff:'Playoffs',
 admin_profile:'My profile — Administrator',player_mgmt:'Player management',player_mgmt_hint:'Sorted alphabetically. Search by name. Edit name, email, phone, reset passwords, switch group or delete.',search_player:'Search player…',refresh_list:'Refresh list',no_results:'No results',save:'Save',reset_pass:'Reset password',reset_done:'{name}: password reset to the default password.',save_done:'{name}: details updated.',
 toast_confirmed:'Result confirmed and validated!',toast_disputed:'Result disputed. Admin will review it.',toast_pending_confirmed:'Pending results confirmed.',toast_simulated:'Cycle simulated and validated.',toast_dispute_resolved:'Dispute resolved.',
 reset_playoffs:'Reset Play Offs',
@@ -2306,6 +2360,57 @@ async function desactivarPasskey(credId, label){
     toast(t('pk_device_deactivate_err'));
   }
 }
+
+// ============================================================================
+// SELECTOR DE APARIENCIA (Tema) — light / dark / system.
+// Se guarda por dispositivo en localStorage ('theme'). El script del <head>
+// lo lee y aplica ANTES del primer paint (evita flash).
+// - 'system' (default): el navegador respeta prefers-color-scheme del OS.
+// - 'light' o 'dark': override manual vía atributo data-theme en <html>.
+// ============================================================================
+function currentTheme(){
+  try { return localStorage.getItem('theme') || 'system'; } catch(_){ return 'system'; }
+}
+
+function aplicarTema(modo){
+  try {
+    if(modo === 'system'){
+      localStorage.removeItem('theme');
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      localStorage.setItem('theme', modo);
+      document.documentElement.setAttribute('data-theme', modo);
+    }
+    if(typeof toast === 'function') toast(t('theme_saved'));
+    // Re-render de los botones para reflejar el activo
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      const isActive = b.dataset.mode === modo;
+      b.style.background = isActive ? 'var(--pri)' : 'var(--surface2)';
+      b.style.color = isActive ? '#fff' : 'var(--text)';
+      b.style.borderColor = isActive ? 'var(--pri)' : 'var(--border)';
+    });
+  } catch(e){ console.error('Theme error:', e); }
+}
+
+// HTML del card. Se inserta en ambos perfiles (admin y jugador) antes del pk-card.
+function renderThemeCard(){
+  const cur = currentTheme();
+  const btn = (mode, label, icon) => {
+    const active = (mode === cur);
+    const bg = active ? 'var(--pri)' : 'var(--surface2)';
+    const fg = active ? '#fff' : 'var(--text)';
+    const bd = active ? 'var(--pri)' : 'var(--border)';
+    return `<button class="theme-btn" data-mode="${mode}" onclick="aplicarTema('${mode}')" style="flex:1;padding:10px 12px;border:1.5px solid ${bd};border-radius:8px;background:${bg};color:${fg};font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-${icon}"></i>${label}</button>`;
+  };
+  return `<div class="card"><div class="section-lbl"><i class="ti ti-palette"></i> ${t('theme_section')}</div>` +
+    `<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('theme_hint')}</p>` +
+    `<div style="display:flex;gap:8px;flex-wrap:wrap">` +
+      btn('system', t('theme_system'), 'device-desktop') +
+      btn('light', t('theme_light'), 'sun') +
+      btn('dark', t('theme_dark'), 'moon') +
+    `</div></div>`;
+}
+
 
 // ============================================================================
 // PANEL ADMIN DE PASSKEYS — el admin ve quién tiene ingreso rápido activado
@@ -5244,7 +5349,8 @@ function renderPerfil(){
     h += `<div class="prof-row"><span>${t('full_name')}</span><span>${u.name}</span></div>`;
     h += `<div class="prof-row"><span>${t('role_admin')}</span><span>${t('role_admin')}</span></div></div>`;
     
-    h += `<div class="card" id="pk-card" style="display:none"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_section')}</div>`;
+    h += renderThemeCard();
+        h += `<div class="card" id="pk-card" style="display:none"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_section')}</div>`;
     h += `<div id="pk-body"><p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>`;
     h += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('change_password')}</div><div id="pw-alert"></div>`;
@@ -5375,7 +5481,8 @@ function renderPerfil(){
     h += `<div class="prof-row"><span>${t('phone')}</span><span>${u.tel||'—'}</span></div>`;
     if(loc) h += `<div class="prof-row"><span>${t('current_group_label')}</span><span>${groupName(loc.g)}</span></div>`;
     h += `</div>`;
-    h += `<div class="card" id="pk-card" style="display:none"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_section')}</div>`;
+    h += renderThemeCard();
+        h += `<div class="card" id="pk-card" style="display:none"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_section')}</div>`;
     h += `<div id="pk-body"><p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>`;
     h += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('change_password')}</div><div id="pw-alert"></div>`;
