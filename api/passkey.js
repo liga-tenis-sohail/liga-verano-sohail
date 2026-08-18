@@ -264,24 +264,41 @@ module.exports = async (req, res) => {
       const puedeAdmin = role === 'admin' || role === 'superadmin' || u.isAdmin === true;
       const exp = Date.now() + lib.SESSION_MIN * 60 * 1000;
       const session = { u: userName, r: role, exp };
+
+      // ¿La contraseña actual sigue siendo una por defecto? Si sí, avisamos al
+      // cliente con mustChangePw=true para que muestre el modal obligatorio.
+      // Sin esto, un jugador con "tenis" que activa Face ID nunca más pasa por
+      // el modal de cambio de clave y se queda con la clave pública para siempre.
+      let mustChangePw = false;
+      try {
+        let storedPass = u.pass || '';
+        if(u.jugadorId){
+          const cat = await lib.readCatalogo();
+          const jugGlobal = cat[u.jugadorId];
+          if(jugGlobal && jugGlobal.pass) storedPass = jugGlobal.pass;
+        }
+        mustChangePw = lib.POR_DEFECTO_V2.has(storedPass);
+      } catch(_){ /* si falla el chequeo, no bloqueamos el login por Face ID */ }
+
       return res.status(200).json({
         token: lib.signToken(session),
         isAdmin: puedeAdmin,
         name: userName,
         role,
         exp,
+        mustChangePw,
         state: lib.filterForSession(state, session)
       });
     }
 
     // =================================================================
     // 5) LIST — devuelve las passkeys del usuario (para mostrarlas en el perfil).
-    //    Solo devuelve datos "públicos" del propio usuario: nada de public_key
-    //    ni contadores. Requiere sesión activa.
     // =================================================================
     if(accion === 'list'){
       const session = lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const blocked = await lib.blockedUserCached(session, body.ligaId);
+      if(blocked) return res.status(403).json({ error: blocked });
       const rows = await passkeysDeUsuario(session.u);
       const passkeys = rows.map(p => ({
         credentialId: p.credential_id,
@@ -289,23 +306,117 @@ module.exports = async (req, res) => {
         createdAt: p.created_at,
         lastUsedAt: p.last_used_at
       }));
-      // Orden: más recientes primero (por creación).
       passkeys.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
       return res.status(200).json({ passkeys });
     }
 
     // =================================================================
-    // 6) DELETE — desactiva una passkey del propio usuario. El filtro por
-    //    user_name en el DELETE de Supabase evita que un token válido de un
-    //    usuario pueda tocar passkeys de otro pasando un credential_id ajeno.
+    // 6) DELETE — desactiva una passkey del propio usuario.
     // =================================================================
     if(accion === 'delete'){
       const session = lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const credId = String(body.credentialId || '');
-      if(!credId) return res.status(400).json({ error: 'Falta la passkey a desactivar.' });
+      if(!credId || !/^[A-Za-z0-9_-]{16,512}$/.test(credId)){
+        return res.status(400).json({ error: 'Identificador de passkey inválido.' });
+      }
+      const blocked = await lib.blockedUserCached(session, body.ligaId);
+      if(blocked) return res.status(403).json({ error: blocked });
       await borrarPasskey(session.u, credId);
+      lib.logAudit(session.u, 'passkey.delete', session.u, { credId: credId.slice(0, 8) + '…' }, lib.clientIP(req));
       return res.status(200).json({ ok: true });
+    }
+
+    // =================================================================
+    // 7) RENAME — el usuario cambia el nombre visible de su passkey. No
+    //    afecta la criptografía, solo la etiqueta que ve en el perfil.
+    // =================================================================
+    if(accion === 'rename'){
+      const session = lib.auth(req);
+      if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const credId = String(body.credentialId || '');
+      const label  = String(body.deviceLabel || '').trim().slice(0, 60);
+      if(!credId || !/^[A-Za-z0-9_-]{16,512}$/.test(credId)){
+        return res.status(400).json({ error: 'Identificador de passkey inválido.' });
+      }
+      if(!label) return res.status(400).json({ error: 'El nombre no puede estar vacío.' });
+      // Filtro doble por user_name: un token de otro usuario no puede renombrar
+      // pasando el credId ajeno.
+      const r = await fetch(lib.SUPA_URL + '/rest/v1/passkeys?credential_id=eq.' + encodeURIComponent(credId) + '&user_name=eq.' + encodeURIComponent(session.u), {
+        method: 'PATCH',
+        headers: lib.supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+        body: JSON.stringify({ device_label: label })
+      });
+      if(!r.ok) return res.status(503).json({ error: 'No se pudo renombrar la passkey.' });
+      lib.logAudit(session.u, 'passkey.rename', session.u, { credId: credId.slice(0, 8) + '…', label }, lib.clientIP(req));
+      return res.status(200).json({ ok: true, deviceLabel: label });
+    }
+
+    // =================================================================
+    // 8) ADMIN-LIST-USER — admin lista las passkeys de OTRO jugador. Útil
+    //    cuando alguien pierde el dispositivo y no puede loguearse.
+    // =================================================================
+    if(accion === 'admin-list-user'){
+      const session = lib.auth(req);
+      if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const state = await lib.readState(body.ligaId || lib.LIGA_DEFAULT);
+      if(!lib.sesionEsAdmin(session, state && state.users)) return res.status(403).json({ error: 'Solo un administrador.' });
+      const target = String(body.userName || '').trim();
+      if(!target) return res.status(400).json({ error: 'Falta el usuario.' });
+      const rows = await passkeysDeUsuario(target);
+      const passkeys = rows.map(p => ({
+        credentialId: p.credential_id,
+        deviceLabel: p.device_label || 'Dispositivo',
+        createdAt: p.created_at,
+        lastUsedAt: p.last_used_at
+      }));
+      passkeys.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      return res.status(200).json({ userName: target, passkeys });
+    }
+
+    // =================================================================
+    // 9) ADMIN-DELETE-USER — admin borra una passkey de OTRO jugador.
+    // =================================================================
+    if(accion === 'admin-delete-user'){
+      const session = lib.auth(req);
+      if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const state = await lib.readState(body.ligaId || lib.LIGA_DEFAULT);
+      if(!lib.sesionEsAdmin(session, state && state.users)) return res.status(403).json({ error: 'Solo un administrador.' });
+      const target = String(body.userName || '').trim();
+      const credId = String(body.credentialId || '');
+      if(!target) return res.status(400).json({ error: 'Falta el usuario.' });
+      if(!credId || !/^[A-Za-z0-9_-]{16,512}$/.test(credId)){
+        return res.status(400).json({ error: 'Identificador de passkey inválido.' });
+      }
+      await borrarPasskey(target, credId);
+      lib.logAudit(session.u, 'passkey.admin_delete', target, { credId: credId.slice(0, 8) + '…' }, lib.clientIP(req));
+      return res.status(200).json({ ok: true });
+    }
+
+    // =================================================================
+    // 10) ADMIN-STATS — cuántos jugadores tienen al menos una passkey.
+    //     Solo agregado, no expone credenciales.
+    // =================================================================
+    if(accion === 'admin-stats'){
+      const session = lib.auth(req);
+      if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const state = await lib.readState(body.ligaId || lib.LIGA_DEFAULT);
+      if(!lib.sesionEsAdmin(session, state && state.users)) return res.status(403).json({ error: 'Solo un administrador.' });
+      // Traemos solo user_name distinct. Simple: agarrar todos y contar
+      // localmente. Con 60 usuarios × N passkeys, la tabla es chica.
+      const r = await fetch(lib.SUPA_URL + '/rest/v1/passkeys?select=user_name', { headers: lib.supaHeaders() });
+      if(!r.ok) return res.status(503).json({ error: 'No se pudo leer las passkeys.' });
+      const rows = await r.json();
+      const usuariosConPasskey = new Set(rows.map(r => r.user_name));
+      const users = (state && state.users) || {};
+      const totalJugadores = Object.values(users).filter(u => (u.role || 'player') === 'player' && !u.inactive).length;
+      const conPasskey = Object.keys(users).filter(n => usuariosConPasskey.has(n) && (users[n].role || 'player') === 'player' && !users[n].inactive).length;
+      return res.status(200).json({
+        totalJugadores,
+        conPasskey,
+        totalPasskeys: rows.length,
+        pct: totalJugadores > 0 ? Math.round(100 * conPasskey / totalJugadores) : 0
+      });
     }
 
     return res.status(400).json({ error: 'Acción desconocida.' });
