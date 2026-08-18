@@ -15,6 +15,16 @@ const PBKDF2_SALT  = 'LigaSohailSecure2026';
 const PBKDF2_ITERS = 100000;
 const SESSION_MIN  = 90;
 
+// Contraseñas por defecto conocidas (públicas): al detectar login con alguna
+// de ellas, el servidor devuelve mustChangePw=true para forzar el cambio.
+// "tenis" está en el instructivo; el hash de "admin123" estuvo en el repo público
+// (SHA-256 sin sal, se reversa en segundos). Se compara con el hash V2 recién
+// calculado, así da igual si la base guardó legacy, v1 o v2.
+const POR_DEFECTO_V2 = new Set([
+  'v2:7afc817d4013c0e9740356ad09b7e4094ee6678df855c5869aaad97dd4d2f3eb',   // tenis
+  'v2:e7fd5acfb9cbb0449ad3abe3c0f3436559af8cf74a09cdbee1a29a41bb394d12'    // admin123
+]);
+
 function hashV2(pw){
   if(!pw) return 'v2:';
   return 'v2:' + crypto.pbkdf2Sync(pw, PBKDF2_SALT, PBKDF2_ITERS, 32, 'sha256').toString('hex');
@@ -251,6 +261,139 @@ async function borrarJugador(jugadorId){
   if(!r.ok) throw new Error('Supabase delete jugador ' + r.status + ' ' + (await r.text()));
 }
 
+// Borra TODAS las passkeys de un usuario. Se llama al eliminar un jugador para
+// que no queden credenciales huérfanas: si mañana se crea otro jugador con el
+// mismo nombre, no debería heredar los Face ID del anterior.
+async function borrarPasskeysDeUsuario(userName){
+  if(!userName) return;
+  const r = await fetch(SUPA_URL + '/rest/v1/passkeys?user_name=eq.' + encodeURIComponent(userName), {
+    method: 'DELETE',
+    headers: supaHeaders({ Prefer: 'return=minimal' })
+  });
+  // No lanzamos si falla: es limpieza, no debería bloquear la eliminación del
+  // jugador. El admin ve el error del jugador en primer plano si aplica.
+  if(!r.ok){ /* silent, best-effort cleanup */ }
+}
+
+// ============================================================================
+// RATE LIMITING COMPARTIDO — tabla `rate_limits` en Supabase.
+// Reemplaza el Map en memoria del login: al escalar Vercel, cada instancia
+// tenía su propio contador, permitiéndole a un atacante N intentos por N
+// instancias. Ahora es un contador único global por clave (usuario o IP).
+// El costo es 1-2 queries a Supabase por login. Aceptable a esta escala.
+// ============================================================================
+
+// Devuelve segundos que faltan hasta desbloquear, o 0 si no está bloqueada.
+async function rateLimitCheck(key, max){
+  const r = await fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key) + '&select=n,until_ts', {
+    headers: supaHeaders()
+  });
+  if(!r.ok) return 0;                            // ante duda, permitir (fail-open para no bloquear a usuarios legítimos)
+  const rows = await r.json();
+  if(!Array.isArray(rows) || !rows.length) return 0;
+  const row = rows[0];
+  if(row.n < max) return 0;
+  if(!row.until_ts) return 0;
+  const left = new Date(row.until_ts).getTime() - Date.now();
+  if(left <= 0){
+    // Ya venció: limpiamos best-effort (no esperamos)
+    fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key), {
+      method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' })
+    }).catch(()=>{});
+    return 0;
+  }
+  return Math.ceil(left / 1000);
+}
+
+// Registra un intento fallido. Al llegar a max, marca `until_ts` con el lock.
+// Usa UPSERT + expresión SQL vía RPC no está disponible en PostgREST plano, así
+// que hacemos read-modify-write (best-effort; race conditions bajo carga son
+// aceptables: dos fails simultáneos que cuenten 1 en vez de 2 no es crítico).
+async function rateLimitFail(key, max, lockMs){
+  const r = await fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key) + '&select=n,until_ts', {
+    headers: supaHeaders()
+  });
+  let n = 0;
+  if(r.ok){
+    const rows = await r.json();
+    if(Array.isArray(rows) && rows.length) n = rows[0].n || 0;
+  }
+  n = n + 1;
+  const until_ts = (n >= max) ? new Date(Date.now() + lockMs).toISOString() : null;
+  await fetch(SUPA_URL + '/rest/v1/rate_limits', {
+    method: 'POST',
+    headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
+    body: JSON.stringify({ key, n, until_ts, updated_at: new Date().toISOString() })
+  }).catch(()=>{});
+}
+
+// Limpia el contador tras un login exitoso.
+async function rateLimitClear(key){
+  await fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key), {
+    method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' })
+  }).catch(()=>{});
+}
+
+
+// ============================================================================
+// AUDIT LOG — inserta un evento sensible en la tabla `audit_log`. Best-effort:
+// si falla, NO rompe la operación principal. Registra acciones como
+// crear/eliminar liga, cambios de rol, reset de clave, etc.
+// ============================================================================
+async function logAudit(actor, action, target, details, actorIp){
+  try {
+    await fetch(SUPA_URL + '/rest/v1/audit_log', {
+      method: 'POST',
+      headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify({
+        actor: String(actor || 'unknown').slice(0, 60),
+        actor_ip: actorIp ? String(actorIp).slice(0, 45) : null,
+        action: String(action || '').slice(0, 60),
+        target: target ? String(target).slice(0, 200) : null,
+        details: details || null
+      })
+    });
+  } catch(_){ /* silent, audit no debe bloquear */ }
+}
+
+// Extrae la IP del cliente. Útil para audit y rate limit.
+function clientIP(req){
+  const xf = req && req.headers && req.headers['x-forwarded-for'];
+  if(xf) return String(xf).split(',')[0].trim();
+  return (req && req.headers && req.headers['x-real-ip']) || 'desconocida';
+}
+
+
+// ============================================================================
+// BLOCKED USER CON CACHÉ — evita leer los 125 KB del estado en cada request
+// solo para verificar el flag `inactive`. Cachea por (usuario, liga, exp del
+// token) durante 60 segundos. El TTL bajo garantiza detección rápida de
+// desactivación (peor caso: 60 s de retraso).
+// ============================================================================
+const _blockedCache = new Map();   // key → { blocked, at }
+const BLOCKED_TTL_MS = 60 * 1000;
+
+async function blockedUserCached(session, ligaId){
+  if(!session) return null;
+  const lid = ligaId || LIGA_DEFAULT;
+  const key = session.u + '|' + lid + '|' + session.exp;
+  const hit = _blockedCache.get(key);
+  if(hit && (Date.now() - hit.at) < BLOCKED_TTL_MS) return hit.blocked;
+  let blocked = null;
+  try {
+    const state = await readState(lid);
+    if(state) blocked = blockedUser(state, session);
+  } catch(_){ /* si falla la lectura, no bloqueamos (mismo criterio que rateLimitCheck) */ }
+  _blockedCache.set(key, { blocked, at: Date.now() });
+  // Limpieza best-effort del cache (evitar leak de memoria en instancias long-lived)
+  if(_blockedCache.size > 500){
+    for(const [k, v] of _blockedCache){
+      if((Date.now() - v.at) > BLOCKED_TTL_MS) _blockedCache.delete(k);
+    }
+  }
+  return blocked;
+}
+
 // =====================================================================
 // ÍNDICE DE LIGAS (tabla `liga_index`)
 // La lista de ligas: cuál está activa, cuáles son pasadas. Alimenta el
@@ -334,11 +477,14 @@ async function borrarLiga(ligaId){
 }
 
 module.exports = {
-  hashV1, hashV2, signToken, verifyToken, auth, isAdminRole, sesionEsAdmin, puedeGestionarAdmins, filterForSession, renewIfStale, blockedUser,
+  hashV1, hashV2, POR_DEFECTO_V2, signToken, verifyToken, auth, isAdminRole, sesionEsAdmin, puedeGestionarAdmins, filterForSession, renewIfStale, blockedUser, blockedUserCached,
   readState, writeState, envOK, SESSION_MIN, SUPER_HASH,
+  // Rate limiting compartido, audit log, helpers de request:
+  rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP,
+  // Acceso directo a Supabase (para endpoints que necesitan queries custom):
+  SUPA_URL, supaHeaders,
   // Sistema unificado (Fase 1):
   LIGA_DEFAULT, ligaIdOK,
-  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador,
-  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga,
-  supaHeaders, SUPA_URL
+  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
+  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga
 };
