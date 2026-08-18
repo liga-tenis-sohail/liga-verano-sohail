@@ -20,6 +20,15 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .login-body label{display:block;font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:600}
 .login-body select,.login-body input{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:.75rem}
 .login-btn-pk{background:var(--surface2,#eef2f7)!important;color:var(--pri)!important;border:1.5px solid var(--pri)!important;margin-top:8px}.login-btn-pk i{margin-right:4px}
+@keyframes sk-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.cm-ov button:hover{opacity:.9}
+.login-forgot{display:block;text-align:center;margin-top:12px;font-size:12.5px;color:var(--pri,#1e3a8a);text-decoration:none;cursor:pointer;background:none;border:none;padding:4px;width:100%}
+.login-forgot:hover{text-decoration:underline}
+.pk-device-edit-btn{background:transparent;color:var(--text2,#64748b);border:none;padding:4px;cursor:pointer;font-size:13px;margin-right:4px}
+.pk-device-edit-btn:hover{color:var(--pri,#1e3a8a)}
+.metric-tile{padding:14px 16px;background:var(--surface2,#f8fafc);border-radius:10px;text-align:center;flex:1;min-width:110px}
+.metric-tile .metric-n{font-size:26px;font-weight:700;color:var(--pri,#1e3a8a);line-height:1;display:block}
+.metric-tile .metric-lbl{font-size:11px;color:var(--text2,#64748b);text-transform:uppercase;letter-spacing:.5px;margin-top:6px;display:block}
   .login-btn{width:100%;padding:10px;background:var(--pri);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}.login-btn:hover{background:var(--priD)}
 .login-btn:disabled{opacity:0.6;cursor:not-allowed}
   .past-leagues{max-width:380px;margin:0 auto 2rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}
@@ -516,6 +525,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
       <label id="lbl-pass">Contraseña</label><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
       <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
+      <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
     </div>
   </div>
   <div class="past-leagues" id="past-leagues" style="display:none">
@@ -678,6 +688,7 @@ function updateLangUI(){
   const bLim=document.getElementById('btn-limpiar');if(bLim)bLim.textContent=t('clear');
   const lbtn=document.getElementById('login-btn');if(lbtn){lbtn.textContent=t('enter');}const sh=document.getElementById('stb-hint');if(sh)sh.textContent=t('stb_hint');
   const pkt=document.getElementById('login-btn-pk-txt');if(pkt)pkt.textContent=t('pk_login_btn');
+  const fbtn=document.getElementById('login-forgot-btn');if(fbtn)fbtn.textContent=t('forgot_pass');
   if(typeof mostrarBotonPasskeyLogin==='function')mostrarBotonPasskeyLogin();
 }
 
@@ -717,7 +728,7 @@ pending_match:'Pendiente de juego',
 po_started_toast:'Play Offs iniciados.',po_confirmed_toast:'¡Play Offs iniciados! Ya son visibles para los jugadores.',po_preview_toast:'Previsualización lista. Ajustá los jugadores y confirmá el inicio.',po_need_3cycles:'Primero cerrá todos los ciclos.',po_seed_removed:'{name} quitado del Cuadro (pasa uno por bye).',po_seed_added:'{name} agregado al Cuadro.',po_choose_add:'Elegí un jugador para agregar.',po_report_no_players:'Ese partido todavía no tiene los dos jugadores.',po_locked:'Resultado ya validado. Solo el admin puede editarlo.',po_not_yours:'Solo los jugadores de ese partido (o el admin) pueden cargarlo.',po_validated:'Resultado de Play Off validado.',po_sent:'Resultado enviado. El admin lo validará.',
 stage_dates:'Fechas de las etapas',stage_dates_hint:'Para cada ronda elegí "Semana de juego" (rango desde–hasta) o "Fecha única".',single_date:'Fecha única',week_play:'Semana de juego',from_date:'Desde',until_date:'Hasta',
 round_final:'Final',round_semi:'Semifinales',round_quarters:'Cuartos',round_16:'Octavos',round_32:'16avos',round_64:'32avos',round_n:'Ronda {n}',
-my_profile:'My profile',full_name:'Nombre completo',email:'Email',phone:'Teléfono',save_data:'Guardar datos',change_password:'Cambiar contraseña',current_pass:'Contraseña actual',new_pass:'Nueva contraseña',repeat_pass:'Repetir nueva contraseña',save_pass:'Guardar contraseña',pass_wrong:'La contraseña actual no es correcta.',pass_short:'La nueva contraseña debe tener al menos 4 caracteres.',pass_no_match:'Las contraseñas nuevas no coinciden.',pass_ok:'✓ Contraseña actualizada.',profile_saved:'✓ Datos actualizados.',name_empty:'Name cannot be empty.',name_exists:'Ya existe un jugador con ese nombre.',role_admin:'Administrador',role_player:'Jugador',current_group_label:'Grupo actual',pk_section:'Ingreso rápido sin contraseña',pk_section_hint:'Activá el ingreso rápido en este dispositivo para entrar sin escribir la contraseña. Funciona con Face ID, Touch ID, huella o Windows Hello. Podés activarlo en cada dispositivo que uses (celular, computadora, tablet). Tu contraseña sigue funcionando como respaldo.',pk_activate_btn:'Activar en este dispositivo',pk_activated:'Listo. Ya podés entrar sin contraseña en este dispositivo.',pk_unsupported:'Este dispositivo no admite el ingreso rápido.',pk_need_login:'Iniciá sesión con tu clave primero.',pk_cancelled:'Cancelaste el ingreso rápido.',pk_login_err:'No se pudo entrar sin contraseña. Usá tu contraseña.',pk_reg_err:'No se pudo activar. Probá de nuevo.',pk_status_active:'Ingreso rápido activado',pk_status_active_hint:'Podés entrar en este dispositivo sin escribir la contraseña. Si perdés el acceso al dispositivo, tu contraseña sigue funcionando.',pk_devices_lbl:'Dispositivos activados',pk_added_more:'Activar en otro dispositivo también',pk_registered_at:'Registrado',pk_last_used:'Último uso',pk_never_used:'todavía no usado',pk_device_deactivate:'Desactivar',pk_device_deactivate_confirm:'¿Desactivar el ingreso rápido en «{n}»? Vas a tener que usar tu contraseña en ese dispositivo hasta que lo actives de nuevo.',pk_device_deactivated:'Ingreso rápido desactivado en «{n}».',pk_device_deactivate_err:'No se pudo desactivar. Probá de nuevo.',pk_list_err:'No se pudo cargar la lista de dispositivos.',pwf_pk_offer:'Activar también el ingreso rápido en este dispositivo (Face ID / Touch ID).',pwf_pk_offer_after:'Vas a tener que confirmar con Face ID / Touch ID en la ventana que aparece a continuación.',
+my_profile:'My profile',full_name:'Nombre completo',email:'Email',phone:'Teléfono',save_data:'Guardar datos',change_password:'Cambiar contraseña',current_pass:'Contraseña actual',new_pass:'Nueva contraseña',repeat_pass:'Repetir nueva contraseña',save_pass:'Guardar contraseña',pass_wrong:'La contraseña actual no es correcta.',pass_short:'La nueva contraseña debe tener al menos 4 caracteres.',pass_no_match:'Las contraseñas nuevas no coinciden.',pass_ok:'✓ Contraseña actualizada.',profile_saved:'✓ Datos actualizados.',name_empty:'Name cannot be empty.',name_exists:'Ya existe un jugador con ese nombre.',role_admin:'Administrador',role_player:'Jugador',current_group_label:'Grupo actual',pk_section:'Ingreso rápido sin contraseña',pk_section_hint:'Activá el ingreso rápido en este dispositivo para entrar sin escribir la contraseña. Funciona con Face ID, Touch ID, huella o Windows Hello. Podés activarlo en cada dispositivo que uses (celular, computadora, tablet). Tu contraseña sigue funcionando como respaldo.',pk_activate_btn:'Activar en este dispositivo',pk_activated:'Listo. Ya podés entrar sin contraseña en este dispositivo.',pk_unsupported:'Este dispositivo no admite el ingreso rápido.',pk_need_login:'Iniciá sesión con tu clave primero.',pk_cancelled:'Cancelaste el ingreso rápido.',pk_login_err:'No se pudo entrar sin contraseña. Usá tu contraseña.',pk_reg_err:'No se pudo activar. Probá de nuevo.',pk_status_active:'Ingreso rápido activado',pk_status_active_hint:'Podés entrar en este dispositivo sin escribir la contraseña. Si perdés el acceso al dispositivo, tu contraseña sigue funcionando.',pk_devices_lbl:'Dispositivos activados',pk_added_more:'Activar en otro dispositivo también',pk_registered_at:'Registrado',pk_last_used:'Último uso',pk_never_used:'todavía no usado',pk_device_deactivate:'Desactivar',pk_device_deactivate_confirm:'¿Desactivar el ingreso rápido en «{n}»? Vas a tener que usar tu contraseña en ese dispositivo hasta que lo actives de nuevo.',pk_device_deactivated:'Ingreso rápido desactivado en «{n}».',pk_device_deactivate_err:'No se pudo desactivar. Probá de nuevo.',pk_list_err:'No se pudo cargar la lista de dispositivos.',pwf_pk_offer:'Activar también el ingreso rápido en este dispositivo (Face ID / Touch ID).',pwf_pk_offer_after:'Vas a tener que confirmar con Face ID / Touch ID en la ventana que aparece a continuación.',pk_rename_title:'Renombrar dispositivo',pk_rename_prompt:'Elegí un nombre para reconocer este dispositivo.',pk_rename_empty:'El nombre no puede estar vacío.',pk_renamed:'Dispositivo renombrado.',pk_rename_err:'No se pudo renombrar.',forgot_pass:'Olvidé mi contraseña',reset_title:'Restablecer contraseña',reset_desc:'Escribí tu usuario. Si existe y tenés email registrado, te vamos a enviar un link para elegir una contraseña nueva.',reset_user_ph:'Tu usuario',reset_send:'Enviar link',reset_sending:'Enviando…',reset_ok_msg:'Si tu usuario existe y tiene email, te enviamos un link. Revisá la casilla (y el spam) en los próximos minutos.',reset_err:'No se pudo enviar. Probá de nuevo.',reset_confirm_title:'Elegí tu nueva contraseña',reset_confirm_desc:'Estás restableciendo tu contraseña. Elegí una nueva y confirmala.',reset_new_ph:'Nueva contraseña',reset_rep_ph:'Repetila',reset_short:'Tiene que tener al menos 6 caracteres.',reset_nomatch:'Las dos contraseñas no coinciden.',reset_done:'Listo, contraseña actualizada. Ya podés entrar.',reset_link_invalid:'El link no es válido o venció. Pedí uno nuevo.',pk_admin_title:'Ingreso rápido de los jugadores',pk_admin_desc:'Vé quién tiene activado el ingreso rápido y desactivalo si perdieron el dispositivo. La cuenta sigue funcionando con contraseña.',pk_admin_col_user:'Jugador',pk_admin_col_devices:'Dispositivos',pk_admin_col_last:'Último uso',pk_admin_none:'Ningún jugador tiene ingreso rápido activado todavía.',pk_admin_devices_of:'Dispositivos de {n}',pk_admin_del_confirm:'¿Desactivar el dispositivo «{d}» de {n}? Va a tener que entrar con contraseña hasta que lo reactive.',pk_admin_del_ok:'Dispositivo desactivado.',pk_admin_del_err:'No se pudo desactivar.',pk_admin_metric_lbl:'Adopción de ingreso rápido',pk_admin_metric_users:'jugadores lo usan',pk_admin_metric_devices:'dispositivos activados',pk_admin_metric_pct:'% de adopción',export_title:'Exportar liga',export_desc:'Descargá un Excel con todo: jugadores, clasificación, partidos, ciclos y playoffs.',export_btn:'Descargar Excel',export_working:'Preparando Excel…',export_ok:'Excel descargado.',export_err:'No se pudo exportar.',export_sheet_jugadores:'Jugadores',export_sheet_general:'Clasificación general',export_sheet_partidos:'Partidos',export_sheet_ciclos:'Ciclos',export_sheet_playoff:'Playoffs',
 admin_profile:'My profile — Administrador',player_mgmt:'Gestión de jugadores',player_mgmt_hint:'Ordenados alfabéticamente. Buscá por nombre. Podés editar nombre, email, teléfono, resetear contraseña, cambiar de grupo o eliminar.',search_player:'Buscar jugador…',refresh_list:'Actualizar lista',no_results:'Sin resultados',save:'Guardar',reset_pass:'Resetear clave',reset_done:'{name}: contraseña reseteada a la clave por defecto.',save_done:'{name}: datos actualizados.',
 toast_confirmed:'¡Resultado confirmado y validado!',toast_disputed:'Resultado disputado. El admin lo revisará.',toast_pending_confirmed:'Pendientes confirmados.',toast_simulated:'Ciclo simulado y validado.',toast_dispute_resolved:'Disputa resuelta.',
 reset_playoffs:'Reiniciar Play Offs',
@@ -778,7 +789,7 @@ pending_match:'Pending match',
 po_started_toast:'Play Offs started.',po_confirmed_toast:'Play Offs started! Now visible to players.',po_preview_toast:'Preview ready. Adjust players and confirm the start.',po_need_3cycles:'Close all cycles first.',po_seed_removed:'{name} removed from Draw (another player gets a bye).',po_seed_added:'{name} added to Draw.',po_choose_add:'Choose a player to add.',po_report_no_players:"That match doesn't have both players yet.",po_locked:'Result already validated. Only the admin can edit it.',po_not_yours:'Only the players in that match (or the admin) can upload it.',po_validated:'Play Off result validated.',po_sent:'Result submitted. The admin will validate it.',
 stage_dates:'Stage dates',stage_dates_hint:'For each round choose "Match week" (date range) or "Single date".',single_date:'Single date',week_play:'Match week',from_date:'From',until_date:'To',
 round_final:'Final',round_semi:'Semifinals',round_quarters:'Quarterfinals',round_16:'Round of 16',round_32:'Round of 32',round_64:'Round of 64',round_n:'Round {n}',
-my_profile:'My profile',full_name:'Full name',email:'Email',phone:'Phone',save_data:'Save details',change_password:'Change password',current_pass:'Current password',new_pass:'New password',repeat_pass:'Repeat new password',save_pass:'Save password',pass_wrong:'Current password is incorrect.',pass_short:'New password must be at least 4 characters.',pass_no_match:'New passwords do not match.',pass_ok:'✓ Password updated.',profile_saved:'✓ Details updated.',name_empty:'Name cannot be empty.',name_exists:'A player with that name already exists.',role_admin:'Administrator',role_player:'Player',current_group_label:'Current group',pk_section:'Passwordless sign-in',pk_section_hint:'Enable passwordless sign-in on this device to log in without typing your password. Works with Face ID, Touch ID, fingerprint or Windows Hello. You can enable it on every device you use (phone, computer, tablet). Your password still works as a backup.',pk_activate_btn:'Enable on this device',pk_activated:'Done. You can now sign in without a password on this device.',pk_unsupported:'This device does not support passwordless sign-in.',pk_need_login:'Sign in with your password first.',pk_cancelled:'You cancelled passwordless sign-in.',pk_login_err:'Could not sign in without a password. Use your password.',pk_reg_err:'Could not enable it. Please try again.',pk_status_active:'Passwordless sign-in enabled',pk_status_active_hint:'You can sign in on this device without typing your password. If you lose access to the device, your password still works.',pk_devices_lbl:'Enabled devices',pk_added_more:'Enable on another device too',pk_registered_at:'Registered',pk_last_used:'Last used',pk_never_used:'not used yet',pk_device_deactivate:'Disable',pk_device_deactivate_confirm:'Disable passwordless sign-in on "{n}"? You will need to use your password on that device until you enable it again.',pk_device_deactivated:'Passwordless sign-in disabled on "{n}".',pk_device_deactivate_err:'Could not disable it. Please try again.',pk_list_err:'Could not load the device list.',pwf_pk_offer:'Also enable passwordless sign-in on this device (Face ID / Touch ID).',pwf_pk_offer_after:'You will need to confirm with Face ID / Touch ID in the window that appears next.',
+my_profile:'My profile',full_name:'Full name',email:'Email',phone:'Phone',save_data:'Save details',change_password:'Change password',current_pass:'Current password',new_pass:'New password',repeat_pass:'Repeat new password',save_pass:'Save password',pass_wrong:'Current password is incorrect.',pass_short:'New password must be at least 4 characters.',pass_no_match:'New passwords do not match.',pass_ok:'✓ Password updated.',profile_saved:'✓ Details updated.',name_empty:'Name cannot be empty.',name_exists:'A player with that name already exists.',role_admin:'Administrator',role_player:'Player',current_group_label:'Current group',pk_section:'Passwordless sign-in',pk_section_hint:'Enable passwordless sign-in on this device to log in without typing your password. Works with Face ID, Touch ID, fingerprint or Windows Hello. You can enable it on every device you use (phone, computer, tablet). Your password still works as a backup.',pk_activate_btn:'Enable on this device',pk_activated:'Done. You can now sign in without a password on this device.',pk_unsupported:'This device does not support passwordless sign-in.',pk_need_login:'Sign in with your password first.',pk_cancelled:'You cancelled passwordless sign-in.',pk_login_err:'Could not sign in without a password. Use your password.',pk_reg_err:'Could not enable it. Please try again.',pk_status_active:'Passwordless sign-in enabled',pk_status_active_hint:'You can sign in on this device without typing your password. If you lose access to the device, your password still works.',pk_devices_lbl:'Enabled devices',pk_added_more:'Enable on another device too',pk_registered_at:'Registered',pk_last_used:'Last used',pk_never_used:'not used yet',pk_device_deactivate:'Disable',pk_device_deactivate_confirm:'Disable passwordless sign-in on "{n}"? You will need to use your password on that device until you enable it again.',pk_device_deactivated:'Passwordless sign-in disabled on "{n}".',pk_device_deactivate_err:'Could not disable it. Please try again.',pk_list_err:'Could not load the device list.',pwf_pk_offer:'Also enable passwordless sign-in on this device (Face ID / Touch ID).',pwf_pk_offer_after:'You will need to confirm with Face ID / Touch ID in the window that appears next.',pk_rename_title:'Rename device',pk_rename_prompt:'Choose a name to recognise this device.',pk_rename_empty:'Name cannot be empty.',pk_renamed:'Device renamed.',pk_rename_err:'Could not rename it.',forgot_pass:'Forgot password',reset_title:'Reset password',reset_desc:'Enter your username. If it exists and has an email on file, we will send you a link to choose a new password.',reset_user_ph:'Your username',reset_send:'Send link',reset_sending:'Sending…',reset_ok_msg:'If your user exists and has an email, we sent you a link. Check your inbox (and spam) in the next few minutes.',reset_err:'Could not send. Please try again.',reset_confirm_title:'Choose your new password',reset_confirm_desc:'You are resetting your password. Choose a new one and confirm it.',reset_new_ph:'New password',reset_rep_ph:'Repeat it',reset_short:'It must be at least 6 characters.',reset_nomatch:'The two passwords do not match.',reset_done:'Done, password updated. You can sign in now.',reset_link_invalid:'The link is invalid or has expired. Request a new one.',pk_admin_title:'Players passwordless sign-in',pk_admin_desc:'See who has passwordless sign-in enabled and disable it if they lost the device. Their account still works with password.',pk_admin_col_user:'Player',pk_admin_col_devices:'Devices',pk_admin_col_last:'Last used',pk_admin_none:'No player has enabled passwordless sign-in yet.',pk_admin_devices_of:'Devices of {n}',pk_admin_del_confirm:'Disable the device "{d}" of {n}? They will need to sign in with password until they enable it again.',pk_admin_del_ok:'Device disabled.',pk_admin_del_err:'Could not disable.',pk_admin_metric_lbl:'Passwordless sign-in adoption',pk_admin_metric_users:'players using it',pk_admin_metric_devices:'devices enabled',pk_admin_metric_pct:'% adoption',export_title:'Export league',export_desc:'Download an Excel with everything: players, standings, matches, cycles and playoffs.',export_btn:'Download Excel',export_working:'Preparing Excel…',export_ok:'Excel downloaded.',export_err:'Could not export.',export_sheet_jugadores:'Players',export_sheet_general:'Standings',export_sheet_partidos:'Matches',export_sheet_ciclos:'Cycles',export_sheet_playoff:'Playoffs',
 admin_profile:'My profile — Administrator',player_mgmt:'Player management',player_mgmt_hint:'Sorted alphabetically. Search by name. Edit name, email, phone, reset passwords, switch group or delete.',search_player:'Search player…',refresh_list:'Refresh list',no_results:'No results',save:'Save',reset_pass:'Reset password',reset_done:'{name}: password reset to the default password.',save_done:'{name}: details updated.',
 toast_confirmed:'Result confirmed and validated!',toast_disputed:'Result disputed. Admin will review it.',toast_pending_confirmed:'Pending results confirmed.',toast_simulated:'Cycle simulated and validated.',toast_dispute_resolved:'Dispute resolved.',
 reset_playoffs:'Reset Play Offs',
@@ -1639,11 +1650,11 @@ async function crearLigaConfirmar(){
 
 // ---- Cerrar / reabrir / eliminar ----
 async function cerrarLigaUI(id,nombre){
-  if(!confirm(t('lm_close_confirm').replace('{n}',nombre)))return;
+  if(!(await confirmarModal(t('lm_close_confirm').replace('{n}',nombre), {titulo:t('lm_close'), okTxt:t('lm_close')})))return;
   await accionLiga('cerrar',{id});
 }
 async function reabrirLigaUI(id,nombre){
-  if(!confirm(t('lm_reopen_confirm').replace('{n}',nombre)))return;
+  if(!(await confirmarModal(t('lm_reopen_confirm').replace('{n}',nombre), {titulo:t('lm_reopen'), okTxt:t('lm_reopen')})))return;
   await accionLiga('reabrir',{id});
 }
 async function renombrarLigaUI(id,nombre){
@@ -1656,7 +1667,7 @@ async function renombrarLigaUI(id,nombre){
 }
 async function eliminarLigaUI(id,nombre){
   // Doble confirmación: la segunda pide escribir el nombre exacto.
-  if(!confirm(t('lm_delete_confirm1').replace('{n}',nombre)))return;
+  if(!(await confirmarModal(t('lm_delete_confirm1').replace('{n}',nombre), {titulo:t('lm_delete'), okTxt:t('lm_delete'), peligro:true})))return;
   const tecleado=prompt(t('lm_delete_confirm2').replace('{n}',nombre));
   if(tecleado===null)return;
   if(tecleado.trim()!==nombre && tecleado.trim()!==id){ alert(t('lm_delete_mismatch')); return; }
@@ -1774,7 +1785,7 @@ function pintarCatJugadores(){
 }
 function filtrarCatJugadores(){ pintarCatJugadores(); }
 async function eliminarJugadorUI(jid,nombre){
-  if(!confirm(t('cj_del_confirm').replace('{n}',nombre)))return;
+  if(!(await confirmarModal(t('cj_del_confirm').replace('{n}',nombre), {titulo:t('lm_delete'), okTxt:t('lm_delete'), peligro:true})))return;
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'eliminarJugador',jugadorId:jid,ligaId:_ligaActual||undefined})});
     const d=await r.json().catch(()=>({}));
@@ -2065,6 +2076,10 @@ async function loginConPasskey(){
     if(!r2.ok) throw new Error(d.error||'No se pudo entrar.');
     // 4) Entrar con el token, igual que el login con clave
     entrarConToken(d);
+    // Si la contraseña sigue siendo pública, forzar el cambio. En este flujo no
+    // tenemos la clave anterior (entramos con Face ID): pasamos null y el
+    // servidor la acepta porque la clave guardada está en la lista pública.
+    if(d && d.mustChangePw) forcePwChange(null);
   }catch(err){
     // Si el usuario cancela el Face ID, no es un error para mostrar feo.
     const msg=(err&&err.name==='NotAllowedError')?t('pk_cancelled'):(err.message||t('pk_login_err'));
@@ -2170,13 +2185,19 @@ async function refrescarListaPasskeys(){
       const label = _pkEsc(p.deviceLabel);
       const reg   = fmtFecha(p.createdAt);
       const uso   = p.lastUsedAt ? fmtFecha(p.lastUsedAt) : t('pk_never_used');
+      const escCid = _pkEsc(p.credentialId).replace(/'/g,"&#39;");
+      const escLbl = label.replace(/'/g,"&#39;");
       html +=
         `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.5rem .65rem;border:1px solid var(--border,#e2e8f0);border-radius:8px">` +
           `<div style="min-width:0;flex:1">` +
-            `<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="ti ti-device-mobile" style="margin-right:.25rem;opacity:.7"></i>${label}</div>` +
+            `<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center">` +
+              `<i class="ti ti-device-mobile" style="margin-right:.25rem;opacity:.7"></i>` +
+              `<span style="overflow:hidden;text-overflow:ellipsis">${label}</span>` +
+              `<button class="pk-device-edit-btn" title="Renombrar" onclick="renombrarPasskey('${escCid}', '${escLbl}')"><i class="ti ti-pencil"></i></button>` +
+            `</div>` +
             `<div class="legend-txt" style="font-size:11px;margin-top:.15rem">${_pkEsc(t('pk_registered_at'))}: ${_pkEsc(reg)} · ${_pkEsc(t('pk_last_used'))}: ${_pkEsc(uso)}</div>` +
           `</div>` +
-          `<button class="btn btn-sm" style="background:transparent;color:#c0392b;border:1px solid #c0392b" onclick="desactivarPasskey('${_pkEsc(p.credentialId).replace(/'/g,"&#39;")}', '${label.replace(/'/g,"&#39;")}')"><i class="ti ti-trash"></i> ${_pkEsc(t('pk_device_deactivate'))}</button>` +
+          `<button class="btn btn-sm" style="background:transparent;color:#c0392b;border:1px solid #c0392b;flex-shrink:0;white-space:nowrap" onclick="desactivarPasskey('${escCid}', '${escLbl}')"><i class="ti ti-trash"></i> ${_pkEsc(t('pk_device_deactivate'))}</button>` +
         `</div>`;
     }
     html += `</div>`;
@@ -2197,7 +2218,7 @@ async function refrescarListaPasskeys(){
 async function desactivarPasskey(credId, label){
   if(!credId) return;
   const msg = t('pk_device_deactivate_confirm').replace('{n}', label || 'este dispositivo');
-  if(!confirm(msg)) return;
+  if(!(await confirmarModal(msg, {titulo:t('pk_device_deactivate'), okTxt:t('pk_device_deactivate'), peligro:true}))) return;
   try{
     const r = await fetch('/api/passkey', {
       method:'POST',
@@ -2207,10 +2228,245 @@ async function desactivarPasskey(credId, label){
     });
     const d = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(d.error || 'delete failed');
-    toast(t('pk_device_deactivated').replace('{n}', label || ''));
+    toast(t('pk_device_deactivated').replace('{n}', label || t('pk_devices_lbl')));
     refrescarListaPasskeys();
   }catch(err){
     toast(t('pk_device_deactivate_err'));
+  }
+}
+
+// ============================================================================
+// PANEL ADMIN DE PASSKEYS — el admin ve quién tiene ingreso rápido activado
+// y puede desactivar dispositivos de otros (útil si perdieron el iPhone).
+// Usa los endpoints admin-stats + admin-list-user + admin-delete-user.
+// ============================================================================
+async function cargarPasskeysAdmin(){
+  const metricsEl = document.getElementById('pk-admin-metrics');
+  const listEl = document.getElementById('pk-admin-list');
+  if(!metricsEl || !listEl) return;
+  mostrarSkeleton(listEl, 4);
+  try{
+    // Traemos métricas y lista de todos los jugadores con passkey en paralelo.
+    // Para la lista, recorremos users y pedimos por cada uno que tenga passkeys
+    // (dos requests: stats primero, luego por jugador). Para no saturar Supabase
+    // con 60 requests, hacemos SOLO stats acá y expandimos por jugador on-click.
+    const rStats = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ accion:'admin-stats', ligaId: _ligaActual || undefined })
+    });
+    const stats = await rStats.json().catch(()=>({}));
+    if(!rStats.ok) throw new Error(stats.error || 'stats failed');
+
+    // Métricas
+    metricsEl.innerHTML =
+      `<div class="metric-tile"><span class="metric-n">${stats.conPasskey||0}</span><span class="metric-lbl">${t('pk_admin_metric_users')}</span></div>` +
+      `<div class="metric-tile"><span class="metric-n">${stats.totalPasskeys||0}</span><span class="metric-lbl">${t('pk_admin_metric_devices')}</span></div>` +
+      `<div class="metric-tile"><span class="metric-n">${stats.pct||0}%</span><span class="metric-lbl">${t('pk_admin_metric_pct')}</span></div>`;
+
+    // Para el listado detallado, necesitamos saber qué jugadores tienen passkeys.
+    // El endpoint admin-stats devuelve totales pero no la lista. Hacemos una
+    // pasada por USERS local (que ya está en memoria) y pedimos passkeys por
+    // cada jugador. Para no explotar, solo pedimos jugadores activos (no inactive).
+    // Peor caso: 60 fetches en paralelo, ~2 s.
+    const users = USERS || {};
+    const jugadoresActivos = Object.keys(users)
+      .filter(n => (users[n].role || 'player') === 'player' && !users[n].inactive)
+      .sort((a,b) => a.localeCompare(b, 'es'));
+    if(!jugadoresActivos.length){ listEl.innerHTML = `<p class="legend-txt">${t('pk_admin_none')}</p>`; return; }
+
+    const rs = await Promise.all(jugadoresActivos.map(nom =>
+      fetch('/api/passkey', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+        body: JSON.stringify({ accion:'admin-list-user', userName: nom, ligaId: _ligaActual || undefined })
+      }).then(r => r.ok ? r.json() : { passkeys: [] }).catch(() => ({ passkeys: [] }))
+    ));
+    const jugadoresConPasskeys = [];
+    rs.forEach((d, i) => {
+      if(d.passkeys && d.passkeys.length) jugadoresConPasskeys.push({ nombre: jugadoresActivos[i], passkeys: d.passkeys });
+    });
+    if(!jugadoresConPasskeys.length){ listEl.innerHTML = `<p class="legend-txt">${t('pk_admin_none')}</p>`; return; }
+
+    const fmtFecha = iso => { if(!iso) return t('pk_never_used'); try{ return new Date(iso).toLocaleDateString(); }catch(_){ return iso.slice(0,10); } };
+    let html = '';
+    jugadoresConPasskeys.forEach(j => {
+      const nombreEsc = _pkEsc(j.nombre);
+      html += `<details style="border:1px solid var(--border,#e2e8f0);border-radius:8px;margin-bottom:6px">` +
+        `<summary style="cursor:pointer;padding:10px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center">` +
+          `<span><i class="ti ti-user" style="margin-right:.35rem;opacity:.7"></i>${nombreEsc}</span>` +
+          `<span style="font-size:11px;color:var(--text2,#64748b);font-weight:500">${j.passkeys.length} disp.</span>` +
+        `</summary>` +
+        `<div style="padding:8px 12px 12px;display:flex;flex-direction:column;gap:6px">`;
+      j.passkeys.forEach(p => {
+        const label = _pkEsc(p.deviceLabel);
+        const escCid = _pkEsc(p.credentialId).replace(/'/g,"&#39;");
+        const escLbl = label.replace(/'/g,"&#39;");
+        const escUser = nombreEsc.replace(/'/g,"&#39;");
+        html +=
+          `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.4rem .5rem;background:var(--surface2,#f8fafc);border-radius:6px">` +
+            `<div style="min-width:0;flex:1">` +
+              `<div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="ti ti-device-mobile" style="opacity:.6"></i> ${label}</div>` +
+              `<div style="font-size:10.5px;color:var(--text2,#64748b);margin-top:2px">${t('pk_last_used')}: ${_pkEsc(p.lastUsedAt ? fmtFecha(p.lastUsedAt) : t('pk_never_used'))}</div>` +
+            `</div>` +
+            `<button class="btn btn-sm" style="background:transparent;color:#c0392b;border:1px solid #c0392b;flex-shrink:0;font-size:11px;padding:4px 8px" onclick="desactivarPasskeyAdmin('${escUser}','${escCid}','${escLbl}')"><i class="ti ti-trash"></i></button>` +
+          `</div>`;
+      });
+      html += `</div></details>`;
+    });
+    listEl.innerHTML = html;
+  }catch(err){
+    metricsEl.innerHTML = '';
+    listEl.innerHTML = `<p class="legend-txt" style="color:#c0392b">${t('pk_list_err')}</p>`;
+  }
+}
+
+// Admin desactiva un dispositivo de otro jugador.
+async function desactivarPasskeyAdmin(userName, credId, label){
+  if(!userName || !credId) return;
+  const msg = t('pk_admin_del_confirm').replace('{d}', label || 'este dispositivo').replace('{n}', userName);
+  if(!(await confirmarModal(msg, { titulo: t('pk_device_deactivate'), okTxt: t('pk_device_deactivate'), peligro: true }))) return;
+  try{
+    const r = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ accion:'admin-delete-user', userName, credentialId: credId, ligaId: _ligaActual || undefined })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || 'admin delete failed');
+    toast(t('pk_admin_del_ok'));
+    cargarPasskeysAdmin();   // refrescar la lista
+  }catch(err){
+    toast(t('pk_admin_del_err'));
+  }
+}
+
+
+// ============================================================================
+// EXPORTAR LIGA A EXCEL — usa SheetJS (ya cargado globalmente como XLSX).
+// Arma un workbook con 4 hojas: Jugadores, Clasificación, Partidos, Ciclos.
+// ============================================================================
+function exportarLigaExcel(){
+  if(typeof XLSX === 'undefined'){ toast('Error: librería Excel no cargada.'); return; }
+  toast(t('export_working'));
+  try{
+    const wb = XLSX.utils.book_new();
+
+    // ---- Hoja 1: Jugadores (con estadísticas totales) ----
+    const stats = {};
+    Object.keys(USERS).forEach(n => {
+      if(n === 'admin' || n === 'superadmin') return;
+      stats[n] = { pj:0, pg:0, pp:0, gg:0, gp:0 };
+    });
+    matches.forEach(m => {
+      if(m.status !== 'confirmed') return;
+      const a = m.po ? m.poNames[0] : m.aName;
+      const b = m.po ? m.poNames[1] : m.bName;
+      if(!stats[a] || !stats[b]) return;
+      let ga = 0, gb = 0;
+      (m.sets || []).forEach(s => { ga += s[0]||0; gb += s[1]||0; });
+      stats[a].pj++; stats[b].pj++;
+      stats[a].gg += ga; stats[a].gp += gb;
+      stats[b].gg += gb; stats[b].gp += ga;
+      // Ganador: quien ganó más sets
+      let wa = 0, wb = 0;
+      (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
+      if(wa > wb){ stats[a].pg++; stats[b].pp++; }
+      else if(wb > wa){ stats[b].pg++; stats[a].pp++; }
+    });
+    const jugadoresRows = [['Nombre','Grupo actual','Email','Teléfono','PJ','PG','PP','% Victorias','Games ganados','Games perdidos','Rating']];
+    Object.keys(USERS).filter(n => n!=='admin' && n!=='superadmin').sort((a,b)=>a.localeCompare(b,'es')).forEach(n => {
+      const u = USERS[n];
+      const loc = findPlayer(n);
+      const grupo = loc ? groupName(loc.g) : '';
+      const s = stats[n] || { pj:0, pg:0, pp:0, gg:0, gp:0 };
+      const pct = s.pj > 0 ? Math.round(100 * s.pg / s.pj) + '%' : '';
+      let rating = '';
+      try { if(window.ratingsUTR && typeof window.ratingsUTR === 'object' && window.ratingsUTR[n]){ rating = window.ratingsUTR[n].rating ? window.ratingsUTR[n].rating.toFixed(2) : ''; } } catch(_){}
+      jugadoresRows.push([n, grupo, u.email||'', u.tel||'', s.pj, s.pg, s.pp, pct, s.gg, s.gp, rating]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(jugadoresRows), t('export_sheet_jugadores'));
+
+    // ---- Hoja 2: Clasificación general (usa computeGeneralStanding si existe) ----
+    try {
+      if(typeof computeGeneralStanding === 'function'){
+        const gs = computeGeneralStanding();
+        const genRows = [['Pos','Jugador','Puntos totales','Puntos último ciclo','Grupo actual']];
+        gs.forEach((r, i) => {
+          genRows.push([i+1, r.name, r.total, r.last, r.grupo || '']);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(genRows), t('export_sheet_general'));
+      }
+    } catch(_){}
+
+    // ---- Hoja 3: Partidos ----
+    const partRows = [['Ciclo','Grupo','Fase','Jugador A','Jugador B','Sets','Ganador','Estado','Club']];
+    matches.forEach(m => {
+      const a = m.po ? (m.poNames && m.poNames[0]) : m.aName;
+      const b = m.po ? (m.poNames && m.poNames[1]) : m.bName;
+      const fase = m.po ? (playoff.tramos && playoff.tramos[m.ti] ? 'PO ' + playoff.tramos[m.ti].label : 'PO') : ('Ciclo '+m.cycle);
+      const sets = (m.sets || []).map(s => (s[0]||0)+'-'+(s[1]||0)).join(' · ');
+      let ganador = '';
+      let wa = 0, wb = 0;
+      (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
+      if(wa > wb) ganador = a; else if(wb > wa) ganador = b;
+      const estado = m.status || 'confirmed';
+      const club = (CLUBS && m.clubId) ? (CLUBS.find(c => c.id === m.clubId)?.name || '') : '';
+      partRows.push([m.cycle || '', m.g || '', fase, a, b, sets, ganador, estado, club]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(partRows), t('export_sheet_partidos'));
+
+    // ---- Hoja 4: Ciclos (estado y jugadores por grupo) ----
+    const cycRows = [['Ciclo','Estado','Grupo','Jugadores']];
+    (cycles || []).forEach(c => {
+      const st = c.status === 'active' ? 'Activo' : (c.status === 'finished' ? 'Finalizado' : 'Bloqueado');
+      if(c.groups && c.groups.length){
+        c.groups.forEach((g, gi) => {
+          cycRows.push([c.n, st, gi+1, (g.players||[]).join(', ')]);
+        });
+      } else {
+        cycRows.push([c.n, st, '', '']);
+      }
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cycRows), t('export_sheet_ciclos'));
+
+    // ---- Descargar ----
+    const nombreLiga = (typeof LEAGUE_NAME === 'string' && LEAGUE_NAME) ? LEAGUE_NAME : 'liga';
+    const fname = 'liga-' + nombreLiga.replace(/[^a-z0-9]+/gi,'_').toLowerCase() + '-' + new Date().toISOString().slice(0,10) + '.xlsx';
+    XLSX.writeFile(wb, fname);
+    toast(t('export_ok'));
+  }catch(err){
+    console.error('Export error:', err);
+    toast(t('export_err'));
+  }
+}
+
+
+// Renombrar una passkey del propio usuario. Pide un nombre nuevo en un modal
+// (con input) y llama al endpoint. El backend valida que sea del usuario.
+async function renombrarPasskey(credId, labelActual){
+  if(!credId) return;
+  const nuevo = await confirmarModal(
+    t('pk_rename_prompt'),
+    { titulo: t('pk_rename_title'), okTxt: t('rg_save')||'Guardar', inputPlaceholder: labelActual || 'Ej: iPhone del trabajo' }
+  );
+  if(nuevo === null || nuevo === false) return;   // canceló
+  const nombre = String(nuevo || '').trim();
+  if(!nombre){ toast(t('pk_rename_empty')); return; }
+  if(nombre === labelActual) return;              // sin cambios
+  try{
+    const r = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      credentials:'same-origin',
+      body: JSON.stringify({ accion:'rename', credentialId: credId, deviceLabel: nombre })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || 'rename failed');
+    toast(t('pk_renamed'));
+    refrescarListaPasskeys();
+  }catch(err){
+    toast(t('pk_rename_err'));
   }
 }
 
@@ -3819,8 +4075,23 @@ function renderAdmin(){
     h+='<div id="liga-mgmt-list" class="lm-list"><div class="pm-past-load">'+t('past_loading')+'</div></div>';
     h+='</div>';
 
+    // ==================== CARD: Métricas + Panel de Ingreso Rápido ====================
+    // Muestra métricas de adopción de Face ID y permite al admin desactivar
+    // dispositivos de cualquier jugador (útil si perdieron el iPhone).
+    h+=`<div class="card"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_admin_title')}</div>`;
+    h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_admin_desc')}</p>`;
+    h+=`<div id="pk-admin-metrics" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>`;
+    h+=`<div id="pk-admin-list"></div></div>`;
+
+    // ==================== CARD: Exportar liga a Excel ====================
+    h+=`<div class="card"><div class="section-lbl"><i class="ti ti-file-spreadsheet"></i> ${t('export_title')}</div>`;
+    h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('export_desc')}</p>`;
+    h+=`<button class="btn btn-primary btn-sm" onclick="exportarLigaExcel()"><i class="ti ti-download"></i> ${t('export_btn')}</button></div>`;
+
     document.getElementById('view-admin').innerHTML=h;
     cargarGestionLigas();
+    // Cargar el card de passkeys admin (fetch async, no bloquea el render)
+    if(typeof cargarPasskeysAdmin==='function') cargarPasskeysAdmin();
   } catch (err) {
     console.error("Error en renderAdmin:", err);
     document.getElementById('view-admin').innerHTML = `<div class="card"><div class="alert alert-err" style="margin-bottom:0"><b>Error cargando el panel Admin:</b> ${err.message}<br>Por favor recargá la página o contactá a soporte técnico.</div></div>`;
@@ -5345,20 +5616,117 @@ function quitarDeGrupoActivo(name){
   }
   return false;
 }
+// ============================================================================
+// RESET POR EMAIL — flujo en dos etapas.
+// 1) mostrarResetRequest(): el usuario pide un link (desde login, "Olvidé...").
+// 2) mostrarResetConfirm(token): al llegar por email al link ?reset=TOKEN,
+//    detectamos la URL y mostramos el modal para elegir clave nueva.
+// El backend está en /api/reset (accion: 'request' | 'confirm').
+// ============================================================================
+async function mostrarResetRequest(){
+  const preUser = (document.getElementById('login-user') && document.getElementById('login-user').value) || '';
+  const user = await confirmarModal(t('reset_desc'), {
+    titulo: t('reset_title'),
+    okTxt: t('reset_send'),
+    inputPlaceholder: t('reset_user_ph')
+  });
+  if(user === null || user === false) return;
+  const u = String(user || '').trim() || preUser.trim();
+  if(!u){ toast(t('err_need_both')); return; }
+  try{
+    const r = await fetch('/api/reset', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ accion:'request', user: u, ligaId: _ligaActual || undefined })
+    });
+    // Respuesta siempre 200 salvo error de red. No revelamos si el usuario existe.
+    if(r.ok){
+      await confirmarModal(t('reset_ok_msg'), { titulo: t('reset_title'), okTxt: 'OK', cancelTxt: '' });
+    } else {
+      toast(t('reset_err'));
+    }
+  }catch(_){ toast(t('reset_err')); }
+}
+
+// Modal para elegir la clave nueva tras clickear el link del email.
+function mostrarResetConfirm(token){
+  const ov = document.createElement('div');
+  ov.id = '_rsov';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;padding:16px';
+  ov.innerHTML = '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
+    '<h3 style="margin:0 0 6px;font-size:17px">'+t('reset_confirm_title')+'</h3>'+
+    '<p style="margin:0 0 14px;font-size:13px;line-height:1.45;color:var(--text2,#64748b)">'+t('reset_confirm_desc')+'</p>'+
+    '<input id="_rs1" type="password" autocomplete="new-password" placeholder="'+t('reset_new_ph')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<input id="_rs2" type="password" autocomplete="new-password" placeholder="'+t('reset_rep_ph')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<div id="_rse" style="display:none;font-size:12px;color:#c0392b;margin-bottom:8px"></div>'+
+    '<button id="_rsb" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('reset_send')+'</button>'+
+  '</div>';
+  document.body.appendChild(ov);
+  const err = m => { const e = document.getElementById('_rse'); e.textContent = m; e.style.display = 'block'; };
+  document.getElementById('_rsb').onclick = async function(){
+    const a = document.getElementById('_rs1').value, b = document.getElementById('_rs2').value;
+    if(!a || a.length < 6) return err(t('reset_short'));
+    if(a !== b) return err(t('reset_nomatch'));
+    this.disabled = true;
+    try{
+      const r = await fetch('/api/reset', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ accion:'confirm', token, newPass: a })
+      });
+      const d = await r.json().catch(()=>({}));
+      if(!r.ok){ this.disabled = false; return err(d.error || t('reset_err')); }
+      ov.remove();
+      // Limpiamos el token de la URL para que no quede accesible al hacer refresh.
+      try{
+        const u = new URL(location.href); u.searchParams.delete('reset');
+        history.replaceState({}, '', u.toString());
+      }catch(_){}
+      toast(t('reset_done'));
+    }catch(e){ this.disabled = false; err(t('reset_err')); }
+  };
+  document.getElementById('_rs1').focus();
+}
+
+// Detección de token de reset en la URL al arrancar. Se ejecuta al cargar.
+(function detectarResetToken(){
+  try{
+    const u = new URL(location.href);
+    const tk = u.searchParams.get('reset');
+    if(tk && tk.length > 20){
+      // Esperamos a que t() esté disponible (traducciones cargadas)
+      const disparar = () => {
+        if(typeof t === 'function' && document.body){ mostrarResetConfirm(tk); }
+        else setTimeout(disparar, 100);
+      };
+      if(document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', disparar);
+      } else {
+        disparar();
+      }
+    }
+  }catch(_){}
+})();
+
 // Cambio de contraseña obligatorio. Aparece cuando el servidor avisa que se
 // entró con una clave por defecto. No se puede cerrar ni saltear desde la UI.
+// oldPass puede ser null si el usuario entró con Face ID: en ese caso el
+// servidor acepta el cambio sin la clave anterior (el token ya prueba identidad
+// y la clave guardada es de la lista pública POR_DEFECTO_V2).
 function forcePwChange(oldPass){
+  const viaPasskey = (oldPass === null || oldPass === undefined);
   const ov=document.createElement('div');
   ov.id='_pwforce';
   ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;padding:16px';
-  // Si el dispositivo soporta Face ID/Touch ID, ofrecemos activarlo en el mismo paso.
-  // Así el usuario pasa por Face ID una sola vez (aprovechamos que acaba de tipear la clave).
-  const soporta = (typeof passkeySoportada==='function' && passkeySoportada());
+  // Ofrecemos activar Face ID acá SOLO si el dispositivo lo soporta Y el usuario
+  // no acaba de entrar con Face ID (en ese caso ya está activado, no tiene sentido).
+  const soporta = (typeof passkeySoportada==='function' && passkeySoportada()) && !viaPasskey;
   const pkCheck = soporta
-    ? '<label style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 12px;font-size:12.5px;line-height:1.4;color:var(--text2,#64748b);cursor:pointer">'+
+    ? '<label style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 4px;font-size:12.5px;line-height:1.4;color:var(--text2,#64748b);cursor:pointer">'+
         '<input id="_pwfpk" type="checkbox" checked style="margin-top:2px;flex-shrink:0">'+
         '<span>'+t('pwf_pk_offer')+'</span>'+
-      '</label>'
+      '</label>'+
+      '<p id="_pwfpkhint" style="margin:0 0 12px 26px;font-size:11.5px;line-height:1.35;color:var(--text2,#64748b);opacity:.85">'+t('pwf_pk_offer_after')+'</p>'
     : '';
   ov.innerHTML='<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
     '<h3 style="margin:0 0 6px;font-size:17px">'+t('pwf_title')+'</h3>'+
@@ -5370,17 +5738,31 @@ function forcePwChange(oldPass){
     '<button id="_pwfb" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
   '</div>';
   document.body.appendChild(ov);
+  // Si el usuario desmarca el checkbox de Face ID, ocultamos el hint sobre
+  // el prompt biométrico: ya no aplica y confunde.
+  if(soporta){
+    const chk = document.getElementById('_pwfpk');
+    const hintEl = document.getElementById('_pwfpkhint');
+    if(chk && hintEl){
+      chk.addEventListener('change', () => { hintEl.style.display = chk.checked ? '' : 'none'; });
+    }
+  }
   const err=m=>{const e=document.getElementById('_pwfe');e.textContent=m;e.style.display='block';};
   document.getElementById('_pwfb').onclick=async function(){
     const a=document.getElementById('_pwf1').value, b=document.getElementById('_pwf2').value;
     if(!a||a.length<6) return err(t('pwf_short'));
-    if(a===oldPass)    return err(t('pwf_same'));
+    // No comparar contra oldPass si vinimos por Face ID (no la tenemos, oldPass=null).
+    if(!viaPasskey && a===oldPass) return err(t('pwf_same'));
     if(a!==b)          return err(t('pwf_nomatch'));
     this.disabled=true;
     try{
+      // Body: si entramos por Face ID, no mandamos oldPass. El servidor lo permite
+      // porque la clave actual está en POR_DEFECTO_V2 y ya tenemos token válido.
+      const payload = { newPass: a, ligaId: _ligaActual || undefined };
+      if(!viaPasskey) payload.oldPass = oldPass;
       const r=await fetch('/api/password',{method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
-        body:JSON.stringify({oldPass:oldPass,newPass:a,ligaId:_ligaActual||undefined})});
+        body:JSON.stringify(payload)});
       const d=await r.json().catch(()=>({}));
       if(!r.ok){this.disabled=false;return err(d.error||t('pwf_err'));}
       // ¿El usuario pidió activar Face ID/Touch ID? Lo hacemos ahora, antes de cerrar
@@ -5611,6 +5993,72 @@ function submitPo(){
 function storePo(ti,which,a,b,sets,w){const k=(which==='main'?ti:ti+'c')+'#'+[a,b].sort().join('|');playoff.results[k]={sets,w};}
 function applyPoPending(rec){storePo(rec.ti,rec.which,rec.poNames[0],rec.poNames[1],rec.sets,rec.winner);rebuildTramo(rec.ti);}
 let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');if(!t){t=document.createElement('div');t.id='_toast';t.className='toast';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';if(_toastTimer)clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.opacity='0';_toastTimer=null;},3800);}
+
+// ============================================================================
+// confirmarModal(mensaje, opts) — reemplazo estético del confirm() nativo.
+// Devuelve Promise<boolean>: true si confirma, false si cancela / cierra.
+// Uso:  if(await confirmarModal('¿Borrar?')) { ... }
+// Opts: { titulo, okTxt, cancelTxt, peligro:true (rojo), inputPlaceholder (si
+//   se necesita que el usuario escriba algo para confirmar; el resolve pasa el
+//   string en vez de boolean) }
+// ============================================================================
+function confirmarModal(mensaje, opts){
+  opts = opts || {};
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'cm-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .18s';
+    const peligro = !!opts.peligro;
+    const okBg = peligro ? '#c0392b' : 'var(--pri,#1e3a8a)';
+    const titulo = opts.titulo || '';
+    const okTxt = opts.okTxt || 'Confirmar';
+    const cancelTxt = opts.cancelTxt || 'Cancelar';
+    const inputPh = opts.inputPlaceholder || '';
+    const inputHtml = inputPh
+      ? '<input id="_cm-in" placeholder="'+inputPh.replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;margin:8px 0 4px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px" autocomplete="off">'
+      : '';
+    ov.innerHTML =
+      '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25);transform:translateY(8px);transition:transform .18s">'+
+        (titulo ? '<h3 style="margin:0 0 8px;font-size:16px;font-weight:600">'+titulo+'</h3>' : '')+
+        '<p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--text,#0f172a);white-space:pre-wrap">'+String(mensaje).replace(/</g,'&lt;')+'</p>'+
+        inputHtml +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">'+
+          '<button id="_cm-cancel" class="btn btn-sm" style="background:transparent;border:1px solid var(--border,#e2e8f0);color:var(--text2,#64748b);padding:8px 14px">'+cancelTxt+'</button>'+
+          '<button id="_cm-ok" class="btn btn-sm" style="background:'+okBg+';color:#fff;border:none;padding:8px 14px;font-weight:600">'+okTxt+'</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=>{ ov.style.opacity='1'; ov.firstChild.style.transform='translateY(0)'; });
+    const cerrar = (val) => {
+      ov.style.opacity='0';
+      setTimeout(()=>{ if(ov.parentNode) ov.parentNode.removeChild(ov); resolve(val); }, 180);
+    };
+    const inp = document.getElementById('_cm-in');
+    if(inp){ setTimeout(()=>inp.focus(), 60); }
+    document.getElementById('_cm-ok').onclick = () => cerrar(inp ? inp.value : true);
+    document.getElementById('_cm-cancel').onclick = () => cerrar(inp ? null : false);
+    // Click en el overlay = cancelar
+    ov.onclick = (e) => { if(e.target === ov) cerrar(inp ? null : false); };
+    // ESC = cancelar
+    const esc = (e) => { if(e.key === 'Escape'){ cerrar(inp ? null : false); document.removeEventListener('keydown', esc); } };
+    document.addEventListener('keydown', esc);
+    // Enter en el input = OK
+    if(inp){ inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') cerrar(inp.value); }); }
+  });
+}
+
+// Skeleton placeholder animado. Uso: mostrarSkeleton(container, filas)
+// Reemplaza el contenido del contenedor con N rectángulos animados que
+// simulan filas de una lista. Usar antes de un fetch, borrar al terminar.
+function mostrarSkeleton(container, filas){
+  if(!container) return;
+  filas = filas || 3;
+  let html = '';
+  for(let i = 0; i < filas; i++){
+    html += '<div class="skeleton-row" style="height:44px;background:linear-gradient(90deg,#eef2f7 25%,#e2e8f0 50%,#eef2f7 75%);background-size:200% 100%;border-radius:8px;margin-bottom:6px;animation:sk-shine 1.2s infinite linear"></div>';
+  }
+  container.innerHTML = html;
+}
 
 // ===== CONEXIÓN A SUPABASE — guardado instantáneo =====
 let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=false,_prioritySave=false,_lastSaveError='',_reintento409=false;
