@@ -6,8 +6,8 @@
 // Existe porque el jugador ya no recibe ningún hash: la verificación de la
 // contraseña anterior tiene que ocurrir del lado del servidor.
 // =====================================================================
-const { hashV1, hashV2, auth, readState, writeState, envOK, isAdminRole, sesionEsAdmin, SUPER_HASH,
-        readCatalogo, upsertJugador, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
+const { hashV1, hashV2, POR_DEFECTO_V2, auth, readState, writeState, envOK, isAdminRole, sesionEsAdmin, SUPER_HASH,
+        readCatalogo, upsertJugador, ligaIdOK, LIGA_DEFAULT, logAudit, clientIP } = require('./_lib');
 
 module.exports = async function handler(req, res){
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
@@ -65,14 +65,24 @@ module.exports = async function handler(req, res){
   const passActual = (jugGlobal && jugGlobal.pass != null) ? jugGlobal.pass : (u.pass || '');
 
   // Cambiando la propia: hay que probar que sabés la anterior.
+  // Excepción: si la clave actual es una PÚBLICA (POR_DEFECTO_V2), el token ya
+  // demuestra que la persona es el dueño de la cuenta. Se permite el cambio sin
+  // oldPass. Esto habilita el flujo "entré con Face ID y tenía clave por defecto":
+  // el cliente muestra el modal pwf sin pedir la anterior, y el server acepta.
   if(!target){
     const oldPass  = String(body.oldPass || '');
     const stored   = passActual;
-    const isLegacy = !/^v[12]:/.test(stored);
-    const oldV2    = hashV2(oldPass);
-    const oldOK    = (SUPER_HASH && oldV2 === SUPER_HASH)
-                  || (isLegacy ? stored === oldPass : (stored === oldV2 || stored === hashV1(oldPass)));
-    if(!oldOK) return res.status(401).json({ error: 'La contraseña actual no es correcta.' });
+    // Si la clave guardada es pública, no hace falta pedirla.
+    if(POR_DEFECTO_V2.has(stored)){
+      // OK, seguimos. La verificación es implícita: hay token válido + clave pública.
+    } else {
+      if(!oldPass) return res.status(400).json({ error: 'Falta la contraseña actual.' });
+      const isLegacy = !/^v[12]:/.test(stored);
+      const oldV2    = hashV2(oldPass);
+      const oldOK    = (SUPER_HASH && oldV2 === SUPER_HASH)
+                    || (isLegacy ? stored === oldPass : (stored === oldV2 || stored === hashV1(oldPass)));
+      if(!oldOK) return res.status(401).json({ error: 'La contraseña actual no es correcta.' });
+    }
   }
 
   // Guardar la contraseña nueva en la fuente correcta.
@@ -87,6 +97,9 @@ module.exports = async function handler(req, res){
     try { await writeState(ligaId, state); }
     catch(e){ return res.status(503).json({ error: 'No se pudo guardar la contraseña nueva.' }); }
   }
+
+  // Audit: cambio de contraseña. Distingue self-change de admin-reset.
+  logAudit(session.u, target ? 'pass.admin_reset' : 'pass.self_change', name, null, clientIP(req));
 
   return res.status(200).json({ ok: true });
 };
