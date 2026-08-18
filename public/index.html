@@ -451,11 +451,17 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
 .cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
 .gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
-/* Nota: --meRowBg y --meRowText son variables independientes de --winrow.
-   En light mode: cream + texto azul oscuro (como antes).
-   En dark mode: azul oscuro elegante + texto azul brillante — legible y coherente. */
-html[data-theme="dark"] .gen-table .me-row td,html[data-theme="dark"] .cls-table .me-row td,html[data-theme="dark"] .rt-table tr.me-row td{color:var(--meRowText)}
-@media (prefers-color-scheme: dark){html:not([data-theme]) .gen-table .me-row td,html:not([data-theme]) .cls-table .me-row td,html:not([data-theme]) .rt-table tr.me-row td{color:var(--meRowText)}}
+/* En dark mode necesitamos MÁS especificidad para pisar los colores propios
+   de .nm-link (link azul del nombre) y .rt-cell (celda de rating con su color).
+   El texto queda blanco puro para máxima legibilidad sobre el fondo azul;
+   el link del nombre queda en celeste claro para distinguirse como link. */
+html[data-theme="dark"] .gen-table .me-row td,html[data-theme="dark"] .cls-table .me-row td,html[data-theme="dark"] .rt-table tr.me-row td,html[data-theme="dark"] .gen-table .me-row td strong,html[data-theme="dark"] .cls-table .me-row td strong,html[data-theme="dark"] .rt-table tr.me-row td strong,html[data-theme="dark"] .gen-table .me-row .rt-cell,html[data-theme="dark"] .cls-table .me-row .rt-cell,html[data-theme="dark"] .rt-table tr.me-row .rt-cell{color:#ffffff!important}
+html[data-theme="dark"] .gen-table .me-row .nm-link,html[data-theme="dark"] .cls-table .me-row .nm-link,html[data-theme="dark"] .rt-table tr.me-row .nm-link{color:#93c5fd!important;text-decoration-color:#93c5fd!important}
+/* Mismo tratamiento para el dark mode automático (sin data-theme manual) */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .gen-table .me-row td,html:not([data-theme]) .cls-table .me-row td,html:not([data-theme]) .rt-table tr.me-row td,html:not([data-theme]) .gen-table .me-row td strong,html:not([data-theme]) .cls-table .me-row td strong,html:not([data-theme]) .rt-table tr.me-row td strong,html:not([data-theme]) .gen-table .me-row .rt-cell,html:not([data-theme]) .cls-table .me-row .rt-cell,html:not([data-theme]) .rt-table tr.me-row .rt-cell{color:#ffffff!important}
+  html:not([data-theme]) .gen-table .me-row .nm-link,html:not([data-theme]) .cls-table .me-row .nm-link,html:not([data-theme]) .rt-table tr.me-row .nm-link{color:#93c5fd!important;text-decoration-color:#93c5fd!important}
+}
 .gen-cyc{font-size:11px;color:var(--text2)}
 .gen-po{white-space:nowrap}
 .gen-dash{color:#c8d0dc}
@@ -2440,6 +2446,11 @@ function aplicarTema(modo){
       b.style.color = isActive ? '#fff' : 'var(--text)';
       b.style.borderColor = isActive ? 'var(--pri)' : 'var(--border)';
     });
+    // Invalidar caché de rating (puede contener HTML precomputado con colores
+    // del tema anterior) y re-renderizar la vista actual. Sin esto quedaban
+    // restos visuales del tema previo hasta la próxima navegación de tab.
+    try { if(typeof _ratingCache !== 'undefined') _ratingCache = null; } catch(_){}
+    try { if(typeof subView === 'string' && typeof showSub === 'function') showSub(subView); } catch(_){}
   } catch(e){ console.error('Theme error:', e); }
 }
 
@@ -6559,4 +6570,4 @@ if(typeof window!=='undefined'&&window.addEventListener){
   initLogin();
   updateLangUI();
 })();
-</script><script src="rating.js"></script></body></html>
+</script><script src="rating.js"></script></body></htm
