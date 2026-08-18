@@ -12,8 +12,8 @@
 const {
   auth, envOK, sesionEsAdmin, readState, writeState,
   readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga,
-  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador,
-  ligaIdOK, hashV2
+  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
+  ligaIdOK, hashV2, logAudit, clientIP
 } = require('./_lib');
 
 const crypto = require('crypto');
@@ -111,9 +111,13 @@ module.exports = async function handler(req, res){
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   // El permiso se lee del estado de la liga donde está logueado el admin.
+  // Para 'crear' es crítico: sesionState alimenta también la herencia de
+  // admin/superadmin a la liga nueva. Si acá falla la lectura, seguir con
+  // sesionState=null dejaría la liga nueva SIN admins, huérfana.
   let sesionState;
+  let sesionStateErr = null;
   try { sesionState = await readState(body.ligaId || session.ligaId || undefined); }
-  catch(e){ sesionState = null; }
+  catch(e){ sesionState = null; sesionStateErr = e; }
   const esAdmin = sesionEsAdmin(session, sesionState && sesionState.users);
   if(!esAdmin) return res.status(403).json({ error: 'Solo un administrador puede gestionar ligas.' });
 
@@ -178,8 +182,21 @@ module.exports = async function handler(req, res){
     }
     const jid = String(body.jugadorId || '');
     if(!jid) return res.status(400).json({ error: 'Falta el jugador.' });
+    // Antes de borrar el perfil, ubicamos su nombre para poder limpiar sus
+    // passkeys. Si no lo encontramos, seguimos: la limpieza es best-effort.
+    let nombreJug = null;
+    try {
+      const cat = await readCatalogo();
+      nombreJug = cat[jid] && cat[jid].nombre;
+    } catch(_){ /* seguimos: la limpieza de passkeys es best-effort */ }
     try { await borrarJugador(jid); }
     catch(e){ return res.status(503).json({ error: 'No se pudo eliminar: ' + e.message }); }
+    // Limpieza de passkeys huérfanas: si mañana se crea otro jugador con el
+    // mismo nombre, no debería heredar las Face ID del anterior.
+    if(nombreJug){
+      try { await borrarPasskeysDeUsuario(nombreJug); } catch(_){ /* best-effort */ }
+    }
+    logAudit(session.u, 'jugador.eliminar', jid, { nombre: nombreJug }, clientIP(req));
     return res.status(200).json({ ok: true, jugadorId: jid });
   }
 
@@ -200,6 +217,13 @@ module.exports = async function handler(req, res){
     try { idx = await readLigaIndex(); } catch(e){ idx = []; }
     if(idx.some(l => l.id === nuevoId)){
       return res.status(409).json({ error: 'Ya existe una liga con ese identificador.' });
+    }
+
+    // La liga nueva DEBE heredar al admin/superadmin actuales; si no se pudo
+    // leer el estado de la liga desde donde estás logueado, abortamos: crear
+    // una liga sin admin la deja huérfana y sin forma de recuperarla desde la app.
+    if(!sesionState || !sesionState.users){
+      return res.status(503).json({ error: 'No se pudo leer la liga actual para heredar los administradores. Probá de nuevo en unos segundos.' });
     }
 
     const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
@@ -244,6 +268,11 @@ module.exports = async function handler(req, res){
       }
 
       if(perfil && perfil.nombre){
+        // Protección: los nombres 'admin' y 'superadmin' son cuentas de sistema
+        // y se acaban de heredar arriba. Un perfil del catálogo con esos nombres
+        // NO puede pisarlas (dejaría a la liga sin admin real, con clave del jugador).
+        const nomNorm = perfil.nombre.trim().toLowerCase();
+        if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
         // Agregar a la liga apuntando a su perfil global.
         estado.users[perfil.nombre] = { role: 'player', jugadorId: perfil.id };
         if(!estado.ALLNAMES.includes(perfil.nombre)) estado.ALLNAMES.push(perfil.nombre);
@@ -259,6 +288,7 @@ module.exports = async function handler(req, res){
       return res.status(503).json({ error: 'No se pudo crear la liga: ' + e.message });
     }
 
+    logAudit(session.u, 'liga.crear', nuevoId, { nombre, jugadores: estado.ALLNAMES.length }, clientIP(req));
     return res.status(200).json({ ok: true, id: nuevoId, jugadores: estado.ALLNAMES.length });
   }
 
@@ -266,6 +296,7 @@ module.exports = async function handler(req, res){
   if(accion === 'cerrar'){
     try { await setEstadoLiga(id, 'finalizada'); }
     catch(e){ return res.status(503).json({ error: 'No se pudo cerrar la liga: ' + e.message }); }
+    logAudit(session.u, 'liga.cerrar', id, null, clientIP(req));
     return res.status(200).json({ ok: true, id, estado: 'finalizada' });
   }
 
@@ -273,12 +304,11 @@ module.exports = async function handler(req, res){
   if(accion === 'reabrir'){
     try { await setEstadoLiga(id, 'activa'); }
     catch(e){ return res.status(503).json({ error: 'No se pudo reabrir la liga: ' + e.message }); }
+    logAudit(session.u, 'liga.reabrir', id, null, clientIP(req));
     return res.status(200).json({ ok: true, id, estado: 'activa' });
   }
 
   // ================= RENOMBRAR =================
-  // Cambia solo el nombre visible (el id interno queda fijo para no romper referencias).
-  // Actualiza tanto el índice como el LEAGUE_NAME dentro del estado de la liga.
   if(accion === 'renombrar'){
     const nuevoNombre = String(body.nombre || '').trim();
     if(!nuevoNombre) return res.status(400).json({ error: 'Falta el nombre nuevo.' });
@@ -288,18 +318,16 @@ module.exports = async function handler(req, res){
     const entry = idx.find(l => l.id === id);
     if(!entry) return res.status(404).json({ error: 'Esa liga no existe.' });
     try {
-      // 1) Actualizar el índice conservando estado y orden.
       await upsertLigaIndex({ id, nombre: nuevoNombre, estado: entry.estado, orden: entry.orden });
-      // 2) Actualizar el LEAGUE_NAME dentro del estado, para que se vea en la liga.
       const estado = await readState(id);
       if(estado){ estado.LEAGUE_NAME = nuevoNombre; await writeState(id, estado); }
     } catch(e){ return res.status(503).json({ error: 'No se pudo renombrar: ' + e.message }); }
+    logAudit(session.u, 'liga.renombrar', id, { anterior: entry.nombre, nuevo: nuevoNombre }, clientIP(req));
     return res.status(200).json({ ok: true, id, nombre: nuevoNombre });
   }
 
   // ================= ELIMINAR =================
   if(accion === 'eliminar'){
-    // Protección: si la liga tiene partidos cargados, exige confirmación por nombre.
     let estado = null;
     try { estado = await readState(id); } catch(e){ estado = null; }
     const tienePartidos = !!(estado && Array.isArray(estado.matches) && estado.matches.length);
@@ -318,6 +346,7 @@ module.exports = async function handler(req, res){
 
     try { await borrarLiga(id); }
     catch(e){ return res.status(503).json({ error: 'No se pudo eliminar la liga: ' + e.message }); }
+    logAudit(session.u, 'liga.eliminar', id, { nombre: estado && estado.LEAGUE_NAME, partidos: estado && estado.matches ? estado.matches.length : 0 }, clientIP(req));
     return res.status(200).json({ ok: true, id, eliminada: true });
   }
 
