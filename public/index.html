@@ -3,9 +3,26 @@
   // Valores: 'light' | 'dark' | 'system' (default). Se guarda por dispositivo.
   var tm=localStorage.getItem('theme');
   if(tm==='light'||tm==='dark'){document.documentElement.setAttribute('data-theme',tm);}
-  // Restaurar colores sin flash
+  // Detectar si estamos en modo oscuro (por preferencia manual o del sistema).
+  // Se usa abajo para NO pisar las variables de fondo claro (winrow/soft/hl/cream)
+  // que sino sobreescribirían el tema oscuro y dejarían filas cream sobre fondo azul.
+  var isDark = tm==='dark' || (tm!=='light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  // Restaurar colores personalizados de la liga sin flash.
+  // Los colores BRAND (pri/acc) son identidad y se aplican siempre.
+  // Los colores de FONDO/HIGHLIGHT (winrow/soft/hl/cream) son claros por diseño;
+  // en dark mode NO se aplican para que los tokens dark del CSS ganen.
   var c=JSON.parse(localStorage.getItem('lsc')||'null');
-  if(c&&c.p&&c.a){var r=document.documentElement.style;r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);r.setProperty('--soft',c.s||'#E6F1FB');r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);r.setProperty('--accT',c.at||c.p);r.setProperty('--winrow',c.wr||'#FAEEDA');r.setProperty('--cream',c.cr||'#fffbf0');r.setProperty('--hl',c.hl||'#FFEDD5');}
+  if(c&&c.p&&c.a){
+    var r=document.documentElement.style;
+    r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);
+    r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);r.setProperty('--accT',c.at||c.p);
+    if(!isDark){
+      r.setProperty('--soft',c.s||'#E6F1FB');
+      r.setProperty('--winrow',c.wr||'#FAEEDA');
+      r.setProperty('--cream',c.cr||'#fffbf0');
+      r.setProperty('--hl',c.hl||'#FFEDD5');
+    }
+  }
   // Restaurar nombre y subtítulo sin flash (se ejecuta en DOMContentLoaded para tener acceso al DOM)
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn){document.addEventListener('DOMContentLoaded',function(){var lt=document.getElementById('login-title');if(lt&&lsn.n)lt.textContent=lsn.n;var ls=document.getElementById('login-sub');if(ls&&lsn.s)ls.textContent=lsn.s;var ht=document.getElementById('hdr-title');if(ht&&lsn.n)ht.textContent=lsn.n;if(lsn.n)document.title=lsn.n;},false);}
@@ -26,7 +43,12 @@
    - meRowText: color del texto en la fila destacada del usuario logueado (era priD hardcoded, invisible en dark)
    - btnLightBg: fondo claro para botoncitos "sobre-blanco" (borrar en playoff bracket, recargar en errores) */
 --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--reqEmptyBorder:var(--danger);
---meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626}
+--meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+/* Fila destacada del usuario logueado en Rating/Clasificación/Grupos.
+   Es DISTINTA de --winrow (que es color del ganador en tabla de grupo y se
+   customiza por liga desde localStorage). Al ser variable independiente,
+   ninguna configuración de liga la pisa y el dark mode la controla puro. */
+--meRowBg:#FAEEDA}
 
 /* ==== Toggle manual de tema (data-theme) — sobreescribe prefers-color-scheme.
    El script en <head> lee localStorage al inicio y setea data-theme en <html>
@@ -43,6 +65,7 @@ html[data-theme="light"]{
   --ring:0 0 0 3px rgba(27,79,156,.15);
   --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--meRowText:var(--priD);
   --cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+  --meRowBg:#FAEEDA;
 }
 html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
 
@@ -58,8 +81,11 @@ html[data-theme="dark"]{
      oscuro con borde ámbar; el texto sobre me-row usa amarillo accent para que
      contraste sobre el marrón; los botoncitos "sobre-blanco" se invierten. */
   --reqBg:#2a2415;--reqBorder:var(--acc);--reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
-  --meRowText:var(--acc);--cream:#2a2415;
+  --meRowText:#60a5fa;--cream:#2a2415;
   --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
+  /* Fila del usuario en dark: fondo azul-oscuro elegante + texto azul brillante.
+     Máximo contraste sin usar el cream que quedaba feo sobre chrome oscuro. */
+  --meRowBg:#1e3a5f;
 }
 html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
 
@@ -93,8 +119,9 @@ html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="da
     --shadow-lg:0 18px 50px rgba(0,0,0,.6);
     --ring:0 0 0 3px rgba(27,79,156,.35);
     --reqBg:#2a2415;--reqBorder:var(--acc);--reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
-    --meRowText:var(--acc);--cream:#2a2415;
+    --meRowText:#60a5fa;--cream:#2a2415;
     --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
+    --meRowBg:#1e3a5f;
   }
   /* Los colores de club se mantienen claros y el texto sigue calculándose con
      deepColor() (siempre oscuro sobre fondo claro): quedan como "islas" de color
@@ -308,7 +335,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rt-gg{color:#166534;font-weight:600}
   .rt-gp{color:#991b1b;font-weight:600}
   .rt-grp{white-space:nowrap;color:var(--pri);font-weight:600}
-  .rt-table tr.me-row td{background:var(--winrow)}
+  .rt-table tr.me-row td{background:var(--meRowBg);color:var(--meRowText)}
   .rt-table tr.me-row td:nth-child(2){font-weight:700}
   .rt-howto{background:var(--hover,#f1f5f9);border-radius:10px;padding:12px 14px;margin-top:12px}
   .rt-howto-t{font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;margin-bottom:5px}
@@ -422,9 +449,10 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .cls-table td,.gen-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
 .cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
 .cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
-.gen-table .me-row td{background:var(--winrow)}.cls-table .me-row td{background:var(--winrow)}.res-table .me-mtx{background:var(--winrow)!important;color:var(--meRowText)!important;font-weight:700}
-/* En dark mode, el texto de las filas destacadas del usuario logueado (rating, clasificación, grupos)
-   pasa a color acento para contrastar con el fondo marrón oscuro de --winrow. */
+.gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
+/* Nota: --meRowBg y --meRowText son variables independientes de --winrow.
+   En light mode: cream + texto azul oscuro (como antes).
+   En dark mode: azul oscuro elegante + texto azul brillante — legible y coherente. */
 html[data-theme="dark"] .gen-table .me-row td,html[data-theme="dark"] .cls-table .me-row td,html[data-theme="dark"] .rt-table tr.me-row td{color:var(--meRowText)}
 @media (prefers-color-scheme: dark){html:not([data-theme]) .gen-table .me-row td,html:not([data-theme]) .cls-table .me-row td,html:not([data-theme]) .rt-table tr.me-row td{color:var(--meRowText)}}
 .gen-cyc{font-size:11px;color:var(--text2)}
@@ -2380,6 +2408,28 @@ function aplicarTema(modo){
     } else {
       localStorage.setItem('theme', modo);
       document.documentElement.setAttribute('data-theme', modo);
+    }
+    // Re-detectar si el modo actual es dark (por elección o por sistema) y
+    // ajustar los inline styles de los colores de fondo de la liga: en dark
+    // hay que quitarlos para que los tokens dark del CSS ganen; en light hay
+    // que restaurarlos con los colores personalizados si existen.
+    const isDark = modo === 'dark' || (modo === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const r = document.documentElement.style;
+    if(isDark){
+      r.removeProperty('--soft');
+      r.removeProperty('--winrow');
+      r.removeProperty('--cream');
+      r.removeProperty('--hl');
+    } else {
+      try {
+        const c = JSON.parse(localStorage.getItem('lsc') || 'null');
+        if(c && c.p && c.a){
+          r.setProperty('--soft', c.s || '#E6F1FB');
+          r.setProperty('--winrow', c.wr || '#FAEEDA');
+          r.setProperty('--cream', c.cr || '#fffbf0');
+          r.setProperty('--hl', c.hl || '#FFEDD5');
+        }
+      } catch(_){}
     }
     if(typeof toast === 'function') toast(t('theme_saved'));
     // Re-render de los botones para reflejar el activo
