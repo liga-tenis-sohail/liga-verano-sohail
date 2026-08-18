@@ -136,6 +136,91 @@ html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="da
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
+
+/* ============================================================================
+   SAFETY NET DE DARK MODE — garantiza contraste correcto en TODOS los patrones
+   comunes de la app. Necesario porque muchos elementos originales tienen colores
+   claros hardcodeados (backgrounds pastel de alertas, badges, tiles, etc.) que
+   quedan ilegibles en dark mode con texto oscuro.
+   
+   Regla: si el fondo es claro y estamos en dark, se invierte a tono oscuro
+   equivalente con texto claro forzado. Se usa alta especificidad + !important
+   para pisar los inline styles del JS legacy.
+   
+   Aplica tanto para data-theme="dark" como para prefers-color-scheme dark
+   sin data-theme (modo sistema). Usamos una lista de selectores duplicada para
+   ambos casos porque combinarlos con `,` no funciona con media queries. */
+
+html[data-theme="dark"] .alert-err,
+html[data-theme="dark"] [style*="background:#fee2e2"],
+html[data-theme="dark"] [style*="background:#FCEBEB"],
+html[data-theme="dark"] [style*="background:#fff5f5"]{
+  background:#4a1d1d!important;color:#fca5a5!important
+}
+html[data-theme="dark"] .alert-ok,
+html[data-theme="dark"] [style*="background:#dcfce7"],
+html[data-theme="dark"] [style*="background:#E1F5EE"]{
+  background:#14361f!important;color:#86efac!important
+}
+html[data-theme="dark"] .alert-warn,
+html[data-theme="dark"] [style*="background:#fef3c7"],
+html[data-theme="dark"] [style*="background:#FAEEDA"],
+html[data-theme="dark"] [style*="background:#FFEDD5"]{
+  background:#3d2a10!important;color:#fcd34d!important
+}
+html[data-theme="dark"] .alert-info,
+html[data-theme="dark"] [style*="background:#dbeafe"],
+html[data-theme="dark"] [style*="background:#e6f1fb"],
+html[data-theme="dark"] [style*="background:#E6F1FB"]{
+  background:#1e3a5f!important;color:#93c5fd!important
+}
+/* Botón "Recargar" que aparece en el banner de error crítico */
+html[data-theme="dark"] .alert-err button,
+html[data-theme="dark"] button[style*="background:#fff"][style*="color:#791F1F"]{
+  background:#7f1d1d!important;color:#ffffff!important
+}
+/* Los strong dentro de alertas heredan el color del padre */
+html[data-theme="dark"] .alert-err strong,html[data-theme="dark"] .alert-ok strong,html[data-theme="dark"] .alert-warn strong,html[data-theme="dark"] .alert-info strong{color:inherit!important}
+/* Badges de estado (badge-ok, badge-err, badge-warn) — forzar contraste */
+html[data-theme="dark"] .badge-ok{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .badge-err{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .badge-warn{background:#3d2a10!important;color:#fcd34d!important}
+/* Metric-tiles con fondo surface2 heredan de la variable, pero los números que
+   uso var(--pri) pueden quedar oscuros sobre surface2 oscuro. Aclaramos. */
+html[data-theme="dark"] .metric-tile .metric-n{color:#93c5fd!important}
+/* Botones de tema activos — el .btn con background hardcoded */
+html[data-theme="dark"] .cm-ov [id="_cm-ok"]:not([style*="var(--danger)"]){background:var(--pri)!important;color:#ffffff!important}
+/* Detalles del panel admin de passkeys: fondos surface2 heredan pero por si acaso */
+html[data-theme="dark"] details[style*="border"]>div[style*="background:var(--surface2"]{background:var(--surface2)!important}
+/* Skeleton en dark: los tonos claros del degradado se ven raros → usar tonos oscuros */
+html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+
+/* Mismos overrides para dark mode automático (respeta config del OS sin toggle) */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .alert-err,
+  html:not([data-theme]) [style*="background:#fee2e2"],
+  html:not([data-theme]) [style*="background:#FCEBEB"],
+  html:not([data-theme]) [style*="background:#fff5f5"]{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .alert-ok,
+  html:not([data-theme]) [style*="background:#dcfce7"],
+  html:not([data-theme]) [style*="background:#E1F5EE"]{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .alert-warn,
+  html:not([data-theme]) [style*="background:#fef3c7"],
+  html:not([data-theme]) [style*="background:#FAEEDA"],
+  html:not([data-theme]) [style*="background:#FFEDD5"]{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .alert-info,
+  html:not([data-theme]) [style*="background:#dbeafe"],
+  html:not([data-theme]) [style*="background:#e6f1fb"],
+  html:not([data-theme]) [style*="background:#E6F1FB"]{background:#1e3a5f!important;color:#93c5fd!important}
+  html:not([data-theme]) .alert-err button,
+  html:not([data-theme]) button[style*="background:#fff"][style*="color:#791F1F"]{background:#7f1d1d!important;color:#ffffff!important}
+  html:not([data-theme]) .alert-err strong,html:not([data-theme]) .alert-ok strong,html:not([data-theme]) .alert-warn strong,html:not([data-theme]) .alert-info strong{color:inherit!important}
+  html:not([data-theme]) .badge-ok{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .badge-err{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .badge-warn{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .metric-tile .metric-n{color:#93c5fd!important}
+  html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+}
 html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
 .app{max-width:1040px;margin:0 auto;padding:.75rem}
 .login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
@@ -2407,6 +2492,20 @@ function currentTheme(){
   try { return localStorage.getItem('theme') || 'system'; } catch(_){ return 'system'; }
 }
 
+// Escuchar cambios del OS en vivo: si el usuario tiene modo 'system' seleccionado
+// y cambia dark/light desde el OS mientras la app está abierta, aplicamos
+// el cambio sin necesidad de recargar. Se dispara sólo si estamos en 'system'
+// (los modos 'light'/'dark' explícitos no dependen del OS).
+try {
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if(currentTheme() === 'system' && typeof aplicarTema === 'function'){
+        aplicarTema('system');
+      }
+    });
+  }
+} catch(_){}
+
 function aplicarTema(modo){
   try {
     if(modo === 'system'){
@@ -2446,11 +2545,27 @@ function aplicarTema(modo){
       b.style.color = isActive ? '#fff' : 'var(--text)';
       b.style.borderColor = isActive ? 'var(--pri)' : 'var(--border)';
     });
-    // Invalidar caché de rating (puede contener HTML precomputado con colores
-    // del tema anterior) y re-renderizar la vista actual. Sin esto quedaban
-    // restos visuales del tema previo hasta la próxima navegación de tab.
+    // Invalidar TODOS los caches de renderizado y forzar re-render agresivo.
+    // Sin esto, componentes que se generan una sola vez (pk-body, admin passkeys,
+    // rating cacheado) mantienen los colores inline calculados con el tema
+    // anterior y se ven rotos hasta la próxima interacción.
     try { if(typeof _ratingCache !== 'undefined') _ratingCache = null; } catch(_){}
+    try { if(typeof _pkListCache !== 'undefined') _pkListCache = null; } catch(_){}
+    // Re-render de la vista actual COMPLETA
     try { if(typeof subView === 'string' && typeof showSub === 'function') showSub(subView); } catch(_){}
+    // Si el perfil está visible, refrescar también el pk-body y el panel admin
+    // de passkeys (que se generan por fuera de showSub con inline styles).
+    try {
+      const pv = document.getElementById('view-perfil');
+      if(pv && pv.style.display !== 'none'){
+        // renderPerfil no existe como función global — lo forzamos vía showSub('perfil')
+        // que ya fue llamado arriba. Adicionalmente, refrescamos pk-body si aplica.
+        setTimeout(() => {
+          if(typeof refrescarListaPasskeys === 'function') refrescarListaPasskeys();
+          if(typeof cargarPasskeysAdmin === 'function' && document.getElementById('pk-admin-metrics')) cargarPasskeysAdmin();
+        }, 50);
+      }
+    } catch(_){}
   } catch(e){ console.error('Theme error:', e); }
 }
 
@@ -6570,4 +6685,4 @@ if(typeof window!=='undefined'&&window.addEventListener){
   initLogin();
   updateLangUI();
 })();
-</script><script src="rating.js"></script></body></htm
+</script><script src="rating.js"></script></body></html>
