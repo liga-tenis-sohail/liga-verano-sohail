@@ -1,0 +1,63 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax:
+    name: Chequeo de sintaxis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: npm install --production=false
+
+      - name: node --check en todos los endpoints
+        run: |
+          echo "== Validando sintaxis de endpoints =="
+          fail=0
+          for f in api/*.js; do
+            if node --check "$f"; then
+              echo "  OK  $f"
+            else
+              echo "  ERR $f"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Validar scripts inline del index.html
+        run: |
+          echo "== Validando scripts de index.html =="
+          node -e "
+            const fs = require('fs');
+            const path = require('path');
+            const candidates = ['public/index.html', 'index.html'];
+            const file = candidates.find(p => fs.existsSync(p));
+            if(!file){ console.log('No se encontró index.html'); process.exit(0); }
+            const h = fs.readFileSync(file, 'utf8');
+            const re = /<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/g;
+            let m, i=0, errs=0;
+            while((m = re.exec(h))){
+              i++;
+              try { new Function(m[1]); }
+              catch(e){ errs++; console.log('Script #' + i + ' error:', e.message.split('\n')[0]); }
+            }
+            console.log('Scripts OK:', i - errs, '/', i);
+            process.exit(errs > 0 ? 1 : 0);
+          "
+
+      - name: Validar rating.js (si existe)
+        run: |
+          if [ -f public/rating.js ]; then node --check public/rating.js && echo "  OK  public/rating.js"; fi
+          if [ -f public/webauthn.js ]; then node --check public/webauthn.js && echo "  OK  public/webauthn.js"; fi
