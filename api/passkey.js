@@ -20,10 +20,15 @@
 // =====================================================================
 const crypto = require('crypto');
 const lib = require('./_lib.js');
-const {
-  generateRegistrationOptions, verifyRegistrationResponse,
-  generateAuthenticationOptions, verifyAuthenticationResponse
-} = require('@simplewebauthn/server');
+
+// @simplewebauthn/server v13 es ESM puro: require() lo rompe con ERR_REQUIRE_ESM
+// y la función serverless muere al inicializar (Vercel devuelve 504). Se carga
+// con dynamic import y se cachea el módulo para no re-importar en cada request.
+let _wa = null;
+async function loadWebAuthn(){
+  if(!_wa) _wa = await import('@simplewebauthn/server');
+  return _wa;
+}
 
 // --- Identidad del sitio (Relying Party) ---
 // rpID = el dominio. rpName = nombre visible. origin = la URL completa.
@@ -133,6 +138,7 @@ module.exports = async (req, res) => {
       if(!session) return res.status(401).json({ error: 'Iniciá sesión con tu clave antes de activar el ingreso con Face ID.' });
       const userName = session.u;
       const existentes = await passkeysDeUsuario(userName);
+      const { generateRegistrationOptions } = await loadWebAuthn();
       const options = await generateRegistrationOptions({
         rpName, rpID,
         userName: userName,
@@ -160,6 +166,7 @@ module.exports = async (req, res) => {
       clearCookie(res, 'pk_reg');
       if(!saved || saved.u !== session.u) return res.status(400).json({ error: 'El registro expiró. Probá de nuevo.' });
 
+      const { verifyRegistrationResponse } = await loadWebAuthn();
       const verification = await verifyRegistrationResponse({
         response: body.cred,
         expectedChallenge: saved.ch,
@@ -188,6 +195,7 @@ module.exports = async (req, res) => {
     // 3) LOGIN — iniciar. No requiere token: es para entrar.
     // =================================================================
     if(accion === 'auth-start'){
+      const { generateAuthenticationOptions } = await loadWebAuthn();
       const options = await generateAuthenticationOptions({
         rpID,
         userVerification: 'preferred'
@@ -212,6 +220,7 @@ module.exports = async (req, res) => {
       const pk = await passkeyPorId(cred.id);
       if(!pk) return res.status(401).json({ error: 'Esta passkey no está registrada. Entrá con tu clave.' });
 
+      const { verifyAuthenticationResponse } = await loadWebAuthn();
       const verification = await verifyAuthenticationResponse({
         response: cred,
         expectedChallenge: saved.ch,
