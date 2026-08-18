@@ -9,7 +9,55 @@
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
---sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B}
+--sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B;
+/* Estados semánticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
+--danger:#c0392b;--dangerBg:#FCEBEB;--dangerT:#791F1F;
+--success:#16a34a;--successBg:#dcfce7;--successT:#166534;
+--warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
+--hover:rgba(0,0,0,.04);--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
+--ring:0 0 0 3px rgba(27,79,156,.15)}
+
+/* Dark mode automático: se activa según la preferencia del sistema operativo.
+   Solo cambiamos los tokens de "chrome" (fondo, texto, bordes, sombras).
+   Los colores de identidad (--pri, --acc, colores de club) se mantienen para
+   preservar la marca. Los estados semánticos (--danger/success/warn) se aclaran
+   un pelo para conservar contraste sobre fondos oscuros. */
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0f172a;
+    --surface:#1e293b;
+    --surface2:#172033;
+    --text:#f1f5f9;
+    --text2:#94a3b8;
+    --border:#334155;
+    --border2:#475569;
+    --soft:#1e3a5f;
+    --winrow:#3d2f14;
+    --hl:#3d2a14;
+    --dangerBg:#4a1d1d;
+    --dangerT:#fca5a5;
+    --successBg:#14361f;
+    --successT:#86efac;
+    --warnBg:#3d2a10;
+    --warnT:#fcd34d;
+    --hover:rgba(255,255,255,.06);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 4px 12px rgba(0,0,0,.5);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+    --ring:0 0 0 3px rgba(27,79,156,.35);
+  }
+  /* Los colores de club se mantienen claros y el texto sigue calculándose con
+     deepColor() (siempre oscuro sobre fondo claro): quedan como "islas" de color
+     de identidad. Los inputs invierten para que se lea el texto. */
+  input,select,textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+  /* Imágenes con fondos claros no se invierten (para no romper logos ni fotos) */
+}
+
+/* Respeto por accesibilidad: usuarios con preferencia de menos animación
+   ven la app sin transitions ni movimientos. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
 html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
 .app{max-width:1040px;margin:0 auto;padding:.75rem}
 .login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
@@ -22,6 +70,30 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .login-btn-pk{background:var(--surface2,#eef2f7)!important;color:var(--pri)!important;border:1.5px solid var(--pri)!important;margin-top:8px}.login-btn-pk i{margin-right:4px}
 @keyframes sk-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .cm-ov button:hover{opacity:.9}
+
+/* ================= Micro-animaciones (Tanda 3) ================= */
+/* Todas usan cubic-bezier suave y < 200ms para no molestar. Se anulan
+   con prefers-reduced-motion (declarado arriba). */
+html{scroll-behavior:smooth}
+.btn,.btn-sm,.btn-primary,.btn-accent,.btn-warn,.btn-danger,.login-btn,.login-forgot,.pk-device-edit-btn{transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .12s ease,box-shadow .15s ease}
+.btn:hover:not(:disabled),.btn-sm:hover:not(:disabled),.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn:active:not(:disabled),.btn-sm:active:not(:disabled){transform:translateY(0)}
+.card{transition:box-shadow .18s ease,border-color .18s ease}
+.metric-tile{transition:background-color .15s ease,transform .12s ease}
+.metric-tile:hover{background:var(--hover)}
+/* Fade sutil al cambiar de sub-tab (activado desde JS con .view-fade) */
+.view-fade{animation:vf .22s ease}
+@keyframes vf{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+/* Focus ring accesible y coherente en todos los inputs/selects/botones */
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,.login-forgot:focus-visible{outline:none;box-shadow:var(--ring)}
+/* Details (usado en el panel admin de passkeys): abrir suave */
+details>summary{transition:background-color .12s ease}
+details>summary:hover{background:var(--hover)}
+details[open]>summary{border-bottom:1px solid var(--border)}
+/* Toast: entrada + salida más suave */
+.toast{transition:opacity .28s ease,transform .28s ease}
+/* Skeleton hereda animation del keyframe; el shine ya funciona */
+
 .login-forgot{display:block;text-align:center;margin-top:12px;font-size:12.5px;color:var(--pri,#1e3a8a);text-decoration:none;cursor:pointer;background:none;border:none;padding:4px;width:100%}
 .login-forgot:hover{text-decoration:underline}
 .pk-device-edit-btn{background:transparent;color:var(--text2,#64748b);border:none;padding:4px;cursor:pointer;font-size:13px;margin-right:4px}
@@ -277,7 +349,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .tab>i,.tab>.tab-n{flex:0 0 auto}
 .tab.active{background:var(--pri);color:#fff;font-weight:600}.tab:hover:not(.active){background:var(--surface)}
 .tab-sm{flex:0 0 auto!important;padding:8px 8px!important;font-size:11px!important;color:var(--text2);opacity:.75}
-.tab-n{background:#c0392b;color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;transition:.3s;margin-left:3px;display:inline-block;min-width:16px;text-align:center;line-height:16px;vertical-align:middle;}
+.tab-n{background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;transition:.3s;margin-left:3px;display:inline-block;min-width:16px;text-align:center;line-height:16px;vertical-align:middle;}
 
 .tabs::-webkit-scrollbar, .cycle-bar::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none;
 }
@@ -326,7 +398,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
 .form-group select,.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
 .req{border:2px solid #111!important;background:#FFFDF2!important}.req-empty,.req-empty input,.req-empty select{border:2px solid #c0392b!important;background:#fff4f3!important}
-.reqmark{display:inline-block;color:#fff;background:#c0392b;font-size:9px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:5px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
+.reqmark{display:inline-block;color:#fff;background:var(--danger);font-size:9px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:5px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
 .req-wrap{border:2px dashed #111;border-radius:10px;padding:.6rem .7rem;background:#FFFDF2}
 .set-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .set-row label{font-size:12px;color:var(--text2);width:64px;flex-shrink:0;font-weight:600}
@@ -353,7 +425,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .btn-accent{background:var(--acc);border-color:var(--accD);color:var(--accT);font-weight:600}
 .btn-warn{background:#F59E0B;border-color:#B45309;color:#fff;font-weight:600}.btn-accent:hover{filter:brightness(.95)}
 .btn-success{background:#E1F5EE;border-color:#0F6E56;color:#085041}.btn-success:hover{background:#c7ecdd}
-.btn-danger{background:#FCEBEB;border-color:#c0392b;color:#791F1F}.btn-danger:hover{background:#f7d3d3}
+.btn-danger{background:#FCEBEB;border-color:var(--danger);color:#791F1F}.btn-danger:hover{background:#f7d3d3}
 .btn-sm{padding:5px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
 .badge-pend{background:#FAEEDA;color:#6b5800}.badge-ok{background:#E1F5EE;color:#085041}.badge-disp{background:#FCEBEB;color:#791F1F}
@@ -370,7 +442,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .rt-table th{white-space:nowrap;cursor:help}
 .rt-table td{white-space:nowrap}
 .rt-name{text-align:left!important}
-.rt-big{font-weight:800;color:var(--pri)}.err-txt{color:#c0392b!important;font-style:normal}
+.rt-big{font-weight:800;color:var(--pri)}.err-txt{color:var(--danger)!important;font-style:normal}
 .nm-link{cursor:pointer;border-bottom:1px dotted currentColor}.nm-link:hover{opacity:.6}
 .hist-row .avatar{margin-right:6px}
 .avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;margin-right:5px;background:var(--soft);color:var(--pri)}
@@ -422,7 +494,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .po-section-title{font-size:13px;font-weight:600;color:#fff;background:var(--pri);padding:7px 12px;border-radius:8px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px}.po-cons-title{background:#854F0B}
 .seed-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
 .seed-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:20px;background:var(--soft);color:var(--pri);font-size:12px}
-.seed-chip .rm{border:none;background:#FCEBEB;color:#c0392b;cursor:pointer;font-size:13px;padding:1px 6px;border-radius:20px;line-height:1;display:inline-flex;align-items:center}.seed-chip .rm:hover{background:#f3c0c0}
+.seed-chip .rm{border:none;background:#FCEBEB;color:var(--danger);cursor:pointer;font-size:13px;padding:1px 6px;border-radius:20px;line-height:1;display:inline-flex;align-items:center}.seed-chip .rm:hover{background:#f3c0c0}
 .toast{position:fixed;bottom:16px;right:16px;background:var(--pri);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;z-index:999;transition:.3s;max-width:300px;border-bottom:3px solid var(--acc);box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .bracket-main .match-box{background:#EAF3FC}.bracket-cons .match-box{background:#FDF1E6}
 .bracket-main .slot,.bracket-cons .slot{background:transparent}.bracket-main .slot.winner,.bracket-cons .slot.winner{background:var(--winrow)}.bracket-main .slot-foot,.bracket-cons .slot-foot{background:rgba(0,0,0,.04)}
@@ -1222,7 +1294,7 @@ function updateBadge() {
   if (pn) {
     pn.textContent = cnt;
     if (cnt > 0) {
-      pn.style.background = '#c0392b';
+      pn.style.background = 'var(--danger)';
       pn.style.color = '#fff';
       pn.style.display = 'inline-block';
     } else {
@@ -2175,7 +2247,7 @@ async function refrescarListaPasskeys(){
       try{ return new Date(iso).toLocaleDateString(); }catch(_){ return iso.slice(0,10); }
     };
     let html =
-      `<div style="display:flex;align-items:center;gap:.5rem;margin:.15rem 0 .35rem;color:#16a34a;font-weight:600;font-size:14px">` +
+      `<div style="display:flex;align-items:center;gap:.5rem;margin:.15rem 0 .35rem;color:var(--success);font-weight:600;font-size:14px">` +
         `<i class="ti ti-shield-check"></i>${_pkEsc(t('pk_status_active'))}` +
       `</div>` +
       `<p class="legend-txt" style="margin:0 0 .75rem">${t('pk_status_active_hint')}</p>` +
@@ -2197,7 +2269,7 @@ async function refrescarListaPasskeys(){
             `</div>` +
             `<div class="legend-txt" style="font-size:11px;margin-top:.15rem">${_pkEsc(t('pk_registered_at'))}: ${_pkEsc(reg)} · ${_pkEsc(t('pk_last_used'))}: ${_pkEsc(uso)}</div>` +
           `</div>` +
-          `<button class="btn btn-sm" style="background:transparent;color:#c0392b;border:1px solid #c0392b;flex-shrink:0;white-space:nowrap" onclick="desactivarPasskey('${escCid}', '${escLbl}')"><i class="ti ti-trash"></i> ${_pkEsc(t('pk_device_deactivate'))}</button>` +
+          `<button class="btn btn-sm" style="background:transparent;color:var(--danger);border:1px solid var(--danger);flex-shrink:0;white-space:nowrap" onclick="desactivarPasskey('${escCid}', '${escLbl}')"><i class="ti ti-trash"></i> ${_pkEsc(t('pk_device_deactivate'))}</button>` +
         `</div>`;
     }
     html += `</div>`;
@@ -2206,7 +2278,7 @@ async function refrescarListaPasskeys(){
   }catch(err){
     // Si falla la lista, no rompemos la app: dejamos el botón activar por si acaso.
     body.innerHTML =
-      `<p class="legend-txt" style="margin:.35rem 0 .5rem;color:#c0392b">${t('pk_list_err')}</p>` +
+      `<p class="legend-txt" style="margin:.35rem 0 .5rem;color:var(--danger)">${t('pk_list_err')}</p>` +
       `<p class="legend-txt" style="margin:0 0 .75rem">${t('pk_section_hint')}</p>` +
       `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button>`;
   }
@@ -2309,7 +2381,7 @@ async function cargarPasskeysAdmin(){
               `<div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="ti ti-device-mobile" style="opacity:.6"></i> ${label}</div>` +
               `<div style="font-size:10.5px;color:var(--text2,#64748b);margin-top:2px">${t('pk_last_used')}: ${_pkEsc(p.lastUsedAt ? fmtFecha(p.lastUsedAt) : t('pk_never_used'))}</div>` +
             `</div>` +
-            `<button class="btn btn-sm" style="background:transparent;color:#c0392b;border:1px solid #c0392b;flex-shrink:0;font-size:11px;padding:4px 8px" onclick="desactivarPasskeyAdmin('${escUser}','${escCid}','${escLbl}')"><i class="ti ti-trash"></i></button>` +
+            `<button class="btn btn-sm" style="background:transparent;color:var(--danger);border:1px solid var(--danger);flex-shrink:0;font-size:11px;padding:4px 8px" onclick="desactivarPasskeyAdmin('${escUser}','${escCid}','${escLbl}')"><i class="ti ti-trash"></i></button>` +
           `</div>`;
       });
       html += `</div></details>`;
@@ -2317,7 +2389,7 @@ async function cargarPasskeysAdmin(){
     listEl.innerHTML = html;
   }catch(err){
     metricsEl.innerHTML = '';
-    listEl.innerHTML = `<p class="legend-txt" style="color:#c0392b">${t('pk_list_err')}</p>`;
+    listEl.innerHTML = `<p class="legend-txt" style="color:var(--danger)">${t('pk_list_err')}</p>`;
   }
 }
 
@@ -2585,7 +2657,7 @@ function viewCyc(n){
     showSub('grupos');
   }
 }
-function showSub(name){if(viewCycle==='po')viewCycle=activeN;subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento'].forEach(v=>{const el=document.getElementById('view-'+v);if(el)el.style.display='none';});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();document.getElementById('view-'+name).style.display='block';if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
+function showSub(name){if(viewCycle==='po')viewCycle=activeN;subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
 function updateHdr(){const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+fmtRange(FECHAS[viewCycle-1]||'')+' · '+(cycles[viewCycle-1]?cycles[viewCycle-1].status:'');const sub=document.getElementById('hdr-sub');if(sub)sub.textContent=hs;
 const lsub=document.getElementById('login-sub');if(lsub)lsub.textContent=LEAGUE_SUBTITLE||'';const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME||t('app_title');
 const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME||t('app_title');const eb=document.getElementById('exit-btn');if(eb)eb.textContent=t('exit');}
@@ -2744,7 +2816,7 @@ function renderGrupos(){
       document.getElementById('view-grupos').innerHTML=html;
   } catch(e) {
       console.error("Error crítico en renderGrupos:", e);
-      document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:#c0392b;margin-top:10px">${e.message}</pre></div>`;
+      document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
   }
 }
 function setSelGroup(g){selGroup=g;renderGrupos();}
@@ -5377,7 +5449,7 @@ function renderPlayerList(players, filter) {
         <div style="border:1.5px solid #e9b8b8;border-radius:10px;padding:.65rem .8rem;background:#fdf5f5">
         <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#b91c1c;margin-bottom:.55rem"><i class="ti ti-alert-triangle"></i> Estado en la liga</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-sm" style="${isInactive?'background:#16a34a':'background:#f59e0b'};color:#fff" onclick="toggleInactive('${jsq(p.name)}')"><i class="ti ti-${isInactive?'user-check':'user-off'}"></i> ${isInactive?'Reactivar jugador':'Marcar inactivo'}</button>
+          <button class="btn btn-sm" style="${isInactive?'background:var(--success)':'background:#f59e0b'};color:#fff" onclick="toggleInactive('${jsq(p.name)}')"><i class="ti ti-${isInactive?'user-check':'user-off'}"></i> ${isInactive?'Reactivar jugador':'Marcar inactivo'}</button>
           <button class="btn btn-danger btn-sm" onclick="deletePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-trash"></i> Eliminar de la liga</button>
         </div>
         </div>
@@ -5658,7 +5730,7 @@ function forcePwChange(oldPass){
     '<input id="_pwf1" type="password" autocomplete="new-password" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
     '<input id="_pwf2" type="password" autocomplete="new-password" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
     pkCheck +
-    '<div id="_pwfe" style="display:none;font-size:12px;color:#c0392b;margin-bottom:8px"></div>'+
+    '<div id="_pwfe" style="display:none;font-size:12px;color:var(--danger);margin-bottom:8px"></div>'+
     '<button id="_pwfb" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
   '</div>';
   document.body.appendChild(ov);
@@ -5933,7 +6005,7 @@ function confirmarModal(mensaje, opts){
     ov.className = 'cm-ov';
     ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .18s';
     const peligro = !!opts.peligro;
-    const okBg = peligro ? '#c0392b' : 'var(--pri,#1e3a8a)';
+    const okBg = peligro ? 'var(--danger)' : 'var(--pri,#1e3a8a)';
     const titulo = opts.titulo || '';
     const okTxt = opts.okTxt || 'Confirmar';
     const cancelTxt = opts.cancelTxt || 'Cancelar';
