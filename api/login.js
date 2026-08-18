@@ -1,42 +1,18 @@
 // =====================================================================
-// POST /api/login   { user, pass }  ->  { token, name, role, exp }
+// POST /api/login   { user, pass }  ->  { token, name, role, exp, mustChangePw }
 // La contraseña se verifica ACÁ. El hash nunca sale del servidor.
-// =====================================================================
-const { hashV1, hashV2, signToken, readState, writeState, envOK, filterForSession, SESSION_MIN, SUPER_HASH,
-        readCatalogo, upsertJugador, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
-
-// Límite de intentos en memoria. Complementa al coste del propio PBKDF2,
-// que ya hace lenta por diseño cualquier fuerza bruta.
 //
-// Se cuenta por USUARIO y también por IP. Solo por usuario no alcanzaba: los
-// nombres son públicos (los necesita el desplegable del login), así que barrer
-// los 60 probando la clave por defecto daba 1 intento por usuario y no
-// disparaba nunca el bloqueo.
-const fails = new Map();
+// Rate limiting: por USUARIO y por IP, con contador compartido en Supabase.
+// Antes vivía en un Map en memoria: al escalar Vercel a N instancias, el
+// atacante ganaba N * MAX_FAILS intentos. Ahora el contador es global.
+// =====================================================================
+const { hashV1, hashV2, POR_DEFECTO_V2, signToken, readState, writeState, envOK, filterForSession, SESSION_MIN, SUPER_HASH,
+        readCatalogo, upsertJugador, ligaIdOK, LIGA_DEFAULT,
+        rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP } = require('./_lib');
+
 const MAX_FAILS = 5;      // por usuario
 const MAX_IP    = 12;     // por IP: tolera una familia tras el mismo router
 const LOCK_MS   = 5 * 60 * 1000;
-
-function clientIP(req){
-  const xf = req.headers['x-forwarded-for'];
-  if(xf) return String(xf).split(',')[0].trim();
-  return req.headers['x-real-ip'] || 'desconocida';
-}
-
-function lockedFor(key, max){
-  const f = fails.get(key);
-  if(!f || f.n < max) return 0;
-  const left = f.until - Date.now();
-  if(left <= 0){ fails.delete(key); return 0; }
-  return Math.ceil(left / 1000);
-}
-function registerFail(key, max){
-  const f = fails.get(key) || { n: 0, until: 0 };
-  f.n++;
-  if(f.n >= max) f.until = Date.now() + LOCK_MS;
-  fails.set(key, f);
-}
-function fail(user, ip){ registerFail('u:' + user, MAX_FAILS); registerFail('i:' + ip, MAX_IP); }
 
 module.exports = async function handler(req, res){
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
@@ -47,13 +23,14 @@ module.exports = async function handler(req, res){
   const pass = String(body.pass || '');
   if(!user || !pass) return res.status(400).json({ error: 'Escribí tu usuario y tu contraseña.' });
 
-  // Qué liga: el cliente la manda. Si no (cliente viejo), la liga por defecto.
   const ligaId = (body.ligaId && ligaIdOK(body.ligaId)) ? body.ligaId : LIGA_DEFAULT;
 
-  const ip     = clientIP(req);
-  const waitU  = lockedFor('u:' + user, MAX_FAILS);
-  const waitIP = lockedFor('i:' + ip, MAX_IP);
-  const wait   = Math.max(waitU, waitIP);
+  const ip = clientIP(req);
+  const [waitU, waitIP] = await Promise.all([
+    rateLimitCheck('u:' + user, MAX_FAILS),
+    rateLimitCheck('i:' + ip, MAX_IP)
+  ]);
+  const wait = Math.max(waitU, waitIP);
   if(wait) return res.status(429).json({ error: 'Demasiados intentos fallidos. Esperá ' + wait + ' segundos.', wait });
 
   let state;
@@ -66,68 +43,53 @@ module.exports = async function handler(req, res){
   const v1 = hashV1(pass);
   const isSuper = !!(SUPER_HASH && v2 === SUPER_HASH);
 
-  // Mensaje idéntico para usuario inexistente y contraseña mala:
-  // así nadie puede averiguar quién está en la liga probando nombres.
-  if(!u){ fail(user, ip); return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' }); }
+  if(!u){
+    await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
+    return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+  }
 
-  // ¿El jugador tiene perfil en el catálogo global? Entonces su contraseña es
-  // ÚNICA y vive en el catálogo, no en la liga. Si no (jugador sin migrar o
-  // cuenta de sistema admin/superadmin), se valida como siempre contra u.pass.
   let jugGlobal = null;
   if(u.jugadorId){
     try {
       const cat = await readCatalogo();
       jugGlobal = cat[u.jugadorId] || null;
-    } catch(e){ /* si el catálogo falla, cae al método viejo abajo */ }
+    } catch(e){ /* fallback a método viejo */ }
   }
 
-  // La fuente de la contraseña: el catálogo global si existe, si no la liga.
   const stored   = (jugGlobal && jugGlobal.pass) ? jugGlobal.pass : (u.pass || '');
-  const isLegacy = !/^v[12]:/.test(stored);          // contraseña vieja en texto plano
+  const isLegacy = !/^v[12]:/.test(stored);
   const match    = isSuper || (isLegacy ? stored === pass : (stored === v2 || stored === v1));
-  if(!match){ fail(user, ip); return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' }); }
-  fails.delete('u:' + user); fails.delete('i:' + ip);
+  if(!match){
+    await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
+    // Audit: intento fallido con usuario existente. No registramos usuario
+    // inexistente para no llenar la tabla con scanners.
+    logAudit(user, 'login.fail', ligaId, null, ip);
+    return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+  }
+  await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
 
-  // Upgrade silencioso a v2. Si el jugador es del catálogo, se actualiza el
-  // catálogo (fuente única). Si no, la liga, como antes.
   if(!isSuper && stored !== v2){
     if(jugGlobal){
-      try { jugGlobal.pass = v2; await upsertJugador(jugGlobal); } catch(e){ /* no bloquea */ }
+      try { jugGlobal.pass = v2; await upsertJugador(jugGlobal); } catch(e){}
     } else {
-      try { u.pass = v2; await writeState(ligaId, state); } catch(e){ /* no bloquea el login */ }
+      try { u.pass = v2; await writeState(ligaId, state); } catch(e){}
     }
   }
 
-  // ¿Está entrando con una contraseña por defecto? Se compara contra el hash de
-  // lo que ACABA de escribir, así da igual si en la base está guardada como v1 o v2.
-  // Las dos son públicas: "tenis" está en el instructivo y el hash de "admin123"
-  // estuvo en el repo (SHA-256 sin sal: se revierte en segundos).
-  const POR_DEFECTO = new Set([
-    'v2:7afc817d4013c0e9740356ad09b7e4094ee6678df855c5869aaad97dd4d2f3eb',   // tenis
-    'v2:e7fd5acfb9cbb0449ad3abe3c0f3436559af8cf74a09cdbee1a29a41bb394d12'    // admin123
-  ]);
-  const mustChangePw = !isSuper && POR_DEFECTO.has(v2);
+  const mustChangePw = !isSuper && POR_DEFECTO_V2.has(v2);
 
   const role = u.role || 'player';
-  // El token lleva la capacidad de administrar aparte del rol: así un jugador
-  // ascendido (role:'player' + isAdmin:true) es admin para el servidor sin
-  // perder su lugar en la liga.
   const puedeAdmin = role === 'admin' || role === 'superadmin' || u.isAdmin === true;
 
-  // Las cuentas dadas de baja no reciben token. Antes esto SOLO lo chequeaba el
-  // navegador, así que un jugador inactivo podía saltearse la app y usar la API.
   if(u.inactive && role === 'player'){
     return res.status(403).json({ error: 'Tu cuenta está inactiva. Contactá al administrador.' });
   }
 
-  const exp  = Date.now() + SESSION_MIN * 60 * 1000;
-  // El token NO lleva el permiso de admin: se lee de la base en cada pedido.
-  // puedeAdmin solo se usa abajo, para que el cliente dibuje la UI correcta.
+  const exp = Date.now() + SESSION_MIN * 60 * 1000;
   const session = { u: user, r: role, exp };
 
-  // Devolvemos el estado ya filtrado acá mismo. Antes el cliente tenía que hacer
-  // una segunda llamada a /api/state, que releía los mismos 222 KB de la base:
-  // dos viajes y dos arranques en frío para lo mismo.
+  logAudit(user, puedeAdmin ? 'login.ok.admin' : 'login.ok', ligaId, { role }, ip);
+
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     token: signToken(session),
