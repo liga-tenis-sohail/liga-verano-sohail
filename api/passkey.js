@@ -117,6 +117,15 @@ async function actualizarContador(credId, counter){
   });
   if(!r.ok) throw new Error('Supabase patch passkey ' + r.status);
 }
+// Borra una passkey. El filtro por user_name evita que un token válido de un
+// usuario pueda borrarle passkeys a otro pasando un credential_id ajeno.
+async function borrarPasskey(userName, credId){
+  const r = await fetch(lib.SUPA_URL + '/rest/v1/passkeys?credential_id=eq.' + encodeURIComponent(credId) + '&user_name=eq.' + encodeURIComponent(userName), {
+    method: 'DELETE',
+    headers: lib.supaHeaders({ Prefer: 'return=minimal' })
+  });
+  if(!r.ok) throw new Error('Supabase delete passkey ' + r.status + ' ' + (await r.text()));
+}
 
 module.exports = async (req, res) => {
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
@@ -263,6 +272,40 @@ module.exports = async (req, res) => {
         exp,
         state: lib.filterForSession(state, session)
       });
+    }
+
+    // =================================================================
+    // 5) LIST — devuelve las passkeys del usuario (para mostrarlas en el perfil).
+    //    Solo devuelve datos "públicos" del propio usuario: nada de public_key
+    //    ni contadores. Requiere sesión activa.
+    // =================================================================
+    if(accion === 'list'){
+      const session = lib.auth(req);
+      if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const rows = await passkeysDeUsuario(session.u);
+      const passkeys = rows.map(p => ({
+        credentialId: p.credential_id,
+        deviceLabel: p.device_label || 'Dispositivo',
+        createdAt: p.created_at,
+        lastUsedAt: p.last_used_at
+      }));
+      // Orden: más recientes primero (por creación).
+      passkeys.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+      return res.status(200).json({ passkeys });
+    }
+
+    // =================================================================
+    // 6) DELETE — desactiva una passkey del propio usuario. El filtro por
+    //    user_name en el DELETE de Supabase evita que un token válido de un
+    //    usuario pueda tocar passkeys de otro pasando un credential_id ajeno.
+    // =================================================================
+    if(accion === 'delete'){
+      const session = lib.auth(req);
+      if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
+      const credId = String(body.credentialId || '');
+      if(!credId) return res.status(400).json({ error: 'Falta la passkey a desactivar.' });
+      await borrarPasskey(session.u, credId);
+      return res.status(200).json({ ok: true });
     }
 
     return res.status(400).json({ error: 'Acción desconocida.' });
