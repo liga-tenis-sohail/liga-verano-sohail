@@ -120,7 +120,7 @@ async function actualizarContador(credId, counter){
 
 module.exports = async (req, res) => {
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido.' });
-  if(lib.envOK(res)) return;   // faltan variables de entorno
+  if(!lib.envOK(res)) return;   // faltan variables de entorno
 
   let body = req.body;
   if(typeof body === 'string'){ try{ body = JSON.parse(body); }catch(_){ body = {}; } }
