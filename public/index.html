@@ -70,253 +70,254 @@ html[data-theme="light"]{
 html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
 
 /* Cuando el usuario elige "oscuro" explícito */
+/* Cuando el usuario elige "oscuro" explícito */
 html[data-theme="dark"]{
-  --bg:#0f172a;--surface:#1e293b;--surface2:#172033;--text:#f1f5f9;--text2:#94a3b8;
-  --border:#334155;--border2:#475569;
-  /* --pri es el color PRIMARY. Se usa como TEXTO en 63+ elementos (links,
-     "Olvidé...", botones ghost, números en la fila destacada, badges, etc.).
-     En light es #1B4F9C (azul oscuro). En dark ese mismo azul queda INVISIBLE
-     sobre backgrounds oscuros. Lo redefinimos como AZUL CLARO — el elemento
-     seguirá siendo "primary" pero ahora se lee bien sobre chrome oscuro. */
-  --pri:#60a5fa;--priD:#93c5fd;--accT:#f1f5f9;
-  --soft:#1e3a5f;--winrow:#3d2f14;--hl:#3d2a14;
-  --dangerBg:#4a1d1d;--dangerT:#fca5a5;--successBg:#14361f;--successT:#86efac;
-  --warnBg:#3d2a10;--warnT:#fcd34d;--hover:rgba(255,255,255,.06);
-  --shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow-md:0 4px 12px rgba(0,0,0,.5);--shadow-lg:0 18px 50px rgba(0,0,0,.6);
+  --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+  --text:#ffffff;--text2:#cbd5e1;
+  --border:#2d3a52;--border2:#475569;
+  --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
+  --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+  --dangerBg:#4a1d1d;--dangerT:#fca5a5;
+  --successBg:#14361f;--successT:#86efac;
+  --warnBg:#3d2a10;--warnT:#fcd34d;
+  --hover:rgba(255,255,255,.06);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 4px 12px rgba(0,0,0,.5);
+  --shadow-lg:0 18px 50px rgba(0,0,0,.6);
   --ring:0 0 0 3px rgba(96,165,250,.35);
-  --reqBg:#2a2415;--reqBorder:var(--acc);--reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
-  --meRowText:#ffffff;--cream:#2a2415;
+  --reqBg:#2a2415;--reqBorder:var(--acc);
+  --reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+  --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
   --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
-  --meRowBg:#2d4a7a;
 }
-/* Botones que tienen background:var(--pri) y color:#fff — como el "Entrar"
-   del login, "Enviar", etc. En dark, --pri es azul claro y texto blanco se
-   vuelve ilegible sobre azul claro. Los forzamos a AZUL OSCURO como fondo
-   con texto blanco (o al revés según sea el patrón). */
-html[data-theme="dark"] .login-btn:not(.login-btn-pk),
-html[data-theme="dark"] .btn-primary{
-  background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important
-}
-html[data-theme="dark"] .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
-/* El header superior azul (banner con nombre de liga, usuario, ES/EN, Salir)
-   debe mantener el azul OSCURO original con texto blanco. En dark, --pri fue
-   redefinido a azul claro para que los links sean legibles, pero el header
-   tiene que quedar fuerte y contrastar. */
-html[data-theme="dark"] .hdr{background:#0E3470!important}
-html[data-theme="dark"] .hdr h1,html[data-theme="dark"] .hdr h1 *{color:#ffffff!important}
-html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
-/* Header del login (banner grande dentro del card de login) */
-html[data-theme="dark"] .login-header{background:#0E3470!important;color:#ffffff!important}
-/* Botón Face ID/Touch ID (ghost estilo, borde y texto en --pri): con --pri
-   ahora azul claro, tanto borde como texto son visibles. Fondo oscuro. */
-html[data-theme="dark"] .login-btn-pk{
-  background:transparent!important;color:#60a5fa!important;border-color:#60a5fa!important
-}
-/* Botones "sub-tab" activos (Grupos/Clasificación/Rating/etc.): fondo primary. */
-html[data-theme="dark"] .sub-tab.active,
-html[data-theme="dark"] .cycle-btn.active{
-  background:#2563eb!important;color:#ffffff!important
-}
-/* Toast: fondo azul oscuro sólido, texto blanco, sin border amarillo raro */
-html[data-theme="dark"] .toast{
-  background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important;
-  box-shadow:0 6px 20px rgba(0,0,0,.6)!important
-}
-/* Links dentro de párrafos y "Olvidé mi contraseña" — ya usan color:var(--pri)
-   que ahora es claro, quedan bien. Reforzamos el underline con el mismo color. */
-html[data-theme="dark"] .login-forgot{color:#60a5fa!important}
-/* Badges que usaban var(--pri) como texto (badge-tag) siguen bien con --pri claro
-   sobre --soft, que también es más claro. */
-html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
 
-/* Dark mode automático: se activa según la preferencia del sistema operativo
-   SOLO cuando el usuario no forzó un tema manual (no hay data-theme). */
+/* ============================================================================
+   DARK MODE — REGLA MADRE: TODO texto es BLANCO por defecto.
+   
+   Filosofía: en vez de pelear con 63+ elementos que usan color:var(--pri),
+   forzamos que TODO texto en dark sea blanco. Después, excepciones controladas
+   para los elementos que necesitan color propio (badges, links, headers).
+   ============================================================================ */
+
+/* MADRE: todo elemento en dark tiene texto blanco. Alta especificidad para
+   pisar cualquier color:var(--pri) o color:#111 hardcodeado del CSS legacy. */
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] div,
+html[data-theme="dark"] p,
+html[data-theme="dark"] span,
+html[data-theme="dark"] table,
+html[data-theme="dark"] tr,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td,
+html[data-theme="dark"] label,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+html[data-theme="dark"] li,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] em,
+html[data-theme="dark"] b,
+html[data-theme="dark"] small{color:#ffffff!important}
+
+/* Texto secundario (hints, legends): gris claro pero legible */
+html[data-theme="dark"] .legend-txt,
+html[data-theme="dark"] .hint{color:#cbd5e1!important}
+
+/* Links: azul claro brillante (sobre fondos oscuros) */
+html[data-theme="dark"] a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
+html[data-theme="dark"] .nm-link,
+html[data-theme="dark"] .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+
+/* Backgrounds y borders */
+html[data-theme="dark"] body{background:var(--bg)}
+html[data-theme="dark"] .card{background:var(--surface);border-color:var(--border)}
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+
+/* ==== HEADER SUPERIOR AZUL (.hdr) — mantiene azul oscuro con texto blanco ==== */
+html[data-theme="dark"] .hdr{background:#0E3470!important}
+html[data-theme="dark"] .hdr *{color:#ffffff!important}
+html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
+
+/* ==== HEADER DEL LOGIN (.login-head) — igual ==== */
+html[data-theme="dark"] .login-head{background:#0E3470!important}
+html[data-theme="dark"] .login-head *{color:#ffffff!important}
+html[data-theme="dark"] .login-head p,html[data-theme="dark"] .login-head p *{color:#dce7f6!important}
+
+/* ==== HEADERS DE TABLAS — fondo --soft (azul oscuro), texto blanco ==== */
+html[data-theme="dark"] .cls-table th,
+html[data-theme="dark"] .gen-table th,
+html[data-theme="dark"] .rt-table th,
+html[data-theme="dark"] .rt-table thead th,
+html[data-theme="dark"] .gen-table thead th,
+html[data-theme="dark"] .clg-head th,
+html[data-theme="dark"] .clg-head th *,
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+
+/* ==== FILA DESTACADA DEL USUARIO (me-row) — TODAS las tablas, todo blanco ==== */
+html[data-theme="dark"] .gen-table .me-row td,
+html[data-theme="dark"] .gen-table .me-row td *,
+html[data-theme="dark"] .cls-table .me-row td,
+html[data-theme="dark"] .cls-table .me-row td *,
+html[data-theme="dark"] .rt-table tr.me-row td,
+html[data-theme="dark"] .rt-table tr.me-row td *,
+html[data-theme="dark"] .res-table .me-mtx,
+html[data-theme="dark"] .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
+
+/* ==== BOTONES ==== */
+html[data-theme="dark"] .login-btn:not(.login-btn-pk),
+html[data-theme="dark"] .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+html[data-theme="dark"] .login-btn:not(.login-btn-pk) *,
+html[data-theme="dark"] .btn-primary *{color:#ffffff!important}
+html[data-theme="dark"] .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+html[data-theme="dark"] .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
+html[data-theme="dark"] .login-btn-pk *{color:#79aeff!important}
+html[data-theme="dark"] .sub-tab.active,
+html[data-theme="dark"] .cycle-btn.active,
+html[data-theme="dark"] .sub-tab.active *,
+html[data-theme="dark"] .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+
+/* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
+html[data-theme="dark"] .badge-inact,
+html[data-theme="dark"] .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+html[data-theme="dark"] .badge-pend,html[data-theme="dark"] .badge-warn,html[data-theme="dark"] .alert-warn,html[data-theme="dark"] .rt-prov,
+html[data-theme="dark"] .badge-pend *,html[data-theme="dark"] .badge-warn *,html[data-theme="dark"] .alert-warn *,html[data-theme="dark"] .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .badge-ok,html[data-theme="dark"] .alert-ok,html[data-theme="dark"] .dest-up,
+html[data-theme="dark"] .badge-ok *,html[data-theme="dark"] .alert-ok *,html[data-theme="dark"] .dest-up *{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .badge-err,html[data-theme="dark"] .badge-disp,html[data-theme="dark"] .alert-err,html[data-theme="dark"] .dest-down,
+html[data-theme="dark"] .badge-err *,html[data-theme="dark"] .badge-disp *,html[data-theme="dark"] .alert-err *,html[data-theme="dark"] .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .alert-info,html[data-theme="dark"] .badge-tag,
+html[data-theme="dark"] .alert-info *,html[data-theme="dark"] .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+html[data-theme="dark"] .rt-manual,html[data-theme="dark"] .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+
+/* ==== TOAST — fondo azul oscuro, texto blanco ==== */
+html[data-theme="dark"] .toast,html[data-theme="dark"] .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+
+/* ==== METRIC TILES ==== */
+html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
+
+/* ==== SKELETON LOADER ==== */
+html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+
+/* Los inputs de login con clases específicas también */
+html[data-theme="dark"] .login-body input,
+html[data-theme="dark"] .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+
+/* ============================================================================
+   MISMO DARK MODE cuando el usuario está en "system" y su OS está en oscuro.
+   ============================================================================ */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]){
-    --bg:#0f172a;--surface:#1e293b;--surface2:#172033;--text:#f1f5f9;--text2:#94a3b8;
-    --border:#334155;--border2:#475569;
-    --pri:#60a5fa;--priD:#93c5fd;--accT:#f1f5f9;
-    --soft:#1e3a5f;--winrow:#3d2f14;--hl:#3d2a14;
-    --dangerBg:#4a1d1d;--dangerT:#fca5a5;--successBg:#14361f;--successT:#86efac;
-    --warnBg:#3d2a10;--warnT:#fcd34d;--hover:rgba(255,255,255,.06);
-    --shadow-sm:0 1px 2px rgba(0,0,0,.4);--shadow-md:0 4px 12px rgba(0,0,0,.5);--shadow-lg:0 18px 50px rgba(0,0,0,.6);
+    --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+    --text:#ffffff;--text2:#cbd5e1;
+    --border:#2d3a52;--border2:#475569;
+    --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
+    --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+    --dangerBg:#4a1d1d;--dangerT:#fca5a5;
+    --successBg:#14361f;--successT:#86efac;
+    --warnBg:#3d2a10;--warnT:#fcd34d;
+    --hover:rgba(255,255,255,.06);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 4px 12px rgba(0,0,0,.5);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
     --ring:0 0 0 3px rgba(96,165,250,.35);
-    --reqBg:#2a2415;--reqBorder:var(--acc);--reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
-    --meRowText:#ffffff;--cream:#2a2415;
+    --reqBg:#2a2415;--reqBorder:var(--acc);
+    --reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+    --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
     --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
-    --meRowBg:#2d4a7a;
   }
+  html:not([data-theme]),
+  html:not([data-theme]) body,
+  html:not([data-theme]) div,
+  html:not([data-theme]) p,
+  html:not([data-theme]) span,
+  html:not([data-theme]) table,
+  html:not([data-theme]) tr,
+  html:not([data-theme]) th,
+  html:not([data-theme]) td,
+  html:not([data-theme]) label,
+  html:not([data-theme]) h1,
+  html:not([data-theme]) h2,
+  html:not([data-theme]) h3,
+  html:not([data-theme]) h4,
+  html:not([data-theme]) h5,
+  html:not([data-theme]) h6,
+  html:not([data-theme]) li,
+  html:not([data-theme]) strong,
+  html:not([data-theme]) em,
+  html:not([data-theme]) b,
+  html:not([data-theme]) small{color:#ffffff!important}
+  html:not([data-theme]) .legend-txt,
+  html:not([data-theme]) .hint{color:#cbd5e1!important}
+  html:not([data-theme]) a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
+  html:not([data-theme]) .nm-link,
+  html:not([data-theme]) .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+  html:not([data-theme]) body{background:var(--bg)}
+  html:not([data-theme]) .card{background:var(--surface);border-color:var(--border)}
+  html:not([data-theme]) input,
+  html:not([data-theme]) select,
+  html:not([data-theme]) textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+  html:not([data-theme]) .hdr{background:#0E3470!important}
+  html:not([data-theme]) .hdr *{color:#ffffff!important}
+  html:not([data-theme]) .hdr p,html:not([data-theme]) .hdr p *{color:#dce7f6!important}
+  html:not([data-theme]) .login-head{background:#0E3470!important}
+  html:not([data-theme]) .login-head *{color:#ffffff!important}
+  html:not([data-theme]) .login-head p,html:not([data-theme]) .login-head p *{color:#dce7f6!important}
+  html:not([data-theme]) .cls-table th,
+  html:not([data-theme]) .gen-table th,
+  html:not([data-theme]) .rt-table th,
+  html:not([data-theme]) .rt-table thead th,
+  html:not([data-theme]) .gen-table thead th,
+  html:not([data-theme]) .clg-head th,
+  html:not([data-theme]) .clg-head th *,
+  html:not([data-theme]) .res-table th,
+  html:not([data-theme]) .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+  html:not([data-theme]) .gen-table .me-row td,
+  html:not([data-theme]) .gen-table .me-row td *,
+  html:not([data-theme]) .cls-table .me-row td,
+  html:not([data-theme]) .cls-table .me-row td *,
+  html:not([data-theme]) .rt-table tr.me-row td,
+  html:not([data-theme]) .rt-table tr.me-row td *,
+  html:not([data-theme]) .res-table .me-mtx,
+  html:not([data-theme]) .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
   html:not([data-theme]) .login-btn:not(.login-btn-pk),
   html:not([data-theme]) .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+  html:not([data-theme]) .login-btn:not(.login-btn-pk) *,
+  html:not([data-theme]) .btn-primary *{color:#ffffff!important}
   html:not([data-theme]) .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
-  html:not([data-theme]) .hdr{background:#0E3470!important}
-  html:not([data-theme]) .hdr h1,html:not([data-theme]) .hdr h1 *{color:#ffffff!important}
-  html:not([data-theme]) .hdr p,html:not([data-theme]) .hdr p *{color:#dce7f6!important}
-  html:not([data-theme]) .login-header{background:#0E3470!important;color:#ffffff!important}
-  html:not([data-theme]) .login-header,
-  html:not([data-theme]) .top-hdr,
-  html:not([data-theme]) .header-liga{background:#0E3470!important;color:#ffffff!important}
-  html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#60a5fa!important;border-color:#60a5fa!important}
+  html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
+  html:not([data-theme]) .login-btn-pk *{color:#79aeff!important}
   html:not([data-theme]) .sub-tab.active,
-  html:not([data-theme]) .cycle-btn.active{background:#2563eb!important;color:#ffffff!important}
-  html:not([data-theme]) .toast{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important;box-shadow:0 6px 20px rgba(0,0,0,.6)!important}
-  html:not([data-theme]) .login-forgot{color:#60a5fa!important}
-  html:not([data-theme]) input,html:not([data-theme]) select,html:not([data-theme]) textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .cycle-btn.active,
+  html:not([data-theme]) .sub-tab.active *,
+  html:not([data-theme]) .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-inact,html:not([data-theme]) .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-pend,html:not([data-theme]) .badge-warn,html:not([data-theme]) .alert-warn,html:not([data-theme]) .rt-prov,
+  html:not([data-theme]) .badge-pend *,html:not([data-theme]) .badge-warn *,html:not([data-theme]) .alert-warn *,html:not([data-theme]) .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .badge-ok,html:not([data-theme]) .alert-ok,html:not([data-theme]) .dest-up,
+  html:not([data-theme]) .badge-ok *,html:not([data-theme]) .alert-ok *,html:not([data-theme]) .dest-up *{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .badge-err,html:not([data-theme]) .badge-disp,html:not([data-theme]) .alert-err,html:not([data-theme]) .dest-down,
+  html:not([data-theme]) .badge-err *,html:not([data-theme]) .badge-disp *,html:not([data-theme]) .alert-err *,html:not([data-theme]) .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .alert-info,html:not([data-theme]) .badge-tag,
+  html:not([data-theme]) .alert-info *,html:not([data-theme]) .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+  html:not([data-theme]) .rt-manual,html:not([data-theme]) .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) .toast,html:not([data-theme]) .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+  html:not([data-theme]) .metric-tile .metric-n{color:#79aeff!important}
+  html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+  html:not([data-theme]) .login-body input,
+  html:not([data-theme]) .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
 }
 
 /* Respeto por accesibilidad: usuarios con preferencia de menos animación
    ven la app sin transitions ni movimientos. */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
-}
-
-/* ============================================================================
-   SISTEMA COMPLETO DE DARK MODE OVERRIDES
-   
-   Cobertura total de TODAS las clases con colores hardcodeados del código legacy.
-   Agrupadas por semántica (verde/rojo/ámbar/violeta/info). Cada categoría define
-   fondo oscuro + texto claro con contraste WCAG AA (4.5:1 mínimo).
-   
-   Aplica en dos escenarios equivalentes:
-   1. html[data-theme="dark"]              — usuario eligió dark manual
-   2. @media (prefers-color-scheme: dark)   — modo sistema, OS en oscuro
-   
-   Las reglas son idénticas en ambos casos; se duplican porque los media queries
-   no pueden combinarse con selectores externos.
-   ============================================================================ */
-
-/* --- ESCENARIO 1: data-theme="dark" (manual) --- */
-
-/* Verde: success, subir, on, activo */
-html[data-theme="dark"] .dest-up,
-html[data-theme="dark"] .badge-ok,
-html[data-theme="dark"] .lm-on,
-html[data-theme="dark"] .btn-success,
-html[data-theme="dark"] .w,
-html[data-theme="dark"] .alert-ok,
-html[data-theme="dark"] [style*="background:#dcfce7"],
-html[data-theme="dark"] [style*="background:#E1F5EE"]{background:#14361f!important;color:#86efac!important}
-
-/* Rojo: danger, bajar, error, disputa, inactivo */
-html[data-theme="dark"] .dest-down,
-html[data-theme="dark"] .badge-disp,
-html[data-theme="dark"] .badge-err,
-html[data-theme="dark"] .btn-danger,
-html[data-theme="dark"] .login-err,
-html[data-theme="dark"] .alert-err,
-html[data-theme="dark"] .rm,
-html[data-theme="dark"] .l,
-html[data-theme="dark"] [style*="background:#fee2e2"],
-html[data-theme="dark"] [style*="background:#FCEBEB"],
-html[data-theme="dark"] [style*="background:#fff5f5"]{background:#4a1d1d!important;color:#fca5a5!important}
-
-/* Ámbar/amarillo: warning, pendiente, provisional */
-html[data-theme="dark"] .badge-pend,
-html[data-theme="dark"] .cell-pending,
-html[data-theme="dark"] .dot-pend,
-html[data-theme="dark"] .badge-warn,
-html[data-theme="dark"] .alert-warn,
-html[data-theme="dark"] .rt-prov,
-html[data-theme="dark"] [style*="background:#FEF3C7"],
-html[data-theme="dark"] [style*="background:#fef3c7"],
-html[data-theme="dark"] [style*="background:#FAEEDA"],
-html[data-theme="dark"] [style*="background:#FFEDD5"]{background:#3d2a10!important;color:#fcd34d!important}
-
-/* Violeta: rating manual del admin */
-html[data-theme="dark"] .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
-
-/* Info/neutro azul: alert-info, badge-tag */
-html[data-theme="dark"] .alert-info,
-html[data-theme="dark"] .badge-tag,
-html[data-theme="dark"] [style*="background:#dbeafe"],
-html[data-theme="dark"] [style*="background:#e6f1fb"],
-html[data-theme="dark"] [style*="background:#E6F1FB"]{background:#1e3a5f!important;color:#93c5fd!important}
-
-/* Badge inactivo brillante */
-html[data-theme="dark"] .badge-inact{background:#7f1d1d!important;color:#ffffff!important}
-
-/* Nombres de jugadores (links): en dark el --pri azul oscuro no contrasta */
-html[data-theme="dark"] .nm-link{color:#93c5fd!important}
-/* Los nombres subrayados (text-decoration): color del subrayado también */
-html[data-theme="dark"] .nm-link{text-decoration-color:#93c5fd!important}
-
-/* Botón "Recargar" del banner de error crítico */
-html[data-theme="dark"] .alert-err button,
-html[data-theme="dark"] button[style*="background:#fff"][style*="color:#791F1F"]{background:#7f1d1d!important;color:#ffffff!important}
-
-/* Strong dentro de alertas: hereda color del padre */
-html[data-theme="dark"] .alert-err strong,
-html[data-theme="dark"] .alert-ok strong,
-html[data-theme="dark"] .alert-warn strong,
-html[data-theme="dark"] .alert-info strong{color:inherit!important}
-
-/* Números azules en tiles de métricas admin */
-html[data-theme="dark"] .metric-tile .metric-n{color:#93c5fd!important}
-
-/* Skeleton loader: tonos oscuros del gradiente */
-html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
-
-/* Botones de "Reducir Protecciones" del navegador iOS: fuera de nuestro control (nativo del sistema) */
-
-
-/* --- ESCENARIO 2: prefers-color-scheme: dark sin data-theme (modo sistema) --- */
-
-@media (prefers-color-scheme: dark){
-  html:not([data-theme]) .dest-up,
-  html:not([data-theme]) .badge-ok,
-  html:not([data-theme]) .lm-on,
-  html:not([data-theme]) .btn-success,
-  html:not([data-theme]) .w,
-  html:not([data-theme]) .alert-ok,
-  html:not([data-theme]) [style*="background:#dcfce7"],
-  html:not([data-theme]) [style*="background:#E1F5EE"]{background:#14361f!important;color:#86efac!important}
-
-  html:not([data-theme]) .dest-down,
-  html:not([data-theme]) .badge-disp,
-  html:not([data-theme]) .badge-err,
-  html:not([data-theme]) .btn-danger,
-  html:not([data-theme]) .login-err,
-  html:not([data-theme]) .alert-err,
-  html:not([data-theme]) .rm,
-  html:not([data-theme]) .l,
-  html:not([data-theme]) [style*="background:#fee2e2"],
-  html:not([data-theme]) [style*="background:#FCEBEB"],
-  html:not([data-theme]) [style*="background:#fff5f5"]{background:#4a1d1d!important;color:#fca5a5!important}
-
-  html:not([data-theme]) .badge-pend,
-  html:not([data-theme]) .cell-pending,
-  html:not([data-theme]) .dot-pend,
-  html:not([data-theme]) .badge-warn,
-  html:not([data-theme]) .alert-warn,
-  html:not([data-theme]) .rt-prov,
-  html:not([data-theme]) [style*="background:#FEF3C7"],
-  html:not([data-theme]) [style*="background:#fef3c7"],
-  html:not([data-theme]) [style*="background:#FAEEDA"],
-  html:not([data-theme]) [style*="background:#FFEDD5"]{background:#3d2a10!important;color:#fcd34d!important}
-
-  html:not([data-theme]) .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
-
-  html:not([data-theme]) .alert-info,
-  html:not([data-theme]) .badge-tag,
-  html:not([data-theme]) [style*="background:#dbeafe"],
-  html:not([data-theme]) [style*="background:#e6f1fb"],
-  html:not([data-theme]) [style*="background:#E6F1FB"]{background:#1e3a5f!important;color:#93c5fd!important}
-
-  html:not([data-theme]) .badge-inact{background:#7f1d1d!important;color:#ffffff!important}
-
-  html:not([data-theme]) .nm-link{color:#93c5fd!important;text-decoration-color:#93c5fd!important}
-
-  html:not([data-theme]) .alert-err button,
-  html:not([data-theme]) button[style*="background:#fff"][style*="color:#791F1F"]{background:#7f1d1d!important;color:#ffffff!important}
-
-  html:not([data-theme]) .alert-err strong,
-  html:not([data-theme]) .alert-ok strong,
-  html:not([data-theme]) .alert-warn strong,
-  html:not([data-theme]) .alert-info strong{color:inherit!important}
-
-  html:not([data-theme]) .metric-tile .metric-n{color:#93c5fd!important}
-
-  html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
 }
 html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
 .app{max-width:1040px;margin:0 auto;padding:.75rem}
@@ -633,46 +634,6 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
 .cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
 .gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
-/* ============================================================================
-   DARK MODE — REGLAS UNIFICADAS PARA TABLAS (Rating, Clasificación, Grupos)
-   
-   Todas las tablas siguen el mismo formato en dark:
-   - Headers <th>: fondo azul oscuro (--soft) + texto BLANCO (max contraste)
-   - Filas normales: texto claro (--text) heredado
-   - Fila destacada del usuario (me-row): fondo azul MEDIO (--meRowBg) + TODO
-     el texto en blanco puro, sin importar el elemento hijo (nm-link, rt-cell,
-     strong, span, etc.). Sin excepciones.
-   - Links (.nm-link) fuera de me-row: azul claro (--pri) para distinguirse.
-   
-   Alta especificidad + !important para pisar el CSS legacy que usa var(--pri)
-   para textos. En light mode nada cambia (esas reglas solo aplican en dark).
-   ============================================================================ */
-html[data-theme="dark"] .cls-table th,html[data-theme="dark"] .gen-table th,html[data-theme="dark"] .rt-table th,html[data-theme="dark"] .rt-table thead th,html[data-theme="dark"] .gen-table thead th,html[data-theme="dark"] .clg-head th{color:#ffffff!important;background:var(--soft)!important;border-bottom-color:var(--border2)!important}
-html[data-theme="dark"] .cls-table td,html[data-theme="dark"] .gen-table td,html[data-theme="dark"] .rt-table td{color:var(--text)!important}
-/* Fila destacada del usuario: fondo azul medio + TODO texto blanco puro */
-html[data-theme="dark"] .gen-table .me-row td,html[data-theme="dark"] .gen-table .me-row td *,
-html[data-theme="dark"] .cls-table .me-row td,html[data-theme="dark"] .cls-table .me-row td *,
-html[data-theme="dark"] .rt-table tr.me-row td,html[data-theme="dark"] .rt-table tr.me-row td *,
-html[data-theme="dark"] .res-table .me-mtx,html[data-theme="dark"] .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important;font-weight:inherit}
-/* Los .nm-link (links de nombres de jugadores) fuera de me-row: azul claro visible */
-html[data-theme="dark"] .cls-table .nm-link,html[data-theme="dark"] .gen-table .nm-link,html[data-theme="dark"] .rt-table .nm-link{color:var(--pri)!important}
-/* Los .rt-cell (celda de rating con su color propio) fuera de me-row: azul claro */
-html[data-theme="dark"] .cls-table .rt-cell,html[data-theme="dark"] .gen-table .rt-cell,html[data-theme="dark"] .rt-table .rt-cell{color:var(--pri)!important}
-/* Tabla de resultados de grupo (matriz Marcos/Neil/Leo/etc.) header oscuro */
-html[data-theme="dark"] .res-table th{color:#ffffff!important;background:var(--soft)!important}
-
-/* Mismo tratamiento en dark automático (respeta config del OS sin toggle) */
-@media (prefers-color-scheme: dark){
-  html:not([data-theme]) .cls-table th,html:not([data-theme]) .gen-table th,html:not([data-theme]) .rt-table th,html:not([data-theme]) .rt-table thead th,html:not([data-theme]) .gen-table thead th,html:not([data-theme]) .clg-head th{color:#ffffff!important;background:var(--soft)!important;border-bottom-color:var(--border2)!important}
-  html:not([data-theme]) .cls-table td,html:not([data-theme]) .gen-table td,html:not([data-theme]) .rt-table td{color:var(--text)!important}
-  html:not([data-theme]) .gen-table .me-row td,html:not([data-theme]) .gen-table .me-row td *,
-  html:not([data-theme]) .cls-table .me-row td,html:not([data-theme]) .cls-table .me-row td *,
-  html:not([data-theme]) .rt-table tr.me-row td,html:not([data-theme]) .rt-table tr.me-row td *,
-  html:not([data-theme]) .res-table .me-mtx,html:not([data-theme]) .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important;font-weight:inherit}
-  html:not([data-theme]) .cls-table .nm-link,html:not([data-theme]) .gen-table .nm-link,html:not([data-theme]) .rt-table .nm-link{color:var(--pri)!important}
-  html:not([data-theme]) .cls-table .rt-cell,html:not([data-theme]) .gen-table .rt-cell,html:not([data-theme]) .rt-table .rt-cell{color:var(--pri)!important}
-  html:not([data-theme]) .res-table th{color:#ffffff!important;background:var(--soft)!important}
-}
 .gen-cyc{font-size:11px;color:var(--text2)}
 .gen-po{white-space:nowrap}
 .gen-dash{color:#c8d0dc}
@@ -2634,64 +2595,18 @@ try {
 
 function aplicarTema(modo){
   try {
+    // Guardar la preferencia. El script del <head> la aplica al cargar.
     if(modo === 'system'){
       localStorage.removeItem('theme');
-      document.documentElement.removeAttribute('data-theme');
     } else {
       localStorage.setItem('theme', modo);
-      document.documentElement.setAttribute('data-theme', modo);
     }
-    // Re-detectar si el modo actual es dark (por elección o por sistema) y
-    // ajustar los inline styles de los colores de fondo de la liga: en dark
-    // hay que quitarlos para que los tokens dark del CSS ganen; en light hay
-    // que restaurarlos con los colores personalizados si existen.
-    const isDark = modo === 'dark' || (modo === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    const r = document.documentElement.style;
-    if(isDark){
-      r.removeProperty('--soft');
-      r.removeProperty('--winrow');
-      r.removeProperty('--cream');
-      r.removeProperty('--hl');
-    } else {
-      try {
-        const c = JSON.parse(localStorage.getItem('lsc') || 'null');
-        if(c && c.p && c.a){
-          r.setProperty('--soft', c.s || '#E6F1FB');
-          r.setProperty('--winrow', c.wr || '#FAEEDA');
-          r.setProperty('--cream', c.cr || '#fffbf0');
-          r.setProperty('--hl', c.hl || '#FFEDD5');
-        }
-      } catch(_){}
-    }
-    if(typeof toast === 'function') toast(t('theme_saved'));
-    // Re-render de los botones para reflejar el activo
-    document.querySelectorAll('.theme-btn').forEach(b => {
-      const isActive = b.dataset.mode === modo;
-      b.style.background = isActive ? 'var(--pri)' : 'var(--surface2)';
-      b.style.color = isActive ? '#fff' : 'var(--text)';
-      b.style.borderColor = isActive ? 'var(--pri)' : 'var(--border)';
-    });
-    // Invalidar TODOS los caches de renderizado y forzar re-render agresivo.
-    // Sin esto, componentes que se generan una sola vez (pk-body, admin passkeys,
-    // rating cacheado) mantienen los colores inline calculados con el tema
-    // anterior y se ven rotos hasta la próxima interacción.
-    try { if(typeof _ratingCache !== 'undefined') _ratingCache = null; } catch(_){}
-    try { if(typeof _pkListCache !== 'undefined') _pkListCache = null; } catch(_){}
-    // Re-render de la vista actual COMPLETA
-    try { if(typeof subView === 'string' && typeof showSub === 'function') showSub(subView); } catch(_){}
-    // Si el perfil está visible, refrescar también el pk-body y el panel admin
-    // de passkeys (que se generan por fuera de showSub con inline styles).
-    try {
-      const pv = document.getElementById('view-perfil');
-      if(pv && pv.style.display !== 'none'){
-        // renderPerfil no existe como función global — lo forzamos vía showSub('perfil')
-        // que ya fue llamado arriba. Adicionalmente, refrescamos pk-body si aplica.
-        setTimeout(() => {
-          if(typeof refrescarListaPasskeys === 'function') refrescarListaPasskeys();
-          if(typeof cargarPasskeysAdmin === 'function' && document.getElementById('pk-admin-metrics')) cargarPasskeysAdmin();
-        }, 50);
-      }
-    } catch(_){}
+    // Estrategia: recargar la página. Es la forma más segura de garantizar que
+    // TODOS los componentes se rendericen con los tokens del tema nuevo. Sin
+    // reload, componentes que se generan una sola vez con inline styles
+    // calculados (rating cacheado, pk-body, admin passkeys) mantienen colores
+    // del tema previo y se ve roto. El reload es imperceptible con Vercel edge.
+    location.reload();
   } catch(e){ console.error('Theme error:', e); }
 }
 
