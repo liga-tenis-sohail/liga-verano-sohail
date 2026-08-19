@@ -98,14 +98,15 @@ html[data-theme="dark"] .btn-primary{
   background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important
 }
 html[data-theme="dark"] .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
-/* El header del login (banner azul con el nombre de la liga) debe mantener
-   el azul oscuro con texto blanco. Como usa var(--pri) que ahora es claro,
-   lo forzamos al azul oscuro original. */
-html[data-theme="dark"] .login-header,
-html[data-theme="dark"] .top-hdr,
-html[data-theme="dark"] .header-liga{
-  background:#0E3470!important;color:#ffffff!important
-}
+/* El header superior azul (banner con nombre de liga, usuario, ES/EN, Salir)
+   debe mantener el azul OSCURO original con texto blanco. En dark, --pri fue
+   redefinido a azul claro para que los links sean legibles, pero el header
+   tiene que quedar fuerte y contrastar. */
+html[data-theme="dark"] .hdr{background:#0E3470!important}
+html[data-theme="dark"] .hdr h1,html[data-theme="dark"] .hdr h1 *{color:#ffffff!important}
+html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
+/* Header del login (banner grande dentro del card de login) */
+html[data-theme="dark"] .login-header{background:#0E3470!important;color:#ffffff!important}
 /* Botón Face ID/Touch ID (ghost estilo, borde y texto en --pri): con --pri
    ahora azul claro, tanto borde como texto son visibles. Fondo oscuro. */
 html[data-theme="dark"] .login-btn-pk{
@@ -148,6 +149,10 @@ html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="da
   html:not([data-theme]) .login-btn:not(.login-btn-pk),
   html:not([data-theme]) .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
   html:not([data-theme]) .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+  html:not([data-theme]) .hdr{background:#0E3470!important}
+  html:not([data-theme]) .hdr h1,html:not([data-theme]) .hdr h1 *{color:#ffffff!important}
+  html:not([data-theme]) .hdr p,html:not([data-theme]) .hdr p *{color:#dce7f6!important}
+  html:not([data-theme]) .login-header{background:#0E3470!important;color:#ffffff!important}
   html:not([data-theme]) .login-header,
   html:not([data-theme]) .top-hdr,
   html:not([data-theme]) .header-liga{background:#0E3470!important;color:#ffffff!important}
@@ -628,19 +633,45 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
 .cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
 .gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
-/* En dark mode, la fila destacada del usuario tiene fondo azul claro (--meRowBg).
-   TODO el contenido (nombres, links, números, badges) se fuerza a BLANCO PURO
-   para máxima legibilidad. Sin excepciones: incluso el .nm-link (que normalmente
-   es azul primary) queda blanco acá, con subrayado blanco. */
+/* ============================================================================
+   DARK MODE — REGLAS UNIFICADAS PARA TABLAS (Rating, Clasificación, Grupos)
+   
+   Todas las tablas siguen el mismo formato en dark:
+   - Headers <th>: fondo azul oscuro (--soft) + texto BLANCO (max contraste)
+   - Filas normales: texto claro (--text) heredado
+   - Fila destacada del usuario (me-row): fondo azul MEDIO (--meRowBg) + TODO
+     el texto en blanco puro, sin importar el elemento hijo (nm-link, rt-cell,
+     strong, span, etc.). Sin excepciones.
+   - Links (.nm-link) fuera de me-row: azul claro (--pri) para distinguirse.
+   
+   Alta especificidad + !important para pisar el CSS legacy que usa var(--pri)
+   para textos. En light mode nada cambia (esas reglas solo aplican en dark).
+   ============================================================================ */
+html[data-theme="dark"] .cls-table th,html[data-theme="dark"] .gen-table th,html[data-theme="dark"] .rt-table th,html[data-theme="dark"] .rt-table thead th,html[data-theme="dark"] .gen-table thead th,html[data-theme="dark"] .clg-head th{color:#ffffff!important;background:var(--soft)!important;border-bottom-color:var(--border2)!important}
+html[data-theme="dark"] .cls-table td,html[data-theme="dark"] .gen-table td,html[data-theme="dark"] .rt-table td{color:var(--text)!important}
+/* Fila destacada del usuario: fondo azul medio + TODO texto blanco puro */
 html[data-theme="dark"] .gen-table .me-row td,html[data-theme="dark"] .gen-table .me-row td *,
 html[data-theme="dark"] .cls-table .me-row td,html[data-theme="dark"] .cls-table .me-row td *,
 html[data-theme="dark"] .rt-table tr.me-row td,html[data-theme="dark"] .rt-table tr.me-row td *,
-html[data-theme="dark"] .res-table .me-mtx,html[data-theme="dark"] .res-table .me-mtx *{color:#ffffff!important;text-decoration-color:#ffffff!important}
+html[data-theme="dark"] .res-table .me-mtx,html[data-theme="dark"] .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important;font-weight:inherit}
+/* Los .nm-link (links de nombres de jugadores) fuera de me-row: azul claro visible */
+html[data-theme="dark"] .cls-table .nm-link,html[data-theme="dark"] .gen-table .nm-link,html[data-theme="dark"] .rt-table .nm-link{color:var(--pri)!important}
+/* Los .rt-cell (celda de rating con su color propio) fuera de me-row: azul claro */
+html[data-theme="dark"] .cls-table .rt-cell,html[data-theme="dark"] .gen-table .rt-cell,html[data-theme="dark"] .rt-table .rt-cell{color:var(--pri)!important}
+/* Tabla de resultados de grupo (matriz Marcos/Neil/Leo/etc.) header oscuro */
+html[data-theme="dark"] .res-table th{color:#ffffff!important;background:var(--soft)!important}
+
+/* Mismo tratamiento en dark automático (respeta config del OS sin toggle) */
 @media (prefers-color-scheme: dark){
+  html:not([data-theme]) .cls-table th,html:not([data-theme]) .gen-table th,html:not([data-theme]) .rt-table th,html:not([data-theme]) .rt-table thead th,html:not([data-theme]) .gen-table thead th,html:not([data-theme]) .clg-head th{color:#ffffff!important;background:var(--soft)!important;border-bottom-color:var(--border2)!important}
+  html:not([data-theme]) .cls-table td,html:not([data-theme]) .gen-table td,html:not([data-theme]) .rt-table td{color:var(--text)!important}
   html:not([data-theme]) .gen-table .me-row td,html:not([data-theme]) .gen-table .me-row td *,
   html:not([data-theme]) .cls-table .me-row td,html:not([data-theme]) .cls-table .me-row td *,
   html:not([data-theme]) .rt-table tr.me-row td,html:not([data-theme]) .rt-table tr.me-row td *,
-  html:not([data-theme]) .res-table .me-mtx,html:not([data-theme]) .res-table .me-mtx *{color:#ffffff!important;text-decoration-color:#ffffff!important}
+  html:not([data-theme]) .res-table .me-mtx,html:not([data-theme]) .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important;font-weight:inherit}
+  html:not([data-theme]) .cls-table .nm-link,html:not([data-theme]) .gen-table .nm-link,html:not([data-theme]) .rt-table .nm-link{color:var(--pri)!important}
+  html:not([data-theme]) .cls-table .rt-cell,html:not([data-theme]) .gen-table .rt-cell,html:not([data-theme]) .rt-table .rt-cell{color:var(--pri)!important}
+  html:not([data-theme]) .res-table th{color:#ffffff!important;background:var(--soft)!important}
 }
 .gen-cyc{font-size:11px;color:var(--text2)}
 .gen-po{white-space:nowrap}
