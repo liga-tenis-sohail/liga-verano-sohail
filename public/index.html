@@ -114,7 +114,7 @@ html[data-theme="dark"] span,
 html[data-theme="dark"] table,
 html[data-theme="dark"] tr,
 html[data-theme="dark"] th,
-html[data-theme="dark"] td,
+html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
 html[data-theme="dark"] label,
 html[data-theme="dark"] h1,
 html[data-theme="dark"] h2,
@@ -127,6 +127,11 @@ html[data-theme="dark"] strong,
 html[data-theme="dark"] em,
 html[data-theme="dark"] b,
 html[data-theme="dark"] small{color:#ffffff!important}
+
+/* Celdas con colores configurados por el admin (club, pending, disputed):
+   respetan el inline style con background y color propios. Los colores del
+   admin son intencionales — si él quiere celeste con azul oscuro, eso queda. */
+html[data-theme="dark"] .cell-pending{background:#FAEEDA;color:#6b5800}
 
 /* Texto secundario (hints, legends): gris claro pero legible */
 html[data-theme="dark"] .legend-txt,
@@ -244,25 +249,10 @@ html[data-theme="dark"] [class*="badge-"][style*="background:#"]{background:var(
 html[data-theme="dark"] span[style*="background:#"][style*="border-radius:50%"],
 html[data-theme="dark"] span[style*="background:#"][style*="border-radius: 50%"]{background:var(--soft)!important;color:#ffffff!important}
 
-/* ==== HEADER DE COLUMNAS AGRUPADAS ("Puntos para la Clasificación General") ==== */
-/* El thead con dos filas — la segunda tiene background claro */
-html[data-theme="dark"] .cls-table thead tr:first-child th,
-html[data-theme="dark"] .gen-table thead tr:first-child th{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
-
-/* ==== CELDAS DE PARTIDOS CON COLOR DE CLUB — inline styles con color pastel ==== */
-/* Los fondos hardcodeados pastel (celeste, salmón, cream) que usan clubs personalizados */
-html[data-theme="dark"] td[style*="background:#D"],
-html[data-theme="dark"] td[style*="background:#E"],
-html[data-theme="dark"] td[style*="background:#F"],
-html[data-theme="dark"] td[style*="background: #D"],
-html[data-theme="dark"] td[style*="background: #E"],
-html[data-theme="dark"] td[style*="background: #F"]{filter:brightness(.3) saturate(1.5)!important;color:#ffffff!important}
-html[data-theme="dark"] td[style*="background:#D"] *,
-html[data-theme="dark"] td[style*="background:#E"] *,
-html[data-theme="dark"] td[style*="background:#F"] *,
-html[data-theme="dark"] td[style*="background: #D"] *,
-html[data-theme="dark"] td[style*="background: #E"] *,
-html[data-theme="dark"] td[style*="background: #F"] *{color:#ffffff!important}
+/* IMPORTANTE: Las celdas de partidos con inline styles (background y color de
+   club, configurados por el admin) NO se sobreescriben. El admin eligió los
+   colores; la función autoTxt() ya calcula el mejor color de texto según el
+   fondo. Se leen bien tal cual. */
 
 /* Los inputs de login con clases específicas también */
 html[data-theme="dark"] .login-body input,
@@ -299,7 +289,7 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   html:not([data-theme]) table,
   html:not([data-theme]) tr,
   html:not([data-theme]) th,
-  html:not([data-theme]) td,
+  html:not([data-theme]) td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
   html:not([data-theme]) label,
   html:not([data-theme]) h1,
   html:not([data-theme]) h2,
@@ -385,27 +375,80 @@ html[data-theme="dark"] .clg-head th,
 html[data-theme="dark"] .clg-head th:first-child,
 html[data-theme="dark"] .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
-/* ==== CELDAS DE PARTIDOS (matriz) — fondos oscuros semánticos ====
-   .cell-pending (partido pendiente de validación) — ámbar oscuro.
-   .cell-empty (celda vacía "+ cargar") — surface oscuro.
-   .cell-locked (celda bloqueada "·") — más oscuro aún.
-   .cell-club (partido jugado, tenía color del club) — pisamos el inline con
-   [style*="..."] para cada color de club conocido. */
+/* ==== CELDAS DE ESTADOS (matriz) ====
+   NO tocamos .cell-club: los colores del club son configurados por el admin
+   y deben respetarse en dark también (el texto se calcula automáticamente
+   con autoTxt() para garantizar contraste sobre el fondo del club).
+   Solo estilizamos los ESTADOS (pending, empty, locked, res-black). */
 html[data-theme="dark"] .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
 html[data-theme="dark"] .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
 html[data-theme="dark"] .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
 html[data-theme="dark"] .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
 html[data-theme="dark"] .res-black{background:var(--bg)!important}
-/* Partidos disputados con color de club: mantenemos el TINTE del club pero
-   oscurecemos el fondo para que el texto blanco se lea. Cada club conocido: */
-html[data-theme="dark"] .cell-club[style*="#D6ECFB"],
-html[data-theme="dark"] .cell-club[style*="#d6ecfb"]{background:#1e4568!important;color:#ffffff!important}
-html[data-theme="dark"] .cell-club[style*="#FCE6CF"],
-html[data-theme="dark"] .cell-club[style*="#fce6cf"]{background:#4a2f18!important;color:#ffffff!important}
-/* Fallback general: cualquier .cell-club oscurece su background con filter
-   por si el club no matchea los conocidos (nuevos clubes creados por admin) */
-html[data-theme="dark"] .cell-club{filter:none}
-html[data-theme="dark"] .cell-club:not([style*="#D6ECFB"]):not([style*="#d6ecfb"]):not([style*="#FCE6CF"]):not([style*="#fce6cf"]){background:var(--surface2)!important;color:#ffffff!important}
+
+/* ==== FONDOS CLAROS DE ADMIN, HISTORIAL, H2H, BRACKET DE PLAYOFF ====
+   Elementos legacy con fondos pastel + texto oscuro hardcoded que en dark
+   quedaban con texto blanco (por la regla madre) sobre fondo claro → invisibles.
+   Se invierten a fondos oscuros semánticos con texto claro coherente. */
+html[data-theme="dark"] .pm-wl.w,
+html[data-theme="dark"] .h2h-wl.w,
+html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .pm-wl.l,
+html[data-theme="dark"] .h2h-wl.l,
+html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
+html[data-theme="dark"] .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
+html[data-theme="dark"] .bracket-main .match-box *,
+html[data-theme="dark"] .bracket-cons .match-box *{color:#ffffff!important}
+html[data-theme="dark"] .btn-past:hover{background:var(--soft)!important}
+/* .lm-badge (badges en el panel admin de ligas) — el .lm-cur (liga actual)
+   tiene fondo primary + color acc (amarillo) — se ve bien en dark. Otros badges: */
+html[data-theme="dark"] .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
+html[data-theme="dark"] .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
+html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+/* .rt-manual (rating manual admin) — violeta */
+html[data-theme="dark"] .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
+
+/* Barrido general: cualquier inline style con hex claro conocido → invertir.
+   Cubre elementos que se generan por JS con inline styles hardcoded. */
+html[data-theme="dark"] [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] [style*="background:#fee2e2"],
+html[data-theme="dark"] [style*="background:#f7d3d3"],
+html[data-theme="dark"] [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] [style*="background:#fef3c7"],
+html[data-theme="dark"] [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
+html[data-theme="dark"] [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
+/* NOTA: #dbeafe ya lo tenemos cubierto para .avatar y .dest-same (colores azul claro
+   intencionales con texto azul oscuro). No lo pisamos globalmente. */
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .pm-wl.w,
+  html:not([data-theme]) .h2h-wl.w,
+  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .pm-wl.l,
+  html:not([data-theme]) .h2h-wl.l,
+  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
+  html:not([data-theme]) .bracket-main .match-box *,
+  html:not([data-theme]) .bracket-cons .match-box *{color:#ffffff!important}
+  html:not([data-theme]) .btn-past:hover{background:var(--soft)!important}
+  html:not([data-theme]) .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
+  html:not([data-theme]) .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
+  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) [style*="background:#fee2e2"],
+  html:not([data-theme]) [style*="background:#f7d3d3"],
+  html:not([data-theme]) [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) [style*="background:#fef3c7"],
+  html:not([data-theme]) [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
+}
 
 /* ==== HEADER superior de tabla clasificación ("CLASIFICACIÓN GENERAL ACUMULADA") ==== */
 html[data-theme="dark"] .cls-table thead tr:first-child th,
@@ -429,11 +472,6 @@ html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color
   html:not([data-theme]) .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
   html:not([data-theme]) .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
   html:not([data-theme]) .res-black{background:var(--bg)!important}
-  html:not([data-theme]) .cell-club[style*="#D6ECFB"],
-  html:not([data-theme]) .cell-club[style*="#d6ecfb"]{background:#1e4568!important;color:#ffffff!important}
-  html:not([data-theme]) .cell-club[style*="#FCE6CF"],
-  html:not([data-theme]) .cell-club[style*="#fce6cf"]{background:#4a2f18!important;color:#ffffff!important}
-  html:not([data-theme]) .cell-club:not([style*="#D6ECFB"]):not([style*="#d6ecfb"]):not([style*="#FCE6CF"]):not([style*="#fce6cf"]){background:var(--surface2)!important;color:#ffffff!important}
   html:not([data-theme]) .cls-table thead tr:first-child th,
   html:not([data-theme]) .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
   html:not([data-theme]) .cls-table thead tr th,
@@ -474,6 +512,40 @@ html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!
   html:not([data-theme]) .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
   html:not([data-theme]) .dest-same,
   html:not([data-theme]) .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+}
+
+/* ==== DEMOS DE COLOR EN EL PERFIL ADMIN ====
+   Los "demos" de "No jugado" y "Disputa" tienen background del color que el
+   admin eligió (típicamente claro) + texto var(--priD) que en dark es azul
+   claro → ilegibles. Forzamos texto azul OSCURO para contrastar con el
+   fondo claro del admin. */
+html[data-theme="dark"] #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
+
+/* Badges del admin ("Organización", nombres de admins) con background var(--hl)
+   o inline claro — asegurar contraste texto oscuro sobre fondo claro. */
+html[data-theme="dark"] .badge[style*="background:var(--hl)"],
+html[data-theme="dark"] .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+
+/* Spans con background hardcoded claro (colores custom del admin) — 
+   texto azul oscuro para leer bien sobre esos fondos claros. Excluimos
+   círculos (avatars) que ya están cubiertos por otra regla. */
+html[data-theme="dark"] span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
+  html:not([data-theme]) .badge[style*="background:var(--hl)"],
+  html:not([data-theme]) .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+  html:not([data-theme]) span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
 }
 
 /* Respeto por accesibilidad: usuarios con preferencia de menos animación
