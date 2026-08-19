@@ -11,12 +11,17 @@
   // Los colores BRAND (pri/acc) son identidad y se aplican siempre.
   // Los colores de FONDO/HIGHLIGHT (winrow/soft/hl/cream) son claros por diseño;
   // en dark mode NO se aplican para que los tokens dark del CSS ganen.
+  // TAMBIÉN --pri y --priD: son azul OSCURO para light; en dark el CSS los
+  // redefine a azul CLARO para legibilidad. Si el script los aplica en dark,
+  // pisa esa redefinición y todos los headers y avatars quedan azul oscuro
+  // sobre fondo oscuro (invisibles).
   var c=JSON.parse(localStorage.getItem('lsc')||'null');
   if(c&&c.p&&c.a){
     var r=document.documentElement.style;
-    r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);
-    r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);r.setProperty('--accT',c.at||c.p);
+    r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);
     if(!isDark){
+      r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);
+      r.setProperty('--accT',c.at||c.p);
       r.setProperty('--soft',c.s||'#E6F1FB');
       r.setProperty('--winrow',c.wr||'#FAEEDA');
       r.setProperty('--cream',c.cr||'#fffbf0');
@@ -434,6 +439,23 @@ html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color
   html:not([data-theme]) .cls-table thead tr th,
   html:not([data-theme]) .gen-table thead tr th,
   html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+}
+
+/* ==== CÍRCULOS DE INICIALES (.avatar) ==== */
+/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidió
+   este contraste específicamente: fondo claro con letras azules. */
+html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+
+/* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
+/* La primera columna (td:first-child con clase avatar+nm-link) tenía fondo claro
+   por el CSS legacy. Forzamos oscuro para que se lea con el texto blanco. */
+html[data-theme="dark"] .res-table tbody tr td:first-child{background:var(--surface)!important}
+html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child{background:var(--surface)!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
 }
 
 /* Respeto por accesibilidad: usuarios con preferencia de menos animación
