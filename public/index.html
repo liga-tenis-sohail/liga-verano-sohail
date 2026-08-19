@@ -458,6 +458,24 @@ html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#79aef
   html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
 }
 
+/* ==== TAB DEL GRUPO ACTIVO (Grupo N) ==== */
+/* .grp-title es el "tab" arriba de la tabla de posiciones. En dark, azul intenso
+   con letras blancas — como pidió Marcos. */
+html[data-theme="dark"] .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
+
+/* ==== BADGE "=Grupo N" (destino igual, se mantiene en el mismo grupo) ==== */
+/* Los ↑Grupo N (dest-up) y ↓Grupo N (dest-down) ya se ven bien (verde/rojo).
+   El =Grupo N (dest-same) tiene fondo claro por diseño; en dark le forzamos
+   letras azul oscuro para que contraste bien sobre el fondo claro. */
+html[data-theme="dark"] .dest-same,
+html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
+  html:not([data-theme]) .dest-same,
+  html:not([data-theme]) .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+}
+
 /* Respeto por accesibilidad: usuarios con preferencia de menos animación
    ven la app sin transitions ni movimientos. */
 @media (prefers-reduced-motion: reduce){
