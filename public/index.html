@@ -205,6 +205,60 @@ html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
 /* ==== SKELETON LOADER ==== */
 html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
 
+/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores × Jugadores) ==== */
+/* Header (Jugadores, Juan, Adrián, ...) — fondo azul oscuro, texto blanco */
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table thead th,
+html[data-theme="dark"] .res-table th *{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
+html[data-theme="dark"] .res-table th:first-child{background:var(--soft)!important;color:#ffffff!important}
+/* Primera columna (nombres de jugadores en las filas): fondo azul oscuro + texto blanco */
+html[data-theme="dark"] .res-table td:first-child,
+html[data-theme="dark"] .res-table td:first-child *{background:var(--soft)!important;color:#ffffff!important}
+/* Celdas de resultados: bordes claros para que se vean */
+html[data-theme="dark"] .res-table td{border-color:var(--border2)!important}
+
+/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) — versiones oscuras que mantienen identidad ==== */
+/* En light: --sohail celeste #D6ECFB. En dark: celeste oscuro coherente. */
+html[data-theme="dark"]{
+  --sohail:#1e4568;--sohailT:#a5d0f0;
+  --haza:#4a2f18;--hazaT:#f5c896;
+}
+/* Aplicar los colores oscuros a las celdas que los usan por variable */
+html[data-theme="dark"] [style*="background:var(--sohail)"],
+html[data-theme="dark"] [style*="background: var(--sohail)"]{background:#1e4568!important;color:#a5d0f0!important}
+html[data-theme="dark"] [style*="background:var(--haza)"],
+html[data-theme="dark"] [style*="background: var(--haza)"]{background:#4a2f18!important;color:#f5c896!important}
+
+/* ==== BADGES DE INICIALES (MG, LR, NY, etc.) ==== */
+/* Círculos con las 2 letras del jugador — fondos claros con letras oscuras.
+   En dark: fondo azul oscuro con letras blancas. */
+html[data-theme="dark"] .name-badge,
+html[data-theme="dark"] .initial-badge,
+html[data-theme="dark"] [class*="badge-"][style*="background:#"]{background:var(--soft)!important;color:#ffffff!important}
+/* Los badges de iniciales que se generan con estilos inline "background:#XXXX" con color oscuro derivado */
+html[data-theme="dark"] span[style*="background:#"][style*="border-radius:50%"],
+html[data-theme="dark"] span[style*="background:#"][style*="border-radius: 50%"]{background:var(--soft)!important;color:#ffffff!important}
+
+/* ==== HEADER DE COLUMNAS AGRUPADAS ("Puntos para la Clasificación General") ==== */
+/* El thead con dos filas — la segunda tiene background claro */
+html[data-theme="dark"] .cls-table thead tr:first-child th,
+html[data-theme="dark"] .gen-table thead tr:first-child th{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== CELDAS DE PARTIDOS CON COLOR DE CLUB — inline styles con color pastel ==== */
+/* Los fondos hardcodeados pastel (celeste, salmón, cream) que usan clubs personalizados */
+html[data-theme="dark"] td[style*="background:#D"],
+html[data-theme="dark"] td[style*="background:#E"],
+html[data-theme="dark"] td[style*="background:#F"],
+html[data-theme="dark"] td[style*="background: #D"],
+html[data-theme="dark"] td[style*="background: #E"],
+html[data-theme="dark"] td[style*="background: #F"]{filter:brightness(.3) saturate(1.5)!important;color:#ffffff!important}
+html[data-theme="dark"] td[style*="background:#D"] *,
+html[data-theme="dark"] td[style*="background:#E"] *,
+html[data-theme="dark"] td[style*="background:#F"] *,
+html[data-theme="dark"] td[style*="background: #D"] *,
+html[data-theme="dark"] td[style*="background: #E"] *,
+html[data-theme="dark"] td[style*="background: #F"] *{color:#ffffff!important}
+
 /* Los inputs de login con clases específicas también */
 html[data-theme="dark"] .login-body input,
 html[data-theme="dark"] .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
@@ -312,6 +366,74 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
   html:not([data-theme]) .login-body input,
   html:not([data-theme]) .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+}
+
+/* ==== HEADERS Y CELDAS DE .res-table (matriz de partidos por grupo) ====
+   El CSS legacy usa var(--pri) y var(--priD) como background — en dark esos
+   son azul claro y quedan casi blancos. Forzamos oscuro con máxima especificidad. */
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table th:first-child,
+html[data-theme="dark"] .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== HEADER "Puntos para la Clasificación General" (.clg-head) ==== */
+html[data-theme="dark"] .clg-head th,
+html[data-theme="dark"] .clg-head th:first-child,
+html[data-theme="dark"] .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== CELDAS DE PARTIDOS (matriz) — fondos oscuros semánticos ====
+   .cell-pending (partido pendiente de validación) — ámbar oscuro.
+   .cell-empty (celda vacía "+ cargar") — surface oscuro.
+   .cell-locked (celda bloqueada "·") — más oscuro aún.
+   .cell-club (partido jugado, tenía color del club) — pisamos el inline con
+   [style*="..."] para cada color de club conocido. */
+html[data-theme="dark"] .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
+html[data-theme="dark"] .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
+html[data-theme="dark"] .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
+html[data-theme="dark"] .res-black{background:var(--bg)!important}
+/* Partidos disputados con color de club: mantenemos el TINTE del club pero
+   oscurecemos el fondo para que el texto blanco se lea. Cada club conocido: */
+html[data-theme="dark"] .cell-club[style*="#D6ECFB"],
+html[data-theme="dark"] .cell-club[style*="#d6ecfb"]{background:#1e4568!important;color:#ffffff!important}
+html[data-theme="dark"] .cell-club[style*="#FCE6CF"],
+html[data-theme="dark"] .cell-club[style*="#fce6cf"]{background:#4a2f18!important;color:#ffffff!important}
+/* Fallback general: cualquier .cell-club oscurece su background con filter
+   por si el club no matchea los conocidos (nuevos clubes creados por admin) */
+html[data-theme="dark"] .cell-club{filter:none}
+html[data-theme="dark"] .cell-club:not([style*="#D6ECFB"]):not([style*="#d6ecfb"]):not([style*="#FCE6CF"]):not([style*="#fce6cf"]){background:var(--surface2)!important;color:#ffffff!important}
+
+/* ==== HEADER superior de tabla clasificación ("CLASIFICACIÓN GENERAL ACUMULADA") ==== */
+html[data-theme="dark"] .cls-table thead tr:first-child th,
+html[data-theme="dark"] .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+
+/* ==== Header con las columnas ("# Jugador Grupo Rating PJ Seed") de rating/clasif ==== */
+html[data-theme="dark"] .cls-table thead tr th,
+html[data-theme="dark"] .gen-table thead tr th,
+html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* Mismo tratamiento para dark mode automático */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .res-table th,
+  html:not([data-theme]) .res-table th:first-child,
+  html:not([data-theme]) .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+  html:not([data-theme]) .clg-head th,
+  html:not([data-theme]) .clg-head th:first-child,
+  html:not([data-theme]) .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+  html:not([data-theme]) .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
+  html:not([data-theme]) .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
+  html:not([data-theme]) .res-black{background:var(--bg)!important}
+  html:not([data-theme]) .cell-club[style*="#D6ECFB"],
+  html:not([data-theme]) .cell-club[style*="#d6ecfb"]{background:#1e4568!important;color:#ffffff!important}
+  html:not([data-theme]) .cell-club[style*="#FCE6CF"],
+  html:not([data-theme]) .cell-club[style*="#fce6cf"]{background:#4a2f18!important;color:#ffffff!important}
+  html:not([data-theme]) .cell-club:not([style*="#D6ECFB"]):not([style*="#d6ecfb"]):not([style*="#FCE6CF"]):not([style*="#fce6cf"]){background:var(--surface2)!important;color:#ffffff!important}
+  html:not([data-theme]) .cls-table thead tr:first-child th,
+  html:not([data-theme]) .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+  html:not([data-theme]) .cls-table thead tr th,
+  html:not([data-theme]) .gen-table thead tr th,
+  html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 }
 
 /* Respeto por accesibilidad: usuarios con preferencia de menos animación
