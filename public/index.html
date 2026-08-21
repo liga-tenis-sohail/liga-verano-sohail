@@ -347,9 +347,9 @@ html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table thead th,
 html[data-theme="dark"] .res-table th *{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
 html[data-theme="dark"] .res-table th:first-child{background:var(--soft)!important;color:#ffffff!important}
-/* Primera columna (nombres de jugadores en las filas): fondo azul oscuro + texto blanco */
-html[data-theme="dark"] .res-table td:first-child,
-html[data-theme="dark"] .res-table td:first-child *{background:var(--soft)!important;color:#ffffff!important}
+/* Nota: la primera columna del tbody (nombres de jugadores en las filas) se
+   estiliza más abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
+   sin sombreado y texto blanco bold, como pidió Marcos. */
 /* Celdas de resultados: bordes claros para que se vean */
 html[data-theme="dark"] .res-table td{border-color:var(--border2)!important}
 
@@ -674,13 +674,17 @@ html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!impor
 /* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
 /* Marcos pidió: sin sombreado en la primera columna, y texto igual a los headers
    de columna (blanco bold, sin subrayado). Así los "row labels" y los "column
-   labels" se ven unificados como cabeceras del mismo estilo. */
-html[data-theme="dark"] .res-table tbody tr td:first-child{background:transparent!important}
+   labels" se ven unificados como cabeceras del mismo estilo.
+   IMPORTANTE: aplicar bg:transparent también a los hijos (spans internos del
+   nombre) porque el span dentro del td hereda del CSS legacy. */
+html[data-theme="dark"] .res-table tbody tr td:first-child,
+html[data-theme="dark"] .res-table tbody tr td:first-child *{background:transparent!important}
 html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
 
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
-  html:not([data-theme]) .res-table tbody tr td:first-child{background:transparent!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child,
+  html:not([data-theme]) .res-table tbody tr td:first-child *{background:transparent!important}
   html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
 }
 
