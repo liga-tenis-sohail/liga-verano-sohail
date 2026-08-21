@@ -672,17 +672,16 @@ html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color
 html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
 
 /* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
-/* Alineado con el header row (.res-table th) que usa #1a2f4d en dark. Antes
-   usaba --surface (#131c2e), quedando visualmente separado y creando dos
-   "capas" de sombreado distintas entre el header top y la columna izquierda.
-   Ahora ambos comparten el mismo tono, unificados como pidió Marcos. */
-html[data-theme="dark"] .res-table tbody tr td:first-child{background:#1a2f4d!important}
-html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
+/* Marcos pidió: sin sombreado en la primera columna, y texto igual a los headers
+   de columna (blanco bold, sin subrayado). Así los "row labels" y los "column
+   labels" se ven unificados como cabeceras del mismo estilo. */
+html[data-theme="dark"] .res-table tbody tr td:first-child{background:transparent!important}
+html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
 
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
-  html:not([data-theme]) .res-table tbody tr td:first-child{background:#1a2f4d!important}
-  html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child{background:transparent!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
 }
 
 /* ==== TAB DEL GRUPO ACTIVO (Grupo N) ==== */
