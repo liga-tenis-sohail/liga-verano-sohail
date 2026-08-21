@@ -1,12 +1,15 @@
 <!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script>(function(){try{
   // Tema: leer preferencia del usuario y aplicar ANTES del primer paint (sin flash).
-  // Valores: 'light' | 'dark' | 'system' (default). Se guarda por dispositivo.
+  // Valores: 'light' | 'dark' | 'system'. DEFAULT (sin preferencia guardada) = 'light'.
+  // Antes el default seguía al OS; ahora la liga siempre arranca en modo claro salvo
+  // que el usuario elija explícitamente 'system' o 'dark' desde su perfil.
   var tm=localStorage.getItem('theme');
   if(tm==='light'||tm==='dark'){document.documentElement.setAttribute('data-theme',tm);}
-  // Detectar si estamos en modo oscuro (por preferencia manual o del sistema).
+  else if(tm!=='system'){document.documentElement.setAttribute('data-theme','light');tm='light';}
+  // Detectar si estamos en modo oscuro (por preferencia manual o del sistema si eligió 'system').
   // Se usa abajo para NO pisar las variables de fondo claro (winrow/soft/hl/cream)
   // que sino sobreescribirían el tema oscuro y dejarían filas cream sobre fondo azul.
-  var isDark = tm==='dark' || (tm!=='light' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  var isDark = tm==='dark' || (tm==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   // Restaurar colores personalizados de la liga sin flash.
   // Los colores BRAND (pri/acc) son identidad y se aplican siempre.
   // Los colores de FONDO/HIGHLIGHT (winrow/soft/hl/cream) son claros por diseño;
@@ -260,6 +263,43 @@ html[data-theme="dark"] .seed-chip .rm:hover{background:#f3c0c0!important}
 .me-row .po-chip{color:#0E3470!important;background:#dbeafe!important}
 html[data-theme="dark"] .me-row .po-chip,
 html[data-theme="dark"] .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+/* En dark mode, TODOS los chips "Cuadro X" (no sólo el del usuario) llevan texto
+   oscuro sobre fondo claro para mantener contraste sin depender de --pri/--soft
+   customizados por la liga. */
+html[data-theme="dark"] .po-chip,
+html[data-theme="dark"] .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+
+/* Banner de previsualización de Play Offs (admin): antes usaba var(--soft) + var(--priD)
+   con estilos inline; podía quedar fondo claro + texto claro si la liga customizaba
+   --priD. Ahora clase con colores fijos, safe en light y dark. */
+.po-preview-banner{background:#E6F1FB!important;border-color:#93c5fd!important;border-width:1.5px!important}
+.po-preview-banner .pp-title{color:#0E3470!important;font-weight:600;margin-bottom:.4rem}
+.po-preview-banner .pp-title i{color:#0E3470!important}
+.po-preview-banner .legend-txt{color:#334155!important}
+html[data-theme="dark"] .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-preview-banner .pp-title,
+html[data-theme="dark"] .po-preview-banner .pp-title *{color:#dbeafe!important}
+html[data-theme="dark"] .po-preview-banner .legend-txt,
+html[data-theme="dark"] .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+
+/* Botón "Editar" del puntaje por posición (dentro del header .clg-head).
+   Antes usaba .btn con colores heredados; el color inherited de
+   .clg-head th:last-child (var(--priD)) más --priD customizado por la liga
+   podía dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
+.edit-pts-btn{background:#0E3470!important;color:#ffffff!important;border:1px solid #0E3470!important;padding:2px 8px!important;font-size:10px!important;font-weight:600!important;margin-left:5px}
+.edit-pts-btn *{color:#ffffff!important}
+.edit-pts-btn:hover{background:#1B4F9C!important}
+html[data-theme="dark"] .edit-pts-btn,
+html[data-theme="dark"] .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
+
+/* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
+.seed-chip .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
+.seed-chip .mv:hover{background:rgba(0,0,0,.08)}
+.seed-chip .mv:disabled{opacity:.3;cursor:not-allowed}
+html[data-theme="dark"] .seed-chip .mv,
+html[data-theme="dark"] .seed-chip .mv *{color:#0E3470!important;background:transparent!important}
+html[data-theme="dark"] .seed-chip .mv:hover{background:rgba(14,52,112,.15)!important}
 
 /* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
 html[data-theme="dark"] .badge-inact,
@@ -444,6 +484,19 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   html:not([data-theme]) .seed-chip .rm:hover{background:#f3c0c0!important}
   html:not([data-theme]) .me-row .po-chip,
   html:not([data-theme]) .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .po-chip,
+  html:not([data-theme]) .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-preview-banner .pp-title,
+  html:not([data-theme]) .po-preview-banner .pp-title *{color:#dbeafe!important}
+  html:not([data-theme]) .po-preview-banner .legend-txt,
+  html:not([data-theme]) .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+  html:not([data-theme]) .edit-pts-btn,
+  html:not([data-theme]) .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+  html:not([data-theme]) .edit-pts-btn:hover{background:#bfdbfe!important}
+  html:not([data-theme]) .seed-chip .mv,
+  html:not([data-theme]) .seed-chip .mv *{color:#0E3470!important;background:transparent!important}
+  html:not([data-theme]) .seed-chip .mv:hover{background:rgba(14,52,112,.15)!important}
   html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
   html:not([data-theme]) .login-btn-pk *{color:#79aeff!important}
   html:not([data-theme]) .sub-tab.active,
@@ -1393,7 +1446,7 @@ cycle_closed_next:'Ciclo {n} cerrado. ¡Ciclo {nx} iniciado con grupos actualiza
 po_preview_banner:'Previsualización — los Play Offs todavía NO están iniciados',po_preview_hint:'Así quedarían los cuadros según la clasificación general. Quitá o agregá jugadores (los que no juegan) y ajustá la cantidad de cuadros. Cuando esté todo listo, confirmá el inicio. Hasta entonces los jugadores no ven nada.',po_confirm_start:'Iniciar Play Offs definitivamente',
 po_config:'Configuración de Play Offs',po_config_hint:'Al cambiar la cantidad, los cuadros se rearman repartiendo la clasificación general en partes iguales. Podés también forzar en qué ronda empezar cada cuadro.',po_seeds_title:'Jugadores del Cuadro {l} — quitá (✕) o agregá',po_removed:'Retirados: {list}.',po_add_label:'Agregar jugador a este cuadro',po_add_choose:'Elegí…',po_add_btn:'Agregar',po_bye_note:'Si quitás a alguien, no se reemplaza: pasa uno más por bye.',
 po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
-po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elegí jugador…',po_move_here:'Mover acá',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elegí un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',
+po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elegí jugador…',po_move_here:'Mover acá',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elegí un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',
 po_tab_players:'jug.',
 pending_match:'Pendiente de juego',
 po_started_toast:'Play Offs iniciados.',po_confirmed_toast:'¡Play Offs iniciados! Ya son visibles para los jugadores.',po_preview_toast:'Previsualización lista. Ajustá los jugadores y confirmá el inicio.',po_need_3cycles:'Primero cerrá todos los ciclos.',po_seed_removed:'{name} quitado del Cuadro (pasa uno por bye).',po_seed_added:'{name} agregado al Cuadro.',po_choose_add:'Elegí un jugador para agregar.',po_report_no_players:'Ese partido todavía no tiene los dos jugadores.',po_locked:'Resultado ya validado. Solo el admin puede editarlo.',po_not_yours:'Solo los jugadores de ese partido (o el admin) pueden cargarlo.',po_validated:'Resultado de Play Off validado.',po_sent:'Resultado enviado. El admin lo validará.',
@@ -1454,7 +1507,7 @@ cycle_closed_next:'Cycle {n} closed. Cycle {nx} started with updated groups!',cy
 po_preview_banner:'Preview — Play Offs have NOT started yet',po_preview_hint:'This is how the brackets would look. Remove or add players (those not playing) and adjust the number of brackets. When ready, confirm the start. Until then players see nothing.',po_confirm_start:'Start Play Offs for real',
 po_config:'Play Off settings',po_config_hint:'Changing the number of brackets redistributes the general standings evenly. You can also force the starting round.',po_seeds_title:'Players in Draw {l} — remove (✕) or add',po_removed:'Withdrawn: {list}.',po_add_label:'Add player to this bracket',po_add_choose:'Choose…',po_add_btn:'Add',po_bye_note:'If you remove someone they are not replaced: another player gets a bye instead.',
 po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
-po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',
+po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',
 po_tab_players:'players',
 pending_match:'Pending match',
 po_started_toast:'Play Offs started.',po_confirmed_toast:'Play Offs started! Now visible to players.',po_preview_toast:'Preview ready. Adjust players and confirm the start.',po_need_3cycles:'Close all cycles first.',po_seed_removed:'{name} removed from Draw (another player gets a bye).',po_seed_added:'{name} added to Draw.',po_choose_add:'Choose a player to add.',po_report_no_players:"That match doesn't have both players yet.",po_locked:'Result already validated. Only the admin can edit it.',po_not_yours:'Only the players in that match (or the admin) can upload it.',po_validated:'Play Off result validated.',po_sent:'Result submitted. The admin will validate it.',
@@ -2914,7 +2967,8 @@ async function desactivarPasskey(credId, label){
 // - 'light' o 'dark': override manual vía atributo data-theme en <html>.
 // ============================================================================
 function currentTheme(){
-  try { return localStorage.getItem('theme') || 'system'; } catch(_){ return 'system'; }
+  // Default sin preferencia guardada = 'light' (antes era 'system').
+  try { return localStorage.getItem('theme') || 'light'; } catch(_){ return 'light'; }
 }
 
 // Escuchar cambios del OS en vivo: si el usuario tiene modo 'system' seleccionado
@@ -2934,11 +2988,10 @@ try {
 function aplicarTema(modo){
   try {
     // Guardar la preferencia. El script del <head> la aplica al cargar.
-    if(modo === 'system'){
-      localStorage.removeItem('theme');
-    } else {
-      localStorage.setItem('theme', modo);
-    }
+    // Nota: 'system' se guarda EXPLÍCITO (no se borra), porque ahora el default
+    // sin preferencia es 'light', no 'system'. Eligiendo 'system' el usuario opta
+    // in a seguir al OS.
+    localStorage.setItem('theme', modo);
     // Estrategia: recargar la página. Es la forma más segura de garantizar que
     // TODOS los componentes se rendericen con los tokens del tema nuevo. Sin
     // reload, componentes que se generan una sola vez con inline styles
@@ -3389,7 +3442,7 @@ function groupCardHTML(gid){
         return`<tr><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
       }).join('');
       
-      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="btn btn-sm" style="padding:2px 6px;font-size:10px;margin-left:5px" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> ${t('edit')}</button>` : '');
+      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> ${t('edit')}</button>` : '');
       const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th>${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th>${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
       
       return `<div class="card grp-card"><div class="grp-title">${t('group')} ${gid}</div><div class="overflow-x"><table class="cls-table"><thead><tr class="clg-head"><th colspan="9"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div><p class="legend-txt">${t('legend_pts')}</p><div class="section-lbl">${t('players_col')} ${groupName(gid)}</div><div class="overflow-x"><table class="res-table"><thead><tr><th>${t('players_col')}</th>${head}</tr></thead><tbody>${mrows}</tbody></table></div><p class="legend-txt">${t('legend_matrix')}</p></div>`;
@@ -3487,8 +3540,10 @@ const all=computeGeneral();const pc=['p1','p2','p3'];
 const title=document.getElementById('gen-title');if(title)title.textContent=t('general_title');
 const tb=document.getElementById('gen-tiebreak');if(tb)tb.innerHTML=t('gen_tiebreak_note');
 // Reconstruir el encabezado: #, Jugador, Grupo, Total, una columna por ciclo, y
-// (si los playoffs están activos) la columna de cuadro de playoff.
-const poActivoHdr=playoff&&(playoff.started||playoff.preview);
+// (si los playoffs YA ESTÁN INICIADOS — no en preview) la columna de cuadro.
+// En preview el admin ve los cuadros en la pestaña Play Offs, pero no se refleja
+// en la clasificación general para no confundir a los jugadores.
+const poActivoHdr=playoff&&playoff.started;
 const thCiclos=cycles.map(c=>'<th title="'+attr(t('gen_cycle_pts'))+'">'+t('cycle_short')+c.n+'</th>').join('');
 const thPO=poActivoHdr?('<th>'+t('gen_po_col')+'</th>'):'';
 const headRow=document.getElementById('gen-thead-row');
@@ -3496,8 +3551,8 @@ if(headRow)headRow.innerHTML='<th>#</th><th style="text-align:left">'+t('player'
 document.getElementById('gen-body').innerHTML=all.map((p,i)=>{const me=currentUser&&currentUser.role==='player'&&p.name===currentUser.name;const loc=findLoc(p.name,activeN);
   // Una celda por ciclo con los puntos que sumó ese ciclo (— si no jugó ese ciclo).
   const celdasCiclos=cycles.map(c=>{const v=p.porCiclo[c.n];return '<td class="gen-cyc">'+(v!==undefined?v:'<span class="gen-dash">—</span>')+'</td>';}).join('');
-  // Columna de playoff: solo tiene sentido si los playoffs están activos.
-  const poActivo=playoff&&(playoff.started||playoff.preview);
+  // Columna de playoff: solo si están iniciados (no en preview).
+  const poActivo=playoff&&playoff.started;
   const celdaPO=poActivo?('<td class="gen-po">'+(p.poDraw?('<span class="po-chip">'+t('draw')+' '+attr(p.poDraw)+'</span>'):'<span class="gen-dash">—</span>')+'</td>'):'';
   const inactBadge=p.inactive?' <span class="badge-inact">'+t('inactive_short')+'</span>':'';
   return '<tr class="'+(me?'me-row':'')+'" style="'+(p.inactive?'opacity:.55':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong></td>'+celdasCiclos+celdaPO+'</tr>';}).join('');}
@@ -5120,6 +5175,51 @@ function moveSeedUI(toTi){
   toast(tf('po_move_ok',{n:name,to:playoff.tramos[toTi].label}));
   persist(true);
 }
+// Reordenar seeds dentro del MISMO cuadro (cambia los emparejamientos del bracket).
+// Si ya hay resultados cargados en ese cuadro, se pide confirmación porque los
+// enfrentamientos cambian y esos resultados dejan de tener sentido.
+function _poHasResultsInBracket(ti){
+  const prefix=ti+'#';
+  return Object.keys(playoff.results||{}).some(k=>k.startsWith(prefix));
+}
+function _poClearBracketResults(ti){
+  const prefix=ti+'#';
+  Object.keys(playoff.results||{}).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
+}
+function _swapSeeds(ti,i,j){
+  const tr=playoff.tramos[ti];
+  if(!tr||!Array.isArray(tr.seeds))return false;
+  if(i<0||j<0||i>=tr.seeds.length||j>=tr.seeds.length)return false;
+  const label=tr.label;
+  // Si hay resultados en el cuadro, avisar. Después borrar para rearmar limpio.
+  if(_poHasResultsInBracket(ti)){
+    if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
+    _poClearBracketResults(ti);
+  }
+  const tmp=tr.seeds[i];tr.seeds[i]=tr.seeds[j];tr.seeds[j]=tmp;
+  rebuildTramo(ti);
+  return true;
+}
+function moveSeedUpUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  const idx=tr.seeds.indexOf(name);
+  if(idx<=0)return;
+  if(_swapSeeds(ti,idx,idx-1)){
+    showPlayoffView();
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
+function moveSeedDownUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  const idx=tr.seeds.indexOf(name);
+  if(idx<0||idx>=tr.seeds.length-1)return;
+  if(_swapSeeds(ti,idx,idx+1)){
+    showPlayoffView();
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
 function removeSeedUI(ti,name){removeSeed(ti,name);showPlayoffView();toast(tf('po_seed_removed',{name}));persist(true);}
 function addSeedUI(ti){const sel=document.getElementById('po-add-'+ti);const name=sel?sel.value:'';if(!name){toast(t('po_choose_add'));return;}addSeed(ti,name);showPlayoffView();toast(tf('po_seed_added',{name}));persist(true);}
 
@@ -5269,7 +5369,7 @@ function showPlayoffView(){
   let html='';
 
   if(playoff.preview&&!playoff.started){
-    html+=`<div class="card" style="background:var(--soft);border-color:var(--pri)"><p style="color:var(--priD);font-weight:600;margin-bottom:.4rem"><i class="ti ti-eye"></i> ${t('po_preview_banner')}</p><p class="legend-txt" style="margin-top:0">${t('po_preview_hint')}</p>${isAdmin?`<button class="btn btn-accent" onclick="confirmPlayoffUI()"><i class="ti ti-check"></i> ${t('po_confirm_start')}</button>`:''}</div>`;
+    html+=`<div class="card po-preview-banner"><p class="pp-title"><i class="ti ti-eye"></i> ${t('po_preview_banner')}</p><p class="legend-txt" style="margin-top:0">${t('po_preview_hint')}</p>${isAdmin?`<button class="btn btn-accent" onclick="confirmPlayoffUI()"><i class="ti ti-check"></i> ${t('po_confirm_start')}</button>`:''}</div>`;
   }
 
   // Auto-jump to own bracket only on first visit (viewT starts at 0)
@@ -5296,7 +5396,7 @@ function showPlayoffView(){
     const inOtherBrackets=standingsOrder.filter(n=>inPo[n]!==undefined&&inPo[n]!==ti);
     function rank(n){const r=standingsOrder.indexOf(n);return r>=0?r+1:'';}
     html+=`<div class="card"><div class="section-lbl">${tf('po_seeds_title',{l:tr.label})}</div>
-    <div class="seed-list">${tr.seeds.map(n=>`<span class="seed-chip" style="${(USERS[n]&&USERS[n].inactive)?'background:#FCEBEB':''}"><span style="color:var(--text2);font-size:10px;min-width:18px;display:inline-block">#${rank(n)}</span> ${availLabel(n)} <button class="rm" onclick="removeSeedUI(${ti},'${jsq(n)}')" aria-label="Quitar"><i class="ti ti-x"></i></button></span>`).join('')}</div>
+    <div class="seed-list">${tr.seeds.map((n,idx)=>{const isFirst=idx===0;const isLast=idx===tr.seeds.length-1;return `<span class="seed-chip" style="${(USERS[n]&&USERS[n].inactive)?'background:#FCEBEB':''}"><span style="color:var(--text2);font-size:10px;min-width:18px;display:inline-block">#${rank(n)}</span> ${availLabel(n)} <button class="mv" onclick="moveSeedUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveSeedDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button><button class="rm" onclick="removeSeedUI(${ti},'${jsq(n)}')" aria-label="Quitar"><i class="ti ti-x"></i></button></span>`;}).join('')}</div>
     <div class="form-row" style="margin-top:.6rem">
       <div class="form-group"><label>${t('po_add_label')}</label><select id="po-add-${ti}"><option value="">${t('po_add_choose')}</option>${avail.map(n=>`<option value="${n}">#${rank(n)} ${availLabel(n)}</option>`).join('')}</select></div>
       <div class="form-group" style="align-self:end"><button class="btn btn-primary btn-sm" onclick="addSeedUI(${ti})"><i class="ti ti-plus"></i> ${t('po_add_btn')}</button></div>
