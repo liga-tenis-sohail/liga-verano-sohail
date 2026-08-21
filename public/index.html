@@ -259,10 +259,28 @@ html[data-theme="dark"] .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1
 html[data-theme="dark"] .seed-chip .rm:hover{background:#f3c0c0!important}
 
 /* Chip "Cuadro X" en la Clasificación General: en la fila destacada del usuario
-   logueado, texto oscuro sobre fondo claro (mantiene el sombreado del chip). */
+   logueado, texto oscuro sobre fondo claro (mantiene el sombreado del chip).
+   Nota: se prefija con la tabla concreta (.gen-table/.cls-table/.rt-table) para
+   ganarle en specificity a la "mother rule" del dark mode que pinta bg y color
+   de TODOS los hijos del td destacado con var(--meRowBg) + white. Sin eso, el
+   chip se camuflaba con la fila y se veía como texto blanco sobre el mismo fondo. */
 .me-row .po-chip{color:#0E3470!important;background:#dbeafe!important}
-html[data-theme="dark"] .me-row .po-chip,
-html[data-theme="dark"] .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+html[data-theme="dark"] .gen-table .me-row .po-chip,
+html[data-theme="dark"] .gen-table .me-row .po-chip *,
+html[data-theme="dark"] .cls-table .me-row .po-chip,
+html[data-theme="dark"] .cls-table .me-row .po-chip *,
+html[data-theme="dark"] .rt-table tr.me-row .po-chip,
+html[data-theme="dark"] .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+/* Avatar (círculo de iniciales) dentro de la fila destacada del usuario logueado:
+   mismo problema — la mother rule pintaba el círculo con el mismo bg de la fila y
+   quedaba invisible. Restauramos su look característico (fondo azul claro + texto
+   azul oscuro) con specificity aumentada. */
+html[data-theme="dark"] .gen-table .me-row .avatar,
+html[data-theme="dark"] .gen-table .me-row .avatar *,
+html[data-theme="dark"] .cls-table .me-row .avatar,
+html[data-theme="dark"] .cls-table .me-row .avatar *,
+html[data-theme="dark"] .rt-table tr.me-row .avatar,
+html[data-theme="dark"] .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
 /* En dark mode, TODOS los chips "Cuadro X" (no sólo el del usuario) llevan texto
    oscuro sobre fondo claro para mantener contraste sin depender de --pri/--soft
    customizados por la liga. */
@@ -484,6 +502,18 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   html:not([data-theme]) .seed-chip .rm:hover{background:#f3c0c0!important}
   html:not([data-theme]) .me-row .po-chip,
   html:not([data-theme]) .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .gen-table .me-row .po-chip,
+  html:not([data-theme]) .gen-table .me-row .po-chip *,
+  html:not([data-theme]) .cls-table .me-row .po-chip,
+  html:not([data-theme]) .cls-table .me-row .po-chip *,
+  html:not([data-theme]) .rt-table tr.me-row .po-chip,
+  html:not([data-theme]) .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .gen-table .me-row .avatar,
+  html:not([data-theme]) .gen-table .me-row .avatar *,
+  html:not([data-theme]) .cls-table .me-row .avatar,
+  html:not([data-theme]) .cls-table .me-row .avatar *,
+  html:not([data-theme]) .rt-table tr.me-row .avatar,
+  html:not([data-theme]) .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
   html:not([data-theme]) .po-chip,
   html:not([data-theme]) .po-chip *{color:#0E3470!important;background:#dbeafe!important}
   html:not([data-theme]) .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
@@ -642,14 +672,16 @@ html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color
 html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
 
 /* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
-/* La primera columna (td:first-child con clase avatar+nm-link) tenía fondo claro
-   por el CSS legacy. Forzamos oscuro para que se lea con el texto blanco. */
-html[data-theme="dark"] .res-table tbody tr td:first-child{background:var(--surface)!important}
+/* Alineado con el header row (.res-table th) que usa #1a2f4d en dark. Antes
+   usaba --surface (#131c2e), quedando visualmente separado y creando dos
+   "capas" de sombreado distintas entre el header top y la columna izquierda.
+   Ahora ambos comparten el mismo tono, unificados como pidió Marcos. */
+html[data-theme="dark"] .res-table tbody tr td:first-child{background:#1a2f4d!important}
 html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
 
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
-  html:not([data-theme]) .res-table tbody tr td:first-child{background:var(--surface)!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child{background:#1a2f4d!important}
   html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#79aeff!important}
 }
 
@@ -1446,7 +1478,7 @@ cycle_closed_next:'Ciclo {n} cerrado. ¡Ciclo {nx} iniciado con grupos actualiza
 po_preview_banner:'Previsualización — los Play Offs todavía NO están iniciados',po_preview_hint:'Así quedarían los cuadros según la clasificación general. Quitá o agregá jugadores (los que no juegan) y ajustá la cantidad de cuadros. Cuando esté todo listo, confirmá el inicio. Hasta entonces los jugadores no ven nada.',po_confirm_start:'Iniciar Play Offs definitivamente',
 po_config:'Configuración de Play Offs',po_config_hint:'Al cambiar la cantidad, los cuadros se rearman repartiendo la clasificación general en partes iguales. Podés también forzar en qué ronda empezar cada cuadro.',po_seeds_title:'Jugadores del Cuadro {l} — quitá (✕) o agregá',po_removed:'Retirados: {list}.',po_add_label:'Agregar jugador a este cuadro',po_add_choose:'Elegí…',po_add_btn:'Agregar',po_bye_note:'Si quitás a alguien, no se reemplaza: pasa uno más por bye.',
 po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
-po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elegí jugador…',po_move_here:'Mover acá',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elegí un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',
+po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elegí jugador…',po_move_here:'Mover acá',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elegí un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',po_form_note:'Partido de Play Offs — {draw} · {round}',
 po_tab_players:'jug.',
 pending_match:'Pendiente de juego',
 po_started_toast:'Play Offs iniciados.',po_confirmed_toast:'¡Play Offs iniciados! Ya son visibles para los jugadores.',po_preview_toast:'Previsualización lista. Ajustá los jugadores y confirmá el inicio.',po_need_3cycles:'Primero cerrá todos los ciclos.',po_seed_removed:'{name} quitado del Cuadro (pasa uno por bye).',po_seed_added:'{name} agregado al Cuadro.',po_choose_add:'Elegí un jugador para agregar.',po_report_no_players:'Ese partido todavía no tiene los dos jugadores.',po_locked:'Resultado ya validado. Solo el admin puede editarlo.',po_not_yours:'Solo los jugadores de ese partido (o el admin) pueden cargarlo.',po_validated:'Resultado de Play Off validado.',po_sent:'Resultado enviado. El admin lo validará.',
@@ -1507,7 +1539,7 @@ cycle_closed_next:'Cycle {n} closed. Cycle {nx} started with updated groups!',cy
 po_preview_banner:'Preview — Play Offs have NOT started yet',po_preview_hint:'This is how the brackets would look. Remove or add players (those not playing) and adjust the number of brackets. When ready, confirm the start. Until then players see nothing.',po_confirm_start:'Start Play Offs for real',
 po_config:'Play Off settings',po_config_hint:'Changing the number of brackets redistributes the general standings evenly. You can also force the starting round.',po_seeds_title:'Players in Draw {l} — remove (✕) or add',po_removed:'Withdrawn: {list}.',po_add_label:'Add player to this bracket',po_add_choose:'Choose…',po_add_btn:'Add',po_bye_note:'If you remove someone they are not replaced: another player gets a bye instead.',
 po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
-po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',
+po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',po_form_note:'Play Off Match — {draw} · {round}',
 po_tab_players:'players',
 pending_match:'Pending match',
 po_started_toast:'Play Offs started.',po_confirmed_toast:'Play Offs started! Now visible to players.',po_preview_toast:'Preview ready. Adjust players and confirm the start.',po_need_3cycles:'Close all cycles first.',po_seed_removed:'{name} removed from Draw (another player gets a bye).',po_seed_added:'{name} added to Draw.',po_choose_add:'Choose a player to add.',po_report_no_players:"That match doesn't have both players yet.",po_locked:'Result already validated. Only the admin can edit it.',po_not_yours:'Only the players in that match (or the admin) can upload it.',po_validated:'Play Off result validated.',po_sent:'Result submitted. The admin will validate it.',
@@ -3637,7 +3669,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
   const myPo=getMyPoMatch();
   if(myPo&&!na){
     // Modo playoff: formulario bloqueado con el rival de llaves
-    note.innerHTML='<strong style="color:var(--pri)">🏆 Partido de Play Offs — '+myPo.drawName+' · '+myPo.roundName+'</strong>';
+    note.innerHTML='<strong style="color:var(--pri)">🏆 '+tf('po_form_note',{draw:myPo.drawName,round:myPo.roundName})+'</strong>';
     r.add(new Option(currentUser.name,currentUser.name));
     r.value=currentUser.name;
     r.disabled=true;r.className='score-sel-locked';
@@ -3647,6 +3679,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
     poContext={ti:myPo.ti,which:myPo.which,ri:myPo.ri,mi:myPo.mi};
     renderClubButtons();
     document.getElementById('f-fecha').value=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+    _updateCargarLabels();
     return;
   }
   // Modo liga normal
@@ -3795,12 +3828,20 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
     fillReporterByGroup(gi);
     r.value=`${gi}|${na}`;filterRival(`${gi}|${na}`,nb);
   }else{filterRival('',null);}}formClub='';renderClubButtons();document.getElementById('f-fecha').value=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
-var lc=document.getElementById('lbl-club');if(lc)lc.innerHTML=`${t('club_label')} <span class="reqmark">${t('reqmark_label')}</span>`;
-var lf=document.getElementById('lbl-fecha-field');if(lf)lf.innerHTML=`${t('date_label')} <span class="reqmark">${t('reqmark_label')}</span>`;
-var rp=document.getElementById('f-reporter-lbl');if(rp)rp.textContent=t('reporter');
-var rv=document.getElementById('f-rival-lbl');if(rv)rv.textContent=t('rival');
-var ss=document.getElementById('sets-section-lbl');if(ss)ss.textContent=t('sets_section');
-var rr=document.getElementById('report-result-lbl');if(rr)rr.textContent=t('report_result');}
+_updateCargarLabels();}
+// Actualizar los labels traducibles del formulario Cargar. Se llama desde ambos
+// caminos de populateForm (playoff y liga normal) para que al cambiar idioma
+// mientras estás en la pestaña Upload los textos se actualicen bien.
+function _updateCargarLabels(){
+  var lc=document.getElementById('lbl-club');if(lc)lc.innerHTML=`${t('club_label')} <span class="reqmark">${t('reqmark_label')}</span>`;
+  var lf=document.getElementById('lbl-fecha-field');if(lf)lf.innerHTML=`${t('date_label')} <span class="reqmark">${t('reqmark_label')}</span>`;
+  var rp=document.getElementById('f-reporter-lbl');if(rp)rp.textContent=t('reporter');
+  var rv=document.getElementById('f-rival-lbl');if(rv)rv.textContent=t('rival');
+  var ss=document.getElementById('sets-section-lbl');if(ss)ss.textContent=t('sets_section');
+  var rr=document.getElementById('report-result-lbl');if(rr)rr.textContent=t('report_result');
+  // Hint de sets ("6-0 a 6-4, 7-5 o 7-6" / "6-0 to 6-4, 7-5 or 7-6")
+  document.querySelectorAll('.set-hint').forEach(el=>{el.textContent=t('set_hint');});
+}
 function filterRival(repVal,preselect){
   const o=document.getElementById('f-rival');
   syncNoJugado();
