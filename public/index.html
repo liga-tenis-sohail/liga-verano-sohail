@@ -192,6 +192,23 @@ html[data-theme="dark"] .sub-tab.active,
 html[data-theme="dark"] .cycle-btn.active,
 html[data-theme="dark"] .sub-tab.active *,
 html[data-theme="dark"] .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+/* btn-danger en dark: fondo rojo oscuro con texto claro (antes quedaba fondo rosa claro con texto blanco = ilegible) */
+html[data-theme="dark"] .btn-danger,
+html[data-theme="dark"] label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html[data-theme="dark"] .btn-danger *,
+html[data-theme="dark"] label.btn-danger *{color:#fecaca!important}
+html[data-theme="dark"] .btn-danger:hover:not(:disabled),
+html[data-theme="dark"] label.btn-danger:hover{background:#991b1b!important}
+/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color más oscuro) contra la regla madre del dark */
+html[data-theme="dark"] .club-opt.club-sel,
+html[data-theme="dark"] .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila esté sombreada como usuario */
+html[data-theme="dark"] .me-row .pos.p1,
+html[data-theme="dark"] .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
+html[data-theme="dark"] .me-row .pos.p2,
+html[data-theme="dark"] .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
+html[data-theme="dark"] .me-row .pos.p3,
+html[data-theme="dark"] .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
 
 /* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
 html[data-theme="dark"] .badge-inact,
@@ -340,6 +357,20 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   html:not([data-theme]) .login-btn:not(.login-btn-pk) *,
   html:not([data-theme]) .btn-primary *{color:#ffffff!important}
   html:not([data-theme]) .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+  html:not([data-theme]) .btn-danger,
+  html:not([data-theme]) label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+  html:not([data-theme]) .btn-danger *,
+  html:not([data-theme]) label.btn-danger *{color:#fecaca!important}
+  html:not([data-theme]) .btn-danger:hover:not(:disabled),
+  html:not([data-theme]) label.btn-danger:hover{background:#991b1b!important}
+  html:not([data-theme]) .club-opt.club-sel,
+  html:not([data-theme]) .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+  html:not([data-theme]) .me-row .pos.p1,
+  html:not([data-theme]) .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
+  html:not([data-theme]) .me-row .pos.p2,
+  html:not([data-theme]) .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
+  html:not([data-theme]) .me-row .pos.p3,
+  html:not([data-theme]) .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
   html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
   html:not([data-theme]) .login-btn-pk *{color:#79aeff!important}
   html:not([data-theme]) .sub-tab.active,
