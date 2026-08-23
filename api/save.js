@@ -4,6 +4,7 @@
 // tampoco lo puede pisar: se reinyecta desde la base.
 // =====================================================================
 const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex } = require('./_lib');
+const { notifyAdmins, fmtFecha, fmtSets } = require('./_lib_whatsapp');
 
 module.exports = async function handler(req, res){
   try {
@@ -341,5 +342,108 @@ async function _handlerSave(req, res){
   try { await writeState(ligaId, incoming); }
   catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
+  // =====================================================================
+  // NOTIFICACIONES WHATSAPP a los admins.
+  //
+  // Se disparan DESPUÉS del writeState exitoso (nunca antes: notificar por
+  // algo que no se guardó sería peor que no notificar). Todo el bloque va
+  // en try/catch defensivo: si el helper falla, si Meta rechaza, si la
+  // tabla no existe — el guardado ya está hecho y respondemos ok igual.
+  //
+  // El helper internamente ya loguea cada fallo a audit_log; acá solo
+  // capturamos cualquier excepción que se nos escape.
+  // =====================================================================
+  try {
+    await _dispararNotificaciones(current, incoming, session);
+  } catch(_){ /* nunca romper el response por un WhatsApp */ }
+
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
 };
+
+// ---------------------------------------------------------------------
+// Detecta eventos notificables comparando el estado previo vs el nuevo,
+// y dispara la notificación WhatsApp correspondiente a cada uno.
+//
+// Eventos que notifica:
+//   1. Match NUEVO (id que no existía) con status 'pending' → resultado_cargado
+//   2. Match EXISTENTE que pasa a status 'disputed'         → partido_disputado
+//
+// Todo el envío es await'd: en serverless Vercel, fire-and-forget puede
+// morir cuando el runtime termina el request. 5s de timeout ya vienen
+// del helper, así que peor caso el save agrega 5s (raro; normal <1s).
+// ---------------------------------------------------------------------
+async function _dispararNotificaciones(current, incoming, session){
+  const curMatches = Array.isArray(current.matches)  ? current.matches  : [];
+  const inMatches  = Array.isArray(incoming.matches) ? incoming.matches : [];
+  const curM = new Map(curMatches.map(m => [m && m.id, m]));
+
+  // Nombre de la liga: se toma del estado que se está guardando (si el admin lo
+  // cambió en el mismo save, ya refleja el nuevo nombre). Fallback: '(sin nombre)'.
+  const ligaNombre = String(incoming.LEAGUE_NAME || current.LEAGUE_NAME || '(sin nombre)').slice(0, 60);
+
+  // El reportante/disputante es quien está guardando. Nunca vacío por diseño de auth.
+  const actor = String(session && session.u || 'desconocido').slice(0, 60);
+
+  for(const m of inMatches){
+    if(!m || !m.id) continue;
+    const antes = curM.get(m.id);
+
+    // Club del partido: probamos varios paths por robustez (la estructura del
+    // match puede variar según cómo lo carga el cliente). Fallback: primer club
+    // configurado o '-'.
+    const club = _clubDeMatch(m, incoming) || '-';
+
+    // Fecha del partido: mismo criterio. fmtFecha ya tolera basura y devuelve hoy.
+    const fecha = fmtFecha(m.date || m.playedAt || m.d || m.fecha || Date.now());
+
+    // Nombres de jugadores: campos estándar del proyecto.
+    const jugA = String(m.aName || '(?)').slice(0, 60);
+    const jugB = String(m.bName || '(?)').slice(0, 60);
+
+    // ===== Evento 1: match nuevo con status pending =====
+    if(!antes && m.status === 'pending'){
+      await notifyAdmins('resultado_cargado', [
+        ligaNombre,
+        actor,
+        club,
+        fecha,
+        jugA,
+        jugB,
+        fmtSets(m)
+      ]);
+      continue;   // no puede ser también 'disputed' al mismo tiempo
+    }
+
+    // ===== Evento 2: match existente que pasa a disputed =====
+    if(antes && antes.status !== 'disputed' && m.status === 'disputed'){
+      await notifyAdmins('partido_disputado', [
+        ligaNombre,
+        actor,
+        club,
+        fecha,
+        jugA,
+        jugB
+      ]);
+    }
+  }
+}
+
+// Intenta extraer el club de un match. El match puede traer el club:
+//   - directo:      m.club
+//   - como nombre:  m.clubName
+//   - por id:       m.clubId, resuelto contra state.CLUBS
+// Si nada de eso está, usa el primer club configurado de la liga.
+function _clubDeMatch(m, state){
+  if(!m) return '';
+  if(typeof m.club === 'string' && m.club.trim()) return m.club.trim().slice(0, 40);
+  if(typeof m.clubName === 'string' && m.clubName.trim()) return m.clubName.trim().slice(0, 40);
+  if(m.clubId != null && Array.isArray(state && state.CLUBS)){
+    const c = state.CLUBS.find(x => x && (x.id === m.clubId || x.name === m.clubId));
+    if(c && c.name) return String(c.name).slice(0, 40);
+  }
+  // Fallback: primer club configurado
+  if(Array.isArray(state && state.CLUBS) && state.CLUBS.length && state.CLUBS[0] && state.CLUBS[0].name){
+    return String(state.CLUBS[0].name).slice(0, 40);
+  }
+  return '';
+}
