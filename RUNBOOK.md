@@ -263,3 +263,4 @@ Recomendado: **B + C** (uptime) por ahora. **A** cuando tengas más tiempo — e
 - Los archivos `.js` de la carpeta `api/` son endpoints serverless: cada uno se ejecuta independientemente. Si uno se rompe, los demás siguen funcionando.
 - La memoria de las Functions **no persiste entre invocaciones**. Todo estado va a Supabase.
 - El caché en memoria (ej. `_blockedCache` en `_lib.js`) es solo para performance intra-instancia; expira en 60 segundos.
+- - 2026-08-23 Deploy trigger
