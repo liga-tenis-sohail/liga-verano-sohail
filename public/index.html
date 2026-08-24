@@ -3743,6 +3743,15 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
     _updateCargarLabels();
     return;
   }
+  // Si estamos en playoffs y el jugador NO tiene ningún partido de playoff
+  // pendiente (ya perdió, quedó afuera, o le toca esperar la siguiente ronda),
+  // NO le mostramos el formulario de liga. La liga regular ya terminó — no debe
+  // poder cargar resultados de partidos del ciclo cerrado que nunca se jugaron.
+  if((playoff.started||playoff.preview) && !myPo){
+    note.innerHTML='<span style="color:var(--text2)"><i class="ti ti-trophy"></i> Estamos en Play Offs. No tenés ningún partido pendiente por cargar en este momento.</span>';
+    r.disabled=true;o.disabled=true;r.className='score-sel-locked';o.className='score-sel-locked';
+    return;
+  }
   // Modo liga normal
   const loc=findLoc(currentUser.name,cycleN);if(!loc){note.textContent=t('not_in_cycle');return;}
   r.add(new Option(currentUser.name,currentUser.name));r.value=currentUser.name;r.disabled=true;r.className='score-sel-locked';
@@ -6777,7 +6786,20 @@ function poReport(ti,which,ri,mi){
   const m = (which === 'main' ? tr.main : tr.cons)[ri][mi];
   if(!m.a || !m.b){toast(t('po_report_no_players')); return;}
   if(m.locked && !esAdmin(currentUser)){toast(t('po_locked')); return;}
-  if(currentUser.role === 'player' && m.a !== currentUser.name && m.b !== currentUser.name){toast(t('po_not_yours')); return;}
+  // Verificación de "sos jugador del partido" para no-admins.
+  //
+  // Antes: `currentUser.role === 'player'` bloqueaba también a admins ascendidos
+  // (que tienen role='player' pero isAdmin=true). Y el `!==` estricto podía
+  // fallar por espacios sobrantes o mayúsculas/minúsculas invisibles al usuario.
+  //
+  // Ahora: usar esAdmin() como criterio canónico, y normalizar los nombres antes
+  // de comparar. Así un admin puede cargar cualquier partido, y un jugador puede
+  // cargar el suyo aunque el nombre en el bracket tenga un espacio extra.
+  if(!esAdmin(currentUser)){
+    const _n = (s)=>String(s||'').trim().toLocaleLowerCase('es');
+    const mine = _n(currentUser.name);
+    if(_n(m.a) !== mine && _n(m.b) !== mine){toast(t('po_not_yours')); return;}
+  }
   poContext = {ti,which,ri,mi};
   openPoForm(m,ti);
 }
