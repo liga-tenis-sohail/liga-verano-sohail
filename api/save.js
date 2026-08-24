@@ -167,15 +167,6 @@ async function _handlerSave(req, res){
   // LAS CONTRASEÑAS NUNCA VIAJAN EN /api/save
   // Se cambian ÚNICAMENTE por /api/password. Acá el hash de cualquier usuario
   // que ya exista se reinyecta desde la base, para TODOS los roles.
-  //
-  // Sin esto: el navegador del admin conserva el hash viejo en memoria
-  // (changePw no actualiza USERS local), y el autosave de 12 segundos pisaba
-  // la contraseña recién cambiada. A los jugadores no les pasaba porque su
-  // reinyección ya existía; al admin sí, porque la suya vivía dentro de
-  // if(!admin) y él nunca entraba ahí.
-  //
-  // Un usuario NUEVO no está en la base todavía: se respeta el hash que manda
-  // el cliente, que es la clave por defecto de alta.
   // =====================================================================
   for(const n of Object.keys(incoming.users)){
     const cu = curUsers[n];
@@ -192,13 +183,8 @@ async function _handlerSave(req, res){
   }
 
   // El rol de administrador solo lo reparte la cuenta original o el super admin.
-  // Sin esto, un admin ascendido podía crear más admins: si le roban la cuenta,
-  // se deja una puerta trasera que sobrevive al cambio de contraseña.
   const flags = o => Object.keys(o || {}).filter(n => o[n] && o[n].isAdmin === true).sort().join('|');
   if(flags(curUsers) !== flags(incoming.users) && !puedeGestionarAdmins(session)){
-    // Borrar a un jugador que además es admin también cambia la lista de flags.
-    // Se distingue el caso: el bloqueo es correcto, pero el mensaje tiene que
-    // decir la verdad en vez de hablar de repartir roles que nadie repartió.
     const borrados = Object.keys(curUsers).filter(n => curUsers[n] && curUsers[n].isAdmin === true && !incoming.users[n]);
     if(borrados.length){
       return res.status(403).json({ error: 'No podés eliminar a ' + borrados[0].slice(0, 40) + ': tiene rol de administrador. Quitáselo primero, o pedíselo al administrador original.' });
@@ -206,37 +192,12 @@ async function _handlerSave(req, res){
     return res.status(403).json({ error: 'Solo el administrador original y el super admin pueden repartir el rol de administrador.' });
   }
 
-  // Siempre tiene que quedar al menos un admin: si no, nadie puede volver a
-  // administrar la liga salvo el super admin.
-  // Cuenta admins EFECTIVOS: la cuenta del sistema y los jugadores ascendidos.
-  // Antes solo miraba role==='admin', así que con 5 ascendidos igual creía que
-  // la liga se quedaba sin nadie.
+  // Siempre tiene que quedar al menos un admin
   const cuentaAdmins = o => Object.keys(o || {}).filter(n => o[n] && (o[n].role === 'admin' || o[n].isAdmin === true)).length;
   if(cuentaAdmins(curUsers) > 0 && cuentaAdmins(incoming.users) === 0){
     return res.status(403).json({ error: 'Tiene que quedar al menos un administrador.' });
   }
 
-  // NOTA DE DISEÑO: acá vivía el bloqueo que impedía a un admin-jugador validar
-  // sus propios partidos. Se quitó a pedido del dueño de la liga: el control pasó
-  // de la PROHIBICIÓN a la TRANSPARENCIA. Todo partido confirmado guarda vBy con
-  // el nombre de quien lo validó, visible para cualquiera en el modal, y el
-  // historial registra la acción con autor y rol. En una liga de conocidos, que
-  // un admin que juega tenga que esperar a otro admin trababa más de lo que
-  // protegía. La contención real es a quién se asciende, y queda auditado.
-
-  // La configuración de la liga (puntos, ciclos, playoff, fechas, nombre) la toca
-  // SOLO el administrador original o el super admin. El panel ya lo gatea en pantalla,
-  // pero eso es un botón escondido, no un permiso: un jugador ascendido podía
-  // reescribir por curl la tabla de PUNTOS y darle 35 puntos a su propio grupo.
-  // La configuración se parte en dos, porque el riesgo es muy distinto.
-  //
-  // Lo ESTRUCTURAL (puntos, grupos, ciclos, playoff, fechas) sigue siendo del
-  // administrador original y del super admin. Un jugador ascendido que pudiera
-  // tocar PUNTOS se pondría 35 puntos en su propio grupo y se iría a la punta de
-  // la general: es escalada de privilegios disfrazada de configuración.
-  //
-  // Lo COSMÉTICO (colores, nombre, subtítulo) lo puede tocar cualquier admin.
-  // Lo peor que puede pasar es que la liga quede fea, y se deshace en un click.
   if(!admin){
     const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LEAGUE_COLOR_PRI',
                        'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON',
@@ -249,9 +210,6 @@ async function _handlerSave(req, res){
   }
 
   if(!puedeGestionarAdmins(session)){
-    // 'playoff' NO está en CONFIG: cualquier admin puede confirmar/cancelar playoffs.
-    // No hay riesgo de escalada de privilegios: un jugador no gana nada manipulando
-    // el cuadro de playoffs vía curl (eso requiere admin para confirmar en pantalla).
     const CONFIG = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
                     'ALLNAMES','PUNTOS'];
     for(const k of CONFIG){
@@ -262,28 +220,19 @@ async function _handlerSave(req, res){
   }
 
   if(!admin){
-    // Un jugador no puede alterar el padrón: ni crear, ni borrar, ni renombrar.
     const before = Object.keys(curUsers).sort().join('|');
     const after  = Object.keys(incoming.users).sort().join('|');
     if(before !== after){
       return res.status(403).json({ error: 'No tenés permiso para modificar los jugadores.' });
     }
-    // Y los campos privados vuelven tal cual estaban en la base: el cliente
-    // nunca los recibió, así que no puede ni pisarlos ni filtrarlos.
     for(const name of Object.keys(incoming.users)){
       const inU = incoming.users[name], curU = curUsers[name];
       if(!inU || !curU) continue;
-      inU.role = curU.role;                       // nadie se auto-asciende (el pass ya se reinyectó arriba, para todos)
+      inU.role = curU.role;
       if('email' in curU) inU.email = curU.email; else delete inU.email;
       if('tel'   in curU) inU.tel   = curU.tel;   else delete inU.tel;
     }
 
-    // La configuración de la liga se reinyecta desde la base. Un jugador no tiene
-    // ningún motivo legítimo para tocarla, y sin esto podía reescribir la tabla
-    // de puntos, los grupos o el cuadro de playoffs con un solo curl.
-    // 'playoff' NO se reinyecta para jugadores: si el admin lo confirmó y un
-    // jugador guarda un resultado justo después, el playoff quedaría bloqueado
-    // porque el bloque CONGELADO pisaría el playoff.started=true recién guardado.
     const CONGELADO = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
                        'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE',
                        'LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL'];
@@ -291,20 +240,16 @@ async function _handlerSave(req, res){
       if(k in current) incoming[k] = current[k]; else delete incoming[k];
     }
 
-    // El campo playoff: solo admins lo pueden tocar. Un jugador no puede
-    // manipular el cuadro de playoffs (ni registrarse en un cuadro que no le toca).
     if(!admin){
       const poOld = JSON.stringify(current.playoff || {});
       const poNew = JSON.stringify(incoming.playoff || {});
-      if(poOld !== poNew) incoming.playoff = current.playoff; // revertir si cambió
+      if(poOld !== poNew) incoming.playoff = current.playoff;
     }
-    // Los partidos: solo los propios. Antes un jugador podía borrar el que perdió,
-    // invertir un resultado, inventarse victorias o vaciar la liga entera.
+
     const soyYo = m => !!m && (m.aName === session.u || m.bName === session.u);
     const curM  = new Map((current.matches  || []).map(m => [m.id, m]));
     const inM   = new Map((incoming.matches || []).map(m => [m.id, m]));
 
-    // Borrados: solo los propios, y solo si todavía no están confirmados.
     for(const [id, m] of curM){
       if(inM.has(id)) continue;
       if(!soyYo(m)) return res.status(403).json({ error: 'No podés borrar partidos de otros jugadores.' });
@@ -312,7 +257,7 @@ async function _handlerSave(req, res){
         return res.status(403).json({ error: 'No podés borrar un resultado ya confirmado. Pedíselo al administrador.' });
       }
     }
-    // Altas y modificaciones.
+
     for(const [id, m] of inM){
       const antes = curM.get(id);
       if(!antes){
@@ -320,13 +265,11 @@ async function _handlerSave(req, res){
         if(m.status === 'confirmed') return res.status(403).json({ error: 'Solo el administrador confirma resultados.' });
         continue;
       }
-      if(JSON.stringify(antes) === JSON.stringify(m)) continue;   // sin cambios
+      if(JSON.stringify(antes) === JSON.stringify(m)) continue;
       if(!soyYo(antes) || !soyYo(m)){
         return res.status(403).json({ error: 'No podés modificar partidos de otros jugadores.' });
       }
       if(antes.status === 'confirmed'){
-        // Lo ÚNICO que un jugador puede hacerle a un confirmado propio es disputarlo.
-        // Sin esto podía invertir su derrota y ponerse ganador.
         const soloDisputa = m.status === 'disputed' &&
           JSON.stringify(Object.assign({}, antes, { status: 0 })) ===
           JSON.stringify(Object.assign({}, m,    { status: 0 }));
@@ -343,26 +286,19 @@ async function _handlerSave(req, res){
   catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
   // =====================================================================
-  // NOTIFICACIONES WHATSAPP a los admins — FIRE-AND-FORGET.
+  // NOTIFICACIONES WHATSAPP a los admins.
   //
-  // Se disparan DESPUÉS del writeState exitoso (nunca antes: notificar por
-  // algo que no se guardó sería peor que no notificar).
-  //
-  // NO usamos await: el usuario no debe esperar a que Meta/CallMeBot responda,
-  // porque CallMeBot es gratuito y a veces demora 10-30s. Con await, el usuario
-  // veía la app "colgada" mientras cargaba un partido, y en el peor caso Vercel
-  // cortaba la función a los 60s con un 504 aunque el partido SÍ se hubiera
-  // guardado (usuario asumía que falló y cargaba de nuevo → duplicados).
-  //
-  // Fire-and-forget: la promise queda corriendo en background. En serverless
-  // Vercel, el runtime espera a que las promises pendientes se completen
-  // antes de matar el proceso, hasta el límite total de la función (60s en
-  // Hobby). Con 45s de timeout en el helper hay margen de sobra.
-  //
-  // El .catch() vacío previene "unhandled promise rejection" — el helper ya
-  // loguea internamente cada fallo a audit_log con detalle del error.
+  // Se ejecutan con AWAIT para asegurar que la conexión HTTP a CallMeBot
+  // no sea congelada ni abortada por el runtime serverless de Vercel al
+  // finalizar el handler.
+  // Envolvemos en try/catch para que un fallo en la notificación NUNCA
+  // invalide ni interrumpa la respuesta exitosa del guardado.
   // =====================================================================
-  _dispararNotificaciones(current, incoming, session).catch(() => {});
+  try {
+    await _dispararNotificaciones(current, incoming, session);
+  } catch(errNotify){
+    console.error('⚠️ Error secundario enviando WhatsApp (el estado sí se guardó):', errNotify);
+  }
 
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
 };
@@ -370,40 +306,22 @@ async function _handlerSave(req, res){
 // ---------------------------------------------------------------------
 // Detecta eventos notificables comparando el estado previo vs el nuevo,
 // y dispara la notificación WhatsApp correspondiente a cada uno.
-//
-// Eventos que notifica:
-//   1. Match NUEVO (id que no existía) con status 'pending' → resultado_cargado
-//   2. Match EXISTENTE que pasa a status 'disputed'         → partido_disputado
-//
-// Todo el envío es await'd: en serverless Vercel, fire-and-forget puede
-// morir cuando el runtime termina el request. 5s de timeout ya vienen
-// del helper, así que peor caso el save agrega 5s (raro; normal <1s).
 // ---------------------------------------------------------------------
 async function _dispararNotificaciones(current, incoming, session){
   const curMatches = Array.isArray(current.matches)  ? current.matches  : [];
   const inMatches  = Array.isArray(incoming.matches) ? incoming.matches : [];
   const curM = new Map(curMatches.map(m => [m && m.id, m]));
 
-  // Nombre de la liga: se toma del estado que se está guardando (si el admin lo
-  // cambió en el mismo save, ya refleja el nuevo nombre). Fallback: '(sin nombre)'.
   const ligaNombre = String(incoming.LEAGUE_NAME || current.LEAGUE_NAME || '(sin nombre)').slice(0, 60);
-
-  // El reportante/disputante es quien está guardando. Nunca vacío por diseño de auth.
   const actor = String(session && session.u || 'desconocido').slice(0, 60);
 
   for(const m of inMatches){
     if(!m || !m.id) continue;
     const antes = curM.get(m.id);
 
-    // Club del partido: probamos varios paths por robustez (la estructura del
-    // match puede variar según cómo lo carga el cliente). Fallback: primer club
-    // configurado o '-'.
     const club = _clubDeMatch(m, incoming) || '-';
-
-    // Fecha del partido: mismo criterio. fmtFecha ya tolera basura y devuelve hoy.
     const fecha = fmtFecha(m.date || m.playedAt || m.d || m.fecha || Date.now());
 
-    // Nombres de jugadores: campos estándar del proyecto.
     const jugA = String(m.aName || '(?)').slice(0, 60);
     const jugB = String(m.bName || '(?)').slice(0, 60);
 
@@ -418,7 +336,7 @@ async function _dispararNotificaciones(current, incoming, session){
         jugB,
         fmtSets(m)
       ]);
-      continue;   // no puede ser también 'disputed' al mismo tiempo
+      continue;
     }
 
     // ===== Evento 2: match existente que pasa a disputed =====
@@ -435,11 +353,6 @@ async function _dispararNotificaciones(current, incoming, session){
   }
 }
 
-// Intenta extraer el club de un match. El match puede traer el club:
-//   - directo:      m.club
-//   - como nombre:  m.clubName
-//   - por id:       m.clubId, resuelto contra state.CLUBS
-// Si nada de eso está, usa el primer club configurado de la liga.
 function _clubDeMatch(m, state){
   if(!m) return '';
   if(typeof m.club === 'string' && m.club.trim()) return m.club.trim().slice(0, 40);
@@ -448,7 +361,6 @@ function _clubDeMatch(m, state){
     const c = state.CLUBS.find(x => x && (x.id === m.clubId || x.name === m.clubId));
     if(c && c.name) return String(c.name).slice(0, 40);
   }
-  // Fallback: primer club configurado
   if(Array.isArray(state && state.CLUBS) && state.CLUBS.length && state.CLUBS[0] && state.CLUBS[0].name){
     return String(state.CLUBS[0].name).slice(0, 40);
   }
