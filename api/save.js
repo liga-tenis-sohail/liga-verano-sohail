@@ -246,7 +246,32 @@ async function _handlerSave(req, res){
       if(poOld !== poNew) incoming.playoff = current.playoff;
     }
 
-    const soyYo = m => !!m && (m.aName === session.u || m.bName === session.u);
+    // "soyYo" reconoce partidos propios en los DOS formatos que usa la app:
+    //   - Liga regular: los nombres viven en m.aName / m.bName (strings sueltos).
+    //   - Playoffs:     los nombres viven en m.poNames (array [nombreA, nombreB]).
+    //
+    // Comparación con normalización defensiva: trim + lowercase + sin tildes.
+    // Esto tolera diferencias sutiles entre el nombre guardado en el match
+    // (que puede venir con o sin tilde según cómo se creó) y el session.u
+    // del token (que es el nombre display del usuario logueado).
+    // Sin esto un jugador "Víctor Oliveira" no podía cargar su match si
+    // el bracket guardó su nombre como "Victor Oliveira" o viceversa.
+    const _norm = s => String(s || '')
+      .trim()
+      .toLocaleLowerCase('es')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const _me = _norm(session.u);
+    const soyYo = m => {
+      if(!m) return false;
+      if(_norm(m.aName) === _me) return true;
+      if(_norm(m.bName) === _me) return true;
+      if(Array.isArray(m.poNames) && m.poNames.some(n => _norm(n) === _me)) return true;
+      // Extra: en playoffs se guarda también m.reporter con el nombre de quien
+      // cargó. Si el jugador es el reporter, es su match (aunque el nombre
+      // display en poNames sea distinto por un desajuste histórico).
+      if(m.reporter && _norm(m.reporter) === _me) return true;
+      return false;
+    };
     const curM  = new Map((current.matches  || []).map(m => [m.id, m]));
     const inM   = new Map((incoming.matches || []).map(m => [m.id, m]));
 
