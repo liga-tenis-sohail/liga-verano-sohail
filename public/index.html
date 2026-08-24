@@ -3692,6 +3692,19 @@ function getMyPoMatch(){
         for(let mi=0;mi<rounds[ri].length;mi++){
           const m=rounds[ri][mi];
           if((m.a===name||m.b===name)&&m.a&&m.b&&!m.w){
+            // ¿Ya hay un resultado cargado (pending/disputed) para este slot?
+            // Si sí, este partido NO se debe ofrecer en el tab Cargar como
+            // pendiente de jugar. El jugador ya lo cargó (o el rival lo cargó)
+            // y ahora está esperando confirmación/disputa. Sin este chequeo, el
+            // tab Cargar seguía mostrando el formulario con el rival autoseleccionado,
+            // habilitando que el mismo jugador cargue un DUPLICADO por encima.
+            const yaCargado = (matches || []).some(x =>
+              x && x.po === true &&
+              x.ti === ti && x.which === which &&
+              x.ri === ri && x.mi === mi &&
+              (x.status === 'pending' || x.status === 'disputed')
+            );
+            if(yaCargado) continue;
             const total=rounds.length;
             const fe=total-1-ri;
             const roundName=fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':fe===4?'16avos':'Ronda '+(ri+1);
