@@ -10,7 +10,11 @@
 const { SUPA_URL, supaHeaders, logAudit } = require('./_lib');
 
 const CB_ENDPOINT   = 'https://api.callmebot.com/whatsapp.php';
-const CB_TIMEOUT_MS = 15000;  // 15s de timeout por llamada para evitar colgar la función Serverless
+const CB_TIMEOUT_MS = 45000;  // 45s: CallMeBot es gratuito y con carga variable.
+                              // Como el envío es fire-and-forget desde save.js,
+                              // este timeout NO afecta la UX del usuario (que
+                              // ya recibió su respuesta). 45s da margen dentro
+                              // del límite total de 60s del serverless de Vercel.
 
 const CB_APIKEY_FALLBACK = process.env.CALLMEBOT_APIKEY || '';
 
@@ -120,10 +124,27 @@ async function _enviarUno(phoneNumber, text, apikey){
   try {
     const r = await fetch(url, { method: 'GET', signal: ctrl.signal });
     const txt = await r.text();
+    const body = String(txt || '').slice(0, 400);
     if(!r.ok){
-      return { ok: false, status: r.status, error: txt.slice(0, 500) };
+      return { ok: false, status: r.status, error: body };
     }
-    return { ok: true, status: r.status, response: txt.slice(0, 200) };
+    // OK FALSOS: CallMeBot devuelve HTTP 200 aunque el mensaje NO se entregue.
+    // Casos típicos: rate limit del bot, APIKEY inválido, usuario no autorizó
+    // al bot, cola saturada. La única forma de detectarlos es leer el body.
+    // Detección: si el body no menciona éxito explícito ("queued", "sent",
+    // "will receive") y sí contiene alguna palabra sospechosa, lo marcamos fail.
+    const pareceOk = /queued|sent|will receive|success/i.test(body);
+    if(!pareceOk){
+      const lower = body.toLowerCase();
+      const problemas = ['apikey','api key','invalid','not allowed','not authorized',
+                         'please allow','too many','too fast','wait ','try again',
+                         'rate limit','flood','error','failed'];
+      const senal = problemas.find(p => lower.includes(p));
+      if(senal){
+        return { ok: false, status: r.status, error: 'HTTP 200 pero body sugiere fallo (' + senal + '): ' + body };
+      }
+    }
+    return { ok: true, status: r.status, response: body };
   } catch(e){
     const msg = e && e.name === 'AbortError' ? 'timeout ' + CB_TIMEOUT_MS + 'ms' : (e && e.message || String(e));
     return { ok: false, error: msg };
@@ -193,6 +214,16 @@ async function notifyAdmins(templateName, parameters){
       if(r.ok){
         resumen.sent++;
         _marcarNotificado(c.id);
+        // Guardamos el body de CallMeBot en cada envío ok. Útil para diagnosticar
+        // casos donde el bot devuelve 200 pero el mensaje no llega inmediato
+        // (queued for later, delays, etc). Sin este log era imposible saber si
+        // CallMeBot estaba "aceptando" pero no entregando.
+        logAudit(
+          'whatsapp',
+          'wa_send_ok_detail',
+          templateName + ' → ' + c.phone_number,
+          { admin: c.admin_name, body: (r.response || '').slice(0, 200), status: r.status || null }
+        );
       } else {
         resumen.failed++;
         logAudit(
