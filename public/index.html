@@ -3411,6 +3411,11 @@ function montarAppTrasLogin(){
   // Redirigir al lugar correcto según el estado de la liga
   if(playoff.started||(playoff.preview&&esAdmin(currentUser))){
     viewCycle='po';renderShell();showPlayoffView();renderSubTabs();updateHdr();
+    // renderSubTabs() re-crea el elemento #pend-n (con display:none y "0"),
+    // pisando el resultado que había dejado el updateBadge() interno de
+    // renderShell. Sin este updateBadge() extra, el admin entra en playoffs
+    // y NO ve el badge de pendientes hasta que hace clic en algún tab.
+    updateBadge();
   } else {
     viewCycle=activeN;renderShell();showSub('grupos');
     // Calcular el rating global (todas las ligas) en segundo plano. Cuando termina,
@@ -5352,7 +5357,20 @@ function addSeedUI(ti){const sel=document.getElementById('po-add-'+ti);const nam
 function matchBox(m,ti,which,ri,mi,isFirstRound){
   const realMatch=!!(m.a&&m.b);const aw=realMatch&&m.w&&m.w===m.a,bw=realMatch&&m.w&&m.w===m.b;
   const sc=m.np?t('po_not_played'):m.wo?'W.O.':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
-  const canLoad=m.a&&m.b&&!m.w&&(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name);
+  // Busca si hay un resultado ya cargado (pending o disputed) en `matches` para
+  // este slot del bracket. El bracket usa `m.w` para el ganador confirmado, pero
+  // un partido cargado por un jugador queda con status='pending' y sin ganador
+  // "aplicado" al bracket hasta que se confirma. Antes de este fix, ese partido
+  // era invisible en el bracket: el rival veía el slot como "Pendiente de juego"
+  // y podía cargar OTRO resultado (duplicado). Con esto, mostramos el resultado
+  // cargado con un reloj y ofrecemos "Ver / Disputar / Validar" según el rol.
+  const _poPending = (m.a && m.b && !m.w)
+    ? (matches || []).find(x =>
+        x && x.po === true && x.ti === ti && x.which === which &&
+        x.ri === ri && x.mi === mi &&
+        (x.status === 'pending' || x.status === 'disputed'))
+    : null;
+  const canLoad=m.a&&m.b&&!m.w&&!_poPending&&(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name);
   const emptyTxt=isFirstRound?'BYE':t('tbd');
   const isBYE_A=!m.a&&m.b;const isBYE_B=!m.b&&m.a;
   const meA=currentUser&&m.a===currentUser.name;const meB=currentUser&&m.b===currentUser.name;
@@ -5383,6 +5401,29 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
         +'</div>'
       :'<div style="height:0"></div>';
     bot='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:var(--surface2);font-size:11px;border-top:1px solid var(--border)"><span style="color:var(--text2)">'+sc+'</span><span style="color:#085041;font-weight:700">✓ '+m.w+'</span></div>'+editRow;
+  }else if(_poPending){
+    // Resultado cargado esperando validación. Mostramos el marcador + reloj,
+    // igual que en la tabla de grupos, y un botón que abre el modal existente
+    // (openModal) que ya sabe manejar matches de playoff: el rival puede
+    // disputar, el admin puede validar, todos pueden ver el detalle.
+    const pSc = _poPending.np ? t('po_not_played')
+              : _poPending.wo ? 'W.O.'
+              : (_poPending.sets ? _poPending.sets.map(([a,b])=>a+'-'+b).join(' ') : '');
+    const disputed = _poPending.status === 'disputed';
+    // Estilo del row del resultado: fondo warn con reloj para pending,
+    // fondo disputa para disputed. Usa las mismas clases que grupos.
+    const stCls = disputed ? 'cell-disputed' : 'cell-pending';
+    const stIco = disputed ? '⚠️' : '⏳';
+    const stLbl = disputed ? t('legend_disputed') : t('legend_pending');
+    bot = '<div class="'+stCls+'" style="padding:5px 12px;font-size:11px;border-top:1px solid var(--border);text-align:center;cursor:pointer" onclick="openModal('+_poPending.id+')">'
+        +   '<span style="font-weight:600">'+pSc+' '+stIco+'</span>'
+        +   '<span style="font-size:10px;margin-left:6px;opacity:.85">'+stLbl+'</span>'
+        + '</div>'
+        // Fila de acciones inferior, mismo alto que la que se muestra cuando m.w existe,
+        // para que las cajas del bracket queden alineadas en todas las rondas.
+        + '<div style="display:flex;gap:6px;padding:5px 8px;border-top:1px solid var(--border);background:var(--surface)">'
+        +   '<button class="po-slot-btn po-slot-edit" onclick="openModal('+_poPending.id+')"><i class="ti ti-eye"></i> '+t('review')+'</button>'
+        + '</div>';
   }else if(canLoad){
     bot='<div style="padding:6px 8px;border-top:1px solid var(--border);text-align:center"><button class="po-load" onclick="poReport('+ti+',\''+which+'\','+ri+','+mi+')"><i class="ti ti-upload"></i> '+t('po_load_result')+'</button></div>'
       +(esAdmin(currentUser)?'<div style="height:34px"></div>':'');
@@ -6297,12 +6338,19 @@ function renderPlayerList(players, filter) {
     if(!loc) activosSinGrupo.push(p);
     else activosConGrupo.push(p);
   }
-  // Dentro de "con grupo": ordenar por número de grupo asc (Grupo 1, 2, 3...).
+  // Orden dentro de cada bucket:
+  //  - activosSinGrupo: alfabético (no hay otro criterio útil).
+  //  - activosConGrupo: por número de grupo asc y, dentro del grupo, alfabético.
+  //  - inactivos: alfabético.
+  // Localización 'es' para que las tildes ordenen bien (Ávila antes que Bar).
+  const _cmpNombre = (a,b) => (a.name||'').localeCompare(b.name||'', 'es');
+  activosSinGrupo.sort(_cmpNombre);
+  inactivos.sort(_cmpNombre);
   activosConGrupo.sort((a,b) => {
     const la = findLoc(a.name, activeN); const lb = findLoc(b.name, activeN);
     const ga = la ? la.g : 999, gb = lb ? lb.g : 999;
     if(ga !== gb) return ga - gb;
-    return (a.name||'').localeCompare(b.name||'','es');
+    return _cmpNombre(a,b);
   });
 
   // Renderea una tarjeta de jugador. Extraído para no duplicar el HTML masivo.
