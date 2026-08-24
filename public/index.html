@@ -111,36 +111,47 @@ html[data-theme="dark"]{
    pisar cualquier color:var(--pri) o color:#111 hardcodeado del CSS legacy. */
 html[data-theme="dark"],
 html[data-theme="dark"] body,
-html[data-theme="dark"] div:not([style*="color:"]),
-html[data-theme="dark"] p:not([style*="color:"]),
-html[data-theme="dark"] span:not([style*="color:"]),
+html[data-theme="dark"] div,
+html[data-theme="dark"] p,
+html[data-theme="dark"] span,
 html[data-theme="dark"] table,
 html[data-theme="dark"] tr,
 html[data-theme="dark"] th,
 html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
 html[data-theme="dark"] label,
-html[data-theme="dark"] h1:not([style*="color:"]),
-html[data-theme="dark"] h2:not([style*="color:"]),
-html[data-theme="dark"] h3:not([style*="color:"]),
-html[data-theme="dark"] h4:not([style*="color:"]),
-html[data-theme="dark"] h5:not([style*="color:"]),
-html[data-theme="dark"] h6:not([style*="color:"]),
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
 html[data-theme="dark"] li,
-html[data-theme="dark"] strong:not([style*="color:"]),
-html[data-theme="dark"] em:not([style*="color:"]),
-html[data-theme="dark"] b:not([style*="color:"]),
-html[data-theme="dark"] small:not([style*="color:"]){color:#ffffff!important}
+html[data-theme="dark"] strong,
+html[data-theme="dark"] em,
+html[data-theme="dark"] b,
+html[data-theme="dark"] small{color:#ffffff!important}
 
-/* Contenedores con background y color inline (modal-score, botones de club,
-   cards del perfil con fondo claro): sus hijos heredan el color del padre en
-   vez de forzarse blancos por la mother rule. Sin esto, un modal de resultado
-   con fondo del club se ve blanco sobre celeste claro y no se lee. */
-html[data-theme="dark"] .modal-score,
+/* Excepciones a la mother rule para paneles con FONDO CLARO en dark mode.
+   No modificamos la mother rule (aumentar su especificidad rompe muchas otras
+   reglas como .avatar, .badge, .dest, .edit-pts-btn). En su lugar agregamos
+   selectores MÁS específicos para los pocos casos donde queremos texto oscuro
+   sobre fondo claro. Usamos `.modal-score p` (0,2,2 > mother rule 0,1,2) y una
+   clase específica `.pe-danger-box` para el panel "Estado en la liga". */
+html[data-theme="dark"] .modal-score{color:#0f172a!important}
 html[data-theme="dark"] .modal-score p,
 html[data-theme="dark"] .modal-score strong,
 html[data-theme="dark"] .modal-score span,
 html[data-theme="dark"] .modal-score em,
-html[data-theme="dark"] .modal-score b { color: inherit !important; }
+html[data-theme="dark"] .modal-score b{color:inherit!important}
+
+html[data-theme="dark"] .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
+html[data-theme="dark"] .pe-danger-box .pe-danger-title{color:#b91c1c!important}
+html[data-theme="dark"] .pe-danger-box p,
+html[data-theme="dark"] .pe-danger-box span,
+html[data-theme="dark"] .pe-danger-box strong,
+html[data-theme="dark"] .pe-danger-box em,
+html[data-theme="dark"] .pe-danger-box b,
+html[data-theme="dark"] .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
 
 /* Celdas con colores configurados por el admin (club, pending, disputed):
    respetan el inline style con background y color propios. Los colores del
@@ -420,34 +431,43 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   }
   html:not([data-theme]),
   html:not([data-theme]) body,
-  html:not([data-theme]) div:not([style*="color:"]),
-  html:not([data-theme]) p:not([style*="color:"]),
-  html:not([data-theme]) span:not([style*="color:"]),
+  html:not([data-theme]) div,
+  html:not([data-theme]) p,
+  html:not([data-theme]) span,
   html:not([data-theme]) table,
   html:not([data-theme]) tr,
   html:not([data-theme]) th,
   html:not([data-theme]) td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
   html:not([data-theme]) label,
-  html:not([data-theme]) h1:not([style*="color:"]),
-  html:not([data-theme]) h2:not([style*="color:"]),
-  html:not([data-theme]) h3:not([style*="color:"]),
-  html:not([data-theme]) h4:not([style*="color:"]),
-  html:not([data-theme]) h5:not([style*="color:"]),
-  html:not([data-theme]) h6:not([style*="color:"]),
+  html:not([data-theme]) h1,
+  html:not([data-theme]) h2,
+  html:not([data-theme]) h3,
+  html:not([data-theme]) h4,
+  html:not([data-theme]) h5,
+  html:not([data-theme]) h6,
   html:not([data-theme]) li,
-  html:not([data-theme]) strong:not([style*="color:"]),
-  html:not([data-theme]) em:not([style*="color:"]),
-  html:not([data-theme]) b:not([style*="color:"]),
-  html:not([data-theme]) small:not([style*="color:"]){color:#ffffff!important}
+  html:not([data-theme]) strong,
+  html:not([data-theme]) em,
+  html:not([data-theme]) b,
+  html:not([data-theme]) small{color:#ffffff!important}
 
-  /* Igual que en modo manual dark: contenedores con color inline dejan que
-     sus hijos hereden en vez de forzarse a blanco. */
-  html:not([data-theme]) .modal-score,
+  /* Igual que en modo manual dark: excepciones puntuales con selectores más
+     específicos que la mother rule, para paneles con fondo claro. */
+  html:not([data-theme]) .modal-score{color:#0f172a!important}
   html:not([data-theme]) .modal-score p,
   html:not([data-theme]) .modal-score strong,
   html:not([data-theme]) .modal-score span,
   html:not([data-theme]) .modal-score em,
-  html:not([data-theme]) .modal-score b { color: inherit !important; }
+  html:not([data-theme]) .modal-score b{color:inherit!important}
+
+  html:not([data-theme]) .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
+  html:not([data-theme]) .pe-danger-box .pe-danger-title{color:#b91c1c!important}
+  html:not([data-theme]) .pe-danger-box p,
+  html:not([data-theme]) .pe-danger-box span,
+  html:not([data-theme]) .pe-danger-box strong,
+  html:not([data-theme]) .pe-danger-box em,
+  html:not([data-theme]) .pe-danger-box b,
+  html:not([data-theme]) .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
   html:not([data-theme]) .legend-txt,
   html:not([data-theme]) .hint{color:#cbd5e1!important}
   html:not([data-theme]) a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
@@ -6395,8 +6415,8 @@ function renderPlayerBodyHTML(p, gOpts){
           <button class="btn btn-sm" onclick="resetPwd('${jsq(p.name)}')"><i class="ti ti-refresh"></i> Reset PSWD - tenis</button>
         </div>
         </div>
-        <div style="border:1.5px solid #e9b8b8;border-radius:10px;padding:.65rem .8rem;background:#fdf5f5">
-        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#b91c1c;margin-bottom:.55rem"><i class="ti ti-alert-triangle"></i> Estado en la liga</div>
+        <div class="pe-danger-box" style="border:1.5px solid #e9b8b8;border-radius:10px;padding:.65rem .8rem;background:#fdf5f5">
+        <div class="pe-danger-title" style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#b91c1c;margin-bottom:.55rem"><i class="ti ti-alert-triangle"></i> Estado en la liga</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn btn-sm" style="${isInactive?'background:var(--success)':'background:#f59e0b'};color:#fff" onclick="toggleInactive('${jsq(p.name)}')"><i class="ti ti-${isInactive?'user-check':'user-off'}"></i> ${isInactive?'Reactivar jugador':'Marcar inactivo'}</button>
           <button class="btn btn-danger btn-sm" onclick="deletePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-trash"></i> Eliminar de la liga</button>
