@@ -286,19 +286,25 @@ async function _handlerSave(req, res){
   catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
   // =====================================================================
-  // NOTIFICACIONES WHATSAPP a los admins.
+  // NOTIFICACIONES WHATSAPP a los admins — FIRE-AND-FORGET.
   //
-  // Se ejecutan con AWAIT para asegurar que la conexión HTTP a CallMeBot
-  // no sea congelada ni abortada por el runtime serverless de Vercel al
-  // finalizar el handler.
-  // Envolvemos en try/catch para que un fallo en la notificación NUNCA
-  // invalide ni interrumpa la respuesta exitosa del guardado.
+  // NO usamos await: el usuario no debe esperar a que CallMeBot responda,
+  // porque es un servicio gratuito que a veces demora 10-30s. Con await:
+  //   - El usuario ve la app colgada mientras carga un partido.
+  //   - En peor caso Vercel corta la función a los 60s con 504, aunque el
+  //     partido SÍ se haya guardado. Usuario asume fallo → recarga →
+  //     duplicados.
+  //
+  // Con fire-and-forget la promise queda corriendo en background.
+  // En serverless Vercel Node, el runtime espera a que las promises
+  // pendientes se completen antes de matar el proceso, hasta el límite
+  // total de la función (60s en Hobby). Con 45s de timeout en el helper
+  // hay margen de sobra.
+  //
+  // El .catch() vacío previene "unhandled promise rejection" — el helper
+  // ya loguea internamente cada fallo a audit_log con detalle.
   // =====================================================================
-  try {
-    await _dispararNotificaciones(current, incoming, session);
-  } catch(errNotify){
-    console.error('⚠️ Error secundario enviando WhatsApp (el estado sí se guardó):', errNotify);
-  }
+  _dispararNotificaciones(current, incoming, session).catch(() => {});
 
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
 };
