@@ -6,45 +6,21 @@
 // Si CallMeBot rechaza, si la red se cae, si falta el APIKEY — se loguea
 // a audit_log y se devuelve un resultado benigno. La carga de un
 // resultado en la liga NO puede fallar porque el WhatsApp no llegó.
-//
-// DIFERENCIAS clave vs helper de Meta:
-//  - No hay templates aprobados: los mensajes se arman como strings libres
-//    en este archivo. Cambiar el texto no requiere aprobación de nadie.
-//  - Endpoint es GET simple con querystring (no POST con JSON).
-//  - Auth es un APIKEY por número: cada canal activo tiene el suyo
-//    (guardado como columna nueva en admin_notify_channels).
-//  - CallMeBot es solo para uso personal → cada admin activa su propio
-//    APIKEY siguiendo el setup del bot.
 // =====================================================================
 const { SUPA_URL, supaHeaders, logAudit } = require('./_lib');
 
 const CB_ENDPOINT   = 'https://api.callmebot.com/whatsapp.php';
-const CB_TIMEOUT_MS = 45000;  // CallMeBot es un servicio gratuito con carga variable:
-                              // a veces responde en <1s, otras tarda 10-30s.
-                              // Con 45s toleramos los picos. Como el envío es
-                              // fire-and-forget desde save.js (ver hook), este
-                              // timeout NO afecta la UX: el usuario ya recibió
-                              // la respuesta ok antes de que Meta responda.
-                              // 45s deja margen dentro del límite total de 60s
-                              // que Vercel Hobby permite para el proceso serverless.
+const CB_TIMEOUT_MS = 15000;  // 15s de timeout por llamada para evitar colgar la función Serverless
 
-// APIKEY del admin principal (compat retro): si un canal en la tabla NO tiene
-// apikey propio, cae a este de env var. Útil para el número del admin dueño
-// del sistema, que ya está configurado desde el día 0.
 const CB_APIKEY_FALLBACK = process.env.CALLMEBOT_APIKEY || '';
 
-// ¿Está el módulo mínimamente configurado? Sin fallback y sin apikey por canal,
-// no puede enviar nada — pero eso lo decide _enviarUno() en runtime.
 function waConfigured(){
   return !!CB_APIKEY_FALLBACK;
 }
 
 // ============================================================================
-// FORMATEADORES (idénticos a los del helper de Meta — misma API pública)
+// FORMATEADORES
 // ============================================================================
-
-// Fecha dd/mm/yyyy. Acepta Date, timestamp o string ISO. Ante cualquier basura,
-// devuelve la fecha de hoy: mejor mostrar algo razonable que romper el mensaje.
 function fmtFecha(input){
   let d;
   try {
@@ -60,13 +36,6 @@ function fmtFecha(input){
   return dd + '/' + mm + '/' + yy;
 }
 
-// Formatea los sets de un partido. Cubre los casos del proyecto:
-//   - wo:true               → "W.O."
-//   - np:true               → "No jugado"
-//   - sets [[6,3],[6,4]]    → "6-3 6-4"
-//   - con super tiebreak    → "6-3 4-6 10-8"
-// Tolerante: si la estructura no es la esperada, devuelve un placeholder
-// vacío en vez de romper. El WhatsApp es un aviso, no una fuente de verdad.
 function fmtSets(match){
   if(!match || typeof match !== 'object') return '(sin datos)';
   if(match.wo === true || match.wo === 'true') return 'W.O.';
@@ -84,9 +53,7 @@ function fmtSets(match){
 }
 
 // ============================================================================
-// TEMPLATES — se arman como strings libres con formato de WhatsApp
-// (*negrita*, _itálica_, emojis). Cambiar el texto acá NO requiere aprobación
-// de nadie: se reemplaza el archivo y ya. Esta es la libertad que Meta no da.
+// TEMPLATES
 // ============================================================================
 function armarMensaje(templateName, params){
   const p = params || {};
@@ -113,24 +80,15 @@ function armarMensaje(templateName, params){
       'Revisar en el panel de Pendientes/Disputas, gracias!'
     );
   }
-  // Fallback defensivo: si save.js llama con un template desconocido, no rompemos,
-  // mandamos un texto genérico para que quede rastro. Igual queda logueado en audit.
   return '📣 Evento en la liga: ' + templateName;
 }
 
-// ============================================================================
-// ADAPTADOR — save.js llama con arrays de parámetros (como si fuera Meta).
-// Acá convertimos ese array posicional al objeto nombrado que armarMensaje usa.
-// Así no necesitamos tocar save.js al migrar de Meta a CallMeBot.
-// ============================================================================
 function _paramsArrayAObjeto(templateName, arr){
   const a = Array.isArray(arr) ? arr : [];
   if(templateName === 'resultado_cargado'){
-    // Orden de save.js: [liga, actor, club, fecha, jugA, jugB, sets]
     return { liga: a[0], actor: a[1], club: a[2], fecha: a[3], jugA: a[4], jugB: a[5], sets: a[6] };
   }
   if(templateName === 'partido_disputado'){
-    // Orden de save.js: [liga, actor, club, fecha, jugA, jugB]
     return { liga: a[0], actor: a[1], club: a[2], fecha: a[3], jugA: a[4], jugB: a[5] };
   }
   return {};
@@ -138,19 +96,18 @@ function _paramsArrayAObjeto(templateName, arr){
 
 // ============================================================================
 // LLAMADA BASE A CALLMEBOT
-// GET a la API con phone/text/apikey. Devuelve { ok, error, status }.
-// NUNCA lanza: los errores se capturan y se devuelven como {ok:false, error}.
 // ============================================================================
 async function _enviarUno(phoneNumber, text, apikey){
   if(!apikey){
     return { ok: false, error: 'Sin APIKEY (ni de canal ni de env var)' };
   }
-  const phoneNorm = String(phoneNumber || '').replace(/[^\d+]/g, '');
+
+  let phoneNorm = String(phoneNumber || '').trim();
+  phoneNorm = phoneNorm.replace(/[^\d+]/g, '');
   if(!phoneNorm){
     return { ok: false, error: 'Número de destino vacío' };
   }
 
-  // CallMeBot espera el phone con '+' opcional; usamos siempre con '+' para claridad.
   const phoneParam = phoneNorm.startsWith('+') ? phoneNorm : ('+' + phoneNorm);
 
   const url = CB_ENDPOINT
@@ -164,11 +121,8 @@ async function _enviarUno(phoneNumber, text, apikey){
     const r = await fetch(url, { method: 'GET', signal: ctrl.signal });
     const txt = await r.text();
     if(!r.ok){
-      // CallMeBot devuelve texto plano con el detalle del error (no JSON).
       return { ok: false, status: r.status, error: txt.slice(0, 500) };
     }
-    // Ok "duro" de HTTP: normalmente 200 con "Message queued...". Igual pasamos
-    // los primeros bytes del body por si trae info útil.
     return { ok: true, status: r.status, response: txt.slice(0, 200) };
   } catch(e){
     const msg = e && e.name === 'AbortError' ? 'timeout ' + CB_TIMEOUT_MS + 'ms' : (e && e.message || String(e));
@@ -179,11 +133,7 @@ async function _enviarUno(phoneNumber, text, apikey){
 }
 
 // ============================================================================
-// CANALES ACTIVOS — lectura de la tabla admin_notify_channels
-// La tabla ahora idealmente incluye una columna 'apikey' con el APIKEY de
-// CallMeBot de cada admin. Si un canal no la tiene, cae al CB_APIKEY_FALLBACK
-// (que es el del admin principal). Así no rompe con la fila que ya existía.
-// Si la tabla no existe o falla la lectura, devuelve [] sin romper.
+// CANALES ACTIVOS
 // ============================================================================
 async function _leerCanalesActivos(){
   try {
@@ -191,8 +141,6 @@ async function _leerCanalesActivos(){
       headers: supaHeaders()
     });
     if(!r.ok){
-      // 400 puede venir si la columna 'apikey' no existe todavía (migración pendiente):
-      // reintentamos sin ella para no bloquear el envío.
       if(r.status === 400){
         const r2 = await fetch(SUPA_URL + '/rest/v1/admin_notify_channels?active=eq.true&select=id,phone_number,admin_name', {
           headers: supaHeaders()
@@ -208,7 +156,6 @@ async function _leerCanalesActivos(){
   } catch(_){ return []; }
 }
 
-// Actualiza last_notified_at en un canal. Best-effort, silencioso.
 async function _marcarNotificado(id){
   try {
     await fetch(SUPA_URL + '/rest/v1/admin_notify_channels?id=eq.' + encodeURIComponent(id), {
@@ -220,14 +167,7 @@ async function _marcarNotificado(id){
 }
 
 // ============================================================================
-// notifyAdmins — API pública principal (misma firma que en el helper de Meta)
-//
-// Recibe:
-//   - templateName: 'resultado_cargado' | 'partido_disputado'
-//   - parameters:   array posicional (compat con la llamada existente de save.js)
-//
-// NUNCA lanza. Devuelve { sent, failed, skipped } para diagnóstico opcional.
-// Cada error se loguea a audit_log con detalle.
+// notifyAdmins
 // ============================================================================
 async function notifyAdmins(templateName, parameters){
   const resumen = { sent: 0, failed: 0, skipped: 0 };
@@ -237,8 +177,6 @@ async function notifyAdmins(templateName, parameters){
       resumen.skipped = 1;
       return resumen;
     }
-    // Sin APIKEY ni de canal ni de fallback, no vale la pena ni intentar:
-    // logueamos una única entrada informativa y salimos.
     const hayAlgunApikey = canales.some(c => c.apikey) || !!CB_APIKEY_FALLBACK;
     if(!hayAlgunApikey){
       logAudit('whatsapp', 'wa_no_apikey', templateName, { canales: canales.length });
@@ -246,18 +184,15 @@ async function notifyAdmins(templateName, parameters){
       return resumen;
     }
 
-    // Armamos el texto una sola vez (mismo texto para todos los canales).
     const paramsObj = _paramsArrayAObjeto(templateName, parameters);
     const texto = armarMensaje(templateName, paramsObj);
 
-    // En serie para no golpear a CallMeBot con paralelo (rate limits del bot).
-    // En la práctica hay 1-3 canales, no vale la pena Promise.all.
     for(const c of canales){
       const apikey = c.apikey || CB_APIKEY_FALLBACK;
       const r = await _enviarUno(c.phone_number, texto, apikey);
       if(r.ok){
         resumen.sent++;
-        _marcarNotificado(c.id);   // fire-and-forget: no importa si falla
+        _marcarNotificado(c.id);
       } else {
         resumen.failed++;
         logAudit(
@@ -287,11 +222,6 @@ async function notifyAdmins(templateName, parameters){
   return resumen;
 }
 
-// ============================================================================
-// sendTestMessage — para el botón "Test" del panel admin (Tanda 4).
-// Envía un mensaje simple de prueba a un número puntual, usando el APIKEY
-// pasado explícitamente. Devuelve { ok, error } directo, sin auditar.
-// ============================================================================
 async function sendTestMessage(phoneNumber, apikey){
   const key = apikey || CB_APIKEY_FALLBACK;
   if(!key){
