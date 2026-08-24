@@ -249,15 +249,18 @@ async function _handlerSave(req, res){
     }
   }
 
-  // =====================================================================
-  // NOTIFICACIONES WHATSAPP a los admins — FIRE-AND-FORGET.
-  // Lo movemos ARRIBA de la escritura a la base para evitar demoras
-  // =====================================================================
-  _dispararNotificaciones(current, incoming, session).catch(() => {});
+  // 1. PRIMERO guardamos en la base de datos para asegurar el partido
+  try { 
+    await writeState(ligaId, incoming); 
+  } catch(e) { 
+    return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); 
+  }
 
-  try { await writeState(ligaId, incoming); }
-  catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
+  // 2. SEGUNDO disparamos las notificaciones CON AWAIT.
+  // Así evitamos que Vercel "congele" la función antes de que salga el mensaje.
+  await _dispararNotificaciones(current, incoming, session).catch(() => {});
 
+  // 3. FINALMENTE devolvemos la respuesta al cliente
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
 };
 
