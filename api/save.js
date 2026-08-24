@@ -343,19 +343,26 @@ async function _handlerSave(req, res){
   catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
   // =====================================================================
-  // NOTIFICACIONES WHATSAPP a los admins.
+  // NOTIFICACIONES WHATSAPP a los admins — FIRE-AND-FORGET.
   //
   // Se disparan DESPUÉS del writeState exitoso (nunca antes: notificar por
-  // algo que no se guardó sería peor que no notificar). Todo el bloque va
-  // en try/catch defensivo: si el helper falla, si Meta rechaza, si la
-  // tabla no existe — el guardado ya está hecho y respondemos ok igual.
+  // algo que no se guardó sería peor que no notificar).
   //
-  // El helper internamente ya loguea cada fallo a audit_log; acá solo
-  // capturamos cualquier excepción que se nos escape.
+  // NO usamos await: el usuario no debe esperar a que Meta/CallMeBot responda,
+  // porque CallMeBot es gratuito y a veces demora 10-30s. Con await, el usuario
+  // veía la app "colgada" mientras cargaba un partido, y en el peor caso Vercel
+  // cortaba la función a los 60s con un 504 aunque el partido SÍ se hubiera
+  // guardado (usuario asumía que falló y cargaba de nuevo → duplicados).
+  //
+  // Fire-and-forget: la promise queda corriendo en background. En serverless
+  // Vercel, el runtime espera a que las promises pendientes se completen
+  // antes de matar el proceso, hasta el límite total de la función (60s en
+  // Hobby). Con 45s de timeout en el helper hay margen de sobra.
+  //
+  // El .catch() vacío previene "unhandled promise rejection" — el helper ya
+  // loguea internamente cada fallo a audit_log con detalle del error.
   // =====================================================================
-  try {
-    await _dispararNotificaciones(current, incoming, session);
-  } catch(_){ /* nunca romper el response por un WhatsApp */ }
+  _dispararNotificaciones(current, incoming, session).catch(() => {});
 
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
 };
