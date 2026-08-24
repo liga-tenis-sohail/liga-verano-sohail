@@ -98,7 +98,7 @@ function armarMensaje(templateName, params){
   if(templateName === 'partido_disputado'){
     return (
       '⚠️ *Partido en disputa* ⚠️\n\n' +
-      'En la liga *' + p.liga + '* se marcó un partido como disputado.\n\n' +
+      'En *' + p.liga + '* se marcó un partido como disputado.\n\n' +
       'Jugador que disputa: *' + p.actor + '*\n' +
       'Club donde se jugó: *' + p.club + '*\n' +
       'Fecha del encuentro: *' + p.fecha + '*\n\n' +
