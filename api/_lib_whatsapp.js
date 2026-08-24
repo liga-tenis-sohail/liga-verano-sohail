@@ -19,7 +19,14 @@
 const { SUPA_URL, supaHeaders, logAudit } = require('./_lib');
 
 const CB_ENDPOINT   = 'https://api.callmebot.com/whatsapp.php';
-const CB_TIMEOUT_MS = 5000;   // corte defensivo: CallMeBot no puede colgar el save más de 5s
+const CB_TIMEOUT_MS = 45000;  // CallMeBot es un servicio gratuito con carga variable:
+                              // a veces responde en <1s, otras tarda 10-30s.
+                              // Con 45s toleramos los picos. Como el envío es
+                              // fire-and-forget desde save.js (ver hook), este
+                              // timeout NO afecta la UX: el usuario ya recibió
+                              // la respuesta ok antes de que Meta responda.
+                              // 45s deja margen dentro del límite total de 60s
+                              // que Vercel Hobby permite para el proceso serverless.
 
 // APIKEY del admin principal (compat retro): si un canal en la tabla NO tiene
 // apikey propio, cae a este de env var. Útil para el número del admin dueño
