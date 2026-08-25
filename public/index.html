@@ -3698,18 +3698,33 @@ function getMyPoMatch(){
             // y ahora está esperando confirmación/disputa. Sin este chequeo, el
             // tab Cargar seguía mostrando el formulario con el rival autoseleccionado,
             // habilitando que el mismo jugador cargue un DUPLICADO por encima.
-            const yaCargado = (matches || []).some(x =>
-              x && x.po === true &&
-              x.ti === ti && x.which === which &&
-              x.ri === ri && x.mi === mi &&
-              (x.status === 'pending' || x.status === 'disputed')
-            );
+            //
+            // Estrategia doble para blindar (misma que matchBox):
+            //   1) Coincidencia por índices ti/which/ri/mi con coerción de tipo.
+            //   2) Fallback por nombres: un match de playoff con exactamente los
+            //      mismos 2 jugadores es único. Si un match antiguo tiene otros
+            //      índices por un rearmado del bracket, igual lo atrapamos.
+            const rival = m.a === name ? m.b : m.a;
+            const yaCargado = (matches || []).some(function(x){
+              if(!x || x.po !== true) return false;
+              if(x.status !== 'pending' && x.status !== 'disputed') return false;
+              // Criterio 1: mismas coordenadas del bracket
+              var sameCoord = (Number(x.ti) === Number(ti))
+                           && (String(x.which) === String(which))
+                           && (Number(x.ri) === Number(ri))
+                           && (Number(x.mi) === Number(mi));
+              if(sameCoord) return true;
+              // Criterio 2: mismos 2 jugadores en cualquier orden
+              if(Array.isArray(x.poNames) && x.poNames.length === 2
+                 && x.poNames.indexOf(name) !== -1
+                 && x.poNames.indexOf(rival) !== -1) return true;
+              return false;
+            });
             if(yaCargado) continue;
             const total=rounds.length;
             const fe=total-1-ri;
             const roundName=fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':fe===4?'16avos':'Ronda '+(ri+1);
             const drawName=which==='cons'?'Consolación '+tr.label:'Cuadro '+tr.label;
-            const rival=m.a===name?m.b:m.a;
             return{ti,which,ri,mi,rival,roundName,drawName,trLabel:tr.label};
           }
         }
@@ -5371,17 +5386,38 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   const realMatch=!!(m.a&&m.b);const aw=realMatch&&m.w&&m.w===m.a,bw=realMatch&&m.w&&m.w===m.b;
   const sc=m.np?t('po_not_played'):m.wo?'W.O.':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
   // Busca si hay un resultado ya cargado (pending o disputed) en `matches` para
-  // este slot del bracket. El bracket usa `m.w` para el ganador confirmado, pero
-  // un partido cargado por un jugador queda con status='pending' y sin ganador
-  // "aplicado" al bracket hasta que se confirma. Antes de este fix, ese partido
-  // era invisible en el bracket: el rival veía el slot como "Pendiente de juego"
-  // y podía cargar OTRO resultado (duplicado). Con esto, mostramos el resultado
-  // cargado con un reloj y ofrecemos "Ver / Disputar / Validar" según el rol.
+  // este slot del bracket. Sin este chequeo, el rival veía el slot como
+  // "Pendiente de juego" y podía cargar OTRO resultado (duplicado).
+  //
+  // Búsqueda con dos criterios en cascada:
+  //   1) Coordenadas del bracket (ti/which/ri/mi), coercionadas a number/string
+  //      para tolerar que algún deploy viejo las haya guardado como string.
+  //   2) Fallback por nombres: si algún match antiguo no tiene coordenadas
+  //      exactas, matcheamos por poNames que contengan ambos jugadores del slot.
+  //      Esto cubre partidos de la misma llave aunque las coordenadas hayan
+  //      cambiado tras una reorganización del bracket.
   const _poPending = (m.a && m.b && !m.w)
-    ? (matches || []).find(x =>
-        x && x.po === true && x.ti === ti && x.which === which &&
-        x.ri === ri && x.mi === mi &&
-        (x.status === 'pending' || x.status === 'disputed'))
+    ? (matches || []).find(function(x){
+        if(!x || x.po !== true) return false;
+        if(x.status !== 'pending' && x.status !== 'disputed') return false;
+        // Criterio 1: coordenadas del bracket (con coerción defensiva).
+        var sameCoord = (Number(x.ti) === Number(ti))
+                     && (String(x.which) === String(which))
+                     && (Number(x.ri) === Number(ri))
+                     && (Number(x.mi) === Number(mi));
+        if(sameCoord) return true;
+        // Criterio 2: mismos 2 jugadores (en cualquier orden). Un partido de
+        // playoff con exactamente estos 2 jugadores es único en la liga —
+        // no puede haber dos matches pending distintos entre los mismos
+        // jugadores. Sin este fallback, si por algún motivo los índices
+        // ti/which/ri/mi guardados no coinciden con los del bracket (por un
+        // rearmado, reset o guardado con tipos distintos), el partido se
+        // mostraba invisible y el rival podía cargar un duplicado.
+        if(Array.isArray(x.poNames) && x.poNames.length === 2
+           && x.poNames.indexOf(m.a) !== -1
+           && x.poNames.indexOf(m.b) !== -1) return true;
+        return false;
+      })
     : null;
   const canLoad=m.a&&m.b&&!m.w&&!_poPending&&(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name);
   const emptyTxt=isFirstRound?'BYE':t('tbd');
