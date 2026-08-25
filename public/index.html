@@ -7433,6 +7433,25 @@ async function _doPersist(){
       if(d.token)_token=d.token;   // sesión deslizante: el servidor la renovó
       _lastSaveError='';
       console.log('✅ Guardado OK ('+ new Date().toLocaleTimeString()+')');
+      // Invalidar el cache del rating después de CADA guardado exitoso. Sin
+      // esto, cuando el admin borra un partido (o el estado cambia por otra
+      // acción), el conteo de partidos en el tab Rating quedaba desactualizado
+      // hasta el próximo login. Ej: Víctor tenía 7 partidos de ciclos + 2 de
+      // playoff = 9. Al borrar los 2 de playoff, el perfil se actualizaba a 7,
+      // pero Rating seguía mostrando 9 porque calcularRatingGlobal solo se
+      // ejecutaba una vez al login.
+      // La llamada es fire-and-forget: no bloqueamos el retorno del save.
+      // Si el usuario está viendo el tab Rating ahora mismo, disparamos también
+      // renderRating() al terminar para que vea el cambio sin cambiar de tab.
+      if(typeof RATING_ON !== 'undefined' && RATING_ON &&
+         typeof calcularRatingGlobal === 'function'){
+        calcularRatingGlobal(true).then(function(){
+          if(typeof subView !== 'undefined' && subView === 'rating' &&
+             typeof renderRating === 'function'){
+            try { renderRating(); } catch(_){}
+          }
+        }).catch(function(){ /* si el rating falla, el save igual quedó ok */ });
+      }
       return true;
     }else if(r.status===409){
       // Conflicto de versión. En vez de trabar los guardados para siempre
