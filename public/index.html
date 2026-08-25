@@ -6978,20 +6978,20 @@ function openPoForm(m,ti){
   <!-- Sets con inputs grandes (.score-inp-lg), mismo layout que Cargar -->
   <div class="section-lbl" style="margin-bottom:.5rem">${t('sets_section')||'Resultado por sets'}</div>
   <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
-    <input type="number" id="po-s1a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1a}">
+    <input type="number" id="po-s1a" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1a !== '' ? s1a : '0'}">
     <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 1</span><span class="sep">–</span></div>
-    <input type="number" id="po-s1b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1b}">
+    <input type="number" id="po-s1b" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1b !== '' ? s1b : '0'}">
   </div>
   <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
-    <input type="number" id="po-s2a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2a}">
+    <input type="number" id="po-s2a" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2a !== '' ? s2a : '0'}">
     <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
-    <input type="number" id="po-s2b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2b}">
+    <input type="number" id="po-s2b" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2b !== '' ? s2b : '0'}">
   </div>
   <!-- Fila de supertiebreak: oculta por defecto salvo que el partido existente ya tenga tercer set -->
   <div id="po-s3-row" style="display:${s3 ? 'grid' : 'none'};grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
-    <input type="number" id="po-s3a" min="0" placeholder="0" class="score-inp-lg" value="${s3a}">
+    <input type="number" id="po-s3a" min="0" class="score-inp-lg" value="${s3a !== '' ? s3a : '0'}">
     <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
-    <input type="number" id="po-s3b" min="0" placeholder="0" class="score-inp-lg" value="${s3b}">
+    <input type="number" id="po-s3b" min="0" class="score-inp-lg" value="${s3b !== '' ? s3b : '0'}">
   </div>
   <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">${t('set_hint')||'6-0 a 6-4, 7-5 o 7-6'}</span></div>
 
@@ -7035,7 +7035,9 @@ function togglePoSTB(){
   if(oculto){
     row.style.display = 'grid';
     if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
-    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+    // Inicializamos en "0" (no vacíos) para mantener el look de la sección Cargar,
+    // donde todos los inputs de score arrancan visibles con "0" en negro.
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = '0'; });
   } else {
     row.style.display = 'none';
     if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
@@ -7097,7 +7099,7 @@ function toggleLmSTB(){
   if(oculto){
     row.style.display = 'grid';
     if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
-    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = '0'; });
   } else {
     row.style.display = 'none';
     if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
@@ -7163,19 +7165,19 @@ function openLoadModal(gid, n1, n2){
   </div>
   <div class="section-lbl" style="margin-bottom:.5rem">${t('sets_section')||'Resultado por sets'}</div>
   <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
-    <input type="number" id="lm-s1a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <input type="number" id="lm-s1a" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
     <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 1</span><span class="sep">–</span></div>
-    <input type="number" id="lm-s1b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <input type="number" id="lm-s1b" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
   </div>
   <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
-    <input type="number" id="lm-s2a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <input type="number" id="lm-s2a" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
     <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
-    <input type="number" id="lm-s2b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <input type="number" id="lm-s2b" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
   </div>
   <div id="lm-s3-row" style="display:none;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
-    <input type="number" id="lm-s3a" min="0" placeholder="0" class="score-inp-lg">
+    <input type="number" id="lm-s3a" min="0" value="0" class="score-inp-lg">
     <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
-    <input type="number" id="lm-s3b" min="0" placeholder="0" class="score-inp-lg">
+    <input type="number" id="lm-s3b" min="0" value="0" class="score-inp-lg">
   </div>
   <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">${t('set_hint')||'6-0 a 6-4, 7-5 o 7-6'}</span></div>
   <div style="text-align:center;margin-top:8px">
@@ -7197,59 +7199,68 @@ function openLoadModal(gid, n1, n2){
 // validaciones (sets válidos, formato de score, permisos, etc) sin duplicar código.
 function submitLoadModal(){
   if(!_lmCtx){ toast('Sin contexto de carga'); return; }
+  const alert = document.getElementById('lm-alert');
+  const showErr = msg => { if(alert) alert.innerHTML = '<span style="color:var(--danger)">✕ ' + msg + '</span>'; };
+  if(alert) alert.innerHTML = '';
   if(!lmFormClub){
-    const alert = document.getElementById('lm-alert');
-    if(alert) alert.innerHTML = '<span style="color:var(--danger)">' + (t('select_club')||'Elegí el club') + '</span>';
+    showErr(t('select_club')||'Elegí el club');
     document.getElementById('lm-club-pick').classList.add('req-empty');
     return;
   }
   const fecha = document.getElementById('lm-f-fecha').value;
   if(!fecha){
+    showErr(t('select_date')||'Elegí la fecha');
     document.getElementById('lm-f-fecha').classList.add('req-empty');
     return;
+  }
+  // Validar los sets ANTES de cerrar el modal. Si algo está mal (por ejemplo
+  // 6-0 · 0-6 · 3-0 que no es un STB válido) el usuario ve el error acá y puede
+  // corregir sin perder el resto del formulario. Antes se cerraba el modal y
+  // el submitResult mostraba el error afuera, con el modal ya perdido — el
+  // usuario tenía que volver a abrir el "+" y cargar todo de nuevo.
+  const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
+  const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
+  const s3Visible = document.getElementById('lm-s3-row').style.display === 'grid';
+  const sets = [[s1a, s1b], [s2a, s2b]];
+  if(s3Visible){
+    const s3a = +document.getElementById('lm-s3a').value, s3b = +document.getElementById('lm-s3b').value;
+    sets.push([s3a, s3b]);
+  }
+  if(typeof validMatch === 'function'){
+    const v = validMatch(sets);
+    if(!v.ok){ showErr(v.msg); return; }
   }
   // Copiar valores del modal a los inputs originales de la sección Cargar
   const gid = _lmCtx.gid, n1 = _lmCtx.n1, n2 = _lmCtx.n2;
   const gi = gid - 1;
-  // Reporter y rival: para jugador se autoselecciona; para admin, el primero es n1
   if(esAdmin(currentUser)){
-    // Formato de f-reporter para admin: "gi|nombre"
     const r = document.getElementById('f-reporter');
     if(r) r.value = gi + '|' + n1;
-    // filterRival prepara el select del rival — lo llamamos para que el value
-    // "gi|n2" sea reconocido como opción válida en el submit.
     if(typeof filterRival === 'function') filterRival(gi + '|' + n1, n2);
   } else {
-    // Jugador: reporter = él mismo (ya está seleccionado), rival = el otro
     const rival = currentUser.name === n1 ? n2 : n1;
     const o = document.getElementById('f-rival');
     if(o){
-      // Asegurar que la opción del rival exista antes de setear el value
       if(![...o.options].some(op => op.value === rival)){
         o.add(new Option(rival, rival));
       }
       o.value = rival;
     }
   }
-  // Sets
   document.getElementById('s1a').value = document.getElementById('lm-s1a').value || '';
   document.getElementById('s1b').value = document.getElementById('lm-s1b').value || '';
   document.getElementById('s2a').value = document.getElementById('lm-s2a').value || '';
   document.getElementById('s2b').value = document.getElementById('lm-s2b').value || '';
-  const s3Visible = document.getElementById('lm-s3-row').style.display === 'grid';
   document.getElementById('s3-row').style.display = s3Visible ? 'flex' : 'none';
   if(s3Visible){
     document.getElementById('s3a').value = document.getElementById('lm-s3a').value || '';
     document.getElementById('s3b').value = document.getElementById('lm-s3b').value || '';
   }
-  // Club y fecha
   if(typeof pickClub === 'function') pickClub(lmFormClub);
   document.getElementById('f-fecha').value = fecha;
-  // Cerrar modal antes de submitir (así los toasts se ven).
   closeM();
   _lmCtx = null;
   lmFormClub = '';
-  // Llamar al submit original — hace toda la validación + persist + refresh
   submitResult();
 }
 // El admin hace avanzar a un jugador por WO (walkover): el rival no se presenta / no puede jugar.
