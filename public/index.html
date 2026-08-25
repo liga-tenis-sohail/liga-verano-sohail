@@ -788,6 +788,18 @@ html[data-theme="dark"] span[style*="background:#d"]:not([style*="border-radius:
 html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
 .app{max-width:1040px;margin:0 auto;padding:.75rem}
 .login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+/* Header editable del login (arriba del recuadro azul). Ancho completo,
+   siempre visible arriba de todo. Los pills usan negrita y borde más
+   marcado, y en pantallas chicas achican padding/tamaño para caber sin
+   overflow. z-index:10 asegura que quede por encima de cualquier animación
+   o elemento posicionado del fondo. */
+.login-header-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem;width:100%;box-sizing:border-box;position:relative;z-index:10;border-bottom:1px solid rgba(0,0,0,.08)}
+.login-header-bar a{text-decoration:none;font-weight:700;font-size:13px;padding:.4rem .85rem;border-width:2px;border-style:solid;border-radius:999px;transition:opacity .15s,transform .15s;opacity:.94;line-height:1;white-space:nowrap}
+.login-header-bar a:hover{opacity:1;transform:translateY(-1px)}
+@media(max-width:640px){
+  .login-header-bar{padding:.6rem .5rem;gap:.35rem}
+  .login-header-bar a{font-size:12px;padding:.35rem .7rem;border-width:1.5px}
+}
 .login-head{background:var(--pri);padding:1.5rem;text-align:center;border-top:4px solid var(--acc);}
 .login-head .ball{width:48px;height:48px;background:var(--acc);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--priD);font-size:24px;margin-bottom:.4rem}
 .login-head h1{color:#fff;font-size:17px;font-weight:600}.login-head p{color:#dce7f6;font-size:12px}
@@ -2113,12 +2125,17 @@ function renderLoginHeader(){
   const fg = (cfg.textColor && String(cfg.textColor).trim())
     ? cfg.textColor
     : ((typeof autoTxt === 'function') ? autoTxt(bg) : '#fff');
-  el.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;padding:.65rem 1rem;background:' + bg + ';color:' + fg + ';border-bottom:1px solid rgba(0,0,0,.08)';
+  // Usa la clase .login-header-bar (definida en el CSS) para heredar padding,
+  // gap, media queries móvil, negrita y borde grueso. Los estilos inline solo
+  // definen los colores (dinámicos según config del admin). Sin la clase, las
+  // media queries no aplicaban y el header se veía roto en móvil.
+  el.className = 'login-header-bar';
+  el.style.cssText = 'display:flex;background:' + bg + ';color:' + fg + ';box-shadow:0 1px 3px rgba(0,0,0,.08)';
   el.innerHTML = links.map(l => {
     // target=_blank + rel=noopener por seguridad (evita tabnabbing).
     const url = String(l.url).replace(/"/g, '&quot;');
     const txt = String(l.text).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
-    return '<a href="' + url + '" target="_blank" rel="noopener" style="color:' + fg + ';text-decoration:none;font-weight:600;font-size:13px;padding:.35rem .75rem;border:1px solid ' + fg + ';border-radius:999px;transition:opacity .15s;opacity:.92" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.92">' + txt + '</a>';
+    return '<a href="' + url + '" target="_blank" rel="noopener" style="color:' + fg + ';border-color:' + fg + '">' + txt + '</a>';
   }).join('');
 }
 
