@@ -2494,10 +2494,30 @@ async function accionLiga(accion,extra){
 // ==================== ESTADÍSTICAS DEL JUGADOR ====================
 // Calcula PJ/PG/PP de un jugador dado el estado de una liga (cuenta por sets ganados).
 function statsJugadorEnEstado(name, estado){
-  const ms=(estado&&estado.matches||[]).filter(m=>m&&(m.aName===name||m.bName===name)&&m.status==='confirmed');
+  const all = (estado && estado.matches) || [];
+  // Reconocemos DOS formatos de match: liga regular (aName/bName) y playoff
+  // (po:true con poNames array). Antes filtrábamos solo por aName/bName, así que
+  // los playoffs quedaban invisibles: un jugador que jugó 4+3 partidos de ciclos
+  // + 2 de playoff veía "7 partidos" en su perfil en lugar de 9.
+  const ms = all.filter(m => {
+    if(!m || m.status !== 'confirmed') return false;
+    if(m.aName === name || m.bName === name) return true;
+    if(m.po && Array.isArray(m.poNames) && m.poNames.indexOf(name) !== -1) return true;
+    return false;
+  });
   let g=0,p=0;
   ms.forEach(m=>{
-    const yoA=m.aName===name; let sgA=0,sgB=0;
+    // En playoffs preferimos usar m.winner (nombre del ganador guardado explícito
+    // al confirmar), porque en algunos casos los sets pueden estar vacíos
+    // (W.O., no jugado). Para liga regular el winner se deduce de los sets.
+    if(m.po && m.winner){
+      if(m.winner === name) g++; else p++;
+      return;
+    }
+    // Cálculo por sets: primero determinamos si el jugador es "A" o "B"
+    // en la estructura correspondiente al formato del match.
+    const yoA = m.po ? (m.poNames && m.poNames[0] === name) : (m.aName === name);
+    let sgA=0,sgB=0;
     (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
     const gane=yoA?sgA>sgB:sgB>sgA;
     if(gane)g++;else p++;
@@ -3450,7 +3470,7 @@ function entrarConToken(d){
 function doLogout(){closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='block';document.getElementById('login-pass').value='';initLogin();}
 function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
 function renderCycleBar(){const bar=document.getElementById('cycle-bar');let html='';cycles.forEach(c=>{const playable=!!c.groups;const isView=viewCycle===c.n;const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;});const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;bar.innerHTML=html;}
-function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON&&!inPO)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');}
+function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
   viewCycle=n;
   if(n==='po'){
