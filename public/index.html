@@ -3483,6 +3483,26 @@ function viewCyc(n){
     renderShell();
     showPlayoffView();
   }else{
+    // Al cambiar a un ciclo normal, auto-ajustar el grupo seleccionado al
+    // grupo donde juega el usuario en ESE ciclo. Sin esto, si Víctor estaba
+    // viendo Ciclo 2 · Grupo 3 y cambiaba a Ciclo 1, se quedaba en Grupo 3
+    // (donde no juega en C1) en vez de saltar a su grupo real (Grupo 5).
+    //
+    // Aplicamos a CUALQUIER usuario que tenga un grupo en el ciclo destino
+    // (no solo currentUser.role === 'player'). Cubre también a jugadores que
+    // fueron ascendidos a admin — mantienen sus partidos como jugador y les
+    // interesa ver su grupo propio al cambiar de ciclo. Los admins puros
+    // (Organización) sin grupo asignado no entran a este `if` y conservan
+    // selGroup — que es lo correcto para ellos.
+    if(currentUser && currentUser.name && typeof findLoc === 'function'){
+      const loc = findLoc(currentUser.name, n);
+      if(loc && loc.g){
+        selGroup = loc.g;
+      }
+      // Nota: si no encuentra al usuario en el ciclo destino (por ej. Víctor
+      // en un ciclo donde no jugó), NO tocamos selGroup — así el usuario se
+      // queda viendo el mismo número de grupo que venía viendo antes.
+    }
     const pv=document.getElementById('view-playoff');
     if(pv)pv.style.display='none';
     renderShell();
