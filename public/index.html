@@ -2144,9 +2144,36 @@ async function initLogin(){
 
   // Pintar el header custom del login (config editable por admin, ver
   // renderLoginHeader). Se hace apenas se abre el login, sin esperar a la
-  // red — usa lo que haya en memoria (LOGIN_HEADER). Al hidratar el estado
-  // desde /api/users abajo, si viene una versión más nueva, se re-pinta.
+  // red — usa lo que haya en cache (localStorage 'lh' + memoria).
   try { renderLoginHeader(); } catch(_){}
+
+  // En PARALELO, refrescar el header consultando al server. Este endpoint
+  // NO requiere login: el header es info pública (color y links a la web
+  // del club). Sin esta llamada, un móvil que nunca se logueó veía la
+  // versión vieja del cache local hasta que alguien se logueara desde ese
+  // dispositivo. Con esta llamada, cualquier cambio del admin se refleja
+  // en todos los dispositivos apenas alguien abre el login.
+  //
+  // Fire-and-forget: no bloqueamos el flujo del login esperando esta
+  // respuesta. Si el server tarda, el header aparece con lo que había en
+  // cache y se actualiza cuando termina el fetch.
+  fetch(_conLiga('/api/login-header'), { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(cfg => {
+      if(!cfg || typeof cfg !== 'object') return;
+      // Solo actualizamos si algo cambió, para no re-renderear al pedo
+      const nuevo = JSON.stringify({
+        color: cfg.color || '#0E3470',
+        textColor: cfg.textColor || '',
+        links: Array.isArray(cfg.links) ? cfg.links : []
+      });
+      const viejo = JSON.stringify(LOGIN_HEADER || {});
+      if(nuevo === viejo) return;
+      LOGIN_HEADER = JSON.parse(nuevo);
+      try { localStorage.setItem('lh', nuevo); } catch(_){}
+      try { renderLoginHeader(); } catch(_){}
+    })
+    .catch(() => { /* si falla, seguimos con lo cacheado */ });
 
   // 0) Determinar a qué liga se hace login. Si hay una sola activa, esa. Si hay
   //    varias, se muestra un selector. Esto hace el login dinámico: nunca entra
