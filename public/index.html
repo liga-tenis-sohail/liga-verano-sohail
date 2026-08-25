@@ -3574,7 +3574,7 @@ function groupCardHTML(gid){
           if(m&&m.status==='confirmed'){const sc=m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');return`<td class="cell-club" style="${clubStyle(m.club)}" onclick="openModal(${m.id})">${sc}</td>`;}
           if(m&&m.status==='pending'){const sc=m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');return`<td class="cell-pending" onclick="openModal(${m.id})">${sc}⏳</td>`;}
           if(m&&m.status==='disputed')return`<td class="cell-disputed" style="background:${COLOR_DISPUTA};color:${autoTxt(COLOR_DISPUTA)}" onclick="openModal(${m.id})">disp.</td>`;
-          if(isActive&&canCreate(gid,p,q))return`<td class="cell-empty" onclick="prefill(${gid},'${jsq(p)}','${jsq(q)}')">+</td>`;
+          if(isActive&&canCreate(gid,p,q))return`<td class="cell-empty" onclick="openLoadModal(${gid},'${jsq(p)}','${jsq(q)}')">+</td>`;
           return`<td class="cell-locked">·</td>`;
         }).join('');
         return`<tr><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
@@ -6966,33 +6966,40 @@ function openPoForm(m,ti){
     </div>
   </div>
 
-  <div style="display: grid; grid-template-columns: 100px 1fr 15px 1fr; gap: 8px; align-items: center; margin-bottom: 0.5rem;">
-     <div></div>
-     <div style="text-align:center;font-weight:700;font-size:12px;color:var(--pri)">${m.a}</div>
-     <div></div>
-     <div style="text-align:center;font-weight:700;font-size:12px;color:var(--pri)">${m.b}</div>
-
-     <div style="font-size:12px;font-weight:700;color:var(--text2)">SET 1</div>
-     <input type="number" id="po-s1a" min="0" max="7" class="po-in" style="width:100%" value="${s1a}">
-     <span class="sep" style="text-align:center;color:var(--border2)">|</span>
-     <input type="number" id="po-s1b" min="0" max="7" class="po-in" style="width:100%" value="${s1b}">
-
-     <div style="font-size:12px;font-weight:700;color:var(--text2)">SET 2</div>
-     <input type="number" id="po-s2a" min="0" max="7" class="po-in" style="width:100%" value="${s2a}">
-     <span class="sep" style="text-align:center;color:var(--border2)">|</span>
-     <input type="number" id="po-s2b" min="0" max="7" class="po-in" style="width:100%" value="${s2b}">
+  <!-- Nombres arriba, mismo estilo que la sección Cargar (.names-box) -->
+  <div class="names-box">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px">
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(m.a)}</div>
+      <div style="color:var(--border2);font-size:13px;font-weight:600;text-align:center">vs</div>
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(m.b)}</div>
+    </div>
   </div>
 
-  <div id="po-s3-row" style="display:${s3 ? 'grid' : 'none'}; grid-template-columns: 100px 1fr 15px 1fr; gap: 8px; align-items: center; margin-bottom: 0.5rem;">
-     <div style="font-size:11px;font-weight:700;color:var(--text2)">SUPER TIEBREAK</div>
-     <input type="number" id="po-s3a" min="0" max="1" class="po-in" style="width:100%" value="${s3a}">
-     <span class="sep" style="text-align:center; font-weight:bold; font-size:18px">.</span>
-     <input type="number" id="po-s3b" min="0" max="1" class="po-in" style="width:100%" value="${s3b}">
+  <!-- Sets con inputs grandes (.score-inp-lg), mismo layout que Cargar -->
+  <div class="section-lbl" style="margin-bottom:.5rem">${t('sets_section')||'Resultado por sets'}</div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="po-s1a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1a}">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 1</span><span class="sep">–</span></div>
+    <input type="number" id="po-s1b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1b}">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="po-s2a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2a}">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
+    <input type="number" id="po-s2b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2b}">
+  </div>
+  <!-- Fila de supertiebreak: oculta por defecto salvo que el partido existente ya tenga tercer set -->
+  <div id="po-s3-row" style="display:${s3 ? 'grid' : 'none'};grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="po-s3a" min="0" placeholder="0" class="score-inp-lg" value="${s3a}">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
+    <input type="number" id="po-s3b" min="0" placeholder="0" class="score-inp-lg" value="${s3b}">
+  </div>
+  <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">${t('set_hint')||'6-0 a 6-4, 7-5 o 7-6'}</span></div>
+
+  <!-- Botón toggle del supertiebreak, mismo comportamiento que la sección Cargar -->
+  <div style="text-align:center;margin-top:8px">
+    <button class="btn btn-sm" id="po-stb-toggle-btn" onclick="togglePoSTB()"><i class="ti ti-${s3?'x':'plus'}"></i> ${s3?(t('remove_stb')||'Quitar STB'):(t('add_stb')||'Supertiebreak (1-1)')}</button>
   </div>
 
-  <div style="text-align:center; margin-top:12px">
-    <button class="btn btn-sm" onclick="document.getElementById('po-s3-row').style.display='grid'"><i class="ti ti-plus"></i> Supertiebreak</button>
-  </div>
   ${esAdmin(currentUser)?`
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
     <div id="po-wo-trigger" style="text-align:center">
@@ -7015,6 +7022,235 @@ function openPoForm(m,ti){
   actions += `<button class="btn" onclick="closeM()">${t('close')}</button>`;
   document.getElementById('modal-actions').innerHTML = actions;
   document.getElementById('modal-bg').classList.add('open');
+}
+
+// Toggle del supertiebreak dentro del modal de playoff. Espeja el comportamiento
+// de toggleSTB() de la sección Cargar: si está oculto lo muestra y cambia el
+// label del botón; si está visible lo oculta y limpia los valores.
+function togglePoSTB(){
+  const row = document.getElementById('po-s3-row');
+  const btn = document.getElementById('po-stb-toggle-btn');
+  if(!row) return;
+  const oculto = row.style.display === 'none' || row.style.display === '';
+  if(oculto){
+    row.style.display = 'grid';
+    if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  } else {
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+// Auto-show del supertiebreak cuando los 2 sets ya cargados están 1-1. Es el
+// equivalente para el modal PO de checkAutoSTB() en la sección Cargar.
+function checkPoAutoSTB(){
+  const s1a = +document.getElementById('po-s1a').value, s1b = +document.getElementById('po-s1b').value;
+  const s2a = +document.getElementById('po-s2a').value, s2b = +document.getElementById('po-s2b').value;
+  if(!s1a && !s1b && !s2a && !s2b) return;
+  let w1=0, w2=0;
+  if(typeof validSet === 'function'){
+    if(validSet(s1a,s1b)){ if(s1a>s1b) w1++; else w2++; }
+    if(validSet(s2a,s2b)){ if(s2a>s2b) w1++; else w2++; }
+  } else {
+    if(s1a>s1b) w1++; else if(s1b>s1a) w2++;
+    if(s2a>s2b) w1++; else if(s2b>s2a) w2++;
+  }
+  const row = document.getElementById('po-s3-row');
+  const btn = document.getElementById('po-stb-toggle-btn');
+  if(!row) return;
+  if(w1 === 1 && w2 === 1){
+    if(row.style.display === 'none' || row.style.display === ''){
+      row.style.display = 'grid';
+      if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    }
+  } else if(w1 === 2 || w2 === 2){
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+// ========================================================================
+// MODAL PARA CARGAR RESULTADO DESDE LA TABLA DE GRUPOS (celda "+")
+// Reemplaza el flujo viejo (prefill → showSub('cargar')), que sacaba al
+// usuario de la vista de grupos. Ahora el "+" abre un popup con el mismo
+// look and feel del modal de playoffs y guarda en el mismo lugar, sin
+// perder el contexto de dónde estaba el usuario.
+// ========================================================================
+let _lmCtx = null;   // contexto del modal en curso: {gid, n1, n2, editId}
+let lmFormClub = '';
+
+function pickLmClub(name){
+  lmFormClub = name;
+  document.querySelectorAll('#lm-club-pick .club-opt').forEach(el => {
+    el.classList.toggle('club-sel', el.getAttribute('data-club') === name);
+  });
+}
+
+function toggleLmSTB(){
+  const row = document.getElementById('lm-s3-row');
+  const btn = document.getElementById('lm-stb-toggle-btn');
+  if(!row) return;
+  const oculto = row.style.display === 'none' || row.style.display === '';
+  if(oculto){
+    row.style.display = 'grid';
+    if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  } else {
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+function checkLmAutoSTB(){
+  const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
+  const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
+  if(!s1a && !s1b && !s2a && !s2b) return;
+  let w1=0, w2=0;
+  if(typeof validSet === 'function'){
+    if(validSet(s1a,s1b)){ if(s1a>s1b) w1++; else w2++; }
+    if(validSet(s2a,s2b)){ if(s2a>s2b) w1++; else w2++; }
+  } else {
+    if(s1a>s1b) w1++; else if(s1b>s1a) w2++;
+    if(s2a>s2b) w1++; else if(s2b>s2a) w2++;
+  }
+  const row = document.getElementById('lm-s3-row');
+  const btn = document.getElementById('lm-stb-toggle-btn');
+  if(!row) return;
+  if(w1 === 1 && w2 === 1){
+    if(row.style.display === 'none' || row.style.display === ''){
+      row.style.display = 'grid';
+      if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    }
+  } else if(w1 === 2 || w2 === 2){
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+// Abre el modal para cargar un resultado de liga regular desde el "+".
+// gid, n1, n2 = grupo, jugador A, jugador B (mismos parámetros que prefill).
+function openLoadModal(gid, n1, n2){
+  // Fecha por defecto = hoy
+  const hoy = (()=>{ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+  _lmCtx = { gid, n1, n2, editId: null };
+  lmFormClub = '';
+
+  document.getElementById('modal-title').textContent = (t('load_result') || 'Cargar resultado') + ' · ' + groupName(gid);
+  document.getElementById('modal-body').innerHTML = `
+  <div class="req-wrap" style="margin-bottom:1.25rem">
+    <div class="form-row" style="margin-bottom:0">
+      <div class="form-group">
+        <label>${t('club_label')||'Club'} <span class="reqmark">${t('reqmark_label')||'obligatorio'}</span></label>
+        <div class="club-pick" id="lm-club-pick">${CLUBS.map(c=>`<div class="club-opt" data-club="${attr(c.name)}" onclick="pickLmClub('${jsq(c.name)}')" style="--cbg:${c.bg};--ctx:${autoTxt(c.bg)}">${attr(c.name)}</div>`).join('')}</div>
+      </div>
+      <div class="form-group">
+        <label>${t('date_label')||'Fecha'} <span class="reqmark">${t('reqmark_label')||'obligatorio'}</span></label>
+        <input type="date" id="lm-f-fecha" class="req" value="${hoy}">
+      </div>
+    </div>
+  </div>
+  <div class="names-box">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px">
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(n1)}</div>
+      <div style="color:var(--border2);font-size:13px;font-weight:600;text-align:center">vs</div>
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(n2)}</div>
+    </div>
+  </div>
+  <div class="section-lbl" style="margin-bottom:.5rem">${t('sets_section')||'Resultado por sets'}</div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="lm-s1a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 1</span><span class="sep">–</span></div>
+    <input type="number" id="lm-s1b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="lm-s2a" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
+    <input type="number" id="lm-s2b" min="0" max="7" placeholder="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+  </div>
+  <div id="lm-s3-row" style="display:none;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="lm-s3a" min="0" placeholder="0" class="score-inp-lg">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
+    <input type="number" id="lm-s3b" min="0" placeholder="0" class="score-inp-lg">
+  </div>
+  <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">${t('set_hint')||'6-0 a 6-4, 7-5 o 7-6'}</span></div>
+  <div style="text-align:center;margin-top:8px">
+    <button class="btn btn-sm" id="lm-stb-toggle-btn" onclick="toggleLmSTB()"><i class="ti ti-plus"></i> ${t('add_stb')||'Supertiebreak (1-1)'}</button>
+  </div>
+  <p class="lock-note" id="lm-alert" style="margin-top:.5rem"></p>`;
+
+  document.getElementById('modal-actions').innerHTML =
+    '<button class="btn btn-accent" onclick="submitLoadModal()"><i class="ti ti-send"></i> ' + (esAdmin(currentUser) ? (t('save_validate')||'Guardar y validar') : (t('send')||'Enviar')) + '</button>' +
+    '<button class="btn" onclick="closeM()">' + (t('close')||'Cerrar') + '</button>';
+
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+// Submit del modal: reutiliza toda la validación existente reciclando submitResult.
+// Trampa: los IDs de submitResult son 'f-reporter', 'f-rival', 's1a', etc. Como
+// el modal usa 'lm-*', "traducimos" copiando los valores a los inputs de la
+// sección Cargar antes de llamar a submitResult. Así heredamos gratis todas las
+// validaciones (sets válidos, formato de score, permisos, etc) sin duplicar código.
+function submitLoadModal(){
+  if(!_lmCtx){ toast('Sin contexto de carga'); return; }
+  if(!lmFormClub){
+    const alert = document.getElementById('lm-alert');
+    if(alert) alert.innerHTML = '<span style="color:var(--danger)">' + (t('select_club')||'Elegí el club') + '</span>';
+    document.getElementById('lm-club-pick').classList.add('req-empty');
+    return;
+  }
+  const fecha = document.getElementById('lm-f-fecha').value;
+  if(!fecha){
+    document.getElementById('lm-f-fecha').classList.add('req-empty');
+    return;
+  }
+  // Copiar valores del modal a los inputs originales de la sección Cargar
+  const gid = _lmCtx.gid, n1 = _lmCtx.n1, n2 = _lmCtx.n2;
+  const gi = gid - 1;
+  // Reporter y rival: para jugador se autoselecciona; para admin, el primero es n1
+  if(esAdmin(currentUser)){
+    // Formato de f-reporter para admin: "gi|nombre"
+    const r = document.getElementById('f-reporter');
+    if(r) r.value = gi + '|' + n1;
+    // filterRival prepara el select del rival — lo llamamos para que el value
+    // "gi|n2" sea reconocido como opción válida en el submit.
+    if(typeof filterRival === 'function') filterRival(gi + '|' + n1, n2);
+  } else {
+    // Jugador: reporter = él mismo (ya está seleccionado), rival = el otro
+    const rival = currentUser.name === n1 ? n2 : n1;
+    const o = document.getElementById('f-rival');
+    if(o){
+      // Asegurar que la opción del rival exista antes de setear el value
+      if(![...o.options].some(op => op.value === rival)){
+        o.add(new Option(rival, rival));
+      }
+      o.value = rival;
+    }
+  }
+  // Sets
+  document.getElementById('s1a').value = document.getElementById('lm-s1a').value || '';
+  document.getElementById('s1b').value = document.getElementById('lm-s1b').value || '';
+  document.getElementById('s2a').value = document.getElementById('lm-s2a').value || '';
+  document.getElementById('s2b').value = document.getElementById('lm-s2b').value || '';
+  const s3Visible = document.getElementById('lm-s3-row').style.display === 'grid';
+  document.getElementById('s3-row').style.display = s3Visible ? 'flex' : 'none';
+  if(s3Visible){
+    document.getElementById('s3a').value = document.getElementById('lm-s3a').value || '';
+    document.getElementById('s3b').value = document.getElementById('lm-s3b').value || '';
+  }
+  // Club y fecha
+  if(typeof pickClub === 'function') pickClub(lmFormClub);
+  document.getElementById('f-fecha').value = fecha;
+  // Cerrar modal antes de submitir (así los toasts se ven).
+  closeM();
+  _lmCtx = null;
+  lmFormClub = '';
+  // Llamar al submit original — hace toda la validación + persist + refresh
+  submitResult();
 }
 // El admin hace avanzar a un jugador por WO (walkover): el rival no se presenta / no puede jugar.
 function markPoWO(advanceA){
