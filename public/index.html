@@ -1370,34 +1370,27 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .seed-list{gap:4px}
   .seed-chip{font-size:11px;padding:3px 7px}
 
-  /* ==== FIX DEFINITIVO DE LEGIBILIDAD EN FILA DESTACADA ME-ROW ==== */
+/* ==== FIX DEFINITIVO ME-ROW Y ME-MTX EN DARK MODE ==== */
 html[data-theme="dark"] .me-row,
 html[data-theme="dark"] .me-row td,
 html[data-theme="dark"] .me-row td *,
 html[data-theme="dark"] .me-row th,
 html[data-theme="dark"] .me-row th *,
 html[data-theme="dark"] .me-mtx,
-html[data-theme="dark"] .me-mtx * {
+html[data-theme="dark"] .me-mtx *,
+html:not([data-theme]) .me-row,
+html:not([data-theme]) .me-row td,
+html:not([data-theme]) .me-row td *,
+html:not([data-theme]) .me-row th,
+html:not([data-theme]) .me-row th *,
+html:not([data-theme]) .me-mtx,
+html:not([data-theme]) .me-mtx * {
   background-color: #FFF8DC !important;
   color: #0E3470 !important;
   text-decoration-color: #0E3470 !important;
   opacity: 1 !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  html:not([data-theme]) .me-row,
-  html:not([data-theme]) .me-row td,
-  html:not([data-theme]) .me-row td *,
-  html:not([data-theme]) .me-row th,
-  html:not([data-theme]) .me-row th *,
-  html:not([data-theme]) .me-mtx,
-  html:not([data-theme]) .me-mtx * {
-    background-color: #FFF8DC !important;
-    color: #0E3470 !important;
-    text-decoration-color: #0E3470 !important;
-    opacity: 1 !important;
-  }
-}
 </style></head><body>
 <div id="login-screen">
   <!-- Header editable de la pantalla de login. El admin configura color y
