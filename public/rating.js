@@ -383,7 +383,19 @@ function renderRating(){
   const seeds = _ratingSeeds(), overs = _ratingOverrides();
   let filas = Object.keys(info).map(name=>({ name, ...info[name] }))
     .filter(f => f.partidos > 0 || seeds[f.name] != null || overs[f.name] != null)
-    .filter(f => !esCuentaSistema(f.name));
+    .filter(f => !esCuentaSistema(f.name))
+    // Solo jugadores activos DE ESTA LIGA: tiene que estar en el roster actual
+    // (ALLNAMES) y no estar marcado como inactivo. Antes se mostraban también
+    // jugadores de ligas pasadas o inactivos de la liga actual.
+    .filter(f => {
+      try{
+        if(typeof ALLNAMES !== 'undefined' && Array.isArray(ALLNAMES) && !ALLNAMES.includes(f.name)) return false;
+      }catch(_){}
+      try{
+        if(typeof USERS !== 'undefined' && USERS[f.name] && USERS[f.name].inactive) return false;
+      }catch(_){}
+      return true;
+    });
   filas.sort((a,b)=> b.rating - a.rating);
   if(!filas.length){
     box.innerHTML = `<div class="card"><div class="lock-note" style="padding:1rem 0;text-align:center">${t('rating_empty')}</div></div>`;
