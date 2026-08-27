@@ -638,3 +638,60 @@ function setTotalCycles(val){
   toast('Cantidad de ciclos actualizada a ' + newTotal + '.');
 }
 
+
+// ============================================================================
+// Recalcular puntos por posición de todos los grupos.
+//
+// Se llama desde el botón "Recalcular" en la tabla de grupos y en el header
+// "Puntos para la Clasificación General". Sólo admins.
+//
+// Qué hace: recorre todos los grupos del ciclo activo y regenera PUNTOS[gid]
+// usando ptsForPos(), que calcula:
+//   pts_pos = jugadores_en_grupos_inferiores + (jugadores_en_mi_grupo - posicion)
+//
+// Ejemplo: en un ciclo con 3 grupos de 5, el 1º del Grupo 1 saca
+// 10 (los 2 grupos abajo) + 5 (mi grupo) - 0 (posición) = 15 puntos.
+//
+// Útil cuando: agregaste/quitaste jugadores, moviste alguien de grupo, o los
+// puntos configurados quedaron desalineados con la realidad de la liga.
+// ============================================================================
+function recalcularPuntajesGrupos(){
+  if(!esAdmin(currentUser)){
+    toast(t('own_match_admin') || 'Solo administradores.');
+    return;
+  }
+  const c = cycles[activeN - 1];
+  if(!c || !Array.isArray(c.groups)){
+    toast('No hay ciclo activo.');
+    return;
+  }
+  // Guardar el viewCycle actual porque ptsForPos lo lee para saber qué ciclo
+  // usar; forzamos que use el activo mientras recalculamos.
+  const vcPrev = (typeof viewCycle !== 'undefined') ? viewCycle : activeN;
+  try { viewCycle = activeN; } catch(_){}
+
+  const nuevoPUNTOS = {};
+  for(let gi = 0; gi < c.groups.length; gi++){
+    const gid = gi + 1;
+    const g = c.groups[gi];
+    const nPlayers = (g && Array.isArray(g.players)) ? g.players.length : 5;
+    // Generamos array de puntos para las N posiciones posibles del grupo.
+    // Usamos max(nPlayers, 5) para tener holgura si en el futuro se agrega gente.
+    const N = Math.max(nPlayers, 5);
+    const arr = [];
+    for(let pos = 0; pos < N; pos++){
+      arr.push(ptsForPos(gid, pos));
+    }
+    nuevoPUNTOS[gid] = arr;
+  }
+  PUNTOS = nuevoPUNTOS;
+
+  // Restaurar viewCycle previo
+  try { viewCycle = vcPrev; } catch(_){}
+
+  // Recalcular todo y persistir
+  try { refreshAll(); } catch(_){}
+  try { renderAll(); } catch(_){}
+  if(typeof persist === 'function') persist(true);
+  toast('Puntos recalculados en base a la cantidad actual de jugadores por grupo.');
+}

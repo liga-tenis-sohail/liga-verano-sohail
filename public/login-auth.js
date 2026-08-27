@@ -52,23 +52,32 @@ function renderLoginHeader(){
         LOGIN_HEADER = {
           color: (typeof cached.color === 'string' && cached.color) ? cached.color : '#0E3470',
           textColor: (typeof cached.textColor === 'string') ? cached.textColor : '',
+          colorDark: (typeof cached.colorDark === 'string') ? cached.colorDark : '',
+          textColorDark: (typeof cached.textColorDark === 'string') ? cached.textColorDark : '',
           links: Array.isArray(cached.links) ? cached.links.filter(l => l && l.text && l.url) : []
         };
       }
     } catch(_){ /* cache corrupta: ignorar y seguir con default */ }
   }
-  const cfg = LOGIN_HEADER || { color:'#0E3470', textColor:'', links:[] };
+  const cfg = LOGIN_HEADER || { color:'#0E3470', textColor:'', colorDark:'', textColorDark:'', links:[] };
   const links = Array.isArray(cfg.links) ? cfg.links.filter(l => l && l.text && l.url) : [];
   if(!links.length){
     el.style.display = 'none';
     el.innerHTML = '';
     return;
   }
-  // Color de texto: usa el custom si el admin lo definió; si no, calcula
-  // automático con autoTxt() (claro sobre fondo oscuro, oscuro sobre claro).
-  const bg = cfg.color || '#0E3470';
-  const fg = (cfg.textColor && String(cfg.textColor).trim())
-    ? cfg.textColor
+  // Detectar tema efectivo mirando data-theme del <html> (que ya lo seteó
+  // el script del <head> en base a preferencia + OS). El header queda
+  // sincronizado con el resto de la app.
+  const themeAttr = document.documentElement.getAttribute('data-theme');
+  const isDark = themeAttr === 'dark'
+              || (themeAttr !== 'light' && window.matchMedia
+                  && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  // Colores según tema: si dark y hay override dark, usar ese. Si no, cae al color light.
+  const bg = (isDark && cfg.colorDark) ? cfg.colorDark : (cfg.color || '#0E3470');
+  const customFg = isDark ? cfg.textColorDark : cfg.textColor;
+  const fg = (customFg && String(customFg).trim())
+    ? customFg
     : ((typeof autoTxt === 'function') ? autoTxt(bg) : '#fff');
   // Usa la clase .login-header-bar (definida en el CSS) para heredar padding,
   // gap, media queries móvil, negrita y borde grueso. Los estilos inline solo
@@ -110,6 +119,8 @@ async function initLogin(){
       const nuevo = JSON.stringify({
         color: cfg.color || '#0E3470',
         textColor: cfg.textColor || '',
+        colorDark: cfg.colorDark || '',
+        textColorDark: cfg.textColorDark || '',
         links: Array.isArray(cfg.links) ? cfg.links : []
       });
       const viejo = JSON.stringify(LOGIN_HEADER || {});

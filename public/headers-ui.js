@@ -261,31 +261,48 @@ function renderLoginHeaderLinks(){
 // Preview miniatura del header, dentro del panel Admin. Ayuda a ver cómo va a
 // quedar sin salir/entrar del login. Idéntico look al header real (renderLoginHeader),
 // pero encapsulado en el elemento #lh-preview.
+// Muestra DOS previews: light y dark, así el admin ve al toque cómo va a
+// quedar en cada tema sin salir de la app ni cambiar su preferencia.
 function renderLoginHeaderPreview(){
   const el = document.getElementById('lh-preview');
   if(!el) return;
-  const cfg = LOGIN_HEADER || { color:'#0E3470', textColor:'', links:[] };
+  const cfg = LOGIN_HEADER || { color:'#0E3470', textColor:'', colorDark:'', textColorDark:'', links:[] };
   const links = Array.isArray(cfg.links) ? cfg.links.filter(l => l && l.text && l.url) : [];
-  const bg = cfg.color || '#0E3470';
-  const fg = (cfg.textColor && String(cfg.textColor).trim())
+
+  // Colores efectivos por tema (con fallback: dark cae a light si no hay override).
+  const bgLight = cfg.color || '#0E3470';
+  const fgLight = (cfg.textColor && String(cfg.textColor).trim())
     ? cfg.textColor
-    : ((typeof autoTxt === 'function') ? autoTxt(bg) : '#fff');
-  if(!links.length){
-    el.style.cssText = 'padding:.5rem;background:'+bg+';color:'+fg+';font-size:11px;text-align:center;opacity:.7';
-    el.textContent = '(sin enlaces — la barra no se muestra)';
-    return;
+    : ((typeof autoTxt === 'function') ? autoTxt(bgLight) : '#fff');
+  const bgDark = cfg.colorDark || bgLight;
+  const fgDark = (cfg.textColorDark && String(cfg.textColorDark).trim())
+    ? cfg.textColorDark
+    : ((typeof autoTxt === 'function') ? autoTxt(bgDark) : '#fff');
+
+  function pintarPreview(bg, fg, labelTxt){
+    let inner = '';
+    if(!links.length){
+      inner = '<div style="padding:.5rem;background:'+bg+';color:'+fg+';font-size:11px;text-align:center;opacity:.7">(sin enlaces — la barra no se muestra)</div>';
+    } else {
+      inner = '<div style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;padding:.5rem;background:'+bg+';color:'+fg+'">'
+            + links.map(l => {
+                const txt = String(l.text).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
+                return '<span style="font-weight:600;font-size:12px;padding:.25rem .55rem;border:1px solid '+fg+';border-radius:999px">'+txt+'</span>';
+              }).join('')
+            + '</div>';
+    }
+    return '<div style="border-radius:6px;overflow:hidden;margin-bottom:.35rem"><div style="font-size:10px;color:var(--text2);margin-bottom:.15rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">'+labelTxt+'</div>'+inner+'</div>';
   }
-  el.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;padding:.5rem;background:'+bg+';color:'+fg;
-  el.innerHTML = links.map(l => {
-    const txt = String(l.text).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
-    return '<span style="font-weight:600;font-size:12px;padding:.25rem .55rem;border:1px solid '+fg+';border-radius:999px">'+txt+'</span>';
-  }).join('');
+
+  el.style.cssText = '';
+  el.innerHTML = pintarPreview(bgLight, fgLight, 'Light mode')
+               + pintarPreview(bgDark, fgDark, 'Dark mode');
 }
 
 // Vuelve al color de texto automático (basado en el fondo). Vacía el campo
 // custom y re-guarda: si textColor='', renderLoginHeader usa autoTxt().
 function resetLoginHeaderTextColor(){
-  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', links:[] };
+  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', colorDark:'', textColorDark:'', links:[] };
   LOGIN_HEADER.textColor = '';
   try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
   renderLoginHeaderPreview();
@@ -298,6 +315,25 @@ function resetLoginHeaderTextColor(){
   // internamente está vacío, el picker HTML muestra algo — le ponemos el auto).
   const ti = document.getElementById('lh-textcolor');
   if(ti && typeof autoTxt === 'function') ti.value = autoTxt(LOGIN_HEADER.color || '#0E3470');
+}
+
+// Reset del textColor para dark mode. Espejo de la función anterior pero
+// sobre los campos dark. Deja que autoTxt() calcule el mejor contraste sobre
+// el color de fondo dark.
+function resetLoginHeaderTextColorDark(){
+  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', colorDark:'', textColorDark:'', links:[] };
+  LOGIN_HEADER.textColorDark = '';
+  try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
+  renderLoginHeaderPreview();
+  try { renderLoginHeader(); } catch(_){}
+  if(typeof persist === 'function') persist(true);
+  toast(t('lh_saved'));
+  if(typeof renderLoginHeaderLinks === 'function') renderLoginHeaderLinks();
+  const ti = document.getElementById('lh-textcolor-dark');
+  if(ti && typeof autoTxt === 'function'){
+    const bgDark = LOGIN_HEADER.colorDark || LOGIN_HEADER.color || '#0E3470';
+    ti.value = autoTxt(bgDark);
+  }
 }
 
 function addLoginHeaderLink(){
@@ -345,9 +381,13 @@ function removeLoginHeaderLink(i){
 function saveLoginHeader(){
   const colorInput = document.getElementById('lh-color');
   const textColorInput = document.getElementById('lh-textcolor');
-  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', links:[] };
+  const colorDarkInput = document.getElementById('lh-color-dark');
+  const textColorDarkInput = document.getElementById('lh-textcolor-dark');
+  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', colorDark:'', textColorDark:'', links:[] };
   if(colorInput) LOGIN_HEADER.color = colorInput.value || '#0E3470';
   if(textColorInput) LOGIN_HEADER.textColor = textColorInput.value || '';
+  if(colorDarkInput) LOGIN_HEADER.colorDark = colorDarkInput.value || '';
+  if(textColorDarkInput) LOGIN_HEADER.textColorDark = textColorDarkInput.value || '';
   // Cachear en localStorage: el header debe aparecer en el PRIMER paint del
   // login SIN esperar al backend. Sin este cache, un visitante nuevo abre la
   // app y no ve la barra hasta que alguien se loguea (imposible: hasta login,

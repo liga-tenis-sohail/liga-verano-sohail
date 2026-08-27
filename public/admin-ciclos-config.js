@@ -464,9 +464,19 @@ function renderAdmin(){
     if(puedeGestionarAdmins(currentUser)){
       h+=`<div class="card"><div class="section-lbl"><i class="ti ti-layout-navbar"></i> ${t('lh_title')}</div>`;
       h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('lh_desc')}</p>`;
-      h+=`<div class="form-row" style="align-items:flex-end;flex-wrap:wrap">`;
+      // --- Fila 1: colores para LIGHT MODE ---
+      h+=`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem">Light mode</div>`;
+      h+=`<div class="form-row" style="align-items:flex-end;flex-wrap:wrap;margin-bottom:.75rem">`;
       h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_color_lbl')}</label><input type="color" id="lh-color" value="${(LOGIN_HEADER&&LOGIN_HEADER.color)||'#0E3470'}" style="height:38px;padding:2px;cursor:pointer" onchange="saveLoginHeader()"></div>`;
       h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_textcolor_lbl')} <span class="legend-txt" style="font-size:10px">(${t('lh_textcolor_auto')})</span></label><div style="display:flex;gap:4px;align-items:center"><input type="color" id="lh-textcolor" value="${(LOGIN_HEADER&&LOGIN_HEADER.textColor)||'#ffffff'}" style="height:38px;padding:2px;cursor:pointer;flex:1" onchange="saveLoginHeader()"><button class="btn btn-sm" onclick="resetLoginHeaderTextColor()" title="${t('lh_textcolor_reset')}"><i class="ti ti-refresh"></i></button></div></div>`;
+      h+=`</div>`;
+      // --- Fila 2: colores para DARK MODE ---
+      // Si están vacíos, el header cae a los colores light. El admin puede configurarlos
+      // opcionalmente si quiere que el header se vea distinto en dark.
+      h+=`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem">Dark mode <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional, si no se define se usa el color de light)</span></div>`;
+      h+=`<div class="form-row" style="align-items:flex-end;flex-wrap:wrap;margin-bottom:.5rem">`;
+      h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_color_lbl')} dark</label><input type="color" id="lh-color-dark" value="${(LOGIN_HEADER&&LOGIN_HEADER.colorDark)||(LOGIN_HEADER&&LOGIN_HEADER.color)||'#0E3470'}" style="height:38px;padding:2px;cursor:pointer" onchange="saveLoginHeader()"></div>`;
+      h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_textcolor_lbl')} dark <span class="legend-txt" style="font-size:10px">(${t('lh_textcolor_auto')})</span></label><div style="display:flex;gap:4px;align-items:center"><input type="color" id="lh-textcolor-dark" value="${(LOGIN_HEADER&&LOGIN_HEADER.textColorDark)||'#ffffff'}" style="height:38px;padding:2px;cursor:pointer;flex:1" onchange="saveLoginHeader()"><button class="btn btn-sm" onclick="resetLoginHeaderTextColorDark()" title="${t('lh_textcolor_reset')}"><i class="ti ti-refresh"></i></button></div></div>`;
       h+=`<div class="form-group"><button class="btn" onclick="addLoginHeaderLink()"><i class="ti ti-plus"></i> ${t('lh_add_link')}</button></div>`;
       h+=`</div>`;
       h+=`<div id="lh-links-list" style="margin-top:.5rem"></div>`;
