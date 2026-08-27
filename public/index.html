@@ -196,32 +196,59 @@ html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
 
 /* ==== FILA DESTACADA DEL USUARIO (me-row) — TODAS las tablas ==== */
-/* Unificamos el estilo para que coincida con el sombreado crema del bracket de playoffs */
+/* Unificamos el estilo para que coincida con el sombreado crema del bracket de playoffs.
+   Agregamos selectores para los hijos (span, a, strong, b) para vencer la regla madre del dark mode */
 html[data-theme="dark"] .gen-table .me-row td,
-html[data-theme="dark"] .gen-table .me-row td *,
+html[data-theme="dark"] .gen-table .me-row td span,
+html[data-theme="dark"] .gen-table .me-row td a,
+html[data-theme="dark"] .gen-table .me-row td strong,
+html[data-theme="dark"] .gen-table .me-row td b,
 html[data-theme="dark"] .cls-table .me-row td,
-html[data-theme="dark"] .cls-table .me-row td *,
+html[data-theme="dark"] .cls-table .me-row td span,
+html[data-theme="dark"] .cls-table .me-row td a,
+html[data-theme="dark"] .cls-table .me-row td strong,
+html[data-theme="dark"] .cls-table .me-row td b,
 html[data-theme="dark"] .rt-table tr.me-row td,
-html[data-theme="dark"] .rt-table tr.me-row td *,
+html[data-theme="dark"] .rt-table tr.me-row td span,
+html[data-theme="dark"] .rt-table tr.me-row td a,
+html[data-theme="dark"] .rt-table tr.me-row td strong,
+html[data-theme="dark"] .rt-table tr.me-row td b,
 html[data-theme="dark"] .res-table .me-mtx,
-html[data-theme="dark"] .res-table .me-mtx *{
+html[data-theme="dark"] .res-table .me-mtx span,
+html[data-theme="dark"] .res-table .me-mtx a,
+html[data-theme="dark"] .res-table .me-mtx strong,
+html[data-theme="dark"] .res-table .me-mtx b {
   background-color:#FFF8DC!important;
   color:#0E3470!important;
   text-decoration-color:#0E3470!important;
 }
 
-/* Asegurar el mismo estilo en el modo por defecto (claro o automático) */
-.gen-table .me-row td,
-.gen-table .me-row td *,
-.cls-table .me-row td,
-.cls-table .me-row td *,
-.rt-table tr.me-row td,
-.rt-table tr.me-row td *,
-.res-table .me-mtx,
-.res-table .me-mtx * {
-  background-color:#FFF8DC!important;
-  color:#0E3470!important;
-  text-decoration-color:#0E3470!important;
+/* Y lo mismo para el prefers-color-scheme: dark automático (más abajo en el archivo) */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .gen-table .me-row td,
+  html:not([data-theme]) .gen-table .me-row td span,
+  html:not([data-theme]) .gen-table .me-row td a,
+  html:not([data-theme]) .gen-table .me-row td strong,
+  html:not([data-theme]) .gen-table .me-row td b,
+  html:not([data-theme]) .cls-table .me-row td,
+  html:not([data-theme]) .cls-table .me-row td span,
+  html:not([data-theme]) .cls-table .me-row td a,
+  html:not([data-theme]) .cls-table .me-row td strong,
+  html:not([data-theme]) .cls-table .me-row td b,
+  html:not([data-theme]) .rt-table tr.me-row td,
+  html:not([data-theme]) .rt-table tr.me-row td span,
+  html:not([data-theme]) .rt-table tr.me-row td a,
+  html:not([data-theme]) .rt-table tr.me-row td strong,
+  html:not([data-theme]) .rt-table tr.me-row td b,
+  html:not([data-theme]) .res-table .me-mtx,
+  html:not([data-theme]) .res-table .me-mtx span,
+  html:not([data-theme]) .res-table .me-mtx a,
+  html:not([data-theme]) .res-table .me-mtx strong,
+  html:not([data-theme]) .res-table .me-mtx b {
+    background-color:#FFF8DC!important;
+    color:#0E3470!important;
+    text-decoration-color:#0E3470!important;
+  }
 }
 
 /* ==== BOTONES ==== */
