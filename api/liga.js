@@ -20,6 +20,29 @@ function idDeJugador(nombre){
   return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
 }
 
+// Valida y limpia la lista de clubes que manda el frontend al crear una liga.
+// Devuelve un array de {id,name,bg} o null si no hay ninguno válido (en ese
+// caso el llamador conserva los clubes por defecto de estadoInicial).
+function sanitizarClubs(clubsIn){
+  if(!Array.isArray(clubsIn)) return null;
+  const limpios = [];
+  const vistos = new Set();
+  for(const c of clubsIn){
+    if(!c) continue;
+    const nombre = String(c.name || '').trim().slice(0, 24);
+    if(!nombre) continue;
+    const key = nombre.toLowerCase();
+    if(vistos.has(key)) continue;
+    vistos.add(key);
+    let bg = String(c.bg || '').trim();
+    if(!/^#[0-9a-fA-F]{6}$/.test(bg)) bg = '#E5E7EB';
+    const idOK = c.id && /^[a-z0-9_-]{1,40}$/i.test(String(c.id));
+    limpios.push({ id: idOK ? String(c.id) : ('c' + crypto.randomBytes(4).toString('hex')), name: nombre, bg });
+    if(limpios.length >= 30) break;
+  }
+  return limpios.length ? limpios : null;
+}
+
 // ESTADO INICIAL SINCRONIZADO CON EL FRONTEND
 function estadoInicial(nombreLiga, numGrupos, numCiclos){
   const nG = Math.max(1, Math.min(30, parseInt(numGrupos, 10) || 1));
@@ -159,6 +182,20 @@ module.exports = async function handler(req, res){
     if(!sesionState || !sesionState.users) return res.status(503).json({ error: 'No se pudo leer la liga actual para heredar administradores.' });
 
     const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
+
+    // Mantener el diseño (colores) de la liga desde la que se está creando,
+    // para que las ligas nuevas no vuelvan al azul/amarillo por defecto.
+    if(sesionState){
+      if(sesionState.LEAGUE_COLOR_PRI) estado.LEAGUE_COLOR_PRI = sesionState.LEAGUE_COLOR_PRI;
+      if(sesionState.LEAGUE_COLOR_ACC) estado.LEAGUE_COLOR_ACC = sesionState.LEAGUE_COLOR_ACC;
+      if(sesionState.LEAGUE_COLOR_HL)  estado.LEAGUE_COLOR_HL  = sesionState.LEAGUE_COLOR_HL;
+      if(sesionState.COLOR_DISPUTA)    estado.COLOR_DISPUTA    = sesionState.COLOR_DISPUTA;
+    }
+
+    // Clubes elegidos por el admin al crear la liga (nombre + color hex).
+    // Si no manda ninguno válido, se quedan los clubes por defecto de estadoInicial.
+    const clubsElegidos = sanitizarClubs(body.clubs);
+    if(clubsElegidos) estado.CLUBS = clubsElegidos;
 
     // HEREDAR ADMINS CORRECTAMENTE
     if(sesionState && sesionState.users){
