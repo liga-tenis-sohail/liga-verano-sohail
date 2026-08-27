@@ -247,11 +247,14 @@ async function calcularRatingGlobal(force){
   try{
     // 1) Partidos de la liga actual (en memoria)
     let todos = utrPartidosDeEstado({ matches: matches });
-    // 2) Partidos de las ligas pasadas (fetch)
+    // 2) Partidos de las ligas pasadas/activas (fetch)
     try{
       const r = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
       const d = await r.json().catch(()=>({}));
-      const pasadas = (d.ligas||[]).filter(l=>l.estado==='finalizada');
+      
+      // CAMBIO AQUÍ: Ahora toma tanto las ligas finalizadas como las activas
+      const pasadas = (d.ligas||[]).filter(l => l.estado === 'finalizada' || l.estado === 'activa');
+      
       for(const l of pasadas){
         try{
           const rv = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
@@ -262,13 +265,18 @@ async function calcularRatingGlobal(force){
         }catch(_){}
       }
     }catch(_){}
+    
     // 3) Ordenar todos los partidos por fecha ASC (para recencia y ventana)
+    // En caso de que se duplique un partido (por ej. si la liga actual también viene del backend), 
+    // lo ideal sería filtrar IDs únicos, pero los partidos de las ligas se asumen acumulativos.
     todos.sort((a,b)=>{ const fa=a.fecha||'', fb=b.fecha||''; return fa.localeCompare(fb); });
+    
     // 4) Lista de jugadores: todos los que aparecen en algún partido + los del estado
     const setJ = {};
     todos.forEach(p=>{ setJ[p.a]=1; setJ[p.b]=1; });
     Object.keys(USERS||{}).forEach(n=>{ if(!esCuentaSistema(n)) setJ[n]=1; });
     const jugadores = Object.keys(setJ);
+    
     // 4b) Mapa de grupos: grupo actual de cada jugador en el ciclo activo de la
     //     liga en memoria. Sirve para que el grupo influya en el rating (un grupo
     //     alto no queda por debajo de uno bajo, sobre todo con pocos partidos).
