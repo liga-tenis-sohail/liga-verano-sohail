@@ -4006,6 +4006,7 @@ function renderGrupos(){
       }).join('')+`</div></div>`;
       if(selGroup>c.groups.length)selGroup=1;
       html+=groupCardHTML(selGroup);
+    }
     }else{
       c.groups.forEach((g,gi)=>{html+=groupCardHTML(gi+1);if(gi<c.groups.length-1)html+='<div class="grp-sep"></div>';});
     }
