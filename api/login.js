@@ -1,385 +1,8611 @@
-// =====================================================================
-// POST /api/liga   (Authorization: Bearer <token> salvo 'listar')
-//   { accion: 'listar' }                      -> lista de ligas (público)
-//   { accion: 'crear', id, nombre, ... }      -> crea una liga (admin)
-//   { accion: 'cerrar', id }                  -> finaliza (admin)
-//   { accion: 'reabrir', id }                 -> vuelve a activa (admin)
-//   { accion: 'eliminar', id, confirmar }     -> borra la liga (admin)
-// =====================================================================
-const {
-  auth, envOK, sesionEsAdmin, readState, writeState,
-  readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga,
-  readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
-  ligaIdOK, hashV2, logAudit, clientIP
-} = require('./_lib');
-
-const crypto = require('crypto');
-
-function idDeJugador(nombre){
-  const norm = String(nombre).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
-}
-
-// Valida y limpia la lista de clubes que manda el frontend al crear una liga.
-// Devuelve un array de {id,name,bg} o null si no hay ninguno válido (en ese
-// caso el llamador conserva los clubes por defecto de estadoInicial).
-function sanitizarClubs(clubsIn){
-  if(!Array.isArray(clubsIn)) return null;
-  const limpios = [];
-  const vistos = new Set();
-  for(const c of clubsIn){
-    if(!c) continue;
-    const nombre = String(c.name || '').trim().slice(0, 24);
-    if(!nombre) continue;
-    const key = nombre.toLowerCase();
-    if(vistos.has(key)) continue;
-    vistos.add(key);
-    let bg = String(c.bg || '').trim();
-    if(!/^#[0-9a-fA-F]{6}$/.test(bg)) bg = '#E5E7EB';
-    const idOK = c.id && /^[a-z0-9_-]{1,40}$/i.test(String(c.id));
-    limpios.push({ id: idOK ? String(c.id) : ('c' + crypto.randomBytes(4).toString('hex')), name: nombre, bg });
-    if(limpios.length >= 30) break;
-  }
-  return limpios.length ? limpios : null;
-}
-
-// ESTADO INICIAL SINCRONIZADO CON EL FRONTEND
-function estadoInicial(nombreLiga, numGrupos, numCiclos){
-  const nG = Math.max(1, Math.min(30, parseInt(numGrupos, 10) || 1));
-  const nC = Math.max(1, Math.min(12, parseInt(numCiclos, 10) || 1));
-  const cycles = [];
-  for(let i = 0; i < nC; i++){
-    if(i === 0){
-      cycles.push({ n: 1, status: 'active', groups: Array.from({ length: nG }, () => ({ players: [] })) });
-    } else {
-      cycles.push({ n: i + 1, status: 'locked', groups: null });
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script>(function(){try{
+  // Tema: leer preferencia del usuario y aplicar ANTES del primer paint (sin flash).
+  // Valores: 'light' | 'dark' | 'system'. DEFAULT (sin preferencia guardada) = 'light'.
+  // Antes el default seguía al OS; ahora la liga siempre arranca en modo claro salvo
+  // que el usuario elija explícitamente 'system' o 'dark' desde su perfil.
+  var tm=localStorage.getItem('theme');
+  if(tm==='light'||tm==='dark'){document.documentElement.setAttribute('data-theme',tm);}
+  else if(tm!=='system'){document.documentElement.setAttribute('data-theme','light');tm='light';}
+  // Detectar si estamos en modo oscuro (por preferencia manual o del sistema si eligió 'system').
+  // Se usa abajo para NO pisar las variables de fondo claro (winrow/soft/hl/cream)
+  // que sino sobreescribirían el tema oscuro y dejarían filas cream sobre fondo azul.
+  var isDark = tm==='dark' || (tm==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  // Restaurar colores personalizados de la liga sin flash.
+  // Los colores BRAND (pri/acc) son identidad y se aplican siempre.
+  // Los colores de FONDO/HIGHLIGHT (winrow/soft/hl/cream) son claros por diseño;
+  // en dark mode NO se aplican para que los tokens dark del CSS ganen.
+  // TAMBIÉN --pri y --priD: son azul OSCURO para light; en dark el CSS los
+  // redefine a azul CLARO para legibilidad. Si el script los aplica en dark,
+  // pisa esa redefinición y todos los headers y avatars quedan azul oscuro
+  // sobre fondo oscuro (invisibles).
+  var c=JSON.parse(localStorage.getItem('lsc')||'null');
+  if(c&&c.p&&c.a){
+    var r=document.documentElement.style;
+    r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);
+    if(!isDark){
+      r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);
+      r.setProperty('--accT',c.at||c.p);
+      r.setProperty('--soft',c.s||'#E6F1FB');
+      r.setProperty('--winrow',c.wr||'#FAEEDA');
+      r.setProperty('--cream',c.cr||'#fffbf0');
+      r.setProperty('--hl',c.hl||'#FFEDD5');
     }
   }
-  return {
-    _v: 1, users: {}, matches: [], matchId: 1, activeN: 1, cycles: cycles,
-    playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
-    DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: {}, LOG: [],
-    LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '',
-    LEAGUE_COLOR_PRI: '#1B4F9C',
-    LEAGUE_COLOR_ACC: '#F5C518',
-    LEAGUE_COLOR_HL: '#FFEDD5',
-    CLUBS: [
-      { id: 'sohail', name: 'Sohail', bg: '#D6ECFB' },
-      { id: 'haza', name: 'Haza', bg: '#FCE6CF' }
-    ], 
-    COLOR_DISPUTA: '#FDE68A', 
-    RATING_ON: false, REGLAMENTO: ''
-  };
+  // Restaurar nombre y subtítulo sin flash (se ejecuta en DOMContentLoaded para tener acceso al DOM)
+  var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
+  if(lsn){document.addEventListener('DOMContentLoaded',function(){var lt=document.getElementById('login-title');if(lt&&lsn.n)lt.textContent=lsn.n;var ls=document.getElementById('login-sub');if(ls&&lsn.s)ls.textContent=lsn.s;var ht=document.getElementById('hdr-title');if(ht&&lsn.n)ht.textContent=lsn.n;if(lsn.n)document.title=lsn.n;},false);}
+}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js"></script><style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
+--pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
+--sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B;
+/* Estados semánticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
+--danger:#c0392b;--dangerBg:#FCEBEB;--dangerT:#791F1F;
+--success:#16a34a;--successBg:#dcfce7;--successT:#166534;
+--warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
+--hover:rgba(0,0,0,.04);--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
+--ring:0 0 0 3px rgba(27,79,156,.15);
+/* Tokens agregados post-tanda 3 para arreglar el dark mode:
+   - reqBg/reqBorder: fondo cream + borde negro del bloque "Reportar resultado" cuando falta info
+   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo está vacío
+   - meRowText: color del texto en la fila destacada del usuario logueado (era priD hardcoded, invisible en dark)
+   - btnLightBg: fondo claro para botoncitos "sobre-blanco" (borrar en playoff bracket, recargar en errores) */
+--reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--reqEmptyBorder:var(--danger);
+--meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+/* Fila destacada del usuario logueado en Rating/Clasificación/Grupos.
+   Es DISTINTA de --winrow (que es color del ganador en tabla de grupo y se
+   customiza por liga desde localStorage). Al ser variable independiente,
+   ninguna configuración de liga la pisa y el dark mode la controla puro. */
+--meRowBg:#FAEEDA}
+
+/* ==== Toggle manual de tema (data-theme) — sobreescribe prefers-color-scheme.
+   El script en <head> lee localStorage al inicio y setea data-theme en <html>
+   ANTES del primer paint, así no hay flash. */
+
+/* Cuando el usuario elige explícitamente "claro", forzamos light aunque el OS
+   esté en oscuro. */
+html[data-theme="light"]{
+  --bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;
+  --border:#e2e7ef;--border2:#c8d0dc;--soft:#E6F1FB;--winrow:#FAEEDA;--hl:#FFEDD5;
+  --dangerBg:#FCEBEB;--dangerT:#791F1F;--successBg:#dcfce7;--successT:#166534;
+  --warnBg:#fef3c7;--warnT:#92400e;--hover:rgba(0,0,0,.04);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
+  --ring:0 0 0 3px rgba(27,79,156,.15);
+  --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--meRowText:var(--priD);
+  --cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+  --meRowBg:#FAEEDA;
+}
+html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+
+/* Cuando el usuario elige "oscuro" explícito */
+/* Cuando el usuario elige "oscuro" explícito */
+html[data-theme="dark"]{
+  --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+  --text:#ffffff;--text2:#cbd5e1;
+  --border:#2d3a52;--border2:#475569;
+  --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
+  --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+  --dangerBg:#4a1d1d;--dangerT:#fca5a5;
+  --successBg:#14361f;--successT:#86efac;
+  --warnBg:#3d2a10;--warnT:#fcd34d;
+  --hover:rgba(255,255,255,.06);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 4px 12px rgba(0,0,0,.5);
+  --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+  --ring:0 0 0 3px rgba(96,165,250,.35);
+  --reqBg:#2a2415;--reqBorder:var(--acc);
+  --reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+  --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
+  --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
 }
 
-module.exports = async function handler(req, res){
-  if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
-  if(!envOK(res)) return;
+/* ============================================================================
+   DARK MODE — REGLA MADRE: TODO texto es BLANCO por defecto.
+   
+   Filosofía: en vez de pelear con 63+ elementos que usan color:var(--pri),
+   forzamos que TODO texto en dark sea blanco. Después, excepciones controladas
+   para los elementos que necesitan color propio (badges, links, headers).
+   ============================================================================ */
 
-  const body = (req.body && typeof req.body === 'object') ? req.body : {};
-  const accion = String(body.accion || '');
+/* MADRE: todo elemento en dark tiene texto blanco. Alta especificidad para
+   pisar cualquier color:var(--pri) o color:#111 hardcodeado del CSS legacy. */
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] div,
+html[data-theme="dark"] p,
+html[data-theme="dark"] span,
+html[data-theme="dark"] table,
+html[data-theme="dark"] tr,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
+html[data-theme="dark"] label,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+html[data-theme="dark"] li,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] em,
+html[data-theme="dark"] b,
+html[data-theme="dark"] small{color:#ffffff!important}
 
-  if(accion === 'listar'){
-    try {
-      const idx = await readLigaIndex();
-      res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ ligas: idx });
-    } catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
+/* Excepciones a la mother rule para paneles con FONDO CLARO en dark mode.
+   No modificamos la mother rule (aumentar su especificidad rompe muchas otras
+   reglas como .avatar, .badge, .dest, .edit-pts-btn). En su lugar agregamos
+   selectores MÁS específicos para los pocos casos donde queremos texto oscuro
+   sobre fondo claro. Usamos `.modal-score p` (0,2,2 > mother rule 0,1,2) y una
+   clase específica `.pe-danger-box` para el panel "Estado en la liga". */
+html[data-theme="dark"] .modal-score{color:#0f172a!important}
+html[data-theme="dark"] .modal-score p,
+html[data-theme="dark"] .modal-score strong,
+html[data-theme="dark"] .modal-score span,
+html[data-theme="dark"] .modal-score em,
+html[data-theme="dark"] .modal-score b{color:inherit!important}
+
+html[data-theme="dark"] .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
+html[data-theme="dark"] .pe-danger-box .pe-danger-title{color:#b91c1c!important}
+html[data-theme="dark"] .pe-danger-box p,
+html[data-theme="dark"] .pe-danger-box span,
+html[data-theme="dark"] .pe-danger-box strong,
+html[data-theme="dark"] .pe-danger-box em,
+html[data-theme="dark"] .pe-danger-box b,
+html[data-theme="dark"] .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
+
+/* Celdas con colores configurados por el admin (club, pending, disputed):
+   respetan el inline style con background y color propios. Los colores del
+   admin son intencionales — si él quiere celeste con azul oscuro, eso queda. */
+html[data-theme="dark"] .cell-pending{background:#FAEEDA;color:#6b5800}
+
+/* Texto secundario (hints, legends): gris claro pero legible */
+html[data-theme="dark"] .legend-txt,
+html[data-theme="dark"] .hint{color:#cbd5e1!important}
+
+/* Links: azul claro brillante (sobre fondos oscuros) */
+html[data-theme="dark"] a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
+html[data-theme="dark"] .nm-link,
+html[data-theme="dark"] .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+
+/* Backgrounds y borders */
+html[data-theme="dark"] body{background:var(--bg)}
+html[data-theme="dark"] .card{background:var(--surface);border-color:var(--border)}
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+
+/* ==== HEADER SUPERIOR AZUL (.hdr) — mantiene azul oscuro con texto blanco ==== */
+html[data-theme="dark"] .hdr{background:#0E3470!important}
+html[data-theme="dark"] .hdr *{color:#ffffff!important}
+html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
+
+/* ==== HEADER DEL LOGIN (.login-head) — igual ==== */
+html[data-theme="dark"] .login-head{background:#0E3470!important}
+html[data-theme="dark"] .login-head *{color:#ffffff!important}
+html[data-theme="dark"] .login-head p,html[data-theme="dark"] .login-head p *{color:#dce7f6!important}
+
+/* ==== HEADERS DE TABLAS — fondo --soft (azul oscuro), texto blanco ==== */
+html[data-theme="dark"] .cls-table th,
+html[data-theme="dark"] .gen-table th,
+html[data-theme="dark"] .rt-table th,
+html[data-theme="dark"] .rt-table thead th,
+html[data-theme="dark"] .gen-table thead th,
+html[data-theme="dark"] .clg-head th,
+html[data-theme="dark"] .clg-head th *,
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+
+/* ==== FILA DESTACADA DEL USUARIO (me-row) — TODAS las tablas, todo blanco ==== */
+html[data-theme="dark"] .gen-table .me-row td,
+html[data-theme="dark"] .gen-table .me-row td *,
+html[data-theme="dark"] .cls-table .me-row td,
+html[data-theme="dark"] .cls-table .me-row td *,
+html[data-theme="dark"] .rt-table tr.me-row td,
+html[data-theme="dark"] .rt-table tr.me-row td *,
+html[data-theme="dark"] .res-table .me-mtx,
+html[data-theme="dark"] .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
+
+/* ==== BOTONES ==== */
+html[data-theme="dark"] .login-btn:not(.login-btn-pk),
+html[data-theme="dark"] .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+html[data-theme="dark"] .login-btn:not(.login-btn-pk) *,
+html[data-theme="dark"] .btn-primary *{color:#ffffff!important}
+html[data-theme="dark"] .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+html[data-theme="dark"] .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
+html[data-theme="dark"] .login-btn-pk *{color:#79aeff!important}
+html[data-theme="dark"] .sub-tab.active,
+html[data-theme="dark"] .cycle-btn.active,
+html[data-theme="dark"] .sub-tab.active *,
+html[data-theme="dark"] .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+/* btn-danger en dark: fondo rojo oscuro con texto claro (antes quedaba fondo rosa claro con texto blanco = ilegible) */
+html[data-theme="dark"] .btn-danger,
+html[data-theme="dark"] label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html[data-theme="dark"] .btn-danger *,
+html[data-theme="dark"] label.btn-danger *{color:#fecaca!important}
+html[data-theme="dark"] .btn-danger:hover:not(:disabled),
+html[data-theme="dark"] label.btn-danger:hover{background:#991b1b!important}
+/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color más oscuro) contra la regla madre del dark */
+html[data-theme="dark"] .club-opt.club-sel,
+html[data-theme="dark"] .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila esté sombreada como usuario */
+html[data-theme="dark"] .me-row .pos.p1,
+html[data-theme="dark"] .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
+html[data-theme="dark"] .me-row .pos.p2,
+html[data-theme="dark"] .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
+html[data-theme="dark"] .me-row .pos.p3,
+html[data-theme="dark"] .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
+
+/* ==== PLAYOFFS — contraste garantizado en dark + fila del usuario logueado ==== */
+/* Botones Editar/Eliminar del admin dentro del box de un partido de playoff.
+   Antes usaban var(--soft)+var(--pri) o rosa+rojo hardcodeados: en dark la
+   regla madre pintaba el texto blanco sobre fondo claro (ilegible). */
+.po-slot-btn{flex:1;padding:4px 0;font-size:11px;border-radius:6px;cursor:pointer;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:4px;line-height:1}
+.po-slot-btn.po-slot-edit{background:#E6F1FB;color:#0E3470;border:1px solid #93c5fd}
+.po-slot-btn.po-slot-edit:hover{background:#d1e5fb}
+.po-slot-btn.po-slot-del{background:#fff5f5;color:#dc2626;border:1px solid #fca5a5}
+.po-slot-btn.po-slot-del:hover{background:#ffe0e0}
+html[data-theme="dark"] .po-slot-btn.po-slot-edit,
+html[data-theme="dark"] .po-slot-btn.po-slot-edit *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-slot-btn.po-slot-edit:hover{background:#2a4a75!important}
+html[data-theme="dark"] .po-slot-btn.po-slot-del,
+html[data-theme="dark"] .po-slot-btn.po-slot-del *{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html[data-theme="dark"] .po-slot-btn.po-slot-del:hover{background:#991b1b!important}
+
+/* Slot destacado del jugador logueado en el cuadro del playoff (bg cream #FFF8DC).
+   Sobre ese cream, tanto el nombre como el seed number y el chip "yo" deben ir
+   en oscuro incluso en dark mode. Se aplica al div de la línea y a todos sus hijos. */
+.po-me-slot,
+.po-me-slot *{color:#0E3470!important}
+.po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
+html[data-theme="dark"] .po-me-slot,
+html[data-theme="dark"] .po-me-slot *{color:#0E3470!important;background-color:transparent!important}
+html[data-theme="dark"] .po-me-slot{background-color:#FFF8DC!important}
+html[data-theme="dark"] .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
+/* El chip "yo" dentro del slot destacado mantiene su fondo dorado sobre cream. */
+.po-me-slot .po-me-chip{background:var(--acc)!important;color:#0E3470!important;border-radius:4px;padding:1px 4px;font-weight:700;font-size:9px}
+html[data-theme="dark"] .po-me-slot .po-me-chip,
+html[data-theme="dark"] .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
+
+/* Botón "Mover acá" del panel del admin — colores fijos para no depender de tokens. */
+.po-move-btn{background:#E6F1FB!important;color:#0E3470!important;border:1px solid #93c5fd!important}
+.po-move-btn:hover{background:#d1e5fb!important}
+html[data-theme="dark"] .po-move-btn,
+html[data-theme="dark"] .po-move-btn *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-move-btn:hover{background:#2a4a75!important}
+
+/* Chips de seed en el panel del admin: fondo claro con texto SIEMPRE oscuro
+   (activos e inactivos, en cualquier modo). El botón ✕ mantiene su rojo. */
+html[data-theme="dark"] .seed-chip,
+html[data-theme="dark"] .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
+html[data-theme="dark"] .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
+html[data-theme="dark"] .seed-chip .rm:hover{background:#f3c0c0!important}
+
+/* Chip "Cuadro X" en la Clasificación General: en la fila destacada del usuario
+   logueado, texto oscuro sobre fondo claro (mantiene el sombreado del chip).
+   Nota: se prefija con la tabla concreta (.gen-table/.cls-table/.rt-table) para
+   ganarle en specificity a la "mother rule" del dark mode que pinta bg y color
+   de TODOS los hijos del td destacado con var(--meRowBg) + white. Sin eso, el
+   chip se camuflaba con la fila y se veía como texto blanco sobre el mismo fondo. */
+.me-row .po-chip{color:#0E3470!important;background:#dbeafe!important}
+html[data-theme="dark"] .gen-table .me-row .po-chip,
+html[data-theme="dark"] .gen-table .me-row .po-chip *,
+html[data-theme="dark"] .cls-table .me-row .po-chip,
+html[data-theme="dark"] .cls-table .me-row .po-chip *,
+html[data-theme="dark"] .rt-table tr.me-row .po-chip,
+html[data-theme="dark"] .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+/* Avatar (círculo de iniciales) dentro de la fila destacada del usuario logueado:
+   mismo problema — la mother rule pintaba el círculo con el mismo bg de la fila y
+   quedaba invisible. Restauramos su look característico (fondo azul claro + texto
+   azul oscuro) con specificity aumentada. */
+html[data-theme="dark"] .gen-table .me-row .avatar,
+html[data-theme="dark"] .gen-table .me-row .avatar *,
+html[data-theme="dark"] .cls-table .me-row .avatar,
+html[data-theme="dark"] .cls-table .me-row .avatar *,
+html[data-theme="dark"] .rt-table tr.me-row .avatar,
+html[data-theme="dark"] .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+/* En dark mode, TODOS los chips "Cuadro X" (no sólo el del usuario) llevan texto
+   oscuro sobre fondo claro para mantener contraste sin depender de --pri/--soft
+   customizados por la liga. */
+html[data-theme="dark"] .po-chip,
+html[data-theme="dark"] .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+
+/* Banner de previsualización de Play Offs (admin): antes usaba var(--soft) + var(--priD)
+   con estilos inline; podía quedar fondo claro + texto claro si la liga customizaba
+   --priD. Ahora clase con colores fijos, safe en light y dark. */
+.po-preview-banner{background:#E6F1FB!important;border-color:#93c5fd!important;border-width:1.5px!important}
+.po-preview-banner .pp-title{color:#0E3470!important;font-weight:600;margin-bottom:.4rem}
+.po-preview-banner .pp-title i{color:#0E3470!important}
+.po-preview-banner .legend-txt{color:#334155!important}
+html[data-theme="dark"] .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-preview-banner .pp-title,
+html[data-theme="dark"] .po-preview-banner .pp-title *{color:#dbeafe!important}
+html[data-theme="dark"] .po-preview-banner .legend-txt,
+html[data-theme="dark"] .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+
+/* Botón "Editar" del puntaje por posición (dentro del header .clg-head).
+   Antes usaba .btn con colores heredados; el color inherited de
+   .clg-head th:last-child (var(--priD)) más --priD customizado por la liga
+   podía dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
+.edit-pts-btn{background:#0E3470!important;color:#ffffff!important;border:1px solid #0E3470!important;padding:2px 8px!important;font-size:10px!important;font-weight:600!important;margin-left:5px}
+.edit-pts-btn *{color:#ffffff!important}
+.edit-pts-btn:hover{background:#1B4F9C!important}
+html[data-theme="dark"] .edit-pts-btn,
+html[data-theme="dark"] .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
+
+/* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
+.seed-chip .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
+.seed-chip .mv:hover{background:rgba(0,0,0,.08)}
+.seed-chip .mv:disabled{opacity:.3;cursor:not-allowed}
+html[data-theme="dark"] .seed-chip .mv,
+html[data-theme="dark"] .seed-chip .mv *{color:#0E3470!important;background:transparent!important}
+html[data-theme="dark"] .seed-chip .mv:hover{background:rgba(14,52,112,.15)!important}
+
+/* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
+html[data-theme="dark"] .badge-inact,
+html[data-theme="dark"] .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+html[data-theme="dark"] .badge-pend,html[data-theme="dark"] .badge-warn,html[data-theme="dark"] .alert-warn,html[data-theme="dark"] .rt-prov,
+html[data-theme="dark"] .badge-pend *,html[data-theme="dark"] .badge-warn *,html[data-theme="dark"] .alert-warn *,html[data-theme="dark"] .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .badge-ok,html[data-theme="dark"] .alert-ok,html[data-theme="dark"] .dest-up,
+html[data-theme="dark"] .badge-ok *,html[data-theme="dark"] .alert-ok *,html[data-theme="dark"] .dest-up *{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .badge-err,html[data-theme="dark"] .badge-disp,html[data-theme="dark"] .alert-err,html[data-theme="dark"] .dest-down,
+html[data-theme="dark"] .badge-err *,html[data-theme="dark"] .badge-disp *,html[data-theme="dark"] .alert-err *,html[data-theme="dark"] .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .alert-info,html[data-theme="dark"] .badge-tag,
+html[data-theme="dark"] .alert-info *,html[data-theme="dark"] .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+html[data-theme="dark"] .rt-manual,html[data-theme="dark"] .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+
+/* ==== TOAST — fondo azul oscuro, texto blanco ==== */
+html[data-theme="dark"] .toast,html[data-theme="dark"] .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+
+/* ==== METRIC TILES ==== */
+html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
+
+/* ==== SKELETON LOADER ==== */
+html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+
+/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores × Jugadores) ==== */
+/* Header (Jugadores, Juan, Adrián, ...) — fondo azul oscuro, texto blanco */
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table thead th,
+html[data-theme="dark"] .res-table th *{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
+html[data-theme="dark"] .res-table th:first-child{background:var(--soft)!important;color:#ffffff!important}
+/* Nota: la primera columna del tbody (nombres de jugadores en las filas) se
+   estiliza más abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
+   sin sombreado y texto blanco bold, como pidió Marcos. */
+/* Celdas de resultados: bordes claros para que se vean */
+html[data-theme="dark"] .res-table td{border-color:var(--border2)!important}
+
+/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) — versiones oscuras que mantienen identidad ==== */
+/* En light: --sohail celeste #D6ECFB. En dark: celeste oscuro coherente. */
+html[data-theme="dark"]{
+  --sohail:#1e4568;--sohailT:#a5d0f0;
+  --haza:#4a2f18;--hazaT:#f5c896;
+}
+/* Aplicar los colores oscuros a las celdas que los usan por variable */
+html[data-theme="dark"] [style*="background:var(--sohail)"],
+html[data-theme="dark"] [style*="background: var(--sohail)"]{background:#1e4568!important;color:#a5d0f0!important}
+html[data-theme="dark"] [style*="background:var(--haza)"],
+html[data-theme="dark"] [style*="background: var(--haza)"]{background:#4a2f18!important;color:#f5c896!important}
+
+/* ==== BADGES DE INICIALES (MG, LR, NY, etc.) ==== */
+/* Círculos con las 2 letras del jugador — fondos claros con letras oscuras.
+   En dark: fondo azul oscuro con letras blancas. */
+html[data-theme="dark"] .name-badge,
+html[data-theme="dark"] .initial-badge,
+html[data-theme="dark"] [class*="badge-"][style*="background:#"]{background:var(--soft)!important;color:#ffffff!important}
+/* Los badges de iniciales que se generan con estilos inline "background:#XXXX" con color oscuro derivado */
+html[data-theme="dark"] span[style*="background:#"][style*="border-radius:50%"],
+html[data-theme="dark"] span[style*="background:#"][style*="border-radius: 50%"]{background:var(--soft)!important;color:#ffffff!important}
+
+/* IMPORTANTE: Las celdas de partidos con inline styles (background y color de
+   club, configurados por el admin) NO se sobreescriben. El admin eligió los
+   colores; la función autoTxt() ya calcula el mejor color de texto según el
+   fondo. Se leen bien tal cual. */
+
+/* Los inputs de login con clases específicas también */
+html[data-theme="dark"] .login-body input,
+html[data-theme="dark"] .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+
+/* ============================================================================
+   MISMO DARK MODE cuando el usuario está en "system" y su OS está en oscuro.
+   ============================================================================ */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]){
+    --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+    --text:#ffffff;--text2:#cbd5e1;
+    --border:#2d3a52;--border2:#475569;
+    --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
+    --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+    --dangerBg:#4a1d1d;--dangerT:#fca5a5;
+    --successBg:#14361f;--successT:#86efac;
+    --warnBg:#3d2a10;--warnT:#fcd34d;
+    --hover:rgba(255,255,255,.06);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 4px 12px rgba(0,0,0,.5);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+    --ring:0 0 0 3px rgba(96,165,250,.35);
+    --reqBg:#2a2415;--reqBorder:var(--acc);
+    --reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+    --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
+    --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
   }
+  html:not([data-theme]),
+  html:not([data-theme]) body,
+  html:not([data-theme]) div,
+  html:not([data-theme]) p,
+  html:not([data-theme]) span,
+  html:not([data-theme]) table,
+  html:not([data-theme]) tr,
+  html:not([data-theme]) th,
+  html:not([data-theme]) td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
+  html:not([data-theme]) label,
+  html:not([data-theme]) h1,
+  html:not([data-theme]) h2,
+  html:not([data-theme]) h3,
+  html:not([data-theme]) h4,
+  html:not([data-theme]) h5,
+  html:not([data-theme]) h6,
+  html:not([data-theme]) li,
+  html:not([data-theme]) strong,
+  html:not([data-theme]) em,
+  html:not([data-theme]) b,
+  html:not([data-theme]) small{color:#ffffff!important}
 
-  if(accion === 'ver'){
-    const vid = String(body.id || '');
-    if(!ligaIdOK(vid)) return res.status(400).json({ error: 'Identificador de liga inválido.' });
-    let idx;
-    try { idx = await readLigaIndex(); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
-    const entry = idx.find(l => l.id === vid);
-    if(!entry) return res.status(404).json({ error: 'Esa liga no existe.' });
-    if(entry.estado !== 'finalizada') return res.status(403).json({ error: 'Esa liga está activa: se entra con usuario y contraseña.' });
-    let estado;
-    try { estado = await readState(vid); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga.' }); }
-    if(!estado) return res.status(404).json({ error: 'Esa liga no tiene datos.' });
-    if(estado.users){
-      const limpios = {};
-      for(const k of Object.keys(estado.users)){
-        const u = estado.users[k] || {};
-        const { pass, ...resto } = u; 
-        limpios[k] = resto;
+  /* Igual que en modo manual dark: excepciones puntuales con selectores más
+     específicos que la mother rule, para paneles con fondo claro. */
+  html:not([data-theme]) .modal-score{color:#0f172a!important}
+  html:not([data-theme]) .modal-score p,
+  html:not([data-theme]) .modal-score strong,
+  html:not([data-theme]) .modal-score span,
+  html:not([data-theme]) .modal-score em,
+  html:not([data-theme]) .modal-score b{color:inherit!important}
+
+  html:not([data-theme]) .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
+  html:not([data-theme]) .pe-danger-box .pe-danger-title{color:#b91c1c!important}
+  html:not([data-theme]) .pe-danger-box p,
+  html:not([data-theme]) .pe-danger-box span,
+  html:not([data-theme]) .pe-danger-box strong,
+  html:not([data-theme]) .pe-danger-box em,
+  html:not([data-theme]) .pe-danger-box b,
+  html:not([data-theme]) .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
+  html:not([data-theme]) .legend-txt,
+  html:not([data-theme]) .hint{color:#cbd5e1!important}
+  html:not([data-theme]) a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
+  html:not([data-theme]) .nm-link,
+  html:not([data-theme]) .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+  html:not([data-theme]) body{background:var(--bg)}
+  html:not([data-theme]) .card{background:var(--surface);border-color:var(--border)}
+  html:not([data-theme]) input,
+  html:not([data-theme]) select,
+  html:not([data-theme]) textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+  html:not([data-theme]) .hdr{background:#0E3470!important}
+  html:not([data-theme]) .hdr *{color:#ffffff!important}
+  html:not([data-theme]) .hdr p,html:not([data-theme]) .hdr p *{color:#dce7f6!important}
+  html:not([data-theme]) .login-head{background:#0E3470!important}
+  html:not([data-theme]) .login-head *{color:#ffffff!important}
+  html:not([data-theme]) .login-head p,html:not([data-theme]) .login-head p *{color:#dce7f6!important}
+  html:not([data-theme]) .cls-table th,
+  html:not([data-theme]) .gen-table th,
+  html:not([data-theme]) .rt-table th,
+  html:not([data-theme]) .rt-table thead th,
+  html:not([data-theme]) .gen-table thead th,
+  html:not([data-theme]) .clg-head th,
+  html:not([data-theme]) .clg-head th *,
+  html:not([data-theme]) .res-table th,
+  html:not([data-theme]) .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+  html:not([data-theme]) .gen-table .me-row td,
+  html:not([data-theme]) .gen-table .me-row td *,
+  html:not([data-theme]) .cls-table .me-row td,
+  html:not([data-theme]) .cls-table .me-row td *,
+  html:not([data-theme]) .rt-table tr.me-row td,
+  html:not([data-theme]) .rt-table tr.me-row td *,
+  html:not([data-theme]) .res-table .me-mtx,
+  html:not([data-theme]) .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
+  html:not([data-theme]) .login-btn:not(.login-btn-pk),
+  html:not([data-theme]) .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+  html:not([data-theme]) .login-btn:not(.login-btn-pk) *,
+  html:not([data-theme]) .btn-primary *{color:#ffffff!important}
+  html:not([data-theme]) .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+  html:not([data-theme]) .btn-danger,
+  html:not([data-theme]) label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+  html:not([data-theme]) .btn-danger *,
+  html:not([data-theme]) label.btn-danger *{color:#fecaca!important}
+  html:not([data-theme]) .btn-danger:hover:not(:disabled),
+  html:not([data-theme]) label.btn-danger:hover{background:#991b1b!important}
+  html:not([data-theme]) .club-opt.club-sel,
+  html:not([data-theme]) .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+  html:not([data-theme]) .me-row .pos.p1,
+  html:not([data-theme]) .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
+  html:not([data-theme]) .me-row .pos.p2,
+  html:not([data-theme]) .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
+  html:not([data-theme]) .me-row .pos.p3,
+  html:not([data-theme]) .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
+  /* PLAYOFFS contraste (auto dark) */
+  html:not([data-theme]) .po-slot-btn.po-slot-edit,
+  html:not([data-theme]) .po-slot-btn.po-slot-edit *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-slot-btn.po-slot-edit:hover{background:#2a4a75!important}
+  html:not([data-theme]) .po-slot-btn.po-slot-del,
+  html:not([data-theme]) .po-slot-btn.po-slot-del *{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+  html:not([data-theme]) .po-slot-btn.po-slot-del:hover{background:#991b1b!important}
+  html:not([data-theme]) .po-me-slot,
+  html:not([data-theme]) .po-me-slot *{color:#0E3470!important;background-color:transparent!important}
+  html:not([data-theme]) .po-me-slot{background-color:#FFF8DC!important}
+  html:not([data-theme]) .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
+  html:not([data-theme]) .po-me-slot .po-me-chip,
+  html:not([data-theme]) .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
+  html:not([data-theme]) .po-move-btn,
+  html:not([data-theme]) .po-move-btn *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-move-btn:hover{background:#2a4a75!important}
+  html:not([data-theme]) .seed-chip,
+  html:not([data-theme]) .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
+  html:not([data-theme]) .seed-chip .rm:hover{background:#f3c0c0!important}
+  html:not([data-theme]) .me-row .po-chip,
+  html:not([data-theme]) .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .gen-table .me-row .po-chip,
+  html:not([data-theme]) .gen-table .me-row .po-chip *,
+  html:not([data-theme]) .cls-table .me-row .po-chip,
+  html:not([data-theme]) .cls-table .me-row .po-chip *,
+  html:not([data-theme]) .rt-table tr.me-row .po-chip,
+  html:not([data-theme]) .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .gen-table .me-row .avatar,
+  html:not([data-theme]) .gen-table .me-row .avatar *,
+  html:not([data-theme]) .cls-table .me-row .avatar,
+  html:not([data-theme]) .cls-table .me-row .avatar *,
+  html:not([data-theme]) .rt-table tr.me-row .avatar,
+  html:not([data-theme]) .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+  html:not([data-theme]) .po-chip,
+  html:not([data-theme]) .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-preview-banner .pp-title,
+  html:not([data-theme]) .po-preview-banner .pp-title *{color:#dbeafe!important}
+  html:not([data-theme]) .po-preview-banner .legend-txt,
+  html:not([data-theme]) .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+  html:not([data-theme]) .edit-pts-btn,
+  html:not([data-theme]) .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+  html:not([data-theme]) .edit-pts-btn:hover{background:#bfdbfe!important}
+  html:not([data-theme]) .seed-chip .mv,
+  html:not([data-theme]) .seed-chip .mv *{color:#0E3470!important;background:transparent!important}
+  html:not([data-theme]) .seed-chip .mv:hover{background:rgba(14,52,112,.15)!important}
+  html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
+  html:not([data-theme]) .login-btn-pk *{color:#79aeff!important}
+  html:not([data-theme]) .sub-tab.active,
+  html:not([data-theme]) .cycle-btn.active,
+  html:not([data-theme]) .sub-tab.active *,
+  html:not([data-theme]) .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-inact,html:not([data-theme]) .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-pend,html:not([data-theme]) .badge-warn,html:not([data-theme]) .alert-warn,html:not([data-theme]) .rt-prov,
+  html:not([data-theme]) .badge-pend *,html:not([data-theme]) .badge-warn *,html:not([data-theme]) .alert-warn *,html:not([data-theme]) .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .badge-ok,html:not([data-theme]) .alert-ok,html:not([data-theme]) .dest-up,
+  html:not([data-theme]) .badge-ok *,html:not([data-theme]) .alert-ok *,html:not([data-theme]) .dest-up *{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .badge-err,html:not([data-theme]) .badge-disp,html:not([data-theme]) .alert-err,html:not([data-theme]) .dest-down,
+  html:not([data-theme]) .badge-err *,html:not([data-theme]) .badge-disp *,html:not([data-theme]) .alert-err *,html:not([data-theme]) .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .alert-info,html:not([data-theme]) .badge-tag,
+  html:not([data-theme]) .alert-info *,html:not([data-theme]) .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+  html:not([data-theme]) .rt-manual,html:not([data-theme]) .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) .toast,html:not([data-theme]) .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+  html:not([data-theme]) .metric-tile .metric-n{color:#79aeff!important}
+  html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+  html:not([data-theme]) .login-body input,
+  html:not([data-theme]) .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+}
+
+/* ==== HEADERS Y CELDAS DE .res-table (matriz de partidos por grupo) ====
+   El CSS legacy usa var(--pri) y var(--priD) como background — en dark esos
+   son azul claro y quedan casi blancos. Forzamos oscuro con máxima especificidad. */
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table th:first-child,
+html[data-theme="dark"] .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== HEADER "Puntos para la Clasificación General" (.clg-head) ==== */
+html[data-theme="dark"] .clg-head th,
+html[data-theme="dark"] .clg-head th:first-child,
+html[data-theme="dark"] .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== CELDAS DE ESTADOS (matriz) ====
+   NO tocamos .cell-club: los colores del club son configurados por el admin
+   y deben respetarse en dark también (el texto se calcula automáticamente
+   con autoTxt() para garantizar contraste sobre el fondo del club).
+   Solo estilizamos los ESTADOS (pending, empty, locked, res-black). */
+html[data-theme="dark"] .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
+html[data-theme="dark"] .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
+html[data-theme="dark"] .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
+html[data-theme="dark"] .res-black{background:var(--bg)!important}
+
+/* ==== FONDOS CLAROS DE ADMIN, HISTORIAL, H2H, BRACKET DE PLAYOFF ====
+   Elementos legacy con fondos pastel + texto oscuro hardcoded que en dark
+   quedaban con texto blanco (por la regla madre) sobre fondo claro → invisibles.
+   Se invierten a fondos oscuros semánticos con texto claro coherente. */
+html[data-theme="dark"] .pm-wl.w,
+html[data-theme="dark"] .h2h-wl.w,
+html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .pm-wl.l,
+html[data-theme="dark"] .h2h-wl.l,
+html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
+html[data-theme="dark"] .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
+html[data-theme="dark"] .bracket-main .match-box *,
+html[data-theme="dark"] .bracket-cons .match-box *{color:#ffffff!important}
+html[data-theme="dark"] .btn-past:hover{background:var(--soft)!important}
+/* .lm-badge (badges en el panel admin de ligas) — el .lm-cur (liga actual)
+   tiene fondo primary + color acc (amarillo) — se ve bien en dark. Otros badges: */
+html[data-theme="dark"] .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
+html[data-theme="dark"] .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
+html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+/* .rt-manual (rating manual admin) — violeta */
+html[data-theme="dark"] .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
+
+/* Barrido general: cualquier inline style con hex claro conocido → invertir.
+   Cubre elementos que se generan por JS con inline styles hardcoded. */
+html[data-theme="dark"] [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] [style*="background:#fee2e2"],
+html[data-theme="dark"] [style*="background:#f7d3d3"],
+html[data-theme="dark"] [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] [style*="background:#fef3c7"],
+html[data-theme="dark"] [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
+html[data-theme="dark"] [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
+/* NOTA: #dbeafe ya lo tenemos cubierto para .avatar y .dest-same (colores azul claro
+   intencionales con texto azul oscuro). No lo pisamos globalmente. */
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .pm-wl.w,
+  html:not([data-theme]) .h2h-wl.w,
+  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .pm-wl.l,
+  html:not([data-theme]) .h2h-wl.l,
+  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
+  html:not([data-theme]) .bracket-main .match-box *,
+  html:not([data-theme]) .bracket-cons .match-box *{color:#ffffff!important}
+  html:not([data-theme]) .btn-past:hover{background:var(--soft)!important}
+  html:not([data-theme]) .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
+  html:not([data-theme]) .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
+  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) [style*="background:#fee2e2"],
+  html:not([data-theme]) [style*="background:#f7d3d3"],
+  html:not([data-theme]) [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) [style*="background:#fef3c7"],
+  html:not([data-theme]) [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
+}
+
+/* ==== HEADER superior de tabla clasificación ("CLASIFICACIÓN GENERAL ACUMULADA") ==== */
+html[data-theme="dark"] .cls-table thead tr:first-child th,
+html[data-theme="dark"] .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+
+/* ==== Header con las columnas ("# Jugador Grupo Rating PJ Seed") de rating/clasif ==== */
+html[data-theme="dark"] .cls-table thead tr th,
+html[data-theme="dark"] .gen-table thead tr th,
+html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* Mismo tratamiento para dark mode automático */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .res-table th,
+  html:not([data-theme]) .res-table th:first-child,
+  html:not([data-theme]) .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+  html:not([data-theme]) .clg-head th,
+  html:not([data-theme]) .clg-head th:first-child,
+  html:not([data-theme]) .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+  html:not([data-theme]) .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
+  html:not([data-theme]) .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
+  html:not([data-theme]) .res-black{background:var(--bg)!important}
+  html:not([data-theme]) .cls-table thead tr:first-child th,
+  html:not([data-theme]) .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+  html:not([data-theme]) .cls-table thead tr th,
+  html:not([data-theme]) .gen-table thead tr th,
+  html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+}
+
+/* ==== CÍRCULOS DE INICIALES (.avatar) ==== */
+/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidió
+   este contraste específicamente: fondo claro con letras azules. */
+html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+
+/* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
+/* Marcos pidió: sin sombreado en la primera columna, y texto igual a los headers
+   de columna (blanco bold, sin subrayado). Así los "row labels" y los "column
+   labels" se ven unificados como cabeceras del mismo estilo.
+   IMPORTANTE: aplicar bg:transparent también a los hijos (spans internos del
+   nombre) porque el span dentro del td hereda del CSS legacy. */
+html[data-theme="dark"] .res-table tbody tr td:first-child,
+html[data-theme="dark"] .res-table tbody tr td:first-child *{background:transparent!important}
+html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child,
+  html:not([data-theme]) .res-table tbody tr td:first-child *{background:transparent!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
+}
+
+/* ==== TAB DEL GRUPO ACTIVO (Grupo N) ==== */
+/* .grp-title es el "tab" arriba de la tabla de posiciones. En dark, azul intenso
+   con letras blancas — como pidió Marcos. */
+html[data-theme="dark"] .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
+
+/* ==== BADGE "=Grupo N" (destino igual, se mantiene en el mismo grupo) ==== */
+/* Los ↑Grupo N (dest-up) y ↓Grupo N (dest-down) ya se ven bien (verde/rojo).
+   El =Grupo N (dest-same) tiene fondo claro por diseño; en dark le forzamos
+   letras azul oscuro para que contraste bien sobre el fondo claro. */
+html[data-theme="dark"] .dest-same,
+html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
+  html:not([data-theme]) .dest-same,
+  html:not([data-theme]) .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+}
+
+/* ==== DEMOS DE COLOR EN EL PERFIL ADMIN ====
+   Los "demos" de "No jugado" y "Disputa" tienen background del color que el
+   admin eligió (típicamente claro) + texto var(--priD) que en dark es azul
+   claro → ilegibles. Forzamos texto azul OSCURO para contrastar con el
+   fondo claro del admin. */
+html[data-theme="dark"] #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
+
+/* Badges del admin ("Organización", nombres de admins) con background var(--hl)
+   o inline claro — asegurar contraste texto oscuro sobre fondo claro. */
+html[data-theme="dark"] .badge[style*="background:var(--hl)"],
+html[data-theme="dark"] .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+
+/* Spans con background hardcoded claro (colores custom del admin) — 
+   texto azul oscuro para leer bien sobre esos fondos claros. Excluimos
+   círculos (avatars) que ya están cubiertos por otra regla. */
+html[data-theme="dark"] span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
+  html:not([data-theme]) .badge[style*="background:var(--hl)"],
+  html:not([data-theme]) .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+  html:not([data-theme]) span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+}
+
+/* Respeto por accesibilidad: usuarios con preferencia de menos animación
+   ven la app sin transitions ni movimientos. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+.app{max-width:1040px;margin:0 auto;padding:.75rem}
+.login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+/* Header editable del login (arriba del recuadro azul). Ancho completo,
+   siempre visible arriba de todo. Los pills usan negrita y borde más
+   marcado, y en pantallas chicas achican padding/tamaño para caber sin
+   overflow. z-index:10 asegura que quede por encima de cualquier animación
+   o elemento posicionado del fondo. */
+.login-header-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem;width:100%;box-sizing:border-box;position:relative;z-index:10;border-bottom:1px solid rgba(0,0,0,.08)}
+.login-header-bar a{text-decoration:none;font-weight:700;font-size:13px;padding:.4rem .85rem;border-width:2px;border-style:solid;border-radius:999px;transition:opacity .15s,transform .15s;opacity:.94;line-height:1;white-space:nowrap}
+.login-header-bar a:hover{opacity:1;transform:translateY(-1px)}
+@media(max-width:640px){
+  .login-header-bar{padding:.6rem .5rem;gap:.35rem}
+  .login-header-bar a{font-size:12px;padding:.35rem .7rem;border-width:1.5px}
+}
+.login-head{background:var(--pri);padding:1.5rem;text-align:center;border-top:4px solid var(--acc);}
+.login-head .ball{width:48px;height:48px;background:var(--acc);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--priD);font-size:24px;margin-bottom:.4rem}
+.login-head h1{color:#fff;font-size:17px;font-weight:600}.login-head p{color:#dce7f6;font-size:12px}
+.login-body{padding:1.25rem}
+.login-body label{display:block;font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:600}
+.login-body select,.login-body input{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:.75rem}
+.login-btn-pk{background:var(--surface2,#eef2f7)!important;color:var(--pri)!important;border:1.5px solid var(--pri)!important;margin-top:8px}.login-btn-pk i{margin-right:4px}
+@keyframes sk-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.cm-ov button:hover{opacity:.9}
+
+/* ================= Micro-animaciones (Tanda 3) ================= */
+/* Todas usan cubic-bezier suave y < 200ms para no molestar. Se anulan
+   con prefers-reduced-motion (declarado arriba). */
+html{scroll-behavior:smooth}
+.btn,.btn-sm,.btn-primary,.btn-accent,.btn-warn,.btn-danger,.login-btn,.login-forgot,.pk-device-edit-btn{transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .12s ease,box-shadow .15s ease}
+.btn:hover:not(:disabled),.btn-sm:hover:not(:disabled),.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn:active:not(:disabled),.btn-sm:active:not(:disabled){transform:translateY(0)}
+.card{transition:box-shadow .18s ease,border-color .18s ease}
+.metric-tile{transition:background-color .15s ease,transform .12s ease}
+.metric-tile:hover{background:var(--hover)}
+/* Fade sutil al cambiar de sub-tab (activado desde JS con .view-fade) */
+.view-fade{animation:vf .22s ease}
+@keyframes vf{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+/* Focus ring accesible y coherente en todos los inputs/selects/botones */
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,.login-forgot:focus-visible{outline:none;box-shadow:var(--ring)}
+/* Details (usado en el panel admin de passkeys): abrir suave */
+details>summary{transition:background-color .12s ease}
+details>summary:hover{background:var(--hover)}
+details[open]>summary{border-bottom:1px solid var(--border)}
+/* Toast: entrada + salida más suave */
+.toast{transition:opacity .28s ease,transform .28s ease}
+/* Skeleton hereda animation del keyframe; el shine ya funciona */
+
+.login-forgot{display:block;text-align:center;margin-top:12px;font-size:12.5px;color:var(--pri,#1e3a8a);text-decoration:none;cursor:pointer;background:none;border:none;padding:4px;width:100%}
+.login-forgot:hover{text-decoration:underline}
+.pk-device-edit-btn{background:transparent;color:var(--text2,#64748b);border:none;padding:4px;cursor:pointer;font-size:13px;margin-right:4px}
+.pk-device-edit-btn:hover{color:var(--pri,#1e3a8a)}
+.metric-tile{padding:14px 16px;background:var(--surface2,#f8fafc);border-radius:10px;text-align:center;flex:1;min-width:110px}
+.metric-tile .metric-n{font-size:26px;font-weight:700;color:var(--pri,#1e3a8a);line-height:1;display:block}
+.metric-tile .metric-lbl{font-size:11px;color:var(--text2,#64748b);text-transform:uppercase;letter-spacing:.5px;margin-top:6px;display:block}
+  .login-btn{width:100%;padding:10px;background:var(--pri);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}.login-btn:hover{background:var(--priD)}
+.login-btn:disabled{opacity:0.6;cursor:not-allowed}
+  .past-leagues{max-width:380px;margin:0 auto 2rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .past-toggle{display:flex;align-items:center;gap:11px;padding:13px 15px;cursor:pointer;user-select:none}
+  .past-toggle:hover{background:var(--surface2)}
+  .past-ic{width:32px;height:32px;border-radius:8px;background:var(--soft);color:var(--pri);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .past-tx{flex:1;min-width:0}
+  .past-tx b{font-size:13px;font-weight:700;color:var(--text);display:block}
+  .past-tx span{font-size:11px;color:var(--text2)}
+  .past-chev{color:var(--text2);transition:transform .22s;flex-shrink:0}
+  .past-leagues.open .past-chev{transform:rotate(180deg)}
+  .past-list{max-height:0;overflow:hidden;transition:max-height .28s ease}
+  .past-leagues.open .past-list{max-height:340px;overflow-y:auto}
+  .past-item{display:flex;align-items:center;gap:11px;padding:11px 15px;border-top:1px solid var(--border);cursor:pointer}
+  .past-item:hover{background:var(--soft)}
+  .past-item-ic{width:34px;height:34px;border-radius:8px;background:var(--soft);color:var(--pri);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .past-item-tx{flex:1;min-width:0}
+  .past-item-tx b{font-size:12.5px;font-weight:700;color:var(--text);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .past-item-tx span{font-size:11px;color:var(--text2)}
+  .past-empty{padding:14px 15px;font-size:12px;color:var(--text2);text-align:center}
+  .liga-selector{max-width:380px;margin:0 auto 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .liga-sel-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;text-align:center}
+  .liga-sel-btns{display:flex;flex-direction:column;gap:7px}
+  .liga-sel-btn{display:flex;align-items:center;gap:9px;padding:11px 13px;border-radius:9px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;text-align:left}
+  .liga-sel-btn:hover{border-color:var(--pri)}
+  .liga-sel-btn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+  .liga-sel-btn i{font-size:16px}
+  .admin-access{max-width:380px;margin:0 auto 14px;background:var(--surface);border:1.5px solid var(--acc);border-radius:14px;padding:12px 15px;display:flex;align-items:center;gap:11px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .aa-ic{width:34px;height:34px;border-radius:9px;background:var(--hl);color:#8a5a00;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+  .aa-tx{flex:1;min-width:0}
+  .aa-tx b{display:block;font-size:12.5px;font-weight:700;color:var(--text)}
+  .aa-tx span{font-size:11px;color:var(--text2)}
+  .readonly-banner{display:flex;align-items:center;gap:11px;background:var(--hl);border:1px solid #f0c675;border-radius:11px;padding:11px 15px;margin:12px auto;max-width:960px;font-size:13px;color:#8a5a00}
+  .readonly-banner i.ti-eye{font-size:17px;flex-shrink:0}
+  .readonly-banner span{flex:1;min-width:0}
+  .readonly-banner button{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .readonly-banner button:hover{background:var(--priD)}
+  /* En modo consulta, se ocultan los controles de edición. Solo se ve/navega. */
+  body.readonly-mode .user-chip,
+  body.readonly-mode #btn-cargar-tab,
+  body.readonly-mode [data-edit-only],
+  body.readonly-mode .admin-only{display:none !important}
+  .btn-past{background:var(--soft);color:var(--pri);border:1px solid var(--border2)}
+  .btn-past:hover{background:#d8e8f7}
+  .pm-past-box{margin-top:14px;border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
+  .pm-past-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px}
+  .pm-past-seasons{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+  .pm-season-btn{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);cursor:pointer;font-family:inherit}
+  .pm-season-btn:hover{border-color:var(--pri);color:var(--pri)}
+  .pm-season-btn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+  .pm-res-stats{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px}
+  .pm-res-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border)}
+  .pm-res-row:last-child{border-bottom:none}
+  .pm-wl{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .pm-wl.w{background:#dcfce7;color:#166534}
+  .pm-wl.l{background:#fee2e2;color:#991b1b}
+  .pm-res-rival{flex:1;font-size:12.5px;color:var(--text)}
+  .pm-res-sc{font-size:12.5px;font-weight:700;color:var(--text2)}
+  .pm-past-load,.pm-past-empty{padding:10px;font-size:12px;color:var(--text2);text-align:center}
+  /* Gestión de ligas (admin) */
+  .lm-list{display:flex;flex-direction:column;gap:8px}
+  .lm-item{border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:var(--surface)}
+  .lm-item-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+  .lm-item-h b{font-size:13.5px;color:var(--text)}
+  .lm-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em}
+  .lm-badge.lm-on{background:#dcfce7;color:#166534}
+  .lm-badge.lm-off{background:var(--surface2);color:var(--text2)}
+  .lm-badge.lm-cur{background:var(--soft);color:var(--pri)}
+  .lm-item-actions{display:flex;gap:6px;flex-wrap:wrap}
+  /* Modal crear liga */
+  .cl-form{display:flex;flex-direction:column}
+  .cl-lbl{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
+  .cl-inp{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:9px;font-family:inherit;box-sizing:border-box}
+  .cl-inp-sm{margin-bottom:0}
+  .cl-hint{font-size:11px;color:var(--text2);margin:-4px 0 4px}
+  .cl-search{display:flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;margin-bottom:8px;background:var(--surface)}
+  .cl-search i{color:var(--text2);font-size:14px}
+  .cl-search input{flex:1;border:none;background:none;padding:9px 0;font-size:13px;color:var(--text);outline:none;font-family:inherit}
+  .cl-cat{max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:5px}
+  .cl-cat-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text)}
+  .cl-cat-item:hover{background:var(--surface2)}
+  .cl-cat-item.on{background:var(--soft)}
+  .cl-cat-item span{flex:1}
+  .cl-chk{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;color:var(--pri)}
+  .cl-cat-item.on .cl-chk{border-color:var(--pri);background:var(--pri);color:#fff}
+  .cl-grp-sel{flex-shrink:0;font-size:12px;padding:4px 7px;border-radius:6px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit}
+  .cl-nuevo-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;align-items:center}
+  .cl-nuevo-row .cl-inp-sm{flex:1;min-width:110px}
+  .cl-del{background:none;border:1px solid var(--border2);border-radius:7px;color:var(--danger,#e55);cursor:pointer;padding:8px 9px;display:flex;align-items:center}
+  .cl-del:hover{background:#fee2e2;border-color:#f0a0a0}
+  .cl-count{font-size:12px;font-weight:700;color:var(--pri);margin-top:9px;text-align:right}
+  .cl-gc{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cl-gc-item{display:flex;flex-direction:column}
+  .rg-content{font-size:14px;line-height:1.7;color:var(--text);white-space:normal;overflow-wrap:break-word;word-break:break-word}
+  .rg-content h1{font-size:22px;font-weight:800;margin:16px 0 8px;line-height:1.25}
+  .rg-content h2{font-size:18px;font-weight:800;margin:14px 0 7px;line-height:1.3}
+  .rg-content h3{font-size:16px;font-weight:700;margin:12px 0 6px}
+  .rg-content h4{font-size:14px;font-weight:700;margin:10px 0 5px}
+  .rg-content p{margin:0 0 10px}
+  .rg-content ul,.rg-content ol{margin:8px 0 12px;padding-left:26px}
+  .rg-content li{margin:3px 0}
+  .rg-content b,.rg-content strong{font-weight:700}
+  .rg-content img{max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block}
+  .rg-content font[size="6"]{font-size:22px}
+  .rg-content font[size="5"]{font-size:18px}
+  .rg-content font[size="2"]{font-size:12px}
+  /* El editor comparte el mismo formato para que se vea igual mientras editás */
+  .rg-editor h1{font-size:22px;font-weight:800;margin:16px 0 8px;line-height:1.25}
+  .rg-editor h2{font-size:18px;font-weight:800;margin:14px 0 7px}
+  .rg-editor h3{font-size:16px;font-weight:700;margin:12px 0 6px}
+  .rg-editor p{margin:0 0 10px}
+  .rg-editor ul,.rg-editor ol{margin:8px 0 12px;padding-left:26px}
+  .rg-editor img{max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block}
+  .rg-editor{overflow-wrap:break-word;word-break:break-word}
+  .rg-toolbar{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:7px;border:1px solid var(--border2);border-bottom:none;border-radius:10px 10px 0 0;background:var(--surface2)}
+  .rg-tb{min-width:30px;height:30px;padding:0 7px;border:1px solid transparent;border-radius:6px;background:none;color:var(--text);cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+  .rg-tb:hover{background:var(--surface);border-color:var(--border2)}
+  .rg-sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+  .rg-size{height:30px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;padding:0 6px;cursor:pointer;font-family:inherit}
+  .rg-editor{width:100%;min-height:300px;padding:12px 14px;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--surface);color:var(--text);font-size:14px;line-height:1.7;box-sizing:border-box;outline:none;overflow-y:auto}
+  .rg-editor:empty:before{content:attr(data-ph);color:var(--text2);opacity:.6}
+  .rg-editor img{max-width:100%;border-radius:8px;margin:6px 0}
+  .rg-editor ul,.rg-editor ol{margin:8px 0;padding-left:26px}
+  .rg-content ul,.rg-content ol{margin:8px 0;padding-left:26px}
+  .rg-content img{max-width:100%;border-radius:8px;margin:6px 0}
+  .rg-content h1,.rg-content h2,.rg-content h3{margin:12px 0 6px}
+  .rg-src-btn{justify-content:flex-start;width:100%;text-align:left}
+  /* Estadísticas del perfil */
+  .stat-blocks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:560px){.stat-blocks{grid-template-columns:1fr}}
+  .stat-block{border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
+  .stat-block-t{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .stat-cell{text-align:center}
+  .stat-cell b{display:block;font-size:20px;font-weight:800;color:var(--text);line-height:1.1}
+  .stat-cell span{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.02em}
+  .stat-cell b.stat-w{color:#166534}
+  .stat-cell b.stat-l{color:#991b1b}
+  .stat-cell b.stat-pct{color:var(--pri)}
+  .stat-load{color:var(--text2);opacity:.5}
+  .rt-cell{font-weight:800;color:var(--pri);text-align:center}
+  .rt-none{color:var(--text2);opacity:.4;font-weight:400}
+  /* Rating UTR */
+  .rt-prov{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
+  .rt-manual{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#5b21b6;background:#ede9fe;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
+  .rt-big{font-weight:800;color:var(--pri);font-variant-numeric:tabular-nums}
+  .rt-table th,.rt-table td{vertical-align:middle}
+  .rt-pj{text-align:center}
+  .rt-actions{text-align:right}
+  .rt-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .rt-sub{font-size:12px;color:var(--text2);margin:0 0 .5rem;max-width:680px;line-height:1.55}
+  .rt-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:var(--text2)}
+  .rt-adj-calc{background:var(--hover,#f1f5f9);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);margin-bottom:14px}
+  .rt-adj-lbl{display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:3px}
+  .rt-adj-hint{font-size:11px;color:var(--text2);margin-bottom:6px;line-height:1.5}
+  .rt-d{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rt-detail-help{font-size:11px;color:var(--text2);background:var(--hover,#f1f5f9);border-radius:8px;padding:9px 12px;margin-top:10px;line-height:1.6}
+  .rt-gg{color:#166534;font-weight:600}
+  .rt-gp{color:#991b1b;font-weight:600}
+  .rt-grp{white-space:nowrap;color:var(--pri);font-weight:600}
+  .rt-table tr.me-row td{background:var(--meRowBg);color:var(--meRowText)}
+  .rt-table tr.me-row td:nth-child(2){font-weight:700}
+  .rt-howto{background:var(--hover,#f1f5f9);border-radius:10px;padding:12px 14px;margin-top:12px}
+  .rt-howto-t{font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+  .rt-howto-b{font-size:11.5px;color:var(--text2);line-height:1.65}
+  .rt-cols-leg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:10px;font-size:11px;color:var(--text2)}
+  .rt-cols-leg b{color:var(--text);font-weight:700}
+  /* Header fijo (sticky) para rating y clasificación — mismo estilo azul.
+     Funciona en desktop Y móvil: el contenedor scrollea (x e y) con una
+     altura máxima, y el thead se pega al tope de ESE contenedor. */
+  #view-rating .overflow-x, #view-general .overflow-x{
+    max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch;
+  }
+  .rt-table thead th, .gen-table thead th{
+    position:-webkit-sticky; position:sticky; top:0; z-index:5;
+    background:var(--soft); color:var(--pri); font-weight:700;
+  }
+  /* Línea inferior del header que no desaparece al scrollear */
+  .rt-table thead th, .gen-table thead th{ border-bottom:2px solid var(--soft); }
+  /* El rating hereda TODO de gen-table para ser idéntico */
+  .rt-ficha{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--pri),var(--pri-dark,#1e3a8a));color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .rt-ficha-num{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .rt-ficha-side{flex:1}
+  .rt-ficha-lbl{font-size:13px;font-weight:700;opacity:.95}
+  .rt-ficha-sub{font-size:11px;opacity:.8;margin-top:2px}
+  .rt-ficha .rt-prov,.rt-ficha .rt-manual{background:rgba(255,255,255,.25);color:#fff}
+  /* H2H · Cara a Cara */
+  .h2h-link{cursor:pointer;color:var(--pri);border-bottom:1px dashed var(--border2)}
+  .h2h-link:hover{border-bottom-color:var(--pri)}
+  .h2h-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 14px}
+  .h2h-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
+  .h2h-av{width:44px;height:44px;font-size:15px}
+  .h2h-side b{font-size:13px;text-align:center;color:var(--text);word-break:break-word}
+  .h2h-score{display:flex;align-items:center;gap:8px;font-size:30px;font-weight:800;color:var(--text2)}
+  .h2h-score i{font-size:20px;font-style:normal;opacity:.5}
+  .h2h-score .h2h-win{color:var(--pri)}
+  .h2h-caption{text-align:center;font-size:12px;color:var(--text2);margin-bottom:14px}
+  .h2h-liga{margin-bottom:12px}
+  .h2h-liga-t{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}
+  .h2h-row{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--border)}
+  .h2h-row:last-child{border-bottom:none}
+  .h2h-wl{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .h2h-wl.w{background:#dcfce7;color:#166534}
+  .h2h-wl.l{background:#fee2e2;color:#991b1b}
+  .h2h-sc{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+  .h2h-list{margin-top:4px}
+  .h2h-liga-tag{margin-left:auto;font-size:10px;color:var(--text2);background:var(--hover,#f1f5f9);padding:2px 7px;border-radius:5px;white-space:nowrap}
+  /* Catálogo de jugadores (superadmin) */
+  .cj-search{display:flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;margin-bottom:10px;background:var(--surface)}
+  .cj-search i{color:var(--text2);font-size:14px}
+  .cj-search input{flex:1;border:none;background:none;padding:9px 0;font-size:13px;color:var(--text);outline:none;font-family:inherit}
+  .cj-count{font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:600}
+  .cj-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;background:var(--surface)}
+  .cj-item-tx{flex:1;min-width:0}
+  .cj-item-tx b{display:block;font-size:13px;color:var(--text)}
+  .cj-meta{font-size:11px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .cj-meta i{font-size:12px}
+  .cj-del{background:none;border:1px solid var(--border2);border-radius:7px;padding:7px 9px;cursor:pointer;color:var(--text2);flex-shrink:0}
+  .cj-del-on{color:var(--danger,#e55)}
+  .cj-del-on:hover{background:#fee2e2;border-color:#f0a0a0}
+  .cj-del:disabled{opacity:.4;cursor:not-allowed}
+.login-hint{margin-top:.875rem;padding:.7rem;background:var(--soft);border-radius:8px;font-size:11px;color:var(--priD);line-height:1.5}
+.login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
+.hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);}
+.hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
+.hdr h1{font-size:15px;font-weight:600;color:#fff}.hdr p{font-size:12px;color:#dce7f6}
+.user-chip{margin-left:auto;display:flex;align-items:center;gap:8px}
+.user-info{text-align:right}.user-info .name{font-size:13px;color:#fff;font-weight:600}.user-info .role{font-size:11px;color:var(--acc)}
+.logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer}.logout-btn:hover{background:rgba(255,255,255,.28)}
+
+.lang-btn { background: rgba(255,255,255,.15);
+color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: 600;
+}
+.lang-btn:hover { background: rgba(255,255,255,.28); }
+.lang-btn.active { background: var(--priD); border-color: var(--acc); color: var(--acc);
+}
+
+.role-badge{background:var(--acc);color:var(--priD);font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.cycle-bar{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
+.cycle-tab{flex:1;min-width:90px;padding:10px 8px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;align-items:center;justify-content:center;gap:5px}
+.cycle-tab:hover:not(.locked){border-color:var(--pri);background:var(--soft)}
+.cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.cycle-tab.locked{opacity:.45;cursor:not-allowed;background:var(--surface2)}.cycle-tab .st{font-size:11px}
+.tabs{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:.75rem;flex-wrap:wrap;align-items:stretch}
+/* Sin min-width fijo: así vale el min-width:auto de flex, que impide que la caja
+   se encoja por debajo de su texto. Y sin nowrap, el texto usa 2 renglones en vez
+   de desbordarse sobre la pestaña de al lado. */
+.tab{flex:1 1 auto;padding:8px 6px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text2);white-space:normal;overflow-wrap:break-word;line-height:1.25;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
+.tab>i,.tab>.tab-n{flex:0 0 auto}
+.tab.active{background:var(--pri);color:#fff;font-weight:600}.tab:hover:not(.active){background:var(--surface)}
+.tab-sm{flex:0 0 auto!important;padding:8px 8px!important;font-size:11px!important;color:var(--text2);opacity:.75}
+.tab-n{background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;transition:.3s;margin-left:3px;display:inline-block;min-width:16px;text-align:center;line-height:16px;vertical-align:middle;}
+
+.tabs::-webkit-scrollbar, .cycle-bar::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none;
+}
+.tabs, .cycle-bar, .grp-pick, .overflow-x { -ms-overflow-style: none; scrollbar-width: none; }
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.875rem 1rem;margin-bottom:.625rem}
+.grp-sep{height:0;border-top:3px solid #111;margin:0 0 .625rem;border-radius:2px}
+.grp-pick{display:flex;gap:6px;flex-wrap:wrap}
+.grp-btn{padding:7px 11px;border:1px solid var(--border2);background:var(--surface);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);line-height:1.15;text-align:center}
+.grp-btn:hover{background:var(--soft);border-color:var(--pri)}
+.grp-btn.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.grp-btn .mine{font-size:9px;color:var(--accD);display:block}.grp-btn.active .mine{color:var(--acc)}
+.grp-title{display:inline-block;background:var(--soft);color:var(--priD);font-size:13px;font-weight:600;padding:5px 14px;border-radius:8px 8px 0 0;border:1px solid var(--pri);border-bottom:none}
+.section-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.05em;margin:.875rem 0 .4rem}
+.cls-table,.gen-table{width:100%;border-collapse:collapse;font-size:12px}
+.cls-table th,.gen-table th{font-size:10px;color:var(--pri);padding:5px 4px;border-bottom:2px solid var(--soft);font-weight:700;text-align:center;background:var(--soft)}
+.cls-table th:nth-child(2),.gen-table th:nth-child(2){text-align:left}
+.clg-head th{background:var(--soft);border-bottom:1px solid var(--border2);text-align:center}.clg-head th:first-child{border-right:1px solid var(--border2)}.clg-head th:last-child{border-right:1px solid var(--border2);color:var(--priD)}
+.cls-table td:nth-child(9),.cls-table thead tr:nth-child(2) th:nth-child(9){border-right:1px solid var(--border2)}
+.cls-table td,.gen-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
+.cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
+.cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
+.gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
+.gen-cyc{font-size:11px;color:var(--text2)}
+.gen-po{white-space:nowrap}
+.gen-dash{color:#c8d0dc}
+.po-chip{display:inline-block;font-size:10px;font-weight:700;background:var(--soft);color:var(--pri);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.badge-inact{font-size:9px;background:#e55;color:#fff;border-radius:3px;padding:1px 5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;margin-left:4px}
+.legend-txt{font-size:11px;color:var(--text2);line-height:1.6;margin-top:.6rem}.legend-txt b{color:var(--text);font-weight:700}
+.pos{width:19px;height:19px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.p1{background:#F5C518;color:#0E3470}.p2{background:#D3D1C7;color:#2C2C2A}.p3{background:#F0997B;color:#4A1B0C}.pn{background:var(--surface2);color:var(--text2)}
+.dest{display:inline-flex;align-items:center;gap:2px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.dest-up{background:#E1F5EE;color:#085041}.dest-same{background:var(--soft);color:var(--pri)}.dest-down{background:#FCEBEB;color:#791F1F}
+.res-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:.3rem;table-layout:fixed}
+.res-table th,.res-table td{border:1px solid var(--border2);padding:5px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-table td:first-child{text-align:left;font-weight:600;width:150px;background:var(--soft);color:var(--pri)}
+.res-table th{background:var(--pri);color:#fff;font-weight:600;border:1px solid var(--border2)}.res-table th:first-child{text-align:left;width:150px;background:var(--priD);color:#fff}
+.res-black{background:#16243d}
+.cell-club{font-weight:600;cursor:pointer}
+.cell-pending{background:#FAEEDA;color:#6b5800;cursor:pointer}.cell-disputed{cursor:pointer}
+.cell-empty{background:var(--surface);cursor:pointer;color:var(--text2)}.cell-empty:hover{background:var(--soft);color:var(--pri)}
+.cell-locked{background:var(--surface2);color:var(--border2)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:4px}.dot{width:11px;height:11px;border-radius:3px;display:inline-block}.dot-pend{background:#FAEEDA}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+.form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
+.form-group select,.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
+.req{border:2px solid var(--reqBorder)!important;background:var(--reqBg)!important}.req-empty,.req-empty input,.req-empty select{border:2px solid var(--reqEmptyBorder)!important;background:var(--reqEmptyBg)!important}
+.reqmark{display:inline-block;color:#fff;background:var(--danger);font-size:9px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:5px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
+.req-wrap{border:2px dashed var(--reqBorder);border-radius:10px;padding:.6rem .7rem;background:var(--reqBg)}
+.set-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.set-row label{font-size:12px;color:var(--text2);width:64px;flex-shrink:0;font-weight:600}
+.set-row input,.po-in{width:52px;padding:6px;text-align:center;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px}
+.sep{color:var(--text2);font-size:15px}.set-hint{font-size:11px;color:var(--text2);margin-left:6px}
+/* Nombre bloqueado (propio) — solo texto centrado */
+.score-sel-locked{border:none;background:transparent;color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:6px 4px;cursor:default;width:100%;outline:none;-webkit-appearance:none;-moz-appearance:none;appearance:none;pointer-events:none;}
+/* Campo seleccionable (rival/reporter activo) — inner box con sombra */
+.score-sel-pick{border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2,#f8f9fb);box-shadow:0 1px 5px rgba(0,0,0,.08);color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:8px 10px;cursor:pointer;width:100%;outline:none;}
+.score-sel-pick:hover{border-color:var(--pri);box-shadow:0 2px 8px rgba(0,0,0,.12);}
+/* Recuadro sólido para la sección de jugadores */
+.names-box{border:1.5px solid var(--border2);border-radius:12px;padding:.875rem .75rem;background:var(--surface);margin-bottom:.75rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+/* Fila de filtro: sin recuadro, solo fondo sutil */
+.filter-row{background:var(--surface2,#f8f9fb);border-radius:10px;padding:.5rem .75rem;margin-bottom:.75rem;display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;}
+/* Compat: mantener score-name-sel como alias */
+.score-name-sel{border:none;background:transparent;color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;padding:6px 4px;cursor:pointer;width:100%;outline:none;}
+.score-name-sel:disabled{-webkit-appearance:none;appearance:none;cursor:default;pointer-events:none;}
+.score-inp-lg{width:100%;text-align:center;font-size:28px;font-weight:700;border:1.5px solid var(--border2);border-radius:10px;padding:10px 4px;background:var(--surface);color:var(--text);}
+.club-pick{display:flex;gap:8px;border-radius:9px;padding:2px}.club-pick.req-empty{outline:1.5px solid #c0392b;outline-offset:2px;border-radius:9px}
+.club-opt{flex:1;padding:9px;border-radius:8px;border:2px solid #111;text-align:center;cursor:pointer;font-size:13px;font-weight:600}
+.club-opt.club-sel{background:var(--cbg);color:var(--ctx);border-color:var(--ctx)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 13px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:13px;color:var(--text)}.btn:hover{background:var(--surface2)}
+.btn-primary{background:var(--pri);border-color:var(--pri);color:#fff}.btn-primary:hover{background:var(--priD)}
+.btn-accent{background:var(--acc);border-color:var(--accD);color:var(--accT);font-weight:600}
+.btn-warn{background:#F59E0B;border-color:#B45309;color:#fff;font-weight:600}.btn-accent:hover{filter:brightness(.95)}
+.btn-success{background:#E1F5EE;border-color:#0F6E56;color:#085041}.btn-success:hover{background:#c7ecdd}
+.btn-danger{background:#FCEBEB;border-color:var(--danger);color:#791F1F}.btn-danger:hover{background:#f7d3d3}
+.btn-sm{padding:5px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-pend{background:#FAEEDA;color:#6b5800}.badge-ok{background:#E1F5EE;color:#085041}.badge-disp{background:#FCEBEB;color:#791F1F}
+.badge-tag{background:var(--soft);color:var(--pri)}
+.alert{padding:.6rem .875rem;border-radius:8px;font-size:13px;margin-bottom:.625rem}.alert-ok{background:#E1F5EE;color:#085041}
+.alert-warn{background:#FEF3C7;color:#854D0E}.alert-err{background:#FCEBEB;color:#791F1F}.alert-info{background:var(--soft);color:var(--pri)}
+.empty{text-align:center;padding:1.25rem;color:var(--text2);font-size:13px}
+.overflow-x{overflow-x:auto}.mt-sm{margin-top:.5rem}.gap-sm{display:flex;gap:6px;flex-wrap:wrap}
+.lock-note{font-size:11px;color:var(--text2);font-style:italic}
+.pos-badge{display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:800;background:var(--soft);color:var(--pri)}
+.pos-1{background:var(--acc);color:var(--priD)}
+.pos-2{background:#d4d9e0;color:#333}
+.pos-3{background:#e8c9a0;color:#6b4423}
+.rt-table th{white-space:nowrap;cursor:help}
+.rt-table td{white-space:nowrap}
+.rt-name{text-align:left!important}
+.rt-big{font-weight:800;color:var(--pri)}.err-txt{color:var(--danger)!important;font-style:normal}
+.nm-link{cursor:pointer;border-bottom:1px dotted currentColor}.nm-link:hover{opacity:.6}
+.hist-row .avatar{margin-right:6px}
+.avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;margin-right:5px;background:var(--soft);color:var(--pri)}
+.pend-item{padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pend-nm{font-weight:600}.pend-sc{font-size:14px;font-weight:700;color:var(--pri)}.pend-act{margin-left:auto}
+.disp-item{padding:.5rem 0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}.disp-act{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.grpedit{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem}
+.ge-group{border:1px solid var(--border);border-radius:10px;padding:.5rem .6rem}.ge-gtitle{font-size:12px;font-weight:700;color:var(--pri);margin-bottom:.4rem}
+.ge-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}.ge-nm{flex:1;font-size:12px}.ge-sel{font-size:11px;padding:3px;border-radius:6px;border:1px solid var(--border2);background:var(--surface);color:var(--text);max-width:90px}
+.prof-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}.prof-row span:first-child{color:var(--text2)}
+.modal-bg{position:fixed;inset:0;background:rgba(10,18,32,.66);display:none;align-items:center;justify-content:center;z-index:100;padding:1rem}.modal-bg.open{display:flex}
+.modal{background:var(--surface);border-radius:14px;padding:1.25rem;width:400px;max-width:100%;border-top:4px solid var(--acc);max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:1rem;color:var(--pri)}
+.modal-rep{font-size:13px;color:var(--text2);margin-bottom:.5rem}.modal-rep .vs{color:var(--text2)}
+.modal-score{border-radius:8px;padding:.7rem;text-align:center;margin-bottom:.5rem}.modal-score p{font-size:15px;font-weight:600}
+
+.modal-meta{font-size:12px;color:var(--text2)}
+.po-tramos{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
+.po-tab{flex:1;min-width:110px;padding:9px;border:1px solid var(--border);background:var(--surface);border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;color:var(--text)}
+.po-tab:hover{background:var(--soft)}.po-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}.po-rng{font-size:10px;opacity:.8}
+.bracket{display:flex;gap:0;overflow-x:auto;padding:.75rem .25rem;align-items:flex-start}
+.round{display:flex;flex-direction:column;position:relative}
+.round-name{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 12px;margin-bottom:.6rem;flex-shrink:0}
+.round-slots{display:flex;flex-direction:column;position:relative}
+/* match-wrap: each pair of players + connector lines */
+.match-wrap{display:flex;align-items:center;position:relative}
+.match-group{display:flex;flex-direction:column;position:relative;margin-bottom:0}
+/* The bracket box itself */
+.match-box{width:190px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface);flex-shrink:0}
+/* Vertical line on right side connecting to next round */
+.connector-right{width:24px;flex-shrink:0;position:relative;align-self:stretch;display:flex;align-items:center}
+.connector-right::before{content:'';position:absolute;left:0;top:50%;width:24px;height:1px;background:var(--border2);}
+/* Vertical bracket lines between pairs */
+.bracket-pair{display:flex;flex-direction:column;position:relative}
+.bracket-pair>.match-group{flex:1}
+.bracket-pair::after{content:'';position:absolute;right:-24px;top:25%;height:50%;width:1px;background:var(--border2);}
+/* Round column spacing */
+.round+.round{margin-left:24px}
+.slot{display:flex;align-items:center;gap:5px;padding:6px 9px;font-size:12px;border-bottom:1px solid var(--border)}
+.slot:last-child{border-bottom:none}.slot.winner{background:var(--winrow);font-weight:700;color:var(--meRowText)}
+.slot.empty-slot{color:var(--text2);font-style:italic}.slot .nm{flex:1}
+.slot-foot{justify-content:space-between;background:var(--surface2)}.slot-center{justify-content:center}.slot-win{font-size:10px;color:#085041;font-weight:700}
+.seed{font-size:10px;color:var(--text2);min-width:16px}
+.slot-score{font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums}
+.po-load{font-size:10px;border:1px solid var(--border2);background:var(--surface);border-radius:5px;padding:2px 6px;cursor:pointer;color:var(--pri)}.po-load:hover{background:var(--soft)}
+.champ-card{background:var(--winrow);border:1px solid var(--acc);border-radius:10px;padding:.6rem 1rem;text-align:center;margin-top:.5rem}
+.champ-card .lbl{font-size:11px;color:var(--priD);text-transform:uppercase;font-weight:700}.champ-card .who{font-size:15px;font-weight:700;color:var(--priD);margin-top:2px}
+.champ-cons{background:var(--haza);border-color:var(--hazaT)}.champ-cons .lbl,.champ-cons .who{color:var(--hazaT)}
+.po-section-title{font-size:13px;font-weight:600;color:#fff;background:var(--pri);padding:7px 12px;border-radius:8px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px}.po-cons-title{background:#854F0B}
+.seed-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
+.seed-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:20px;background:var(--soft);color:var(--pri);font-size:12px}
+.seed-chip .rm{border:none;background:#FCEBEB;color:var(--danger);cursor:pointer;font-size:13px;padding:1px 6px;border-radius:20px;line-height:1;display:inline-flex;align-items:center}.seed-chip .rm:hover{background:#f3c0c0}
+.toast{position:fixed;bottom:16px;right:16px;background:var(--pri);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;z-index:999;transition:.3s;max-width:300px;border-bottom:3px solid var(--acc);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.bracket-main .match-box{background:#EAF3FC}.bracket-cons .match-box{background:#FDF1E6}
+.bracket-main .slot,.bracket-cons .slot{background:transparent}.bracket-main .slot.winner,.bracket-cons .slot.winner{background:var(--winrow)}.bracket-main .slot-foot,.bracket-cons .slot-foot{background:rgba(0,0,0,.04)}
+
+/* --- REGLAS DE IMPRESIÓN PDF --- */
+#print-area { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 1rem; }
+  .grp-card, .po-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 2rem; border: 1px solid #ccc; box-shadow: none; padding: 1rem; border-radius: 8px; }
+  .hdr, .tabs, .cycle-bar, .toast, .modal-bg, .btn, .legend-card { display: none !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+
+@media(max-width:640px){
+  body{font-size:13px}
+  .app{padding:.4rem .35rem}
+  .hdr{padding:.5rem .6rem;border-radius:10px;gap:8px}
+  .hdr-logo{width:30px;height:30px;font-size:15px;flex-shrink:0}
+  .hdr h1{font-size:13px;font-weight:600}.hdr p{font-size:10px}
+  .user-info .name{font-size:12px}.user-info .role{font-size:10px}
+  .logout-btn{padding:5px 7px;font-size:11px}
+  
+  .cycle-bar, .tabs, .grp-pick {
+    flex-wrap: nowrap !important; overflow-x: auto !important;
+    justify-content: flex-start !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; 
+    padding-bottom: 4px;
+  }
+  .cycle-bar::-webkit-scrollbar, .tabs::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none; }
+  
+  .overflow-x { 
+    overflow-x: auto !important; -webkit-overflow-scrolling: touch; 
+    margin-bottom: 5px; 
+    padding-bottom: 5px; 
+  }
+  
+  .cls-table, .gen-table, .res-table { min-width: max-content !important; width: 100% !important; table-layout: auto !important; }
+  .cls-table th, .gen-table th, .cls-table td, .gen-table td, .res-table th, .res-table td { white-space: nowrap !important; }
+
+  .cycle-tab, .tab, .grp-btn { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
+  .cycle-tab { padding: 8px 14px; font-size: 13px; border-radius: 9px; }
+  .tab { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+  .grp-btn { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+  .cycle-tab .st{font-size:10px}
+
+  .card{padding:.6rem .6rem;margin-bottom:.45rem;border-radius:10px}
+  .form-row{grid-template-columns:1fr}
+  
+  .cls-table,.gen-table{font-size:11px}
+  .cls-table th,.gen-table th{font-size:9px;padding:4px 6px}
+  .cls-table td,.gen-table td{padding:5px 6px;font-size:11px}
+  .res-table{font-size:10px}
+  .res-table th,.res-table td{padding:4px 6px;}
+  .res-table th:first-child,.res-table td:first-child{min-width:90px;}
+
+  .section-lbl{font-size:10px;margin:.6rem 0 .3rem}
+  .btn{padding:7px 10px;font-size:12px}
+  .btn-sm{padding:4px 8px;font-size:11px}
+  .club-pick{gap:6px}
+  .club-opt{padding:8px 6px;font-size:12px}
+  .req-wrap{padding:.5rem .5rem}
+  .modal{width:calc(100vw - 1.5rem);padding:1rem}
+  .bracket{gap:8px}
+  .round{min-width:140px}
+  .slot{padding:5px 6px;font-size:11px}
+  .set-row label{width:54px;font-size:11px}
+  .set-row input,.po-in{width:44px;font-size:13px}
+  .po-tramos{gap:4px}
+  .po-tab{min-width:0;flex:1;padding:7px 4px;font-size:11px}
+  .clg-head th:last-child{font-size:9px}
+  .grpedit{grid-template-columns:1fr}
+  .ge-group{padding:.4rem .5rem}
+  .ge-row{flex-wrap:wrap;gap:3px}
+  .ge-sel{max-width:100%}
+  .avatar{width:18px;height:18px;font-size:8px;margin-right:3px}
+  .pos{width:16px;height:16px;font-size:9px}
+  .dest{padding:1px 5px;font-size:9px}
+  .badge{padding:1px 6px;font-size:10px}
+  .legend-txt{font-size:10px}
+  .tab-n{font-size:9px;padding:1px 5px}
+  .pend-item{gap:5px}
+  .seed-list{gap:4px}
+  .seed-chip{font-size:11px;padding:3px 7px}
+}
+</style></head><body>
+<div id="login-screen">
+  <!-- Header editable de la pantalla de login. El admin configura color y
+       links desde el panel Admin. Aparece SOLO en el login (no en la app).
+       Contenido inyectado por renderLoginHeader() al cargar y cuando cambia. -->
+  <div id="login-header" style="display:none"></div>
+  <div class="login-wrap">
+    <div class="login-head" style="position:relative">
+      <div style="position:absolute;top:10px;right:12px;display:flex;gap:6px">
+        <button id="btn-lang-es-login" onclick="setLang('es')" class="lang-btn active">ES</button>
+        <button id="btn-lang-en-login" onclick="setLang('en')" class="lang-btn">EN</button>
+      </div>
+      <div class="ball"><i class="ti ti-ball-tennis"></i></div><h1 id="login-title"></h1><p id="login-sub"></p>
+    </div>
+    <div class="login-body"><div class="login-err" id="login-err"></div>
+      <label id="lbl-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
+      <label id="lbl-pass">Contraseña</label><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
+      <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
+      <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
+    </div>
+  </div>
+  <div class="past-leagues" id="past-leagues" style="display:none">
+    <div class="past-toggle" onclick="togglePastLeagues()">
+      <div class="past-ic"><i class="ti ti-history"></i></div>
+      <div class="past-tx"><b id="past-title">Ligas anteriores</b><span id="past-sub">Consultá temporadas finalizadas</span></div>
+      <div class="past-chev" id="past-chev"><i class="ti ti-chevron-down"></i></div>
+    </div>
+    <div class="past-list" id="past-list"></div>
+  </div>
+</div>
+<div class="app" id="main-app" style="display:none">
+  <div class="hdr"><div class="hdr-logo"><i class="ti ti-trophy"></i></div><div><h1 id="hdr-title"></h1><p id="hdr-sub"></p></div>
+    <div class="user-chip">
+      <div class="user-info"><div class="name" id="cur-name">—</div><div class="role" id="cur-role">—</div></div>
+      <div style="display:flex;gap:4px;margin-right:8px;border-right:1px solid rgba(255,255,255,0.2);padding-right:8px;">
+        <button id="btn-lang-es" class="lang-btn active" onclick="setLang('es')">ES</button>
+        <button id="btn-lang-en" class="lang-btn" onclick="setLang('en')">EN</button>
+      </div>
+      <button class="logout-btn" onclick="doLogout()" id="exit-btn">Salir</button>
+    </div>
+  </div>
+  <div class="cycle-bar" id="cycle-bar"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="view-grupos"></div>
+  <div id="view-general" style="display:none"><div class="card"><div class="section-lbl" id="gen-title">Clasificación general acumulada (todos los ciclos)</div><div class="overflow-x"><table class="gen-table"><thead id="gen-thead"><tr id="gen-thead-row"><th>#</th><th id="gen-th-player">Jugador</th><th id="gen-th-group">Grupo actual</th><th id="gen-th-total">Total</th></tr></thead><tbody id="gen-body"></tbody></table></div><p class="legend-txt" id="gen-tiebreak"></p></div></div>
+  <div id="view-cargar" style="display:none">
+    <div id="cargar-disputes"></div>
+    <div class="card"><div class="section-lbl" id="report-result-lbl">Reportar resultado</div><div id="form-alert"></div><p class="lock-note" id="cargar-note" style="margin-bottom:.5rem"></p>
+      <!-- Club + Fecha -->
+      <div class="req-wrap" id="club-fecha-wrap" style="margin-bottom:1rem"><div class="form-row" style="margin-bottom:0"><div class="form-group"><label id="lbl-club">Club <span class="reqmark">obligatorio</span></label><div class="club-pick" id="club-pick"></div></div><div class="form-group"><label id="lbl-fecha-field">Fecha <span class="reqmark">obligatorio</span></label><input type="date" id="f-fecha" class="req"></div></div></div>
+      <!-- El filtro de grupo del admin se inserta aquí por JS (admin-group-filter) — después del club/fecha -->
+      <!-- Nombres como headers en recuadro req-wrap -->
+      <div class="names-box" id="names-score-wrap">
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px">
+          <div style="text-align:center"><select id="f-reporter" class="score-name-sel"><option value="">— Jugador —</option></select></div>
+          <div style="color:var(--border2);font-size:13px;font-weight:600;text-align:center">vs</div>
+          <div style="text-align:center"><select id="f-rival" class="score-name-sel"><option value="">— Rival —</option></select></div>
+        </div>
+      </div>
+      <div class="section-lbl" id="sets-section-lbl" style="margin-bottom:.5rem">Resultado por sets</div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+        <input type="number" id="s1a" min="0" max="7" oninput="checkAutoSTB()" placeholder="0" class="score-inp-lg">
+        <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px" id="lbl-set1-field">SET 1</span><span class="sep">–</span></div>
+        <input type="number" id="s1b" min="0" max="7" oninput="checkAutoSTB()" placeholder="0" class="score-inp-lg">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+        <input type="number" id="s2a" min="0" max="7" oninput="checkAutoSTB()" placeholder="0" class="score-inp-lg">
+        <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
+        <input type="number" id="s2b" min="0" max="7" oninput="checkAutoSTB()" placeholder="0" class="score-inp-lg">
+      </div>
+      <div id="s3-row" style="display:none;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+        <input type="number" id="s3a" min="0" max="1" placeholder="0" class="score-inp-lg">
+        <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
+        <input type="number" id="s3b" min="0" max="1" placeholder="0" class="score-inp-lg">
+      </div>
+      <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">6-0 a 6-4, 7-5 o 7-6</span><span id="stb-hint" style="display:none"> · solo 1-0 o 0-1</span></div>
+      <div class="gap-sm mt-sm">
+        <button class="btn" id="stb-toggle-btn" onclick="toggleSTB()"><i class="ti ti-plus"></i> Supertiebreak (1-1)</button>
+        <button class="btn btn-accent" onclick="submitResult()" id="btn-enviar"><i class="ti ti-send"></i> Enviar</button>
+        <button class="btn" onclick="markNotPlayed()" id="btn-nojugado" style="display:none;background:var(--hl);color:var(--priD);border-color:var(--priD)"><i class="ti ti-ban"></i> No jugado</button>
+        <button class="btn" onclick="clearForm()" id="btn-limpiar">Limpiar</button>
+      </div>
+    </div>
+  </div>
+  <div id="view-pendientes" style="display:none"><div class="card"><div class="section-lbl" id="pend-title">Pendientes de confirmación</div><div id="pend-list"></div></div></div>
+  <div id="view-playoff" style="display:none"></div>
+  <div id="view-perfil" style="display:none"></div>
+  <div id="view-admin" style="display:none"></div>
+      <div id="view-historial" style="display:none"></div>
+    <div id="view-rating" style="display:none"></div>
+    <div id="view-reglamento" style="display:none"></div>
+</div>
+
+<div id="print-area"></div>
+
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeM()"><div class="modal"><h3 id="modal-title">Resultado</h3><div id="modal-body"></div><div class="gap-sm" style="margin-top:1rem" id="modal-actions"></div></div></div>
+<script>
+// ===== La app ya NO habla directo con Supabase =====
+// Las claves viven como variables de entorno en Vercel y solo las ve el servidor.
+// Todo pasa por /api/login, /api/state y /api/save.
+// --- Guardas de rating: si rating.js no cargó, estas versiones seguras evitan
+//     que la app se rompa. rating.js las sobrescribe cuando carga. ---
+if(typeof window.calcularRatingGlobal!=='function') window.calcularRatingGlobal=function(){return Promise.resolve(null);};
+if(typeof window.ratingUTRDe!=='function') window.ratingUTRDe=function(){return null;};
+if(typeof window.ratingUTRfmt!=='function') window.ratingUTRfmt=function(){return '';};
+if(typeof window.renderRating!=='function') window.renderRating=function(){var b=document.getElementById('view-rating');if(b)b.innerHTML='<div class="card"><div class="lock-note" style="padding:1rem;text-align:center">Rating no disponible.</div></div>';};
+if(typeof window.ratingFichaHTML!=='function') window.ratingFichaHTML=function(){return '';};
+if(typeof window.ratingDe!=='function') window.ratingDe=function(){return '';};
+if(typeof window.tablaRating!=='function') window.tablaRating=function(){return [];};
+if(typeof window.ciclosDeJugador!=='function') window.ciclosDeJugador=function(){return [];};
+if(typeof window.ratingCompleto!=='function') window.ratingCompleto=function(){return {rating:0};};
+if(typeof window.abrirAjusteRating!=='function') window.abrirAjusteRating=function(){};
+if(typeof window.guardarAjusteRating!=='function') window.guardarAjusteRating=function(){};
+let _token = null;   // token de sesión firmado, devuelto por /api/login
+// Sistema unificado: con qué liga estamos trabajando. La define el login (a qué
+// liga entrás) o la navegación de ligas pasadas. Si es null, el servidor asume
+// la liga por defecto ('liga-actual'), lo que mantiene la compatibilidad.
+let _ligaActual = null;
+// Modo consulta: true cuando mirás una liga pasada (solo lectura, sin login).
+let _ligaReadOnly = false;
+let _sinLigasActivas = false;  // true cuando no hay ninguna liga activa (acceso admin)
+// Helper: agrega ?liga=... a una URL de GET si hay liga seleccionada.
+function _conLiga(url){
+  if(!_ligaActual) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'liga=' + encodeURIComponent(_ligaActual);
+}
+
+// ===== SEGURIDAD: PBKDF2 con sistema de versiones (Web Crypto API) =====
+// El login ya NO se valida acá: lo hace el servidor. Estas funciones quedan
+// solo para que el admin pueda fijar contraseñas desde el panel.
+const PBKDF2_SALT      = 'LigaSohailSecure2026';
+const PBKDF2_ITERS     = 100000;
+const DEFAULT_PASS_HASH= 'v1:8f5e91d22e332be45d55724423baad250490285a4e302b9eec0e6fd482164b83'; // hash por defecto v1
+const ADMIN_PASS_HASH  = 'v1:240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9'; // hash admin v1
+
+function isHashed(pw){ return typeof pw==='string'&&(pw.startsWith('v1:')||pw.startsWith('v2:')); }
+
+// ===== CAPA 2: SESSION TIMEOUT (90 minutos de inactividad) =====
+let _lastActivity=Date.now();
+const SESSION_TIMEOUT_MS=90*60*1000; // 90 minutos
+function touchActivity(){_lastActivity=Date.now();}
+let _sessionExpiring=false;
+function checkSessionTimeout(){
+  if(!currentUser||_sessionExpiring)return;
+  if(Date.now()-_lastActivity>SESSION_TIMEOUT_MS){
+    _sessionExpiring=true;
+    toast('Sesión expirada por inactividad. Por favor volvé a ingresar.');
+    setTimeout(()=>{if(_sessionExpiring)doLogout();},1500);
+  }
+}
+if(typeof setInterval!=='undefined')setInterval(checkSessionTimeout,60000); // chequeo cada minuto
+// Registrar actividad en eventos del usuario
+if(typeof document!=='undefined'){
+  ['click','keydown','touchstart','mousemove'].forEach(ev=>
+    document.addEventListener(ev,touchActivity,{passive:true})
+  );
+}
+
+// ===== CAPA 3: RATE LIMITING DE LOGIN =====
+// 5 intentos fallidos → bloqueo de 5 minutos
+const LOGIN_MAX_ATTEMPTS=5;
+const LOGIN_LOCKOUT_MS=5*60*1000; // 5 minutos
+const _loginAttempts={}; // {username: {count, lockedUntil}}
+// ===== TRADUCCIONES & ESTADO =====
+let demoBackup=null;
+let LANG='es';
+function setLang(l){LANG=l;try{localStorage.setItem('liga_lang',l);}catch(e){}renderAll();}
+function t(k){const v=(TRANSLATIONS[LANG]&&TRANSLATIONS[LANG][k])||TRANSLATIONS['es'][k];return v!==undefined?v:k;}
+function tf(k,vars){let s=t(k);Object.keys(vars||{}).forEach(v=>{s=s.replace(new RegExp('{'+v+'}','g'),vars[v]);});return s;}
+function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'){const pv=document.getElementById('view-playoff');if(pv)pv.style.display='block';showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
+function updateLangUI(){
+  ['btn-lang-es','btn-lang-es-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='es');}});
+  ['btn-lang-en','btn-lang-en-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='en');}});
+  const lu=document.getElementById('lbl-user');if(lu)lu.textContent=t('select_user');
+  const lp=document.getElementById('lbl-pass');if(lp)lp.textContent=t('password');
+  const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME||t('app_title');
+  const ls=document.getElementById('login-sub');if(ls)ls.textContent=LEAGUE_SUBTITLE||t('app_subtitle');
+  const bEnv=document.getElementById('btn-enviar');if(bEnv)bEnv.innerHTML='<i class="ti ti-send"></i> '+t('send');
+  const bLim=document.getElementById('btn-limpiar');if(bLim)bLim.textContent=t('clear');
+  const lbtn=document.getElementById('login-btn');if(lbtn){lbtn.textContent=t('enter');}const sh=document.getElementById('stb-hint');if(sh)sh.textContent=t('stb_hint');
+  const pkt=document.getElementById('login-btn-pk-txt');if(pkt)pkt.textContent=t('pk_login_btn');
+  const fbtn=document.getElementById('login-forgot-btn');if(fbtn)fbtn.textContent=t('forgot_pass');
+  if(typeof mostrarBotonPasskeyLogin==='function')mostrarBotonPasskeyLogin();
+}
+
+const TRANSLATIONS={
+es:{
+gen_tiebreak_note:'<strong>Desempate:</strong> 1º Puntos totales · 2º Puntos del último ciclo · 3º Grupo más alto.',autoscale_title:'Autogenerar escala de puntos',autoscale_hint:'Llená los puntos de todos los grupos de una vez. El grupo más bajo siempre arranca en 5-4-3-2-1, y cada grupo hacia arriba suma lo que elijas por grupo. No hay techo: el puntaje del grupo más alto se ajusta solo a la cantidad de grupos. Dentro de cada grupo baja de a 1 hasta el 5º; del 6º en adelante repite el 5º. Después podés ajustar cualquier grupo a mano.',autoscale_top:'Puntos del ganador del Grupo 1',autoscale_step:'Puntos que sube cada grupo',autoscale_btn:'Generar',autoscale_bad_top:'Poné un puntaje válido para el ganador del Grupo 1.',autoscale_bad_step:'Poné un valor de bajada válido (1 o más).',autoscale_confirm:'Generar la escala de {n} grupos: el grupo más bajo queda 5-4-3-2-1 y sube {step} por grupo. Esto reemplaza cualquier puntaje editado a mano. ¿Continuar?',autoscale_done:'Escala generada para {n} grupos.',cycle_short:'C',draw:'Cuadro',inactive_short:'Inactivo',gen_cycle_pts:'Puntos sumados en ese ciclo',gen_po_col:'Play Off',close_pending_first:'Antes de cerrar, resolvé los partidos cargados sin validar (pendientes o en disputa).',close_force_confirm:'Quedan {n} partidos sin jugar en este ciclo. ¿Cerrar igual e iniciar el siguiente? Esos partidos quedarán sin jugarse y no se podrán cargar después.',close_force_confirm_last:'Quedan {n} partidos sin jugar en este ciclo. ¿Finalizarlo igual y habilitar los Play Offs? Esos partidos quedarán sin jugarse.',close_incomplete:'incompleto',close_can_incomplete:'Faltan {n} por jugar. Podés cerrar el ciclo igual.',unvalidated_short:'sin validar',rating_empty:'Todavía no hay jugadores con partidos suficientes para calcular el rating.',rating_title:'Rating / Nivel',rating_desc:'Rating global (0–10) calculado a partir del grupo, victorias y derrotas de cada jugador en cada ciclo. Ordenado de mayor a menor.',rating_col:'Rating',rt_prov:'prov.',rt_prov_t:'Rating provisional: menos de 15 partidos. Se afina a medida que juega.',rt_prov_leg:'provisional (pocos partidos)',rt_manual:'fijo',rt_manual_t:'Rating fijado a mano por el administrador.',rt_manual_leg:'ajustado por el admin',rt_adjust:'Ajustar',rt_desc_utr:'Rating estilo UTR (1–16) calculado con los últimos 50 partidos de cada jugador en todas las ligas. Los partidos recientes, el margen de games y el nivel de los rivales pesan más.',rt_pj:'PJ',rt_pj_lc:'partidos',rt_grp:'Grupo',rt_grp_t:'Grupo actual del jugador en el ciclo activo',rt_calc_now:'Rating calculado ahora',rt_seed_lbl:'Puntaje inicial (seed)',rt_seed_hint:'Punto de partida del jugador. Orienta el rating al principio y se diluye a medida que juega. Dejalo vacío para que arranque neutro.',rt_over_lbl:'Ajuste manual (rating fijo)',rt_over_hint:'Si ponés un valor, reemplaza el rating calculado y queda fijo. Dejalo vacío para usar el cálculo automático.',rt_empty_ph:'(vacío)',rt_scale:'escala 1–16',rt_seed_bad:'El puntaje inicial tiene que estar entre 1 y 16.',rt_over_bad:'El ajuste manual tiene que estar entre 0.01 y 16.',rt_saved:'Rating actualizado.',rt_show_detail:'Ver detalle del cálculo',rt_hide_detail:'Ocultar detalle',rt_col_seed:'Seed',rt_col_calc:'Calc.',rt_col_vd:'V-D',rt_col_vd_t:'Victorias-Derrotas en la ventana',rt_col_pct:'% Games',rt_col_pct_t:'Porcentaje de games ganados',rt_col_riv:'Niv.Riv',rt_col_riv_t:'Nivel medio de los rivales enfrentados',rt_col_fiab:'Fiab.',rt_col_fiab_t:'Fiabilidad: qué tan asentado está el rating (según cantidad de partidos)',rt_detail_help:'Seed: punto de partida del admin · Calc.: rating calculado (si hay ajuste manual) · V-D: victorias y derrotas · % Games: proporción de games ganados · Niv.Riv: nivel promedio de los rivales · Fiab.: qué tan asentado está el rating.',rt_col_gg:'GG',rt_col_gg_t:'Games ganados en total',rt_col_gp:'GP',rt_col_gp_t:'Games perdidos en total',rt_pj_t:'Partidos usados en el cálculo (máximo 50, los más recientes)',rt_howto_title:'¿Cómo se calcula el rating?',rt_leg_rating:'= rating (1–16)',rt_leg_pj:'= partidos usados (máx 50)',rt_leg_seed:'= puntaje inicial del admin',rt_leg_calc:'= rating calculado (si hay ajuste manual)',rt_leg_vd:'= victorias-derrotas',rt_leg_gg:'= games ganados',rt_leg_gp:'= games perdidos',rt_leg_pct:'= % de games ganados',rt_leg_riv:'= nivel medio de los rivales',rt_leg_fiab:'= fiabilidad (sobre 50 partidos)',rt_howto_body:'El rating (escala 1–16, estilo UTR) se calcula con los últimos 50 partidos de cada jugador en todas las ligas. Para cada partido se compara el porcentaje de games que ganaste contra lo que se esperaba según el nivel del rival: ganarle a alguien más fuerte, o ganar por más games, sube más el rating. Los partidos más recientes pesan más, y el supertiebreak cuenta como medio set. Además, el grupo en el que juega cada persona influye como punto de partida: estar en un grupo alto ubica el rating más arriba, sobre todo con pocos partidos, y esa influencia se diluye a medida que se juega y mandan los resultados reales. La fiabilidad crece hasta los 50 partidos; con menos de 15 el rating es provisional.',rating_nivel:'Nivel',rating_nivel_t:'Nivel medio de juego ponderado por ciclo',rating_efic:'Eficiencia',rating_efic_t:'Eficiencia ponderada por dificultad de grupo (1–10)',rating_fiab:'Fiabilidad',rating_fiab_t:'Sube con la cantidad de partidos jugados (satura en 10)',rating_grupo:'Grupo',rating_grupo_t:'Grupo medio ponderado por partidos (1 = grupo más alto)',rating_ppp:'Pts/PJ',rating_ppp_t:'Puntos por partido medio (3 victoria, 1 derrota)',rating_pj:'PJ',rating_gp:'G-P',rating_pct:'%Vict',rating_footer:'El rating pondera 85% nivel de juego, 10% eficiencia por dificultad de grupo y 5% fiabilidad por cantidad de partidos.',rating_feature:'Función de Rating',rating_toggle_label:'Mostrar pestaña de Rating/Nivel',rating_toggle_hint:'Si la activás, todos los usuarios verán una pestaña con el rating de cada jugador. Si no, la pestaña no aparece.',rating_on:'Activado',rating_off:'Desactivado',rating_enabled_toast:'Rating activado. La pestaña ya es visible para todos.',rating_disabled_toast:'Rating desactivado. La pestaña ya no se muestra.',appearance_title:'Apariencia de la liga',legend_nj:'No jugado',dispute_color:'Color de disputas',dispute_color_hint:'fondo de partidos en disputa',dispute_short:'En disputa',clubs_title:'Clubes',clubs_hint:'Editá el nombre y color de cada club, agregá o eliminá. El color pinta el sombreado de la tabla de resultados; el texto se oscurece solo para que siempre se lea.',club_add:'Agregar club',club_delete:'Eliminar club',club_name_ph:'Nombre del club',club_short:'Club',club_min_one:'Tiene que quedar al menos un club.',club_delete_confirm:'¿Eliminar el club "{n}"? Los partidos ya cargados con ese club conservan su marcador pero pierden el color.',club_err_empty:'Ningún club puede quedar sin nombre.',club_err_dup:'Hay dos clubes con el mismo nombre.',preview:'Vista previa',save_all:'Guardar todo',reset_colors:'Restablecer colores',confirm_all_skipped:'Pendientes validados. Se saltearon {n} porque los jugaste vos: los tiene que confirmar otro administrador.',own_match_admin:'No podés arbitrar un partido que jugaste vos. Lo tiene que confirmar otro administrador.',wo_not_yours:'No podés marcar W.O. en un partido que jugás vos. Lo tiene que resolver otro administrador.',role_only_owner:'Solo el administrador original y el super admin pueden repartir el rol.',admins_section:'Administradores de la liga',admins_hint:'Además de la cuenta Organización, estas personas pueden administrar la liga. Siguen siendo jugadores: mantienen su grupo y sus partidos.',admins_none:'No hay ningún jugador con permisos de administrador.',role_section:'Rol en la liga',role_is_admin:'Administrador',role_is_player:'Jugador',role_make_admin:'Hacer administrador',role_make_player:'Quitar administrador',role_confirm_up:'¿Dar permisos de administrador a {n}? Va a poder confirmar resultados, editar jugadores y cambiar la configuración de la liga.',role_confirm_down:'¿Quitarle los permisos de administrador a {n}? Vuelve a ser un jugador normal.',role_done:'Rol de {n} actualizado.',role_last_admin:'Tiene que quedar al menos un administrador.',reset_not_here:'No se puede desde aquí.',reset_confirm:'¿Restablecer la contraseña de {n} a la clave por defecto "tenis"? Se le va a pedir que la cambie al entrar.',reset_ok:'Contraseña de {n} restablecida. Al entrar se le va a pedir una nueva.',reset_err:'No se pudo restablecer la contraseña.',pwf_title:'Cambiá tu contraseña',pwf_why:'Estás usando la contraseña por defecto, que es pública. Elegí una nueva para continuar.',pwf_new:'Contraseña nueva',pwf_rep:'Repetila',pwf_save:'Guardar y continuar',pwf_short:'Tiene que tener al menos 6 caracteres.',pwf_same:'No puede ser la misma que ya tenías.',pwf_nomatch:'Las dos contraseñas no coinciden.',pwf_err:'No se pudo cambiar. Probá de nuevo.',err_need_both:'Escribí tu usuario y tu contraseña.',err_no_server:'No se pudo conectar con el servidor. Probá de nuevo.',err_no_users:'No se pudo cargar la lista de usuarios.',err_users_404:'Falta el archivo api/users.js en el repo (404).',err_users_csp:'El navegador bloqueó la llamada a /api/users.',err_server_said:'El servidor devolvió ',err_hydrate:'Los datos se leyeron pero no se pudieron aplicar. Recargá la página.',err_no_data:'No se pudieron cargar los datos. Recargá la página.',err_no_user_league:'No se encontró tu usuario en la liga.',err_inactive:'Tu cuenta está inactiva. Contactá al administrador.',err_session_expired:'Tu sesión expiró. Volvé a entrar.',err_session_expired_save:'Tu sesión expiró. Volvé a entrar para seguir guardando.',err_no_access:'No tenés acceso.',err_conflict:'Otra persona guardó un cambio mientras cargabas el tuyo. Recargá la página y volvé a cargarlo.',login_working:'Entrando…',app_title:'Liga de Tenis Sohail',app_subtitle:'Verano 2026',select_user:'Seleccione su usuario',admin_org:'admin (Organización)',password:'Contraseña',enter:'Entrar',pk_login_btn:'Entrar con Face ID / Touch ID',invalid_user:'Seleccioná un usuario válido.',wrong_pass:'Contraseña incorrecta.',past_title:'Ligas anteriores',past_sub:'Consultá temporadas finalizadas',past_view:'Ver clasificación y resultados',past_readonly:'Estás viendo una liga finalizada (solo lectura).',past_back:'Volver al inicio',past_current:'Liga en juego',lsel_title:'¿A qué liga querés entrar?',aa_title:'No hay ligas activas',aa_sub:'Ingresá como administrador para reabrir o crear una liga.',aa_banner:'No hay ninguna liga activa. Entrá a Admin → Gestión de ligas para reabrir esta o crear una nueva.',err_no_active_league:'No hay ninguna liga activa en este momento. Volvé cuando el administrador abra una nueva. Para consultar temporadas pasadas, usá «Ligas anteriores».',past_player_btn:'Ver ligas pasadas',past_player_lbl:'Elegí una temporada',past_player_none:'No hay ligas pasadas todavía.',past_player_nomatch:'Sin partidos en esa liga.',past_loading:'Cargando…',past_loading_err:'No se pudo cargar.',won_lc:'ganados',lost_lc:'perdidos',win_short:'G',loss_short:'P',h2h_title:'Cara a Cara',h2h_none:'{a} y {b} nunca se enfrentaron.',h2h_balance:'{a} {ga} · {b} {gb} en enfrentamientos directos',lm_title:'Gestión de ligas',lm_desc:'Creá una liga nueva desde el catálogo de jugadores, o cerrá, reabrí y eliminá las existentes.',lm_new:'Crear liga nueva',lm_none:'Todavía no hay ligas registradas.',lm_active:'Activa',lm_finished:'Finalizada',lm_close:'Cerrar',lm_reopen:'Reabrir',lm_delete:'Eliminar',lm_rename:'Renombrar',lm_rename_prompt:'Nuevo nombre de la liga:',lm_rename_empty:'El nombre no puede quedar vacío.',lm_new_title:'Crear liga nueva',lm_name_lbl:'Nombre de la liga',lm_name_ph:'Ej: Liga Verano 2026',lm_id_lbl:'Identificador (URL interna)',lm_id_hint:'Solo minúsculas, números y guiones. No se puede cambiar después.',lm_groups:'Cantidad de grupos',lm_cycles:'Cantidad de ciclos',lm_gc_hint:'Podés ajustar los grupos y ciclos después desde el panel de admin.',lm_clubs_lbl:'Clubes que participan',lm_clubs_hint:'Arrancan con los mismos clubes y colores de la liga actual. Podés renombrarlos, cambiarles el color (con el selector o escribiendo el código hex) o agregar/sacar clubes para esta liga.',lm_players_lbl:'Jugadores del catálogo',lm_search_ph:'Buscar jugador…',lm_no_catalog:'El catálogo está vacío. Agregá jugadores nuevos abajo.',lm_no_match:'Ningún jugador coincide.',lm_new_players_lbl:'Agregar jugadores nuevos',lm_add_player:'Agregar jugador',lm_np_name:'Nombre',lm_np_email:'Email (opcional)',lm_total:'{n} jugadores seleccionados',lm_create:'Crear liga',lm_creating:'Creando…',lm_created:'Liga «{n}» creada.',lm_confirm_empty:'No seleccionaste ningún jugador. ¿Crear la liga vacía igual?',lm_err_name:'Poné un nombre para la liga.',lm_err_id:'El identificador solo puede tener minúsculas, números y guiones.',lm_err_create:'No se pudo crear la liga.',lm_close_confirm:'¿Cerrar la liga «{n}»? Va a pasar a finalizada y quedará pública en modo consulta. Podés reabrirla después.',lm_reopen_confirm:'¿Reabrir la liga «{n}»? Vuelve a estar activa y editable.',lm_delete_confirm1:'¿Eliminar la liga «{n}»? Esta acción no se puede deshacer.',lm_delete_confirm2:'Para confirmar, escribí el nombre exacto de la liga:\n\n{n}',lm_delete_mismatch:'El nombre no coincide. No se eliminó nada.',lm_action_ok:'Hecho.',lm_err_action:'No se pudo completar la acción.',rg_tab:'Reglamento',rg_title:'Reglamento de la liga',rg_empty:'Todavía no hay un reglamento cargado para esta liga.',rg_create:'Crear reglamento',rg_edit:'Editar',rg_save:'Guardar reglamento',rg_saved:'Reglamento guardado.',rg_placeholder:'Escribí acá el reglamento de la liga…',rg_copy:'Copiar de otra liga',rg_copy_title:'Copiar reglamento',rg_copy_desc:'Elegí la liga de la que querés copiar el reglamento. Vas a poder revisarlo antes de guardar.',rg_copy_none:'No hay otras ligas para copiar.',rg_copy_empty:'La liga «{n}» no tiene reglamento cargado.',rg_copied:'Reglamento copiado de «{n}». Revisalo y guardá.',err_too_big:'No se pudo guardar: hay demasiado contenido (probablemente una imagen muy grande en el reglamento). Quitá la imagen más pesada y volvé a intentar.',st_title:'Estadísticas',st_current:'Liga actual',st_total:'Total (todas las ligas)',st_pj:'Jugados',st_pg:'Ganados',st_pp:'Perdidos',st_pct:'% Vict.',cj_title:'Jugadores en la base',cj_desc:'Todos los jugadores del sistema (actuales y de ligas previas). Podés eliminar de la base solo a los que no tienen partidos; los que jugaron conservan su historial.',cj_search:'Buscar jugador…',cj_none:'No hay jugadores en la base.',cj_total:'{n} jugadores en total',cj_leagues:'{n} ligas',cj_matches:'{n} partidos',cj_has_matches:'Tiene partidos: no se puede eliminar (se perdería historial).',cj_del_confirm:'¿Eliminar a «{n}» de la base? Pierde su cuenta, pero como no tiene partidos no afecta ningún historial.',cj_deleted:'«{n}» eliminado de la base.',cj_del_err:'No se pudo eliminar al jugador.',rg_bold:'Negrita',rg_italic:'Cursiva',rg_underline:'Subrayado',rg_size:'Tamaño',rg_size_s:'Chico',rg_size_m:'Normal',rg_size_l:'Grande',rg_size_xl:'Muy grande',rg_ul:'Viñetas',rg_ol:'Numerado',rg_img:'Insertar imagen',rg_img_hint:'Podés pegar imágenes directamente (Ctrl+V) o usar el botón. Máximo 2 MB por imagen.',rg_img_big:'La imagen es muy grande (máximo 2 MB). Probá con una más liviana.',aj_open_btn:'Agregar de ligas anteriores',aj_title:'Agregar jugadores de ligas anteriores',aj_desc:'Elegí jugadores que ya jugaron en otras ligas y sumalos a esta, indicando a qué grupo va cada uno.',aj_none:'No hay jugadores de otras ligas para agregar (o ya están todos en esta liga).',aj_total:'{n} jugadores seleccionados',aj_none_sel:'Elegí al menos un jugador.',aj_add:'Agregar a la liga',aj_adding:'Agregando…',aj_done:'Se agregaron {n} jugadores a la liga.',aj_err:'No se pudo agregar a los jugadores.',
+exit:'Salir',cycle:'Ciclo',playoffs:'Play Offs',playoffs_prev:'Play Offs (previa)',
+tab_grupos:'Grupos',tab_general:'Clasificación',tab_cargar:'Cargar',tab_cargar_admin:'Cargar',tab_pendientes:'Pendientes',tab_pendientes_admin:'Pendientes / Disputas',tab_perfil:'Perfil & Jugadores',tab_admin:'Admin',
+choose_group:'Elegí el grupo',group:'Grupo',destination:'Destino',player:'Jugador',won:'G',lost:'P',not_played:'NJ',sets_won:'SG',sets_lost:'SP',balance:'Bal',pts_pos:'P.puesto',extra:'Extra',total:'Total',pts_classif:'Puntos para la Clasificación General',players_col:'Jugadores',edit:'Editar',
+legend_pts:'<strong>Tabla de posiciones:</strong> Pts: puntos (3 victoria · 1 derrota · 0 no jugado) · G: partidos ganados · P: perdidos · NJ: no jugados · SG: sets ganados · SP: sets perdidos · Bal: balance de sets (SG−SP) · P.puesto: puntos por posición en el grupo · Extra: +2 al ganador del grupo · Total: P.puesto + Extra (suma a la Clasificación General) · Destino: grupo al que sube (↑), baja (↓) o se mantiene (=).<br><strong>Desempate (en orden):</strong> 1º Puntos · 2º Partidos jugados · 3º Cara a cara · 4º Balance de sets · 5º Cara a cara 2º (entre los aún empatados) · 6º Balance de juegos.',
+legend_matrix:'El marcador se lee en la fila del jugador (sus juegos primero). El color de cada celda indica el club donde se jugó (ver referencias).',
+legend_pending:'Pendiente de validación',legend_disputed:'Disputado',legend_load:'+ cargar',legend_noedit:'· no editable',
+general_title:'Clasificación general acumulada (todos los ciclos)',
+current_group:'Grupo actual',you:'Vos',me_label:'Tú',
+report_result:'Reportar resultado',reporter:'Jugador (quien reporta)',rival:'Rival',club_label:'Club',date_label:'Fecha',
+reqmark_label:'OBLIGATORIO',set:'Set',
+sets_section:'Resultado por sets',supertiebreak:'S.Tiebreak',stb_hint:'solo 1-0 o 0-1',add_stb:'Supertiebreak (1-1)',
+remove_stb:'Quitar supertiebreak',send:'Enviar',clear:'Limpiar',set_hint:'6-0 a 6-4, 7-5 o 7-6',valid_need2sets:'Completá los dos sets.',valid_set1:'Set 1 inválido (6-0 a 6-4, 7-5 o 7-6).',valid_set2:'Set 2 inválido (6-0 a 6-4, 7-5 o 7-6).',valid_need_stb:'Sets empatados 1-1: completá el supertiebreak.',valid_stb_only:'El supertiebreak solo puede ser 1-0 o 0-1.',valid_no_stb:'Si el resultado es 2-0 o 0-2, no hay supertiebreak.',edit_result:'Editar resultado',save_validate:'Guardar y validar',
+not_in_cycle:'No estás en el ciclo activo.',load_note_player:'Cargás partidos tuyos del {g}. Solo aparecen los rivales con los que aún no tenés partido cargado. El admin lo validará.',load_note_admin:'Admin: cargás/editás cualquier partido. Lo que cargás queda validado.',
+select_two:'Seleccioná los dos jugadores.',same_group:'Ambos deben ser del mismo grupo.',validated_admin_only:'Ese resultado ya fue validado. Solo el admin puede editarlo.',result_sent_admin:'✓ Resultado válido y validado (admin).',result_sent_player:'✓ Resultado válido enviado. El admin lo validará.',select_club:'Elegí el club (Sohail o Haza).',select_date:'Completá la fecha del partido.',
+disputes_title:'Disputas activas (resuelve el admin)',no_disputes:'No hay disputas',validate:'Validar',
+pending_title:'Pendientes de confirmación',no_pending:'No hay pendientes',waiting_rival:'Esperando al rival',review:'Revisar',
+validated_result:'Resultado validado',disputed_result:'Resultado disputado',review_result:'Revisar resultado',validated_by:'Validado por',reported_by:'Reportado por',date_field:'Fecha',status_field:'Estado',confirmed_label:'Confirmado',locked_label:'Validado',confirm:'Confirmar',dispute:'Disputar',close:'Cerrar',validated_only_admin:'Validado — solo el admin edita',waiting_admin:'Esperando validación del admin',my_history:'Mi historial de partidos',hist_title:'Historial de partidos',hist_no_matches:'Sin partidos jugados todavía.',hist_won:'Ganó',hist_lost:'Perdió',
+admin_cycle_status:'Estado del ciclo',validated_count:'{done}/{need} partidos validados',ready_close:'✓ Listo para cerrar el ciclo.',missing_results:'Faltan validar resultados.',close_cycle:'Cerrar ciclo e iniciar siguiente',finish_last_cycle:'Finalizar último ciclo (habilita Play Offs)',simulate:'Simular y validar todos',confirm_pending:'Confirmar pendientes',
+cycle_dates:'Fechas de los ciclos',cycle_date_hint:'Editá el período de cada ciclo.',
+promotions_title:'Ascensos y descensos — a qué grupo pasa cada puesto',promotions_hint:'Para cada grupo, elegí a qué grupo va cada puesto al cerrar el ciclo. Las filas se ajustan solas a la cantidad de jugadores de cada grupo.',pos_goes_to:'{pos}º →',
+edit_groups:'Editar grupos (Ciclo {n})',edit_groups_hint:'Reasigná, quitá o agregá jugadores. Podés dejar grupos de distinto tamaño si hace falta.',add_player:'Agregar jugador',first_name:'Nombre',last_name:'Apellido',add_btn:'Agregar',move_to:'mover a…',remove:'Quitar',
+move_done:'{name} movido a {g}.',remove_done:'{name} quitado del ciclo.',add_fill_both:'Completá nombre y apellido.',add_choose_group:'Elegí el grupo.',add_exists:'Ya existe un jugador con ese nombre y apellido.',add_done:'{name} agregado al {g}.',
+playoffs_title:'Play Offs',playoffs_ready:'Todos los ciclos están cerrados. Previsualizá los cuadros para revisarlos y ajustar quién juega antes de iniciarlos.',playoffs_not_ready:'Los Play Offs se habilitan cuando todos los ciclos estén cerrados.',how_many_playoffs:'¿Cuántos cuadros (playoffs) en total?',bracket_singular:'cuadro',bracket_plural:'cuadros',preview_po:'Previsualizar Play Offs',po_started:'Los Play Offs ya están iniciados. Gestionalos desde la pestaña Play Offs.',po_preview_active:'Hay una previsualización en curso: revisala y confirmá el inicio en la pestaña Play Offs.',
+cycle_closed_next:'Ciclo {n} cerrado. ¡Ciclo {nx} iniciado con grupos actualizados!',cycle3_closed:'Todos los ciclos cerrados. Ya podés iniciar los Play Offs desde Admin.',last_cycle_finished:'Último ciclo finalizado. Ya podés previsualizar los Play Offs.',
+po_preview_banner:'Previsualización — los Play Offs todavía NO están iniciados',po_preview_hint:'Así quedarían los cuadros según la clasificación general. Quitá o agregá jugadores (los que no juegan) y ajustá la cantidad de cuadros. Cuando esté todo listo, confirmá el inicio. Hasta entonces los jugadores no ven nada.',po_confirm_start:'Iniciar Play Offs definitivamente',
+po_config:'Configuración de Play Offs',po_config_hint:'Al cambiar la cantidad, los cuadros se rearman repartiendo la clasificación general en partes iguales. Podés también forzar en qué ronda empezar cada cuadro.',po_seeds_title:'Jugadores del Cuadro {l} — quitá (✕) o agregá',po_removed:'Retirados: {list}.',po_add_label:'Agregar jugador a este cuadro',po_add_choose:'Elegí…',po_add_btn:'Agregar',po_bye_note:'Si quitás a alguien, no se reemplaza: pasa uno más por bye.',
+po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
+po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elegí jugador…',po_move_here:'Mover acá',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elegí un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',po_form_note:'Partido de Play Offs — {draw} · {round}',
+po_tab_players:'jug.',
+pending_match:'Pendiente de juego',
+po_started_toast:'Play Offs iniciados.',po_confirmed_toast:'¡Play Offs iniciados! Ya son visibles para los jugadores.',po_preview_toast:'Previsualización lista. Ajustá los jugadores y confirmá el inicio.',po_need_3cycles:'Primero cerrá todos los ciclos.',po_seed_removed:'{name} quitado del Cuadro (pasa uno por bye).',po_seed_added:'{name} agregado al Cuadro.',po_choose_add:'Elegí un jugador para agregar.',po_report_no_players:'Ese partido todavía no tiene los dos jugadores.',po_locked:'Resultado ya validado. Solo el admin puede editarlo.',po_not_yours:'Solo los jugadores de ese partido (o el admin) pueden cargarlo.',po_validated:'Resultado de Play Off validado.',po_sent:'Resultado enviado. El admin lo validará.',
+stage_dates:'Fechas de las etapas',stage_dates_hint:'Para cada ronda elegí "Semana de juego" (rango desde–hasta) o "Fecha única".',single_date:'Fecha única',week_play:'Semana de juego',from_date:'Desde',until_date:'Hasta',
+round_final:'Final',round_semi:'Semifinales',round_quarters:'Cuartos',round_16:'Octavos',round_32:'16avos',round_64:'32avos',round_n:'Ronda {n}',
+my_profile:'My profile',full_name:'Nombre completo',email:'Email',phone:'Teléfono',save_data:'Guardar datos',change_password:'Cambiar contraseña',current_pass:'Contraseña actual',new_pass:'Nueva contraseña',repeat_pass:'Repetir nueva contraseña',save_pass:'Guardar contraseña',pass_wrong:'La contraseña actual no es correcta.',pass_short:'La nueva contraseña debe tener al menos 4 caracteres.',pass_no_match:'Las contraseñas nuevas no coinciden.',pass_ok:'✓ Contraseña actualizada.',profile_saved:'✓ Datos actualizados.',name_empty:'Name cannot be empty.',name_exists:'Ya existe un jugador con ese nombre.',role_admin:'Administrador',role_player:'Jugador',current_group_label:'Grupo actual',pk_section:'Ingreso rápido sin contraseña',pk_section_hint:'Activá el ingreso rápido en este dispositivo para entrar sin escribir la contraseña. Funciona con Face ID, Touch ID, huella o Windows Hello. Podés activarlo en cada dispositivo que uses (celular, computadora, tablet). Tu contraseña sigue funcionando como respaldo.',pk_activate_btn:'Activar en este dispositivo',pk_activated:'Listo. Ya podés entrar sin contraseña en este dispositivo.',pk_unsupported:'Este dispositivo no admite el ingreso rápido.',pk_need_login:'Iniciá sesión con tu clave primero.',pk_cancelled:'Cancelaste el ingreso rápido.',pk_login_err:'No se pudo entrar sin contraseña. Usá tu contraseña.',pk_reg_err:'No se pudo activar. Probá de nuevo.',pk_status_active:'Ingreso rápido activado',pk_status_active_hint:'Podés entrar en este dispositivo sin escribir la contraseña. Si perdés el acceso al dispositivo, tu contraseña sigue funcionando.',pk_devices_lbl:'Dispositivos activados',pk_added_more:'Activar en otro dispositivo también',pk_registered_at:'Registrado',pk_last_used:'Último uso',pk_never_used:'todavía no usado',pk_device_deactivate:'Desactivar',pk_device_deactivate_confirm:'¿Desactivar el ingreso rápido en «{n}»? Vas a tener que usar tu contraseña en ese dispositivo hasta que lo actives de nuevo.',pk_device_deactivated:'Ingreso rápido desactivado en «{n}».',pk_device_deactivate_err:'No se pudo desactivar. Probá de nuevo.',pk_list_err:'No se pudo cargar la lista de dispositivos.',pwf_pk_offer:'Activar también el ingreso rápido en este dispositivo (Face ID / Touch ID).',pwf_pk_offer_after:'Vas a tener que confirmar con Face ID / Touch ID en la ventana que aparece a continuación.',pk_rename_title:'Renombrar dispositivo',pk_rename_prompt:'Elegí un nombre para reconocer este dispositivo.',pk_rename_empty:'El nombre no puede estar vacío.',pk_renamed:'Dispositivo renombrado.',pk_rename_err:'No se pudo renombrar.',forgot_pass:'Olvidé mi contraseña',forgot_title:'¿Olvidaste tu contraseña?',forgot_msg:'Contactá al administrador de la liga para que te reset la contraseña. Cuando lo haga, vas a entrar con la clave por defecto y la app te va a pedir elegir una nueva.',forgot_ok:'Entendido',theme_section:'Apariencia',theme_hint:'Elegí cómo querés ver la app en este dispositivo. La preferencia se guarda solo en este equipo.',theme_system:'Sistema',theme_light:'Claro',theme_dark:'Oscuro',theme_saved:'Apariencia actualizada.',pk_admin_title:'Ingreso rápido de los jugadores',pk_admin_desc:'Vé quién tiene activado el ingreso rápido y desactivalo si perdieron el dispositivo. La cuenta sigue funcionando con contraseña.',pk_admin_col_user:'Jugador',pk_admin_col_devices:'Dispositivos',pk_admin_col_last:'Último uso',pk_admin_none:'Ningún jugador tiene ingreso rápido activado todavía.',pk_admin_devices_of:'Dispositivos de {n}',pk_admin_del_confirm:'¿Desactivar el dispositivo «{d}» de {n}? Va a tener que entrar con contraseña hasta que lo reactive.',pk_admin_del_ok:'Dispositivo desactivado.',pk_admin_del_err:'No se pudo desactivar.',pk_admin_metric_lbl:'Adopción de ingreso rápido',pk_admin_metric_users:'jugadores lo usan',pk_admin_metric_devices:'dispositivos activados',pk_admin_metric_pct:'% de adopción',export_title:'Exportar liga',export_desc:'Descargá un Excel con todo: jugadores, clasificación, partidos, ciclos y playoffs.',export_btn:'Descargar Excel',export_working:'Preparando Excel…',export_ok:'Excel descargado.',export_err:'No se pudo exportar.',export_sheet_jugadores:'Jugadores',export_sheet_general:'Clasificación general',export_sheet_partidos:'Partidos',export_sheet_ciclos:'Ciclos',export_sheet_playoff:'Playoffs',wa_admin_title:'Notificaciones WhatsApp',wa_admin_desc:'Recibí un WhatsApp cada vez que se carga un resultado o se dispute un partido. Cada admin activa su propio número siguiendo el setup de CallMeBot.',wa_add_btn:'Agregar canal',wa_col_name:'Admin',wa_col_phone:'Teléfono',wa_col_apikey:'APIKEY',wa_col_active:'Activo',wa_col_last:'Último aviso',wa_col_actions:'Acciones',wa_test_btn:'Probar',wa_edit_btn:'Editar',wa_delete_btn:'Eliminar',wa_none:'Todavía no hay canales configurados. Agregá el primero.',wa_never:'nunca',wa_using_fallback:'usa el APIKEY del sistema',wa_modal_add_title:'Agregar canal WhatsApp',wa_modal_edit_title:'Editar canal WhatsApp',wa_field_name_lbl:'Nombre del admin',wa_field_name_ph:'Ej: Marcos',wa_field_phone_lbl:'Teléfono (formato internacional)',wa_field_phone_ph:'Ej: 34687291646',wa_field_phone_hint:'Solo dígitos, con código de país, sin "+" ni espacios.',wa_field_apikey_lbl:'APIKEY de CallMeBot',wa_field_apikey_ph:'Ej: 6643661',wa_field_apikey_hint:'Cada admin obtiene su propio APIKEY: agregá +34 623 91 22 04 como contacto en WhatsApp y enviale «I allow callmebot to send me messages». En 2 minutos te llega la respuesta con tu APIKEY.',wa_save_btn:'Guardar',wa_cancel_btn:'Cancelar',wa_delete_confirm:'¿Eliminar el canal de {n}? Dejará de recibir notificaciones.',wa_saved:'Canal guardado.',wa_deleted:'Canal eliminado.',wa_test_sending:'Enviando prueba…',wa_test_ok:'Mensaje de prueba enviado.',wa_test_err:'No se pudo enviar la prueba.',wa_toggle_ok:'Canal actualizado.',wa_err_save:'No se pudo guardar el canal.',wa_err_load:'No se pudieron cargar los canales.',wa_err_delete:'No se pudo eliminar el canal.',wa_bad_phone:'El número tiene que estar en formato internacional (entre 7 y 15 dígitos).',wa_bad_name:'El nombre no puede quedar vacío.',pl_active:'Activos',pl_inactive:'Inactivos',lh_title:'Barra del login',lh_desc:'Se muestra arriba del recuadro azul en la pantalla de login. Configurá el color de fondo y los enlaces que aparecen (por ejemplo la web del club, redes, contacto).',lh_color_lbl:'Color de fondo',lh_textcolor_lbl:'Color de texto',lh_textcolor_auto:'auto según fondo',lh_textcolor_reset:'Volver al automático',lh_add_link:'Agregar enlace',lh_link_text:'Texto',lh_link_url:'URL (con https://)',lh_link_delete:'Eliminar',lh_no_links:'Todavía no hay enlaces. Agregá el primero para que la barra aparezca.',lh_saved:'Barra del login actualizada.',lh_url_bad:'La URL tiene que empezar con http:// o https://.',lh_text_bad:'El texto del enlace no puede estar vacío.',lh_del_confirm:'¿Eliminar el enlace «{n}»?',
+admin_profile:'My profile — Administrador',player_mgmt:'Gestión de jugadores',player_mgmt_hint:'Ordenados alfabéticamente. Buscá por nombre. Podés editar nombre, email, teléfono, resetear contraseña, cambiar de grupo o eliminar.',search_player:'Buscar jugador…',refresh_list:'Actualizar lista',no_results:'Sin resultados',save:'Guardar',reset_pass:'Resetear clave',reset_done:'{name}: contraseña reseteada a la clave por defecto.',save_done:'{name}: datos actualizados.',
+toast_confirmed:'¡Resultado confirmado y validado!',toast_disputed:'Resultado disputado. El admin lo revisará.',toast_pending_confirmed:'Pendientes confirmados.',toast_simulated:'Ciclo simulado y validado.',toast_dispute_resolved:'Disputa resuelta.',
+reset_playoffs:'Reiniciar Play Offs',
+reset_cycle:'Reiniciar Ciclo {n}',
+reset_confirm_po:'¿Seguro que querés borrar todos los Play Offs? Esta acción no se puede deshacer.',
+reset_confirm_cycle:'¿Borrar todos los PARTIDOS del Ciclo {n}? Los grupos y jugadores se conservan; solo se eliminan los resultados cargados en ese ciclo.',
+reset_done:'Reinicio completado.',
+reset_cancel:'Cancelar',
+tbd:'A definir',
+mine_label:'tuyo',
+pending_label:'Pendiente',
+po_size_label:'Tamaño del cuadro / Empezar en',
+po_size_auto:'Automático (según jugadores)',
+r_64:'32avos de final (64 jug.)',
+r_32:'16avos de final (32 jug.)',
+r_16:'Octavos de final (16 jug.)',
+r_8:'Cuartos de final (8 jug.)',
+r_4:'Semifinales (4 jug.)',
+r_2:'Final (2 jug.)',
+delete_match:'Eliminar',
+confirm_delete:'¿Seguro que querés borrar este resultado permanentemente?',
+match_deleted:'Resultado borrado.',
+undo_demo:'Deshacer simulación',confirm_undo_demo:'¿Deshacer la simulación? Se borran únicamente los partidos generados por la simulación.',pass_changed:'Contraseña actualizada correctamente.',
+toast_demo_undone:'Simulaciones borradas.',
+},
+en:{
+gen_tiebreak_note:'<strong>Tiebreak:</strong> 1st Total points · 2nd Last cycle points · 3rd Highest group.',autoscale_title:'Auto-generate points scale',autoscale_hint:'Fill every group\'s points at once. The lowest group always starts at 5-4-3-2-1, and each group above adds your chosen step. No ceiling: the top group\'s points adjust to the number of groups. Within a group it drops by 1 up to 5th; from 6th on it repeats 5th. You can still tweak any group by hand afterwards.',autoscale_top:'Group 1 winner points',autoscale_step:'Points added per group',autoscale_btn:'Generate',autoscale_bad_top:'Enter a valid score for the Group 1 winner.',autoscale_bad_step:'Enter a valid drop value (1 or more).',autoscale_confirm:'Generate a scale for {n} groups: the lowest group is 5-4-3-2-1 and rises {step} per group. This replaces any hand-edited points. Continue?',autoscale_done:'Scale generated for {n} groups.',cycle_short:'C',draw:'Draw',inactive_short:'Inactive',gen_cycle_pts:'Points earned that cycle',gen_po_col:'Play Off',close_pending_first:'Before closing, resolve the loaded but unvalidated matches (pending or disputed).',close_force_confirm:'{n} matches were not played in this cycle. Close it anyway and start the next one? Those matches will remain unplayed and cannot be entered later.',close_force_confirm_last:'{n} matches were not played in this cycle. Finish it anyway and enable the Play Offs? Those matches will remain unplayed.',close_incomplete:'incomplete',close_can_incomplete:'{n} matches left to play. You can still close the cycle.',unvalidated_short:'unvalidated',rating_empty:'No players have enough matches yet to compute a rating.',rating_title:'Rating / Level',rating_desc:'Global rating (0–10) computed from each player\'s group, wins and losses per cycle. Sorted high to low.',rating_col:'Rating',rt_prov:'prov.',rt_prov_t:'Provisional rating: fewer than 15 matches. It sharpens as they play.',rt_prov_leg:'provisional (few matches)',rt_manual:'fixed',rt_manual_t:'Rating set manually by the administrator.',rt_manual_leg:'adjusted by admin',rt_adjust:'Adjust',rt_desc_utr:'UTR-style rating (1–16) computed from each player last 50 matches across all leagues. Recent matches, game margin and opponent level weigh more.',rt_pj:'M',rt_pj_lc:'matches',rt_grp:'Group',rt_grp_t:'Player current group in the active cycle',rt_calc_now:'Rating computed now',rt_seed_lbl:'Starting score (seed)',rt_seed_hint:'The player starting point. It guides the rating at first and fades as they play. Leave empty to start neutral.',rt_over_lbl:'Manual adjustment (fixed rating)',rt_over_hint:'If set, it replaces the computed rating and stays fixed. Leave empty to use the automatic calculation.',rt_empty_ph:'(empty)',rt_scale:'scale 1–16',rt_seed_bad:'The starting score must be between 1 and 16.',rt_over_bad:'The manual adjustment must be between 0.01 and 16.',rt_saved:'Rating updated.',rt_show_detail:'Show calculation detail',rt_hide_detail:'Hide detail',rt_col_seed:'Seed',rt_col_calc:'Calc.',rt_col_vd:'W-L',rt_col_vd_t:'Wins-Losses in the window',rt_col_pct:'% Games',rt_col_pct_t:'Percentage of games won',rt_col_riv:'Opp.Lvl',rt_col_riv_t:'Average level of opponents faced',rt_col_fiab:'Rel.',rt_col_fiab_t:'Reliability: how settled the rating is (based on number of matches)',rt_detail_help:'Seed: admin starting point · Calc.: computed rating (if manually adjusted) · W-L: wins and losses · % Games: share of games won · Opp.Lvl: average opponent level · Rel.: how settled the rating is.',rt_col_gg:'GW',rt_col_gg_t:'Total games won',rt_col_gp:'GL',rt_col_gp_t:'Total games lost',rt_pj_t:'Matches used in the calculation (max 50, most recent)',rt_howto_title:'How is the rating calculated?',rt_leg_rating:'= rating (1–16)',rt_leg_pj:'= matches used (max 50)',rt_leg_seed:'= admin starting score',rt_leg_calc:'= computed rating (if manually adjusted)',rt_leg_vd:'= wins-losses',rt_leg_gg:'= games won',rt_leg_gp:'= games lost',rt_leg_pct:'= % of games won',rt_leg_riv:'= average opponent level',rt_leg_fiab:'= reliability (out of 50 matches)',rt_howto_body:'The rating (1–16 scale, UTR-style) is computed from each player last 50 matches across all leagues. For every match, the percentage of games you won is compared to what was expected given the opponent level: beating a stronger player, or winning by more games, raises the rating more. Recent matches weigh more, and the super tiebreak counts as half a set. Each player group also acts as a starting point: being in a higher group places the rating higher, especially with few matches, and that influence fades as more matches are played and real results take over. Reliability grows up to 50 matches; below 15 the rating is provisional.',rating_nivel:'Level',rating_nivel_t:'Average level of play weighted by cycle',rating_efic:'Efficiency',rating_efic_t:'Efficiency weighted by group difficulty (1–10)',rating_fiab:'Reliability',rating_fiab_t:'Rises with matches played (saturates at 10)',rating_grupo:'Group',rating_grupo_t:'Average group weighted by matches (1 = highest group)',rating_ppp:'Pts/M',rating_ppp_t:'Average points per match (3 win, 1 loss)',rating_pj:'M',rating_gp:'W-L',rating_pct:'%Win',rating_footer:'Rating weighs 85% level of play, 10% efficiency by group difficulty and 5% reliability by number of matches.',rating_feature:'Rating feature',rating_toggle_label:'Show Rating/Level tab',rating_toggle_hint:'If enabled, all users will see a tab with each player\'s rating. If not, the tab does not appear.',rating_on:'On',rating_off:'Off',rating_enabled_toast:'Rating enabled. The tab is now visible to everyone.',rating_disabled_toast:'Rating disabled. The tab is no longer shown.',appearance_title:'League appearance',legend_nj:'Not played',dispute_color:'Dispute color',dispute_color_hint:'background of disputed matches',dispute_short:'Disputed',clubs_title:'Clubs',clubs_hint:'Edit each club name and color, add or remove. The color shades the results table; text auto-darkens so it stays readable.',club_add:'Add club',club_delete:'Delete club',club_name_ph:'Club name',club_short:'Club',club_min_one:'At least one club must remain.',club_delete_confirm:'Delete club "{n}"? Matches already saved with this club keep their score but lose the color.',club_err_empty:'No club can be left unnamed.',club_err_dup:'Two clubs have the same name.',preview:'Preview',save_all:'Save all',reset_colors:'Reset colors',confirm_all_skipped:'Pending matches validated. {n} were skipped because you played in them: another administrator must confirm them.',own_match_admin:'You cannot referee a match you played in. Another administrator must confirm it.',wo_not_yours:'You cannot mark W.O. on a match you are playing in. Ask another administrator.',role_only_owner:'Only the original administrator and the super admin can grant this role.',admins_section:'League administrators',admins_hint:'Besides the Organización account, these people can administer the league. They are still players: they keep their group and their matches.',admins_none:'No player has administrator rights.',role_section:'League role',role_is_admin:'Administrator',role_is_player:'Player',role_make_admin:'Make administrator',role_make_player:'Remove administrator',role_confirm_up:'Give {n} administrator rights? They will be able to confirm results, edit players and change the league settings.',role_confirm_down:'Remove {n}\'s administrator rights? They go back to being a regular player.',role_done:'{n}\'s role updated.',role_last_admin:'At least one administrator must remain.',reset_not_here:'Not available from here.',reset_confirm:'Reset {n}\'s password to the default "tenis"? They will be asked to change it on their next login.',reset_ok:'{n}\'s password was reset. They will be asked for a new one on login.',reset_err:'Could not reset the password.',pwf_title:'Change your password',pwf_why:'You are using the default password, which is public. Choose a new one to continue.',pwf_new:'New password',pwf_rep:'Repeat it',pwf_save:'Save and continue',pwf_short:'It must be at least 6 characters.',pwf_same:'It cannot be the same one you had.',pwf_nomatch:'The two passwords do not match.',pwf_err:'Could not change it. Please try again.',err_need_both:'Enter your username and password.',err_no_server:'Could not reach the server. Please try again.',err_no_users:'Could not load the user list.',err_users_404:'The file api/users.js is missing from the repo (404).',err_users_csp:'The browser blocked the call to /api/users.',err_server_said:'The server returned ',err_hydrate:'Data was read but could not be applied. Please reload the page.',err_no_data:'Could not load the data. Please reload the page.',err_no_user_league:'Your user was not found in the league.',err_inactive:'Your account is inactive. Please contact the administrator.',err_session_expired:'Your session expired. Please log in again.',err_session_expired_save:'Your session expired. Log in again to keep saving.',err_no_access:'You do not have access.',err_conflict:'Someone else saved a change while you were entering yours. Please reload and enter it again.',login_working:'Signing in…',app_title:'Sohail Tennis League',app_subtitle:'Summer 2026',select_user:'Select User',admin_org:'admin (Organisation)',password:'Password',enter:'Log in',pk_login_btn:'Sign in with Face ID / Touch ID',invalid_user:'Please select a valid user.',wrong_pass:'Incorrect password.',past_title:'Past leagues',past_sub:'Browse finished seasons',past_view:'View standings and results',past_readonly:'You are viewing a finished league (read-only).',past_back:'Back to home',past_current:'Active league',lsel_title:'Which league do you want to enter?',aa_title:'No active leagues',aa_sub:'Sign in as administrator to reopen or create a league.',aa_banner:'There is no active league. Go to Admin → League management to reopen this one or create a new one.',err_no_active_league:'There is no active league right now. Come back when the administrator opens a new one. To browse past seasons, use "Past leagues".',past_player_btn:'View past leagues',past_player_lbl:'Pick a season',past_player_none:'No past leagues yet.',past_player_nomatch:'No matches in that league.',past_loading:'Loading…',past_loading_err:'Could not load.',won_lc:'won',lost_lc:'lost',win_short:'W',loss_short:'L',h2h_title:'Head 2 Head',h2h_none:'{a} and {b} have never played each other.',h2h_balance:'{a} {ga} · {b} {gb} in head-to-head matches',lm_title:'League management',lm_desc:'Create a new league from the player catalog, or close, reopen and delete existing ones.',lm_new:'Create new league',lm_none:'No leagues registered yet.',lm_active:'Active',lm_finished:'Finished',lm_close:'Close',lm_reopen:'Reopen',lm_delete:'Delete',lm_rename:'Rename',lm_rename_prompt:'New league name:',lm_rename_empty:'The name cannot be empty.',lm_new_title:'Create new league',lm_name_lbl:'League name',lm_name_ph:'e.g. Summer League 2026',lm_id_lbl:'Identifier (internal URL)',lm_id_hint:'Lowercase, numbers and hyphens only. Cannot be changed later.',lm_groups:'Number of groups',lm_cycles:'Number of cycles',lm_gc_hint:'You can adjust groups and cycles later from the admin panel.',lm_clubs_lbl:'Participating clubs',lm_clubs_hint:'They start with the same clubs and colors as the current league. You can rename them, change their color (with the picker or by typing the hex code), or add/remove clubs for this league.',lm_players_lbl:'Players from catalog',lm_search_ph:'Search player…',lm_no_catalog:'The catalog is empty. Add new players below.',lm_no_match:'No player matches.',lm_new_players_lbl:'Add new players',lm_add_player:'Add player',lm_np_name:'Name',lm_np_email:'Email (optional)',lm_total:'{n} players selected',lm_create:'Create league',lm_creating:'Creating…',lm_created:'League "{n}" created.',lm_confirm_empty:'You did not select any players. Create the empty league anyway?',lm_err_name:'Enter a name for the league.',lm_err_id:'The identifier can only have lowercase letters, numbers and hyphens.',lm_err_create:'Could not create the league.',lm_close_confirm:'Close league "{n}"? It will become finished and publicly viewable in read-only mode. You can reopen it later.',lm_reopen_confirm:'Reopen league "{n}"? It becomes active and editable again.',lm_delete_confirm1:'Delete league "{n}"? This cannot be undone.',lm_delete_confirm2:'To confirm, type the exact league name:\n\n{n}',lm_delete_mismatch:'The name does not match. Nothing was deleted.',lm_action_ok:'Done.',lm_err_action:'Could not complete the action.',rg_tab:'Rules',rg_title:'League rules',rg_empty:'No rules have been added for this league yet.',rg_create:'Create rules',rg_edit:'Edit',rg_save:'Save rules',rg_saved:'Rules saved.',rg_placeholder:'Write the league rules here…',rg_copy:'Copy from another league',rg_copy_title:'Copy rules',rg_copy_desc:'Choose the league to copy the rules from. You can review them before saving.',rg_copy_none:'No other leagues to copy from.',rg_copy_empty:'League "{n}" has no rules set.',rg_copied:'Rules copied from "{n}". Review and save.',err_too_big:'Could not save: too much content (likely a very large image in the rules). Remove the heaviest image and try again.',st_title:'Statistics',st_current:'Current league',st_total:'Total (all leagues)',st_pj:'Played',st_pg:'Won',st_pp:'Lost',st_pct:'% Win',cj_title:'Players in the database',cj_desc:'All players in the system (current and from past leagues). You can only delete players with no matches; those who played keep their history.',cj_search:'Search player…',cj_none:'No players in the database.',cj_total:'{n} players total',cj_leagues:'{n} leagues',cj_matches:'{n} matches',cj_has_matches:'Has matches: cannot be deleted (history would be lost).',cj_del_confirm:'Delete "{n}" from the database? They lose their account, but since they have no matches no history is affected.',cj_deleted:'"{n}" deleted from the database.',cj_del_err:'Could not delete the player.',rg_bold:'Bold',rg_italic:'Italic',rg_underline:'Underline',rg_size:'Size',rg_size_s:'Small',rg_size_m:'Normal',rg_size_l:'Large',rg_size_xl:'Very large',rg_ul:'Bullets',rg_ol:'Numbered',rg_img:'Insert image',rg_img_hint:'You can paste images directly (Ctrl+V) or use the button. Max 2 MB per image.',rg_img_big:'The image is too large (max 2 MB). Try a lighter one.',aj_open_btn:'Add from past leagues',aj_title:'Add players from past leagues',aj_desc:'Pick players who already played in other leagues and add them to this one, choosing which group each one joins.',aj_none:'No players from other leagues to add (or they are all already in this league).',aj_total:'{n} players selected',aj_none_sel:'Select at least one player.',aj_add:'Add to league',aj_adding:'Adding…',aj_done:'{n} players were added to the league.',aj_err:'Could not add the players.',
+exit:'Log out',cycle:'Cycle',playoffs:'Play Offs',playoffs_prev:'Play Offs (preview)',
+tab_grupos:'Groups',tab_general:'Standings',tab_cargar:'Upload',tab_cargar_admin:'Upload',tab_pendientes:'Pending',tab_pendientes_admin:'Pending / Disputes',tab_perfil:'Profile & Players',tab_admin:'Admin',
+choose_group:'Choose group',group:'Group',destination:'Dest.',player:'Player',won:'W',lost:'L',not_played:'NP',sets_won:'SW',sets_lost:'SL',balance:'Bal',pts_pos:'Pos.pts',extra:'Extra',total:'Total',pts_classif:'Points for the General Standings',players_col:'Players',edit:'Edit',
+legend_pts:'<strong>Standings table:</strong> Pts: points (3 win · 1 loss · 0 not played) · W: wins · L: losses · NP: not played · SW: sets won · SL: sets lost · Bal: set balance (SW−SL) · Pos.pts: points for group position · Extra: +2 to group winner · Total: Pos.pts + Extra (adds to General Standings) · Dest.: group player moves to: up (↑), down (↓) or stays (=).<br><strong>Tiebreakers (in order):</strong> 1st Points · 2nd Matches played · 3rd Head-to-head · 4th Set balance · 5th H2H 2nd (among still-tied players) · 6th Game balance.',
+legend_matrix:"Score is read in the player's row (their games first). Each cell color shows the club where it was played (see key).",
+legend_pending:'Pending validation',legend_disputed:'Disputed',legend_load:'+ upload',legend_noedit:'· locked',
+general_title:'Cumulative general standings (all cycles)',
+current_group:'Current group',you:'You',me_label:'You',
+report_result:'Report Result',reporter:'Player (Who Reports)',rival:'Opponent',club_label:'Club',date_label:'Date',
+reqmark_label:'MANDATORY',set:'Set',
+sets_section:'Results by set',supertiebreak:'S.Tiebreak',stb_hint:'only 1-0 or 0-1',add_stb:'Super tiebreak (1-1)',
+remove_stb:'Remove super tiebreak',send:'Send',clear:'Clear',set_hint:'6-0 to 6-4, 7-5 or 7-6',valid_need2sets:'Please complete both sets.',valid_set1:'Invalid Set 1 (6-0 to 6-4, 7-5 or 7-6).',valid_set2:'Invalid Set 2 (6-0 to 6-4, 7-5 or 7-6).',valid_need_stb:'Sets tied 1-1: please complete the super tiebreak.',valid_stb_only:'The super tiebreak can only be 1-0 or 0-1.',valid_no_stb:'No super tiebreak needed if result is 2-0 or 0-2.',edit_result:'Edit result',save_validate:'Save & validate',
+not_in_cycle:'You are not in the active cycle.',load_note_player:'Upload your matches in {g}. Only opponents you haven\'t played yet are shown. The admin will validate it.',load_note_admin:'Admin: upload/edit any match. Immediately validated.',
+select_two:'Please select two players.',same_group:'Both players must be in the same group.',validated_admin_only:'That result is already validated. Only the admin can edit it.',result_sent_admin:'✓ Valid result — validated (admin).',result_sent_player:'✓ Valid result submitted. The admin will validate it.',select_club:'Please choose a club (Sohail or Haza).',select_date:'Please fill in the match date.',
+disputes_title:'Active disputes (resolved by admin)',no_disputes:'No disputes',validate:'Validate',
+pending_title:'Pending Confirmation',no_pending:'No pending items',waiting_rival:'Waiting for opponent',review:'Review',
+validated_result:'Validated result',disputed_result:'Disputed result',review_result:'Review result',validated_by:'Validated by',reported_by:'Reported by',date_field:'Date',status_field:'Status',confirmed_label:'Confirmed',locked_label:'Validated',confirm:'Confirm',dispute:'Dispute',close:'Close',validated_only_admin:'Validated — only admin can edit',waiting_admin:'Waiting for admin validation',my_history:'My match history',hist_title:'Match history',hist_no_matches:'No matches played yet.',hist_won:'Won',hist_lost:'Lost',
+admin_cycle_status:'Cycle status',validated_count:'{done}/{need} matches validated',ready_close:'✓ Ready to close the cycle.',missing_results:'Some results still need validating.',close_cycle:'Close cycle and start next',finish_last_cycle:'Finish last cycle (enables Play Offs)',simulate:'Simulate and validate all',confirm_pending:'Confirm pending',
+cycle_dates:'Cycle dates',cycle_date_hint:"Edit each cycle's period.",
+promotions_title:'Promotions & relegations — where each position goes',promotions_hint:'For each group, choose which group each finishing position goes to when the cycle closes.',pos_goes_to:'{pos} →',
+edit_groups:'Edit groups (Cycle {n})',edit_groups_hint:'Reassign, remove or add players. Groups can have different sizes if needed.',add_player:'Add player',first_name:'First name',last_name:'Last name',add_btn:'Add',move_to:'move to…',remove:'Remove',
+move_done:'{name} moved to {g}.',remove_done:'{name} removed from cycle.',add_fill_both:'Please fill in first and last name.',add_choose_group:'Please choose a group.',add_exists:'A player with that name already exists.',add_done:'{name} added to {g}.',
+playoffs_title:'Play Offs',playoffs_ready:'All cycles closed. Preview brackets to review and adjust before starting.',playoffs_not_ready:'Play Offs are enabled once all cycles are closed.',how_many_playoffs:'How many brackets (play offs) in total?',bracket_singular:'bracket',bracket_plural:'brackets',preview_po:'Preview Play Offs',po_started:'Play Offs are already running. Manage them from the Play Offs tab.',po_preview_active:'A preview is in progress: review it and confirm from the Play Offs tab.',
+cycle_closed_next:'Cycle {n} closed. Cycle {nx} started with updated groups!',cycle3_closed:'All cycles closed. You can now start the Play Offs from Admin.',last_cycle_finished:'Last cycle finished. You can now preview the Play Offs.',
+po_preview_banner:'Preview — Play Offs have NOT started yet',po_preview_hint:'This is how the brackets would look. Remove or add players (those not playing) and adjust the number of brackets. When ready, confirm the start. Until then players see nothing.',po_confirm_start:'Start Play Offs for real',
+po_config:'Play Off settings',po_config_hint:'Changing the number of brackets redistributes the general standings evenly. You can also force the starting round.',po_seeds_title:'Players in Draw {l} — remove (✕) or add',po_removed:'Withdrawn: {list}.',po_add_label:'Add player to this bracket',po_add_choose:'Choose…',po_add_btn:'Add',po_bye_note:'If you remove someone they are not replaced: another player gets a bye instead.',
+po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
+po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',po_form_note:'Play Off Match — {draw} · {round}',
+po_tab_players:'players',
+pending_match:'Pending match',
+po_started_toast:'Play Offs started.',po_confirmed_toast:'Play Offs started! Now visible to players.',po_preview_toast:'Preview ready. Adjust players and confirm the start.',po_need_3cycles:'Close all cycles first.',po_seed_removed:'{name} removed from Draw (another player gets a bye).',po_seed_added:'{name} added to Draw.',po_choose_add:'Choose a player to add.',po_report_no_players:"That match doesn't have both players yet.",po_locked:'Result already validated. Only the admin can edit it.',po_not_yours:'Only the players in that match (or the admin) can upload it.',po_validated:'Play Off result validated.',po_sent:'Result submitted. The admin will validate it.',
+stage_dates:'Stage dates',stage_dates_hint:'For each round choose "Match week" (date range) or "Single date".',single_date:'Single date',week_play:'Match week',from_date:'From',until_date:'To',
+round_final:'Final',round_semi:'Semifinals',round_quarters:'Quarterfinals',round_16:'Round of 16',round_32:'Round of 32',round_64:'Round of 64',round_n:'Round {n}',
+my_profile:'My profile',full_name:'Full name',email:'Email',phone:'Phone',save_data:'Save details',change_password:'Change password',current_pass:'Current password',new_pass:'New password',repeat_pass:'Repeat new password',save_pass:'Save password',pass_wrong:'Current password is incorrect.',pass_short:'New password must be at least 4 characters.',pass_no_match:'New passwords do not match.',pass_ok:'✓ Password updated.',profile_saved:'✓ Details updated.',name_empty:'Name cannot be empty.',name_exists:'A player with that name already exists.',role_admin:'Administrator',role_player:'Player',current_group_label:'Current group',pk_section:'Passwordless sign-in',pk_section_hint:'Enable passwordless sign-in on this device to log in without typing your password. Works with Face ID, Touch ID, fingerprint or Windows Hello. You can enable it on every device you use (phone, computer, tablet). Your password still works as a backup.',pk_activate_btn:'Enable on this device',pk_activated:'Done. You can now sign in without a password on this device.',pk_unsupported:'This device does not support passwordless sign-in.',pk_need_login:'Sign in with your password first.',pk_cancelled:'You cancelled passwordless sign-in.',pk_login_err:'Could not sign in without a password. Use your password.',pk_reg_err:'Could not enable it. Please try again.',pk_status_active:'Passwordless sign-in enabled',pk_status_active_hint:'You can sign in on this device without typing your password. If you lose access to the device, your password still works.',pk_devices_lbl:'Enabled devices',pk_added_more:'Enable on another device too',pk_registered_at:'Registered',pk_last_used:'Last used',pk_never_used:'not used yet',pk_device_deactivate:'Disable',pk_device_deactivate_confirm:'Disable passwordless sign-in on "{n}"? You will need to use your password on that device until you enable it again.',pk_device_deactivated:'Passwordless sign-in disabled on "{n}".',pk_device_deactivate_err:'Could not disable it. Please try again.',pk_list_err:'Could not load the device list.',pwf_pk_offer:'Also enable passwordless sign-in on this device (Face ID / Touch ID).',pwf_pk_offer_after:'You will need to confirm with Face ID / Touch ID in the window that appears next.',pk_rename_title:'Rename device',pk_rename_prompt:'Choose a name to recognise this device.',pk_rename_empty:'Name cannot be empty.',pk_renamed:'Device renamed.',pk_rename_err:'Could not rename it.',forgot_pass:'Forgot password',forgot_title:'Forgot your password?',forgot_msg:'Contact the league administrator to reset your password. Once they do, you will sign in with the default password and the app will ask you to choose a new one.',forgot_ok:'Got it',theme_section:'Appearance',theme_hint:'Choose how you want to see the app on this device. The preference is saved locally.',theme_system:'System',theme_light:'Light',theme_dark:'Dark',theme_saved:'Appearance updated.',pk_admin_title:'Players passwordless sign-in',pk_admin_desc:'See who has passwordless sign-in enabled and disable it if they lost the device. Their account still works with password.',pk_admin_col_user:'Player',pk_admin_col_devices:'Devices',pk_admin_col_last:'Last used',pk_admin_none:'No player has enabled passwordless sign-in yet.',pk_admin_devices_of:'Devices of {n}',pk_admin_del_confirm:'Disable the device "{d}" of {n}? They will need to sign in with password until they enable it again.',pk_admin_del_ok:'Device disabled.',pk_admin_del_err:'Could not disable.',pk_admin_metric_lbl:'Passwordless sign-in adoption',pk_admin_metric_users:'players using it',pk_admin_metric_devices:'devices enabled',pk_admin_metric_pct:'% adoption',export_title:'Export league',export_desc:'Download an Excel with everything: players, standings, matches, cycles and playoffs.',export_btn:'Download Excel',export_working:'Preparing Excel…',export_ok:'Excel downloaded.',export_err:'Could not export.',export_sheet_jugadores:'Players',export_sheet_general:'Standings',export_sheet_ciclos:'Cycles',export_sheet_playoff:'Playoffs',wa_admin_title:'WhatsApp notifications',wa_admin_desc:'Get a WhatsApp every time a match is loaded or disputed. Each admin activates their own number by following the CallMeBot setup.',wa_add_btn:'Add channel',wa_col_name:'Admin',wa_col_phone:'Phone',wa_col_apikey:'APIKEY',wa_col_active:'Active',wa_col_last:'Last sent',wa_col_actions:'Actions',wa_test_btn:'Test',wa_edit_btn:'Edit',wa_delete_btn:'Delete',wa_none:'No channels configured yet. Add the first one.',wa_never:'never',wa_using_fallback:'uses the system APIKEY',wa_modal_add_title:'Add WhatsApp channel',wa_modal_edit_title:'Edit WhatsApp channel',wa_field_name_lbl:'Admin name',wa_field_name_ph:'e.g. Marcos',wa_field_phone_lbl:'Phone (international format)',wa_field_phone_ph:'e.g. 34687291646',wa_field_phone_hint:'Digits only, with country code, no "+" or spaces.',wa_field_apikey_lbl:'CallMeBot APIKEY',wa_field_apikey_ph:'e.g. 6643661',wa_field_apikey_hint:'Each admin gets their own APIKEY: add +34 623 91 22 04 as a WhatsApp contact and send them "I allow callmebot to send me messages". You will get the APIKEY reply within 2 minutes.',wa_save_btn:'Save',wa_cancel_btn:'Cancel',wa_delete_confirm:'Delete {n}\'s channel? They will stop receiving notifications.',wa_saved:'Channel saved.',wa_deleted:'Channel deleted.',wa_test_sending:'Sending test…',wa_test_ok:'Test message sent.',wa_test_err:'Could not send the test.',wa_toggle_ok:'Channel updated.',wa_err_save:'Could not save the channel.',wa_err_load:'Could not load the channels.',wa_err_delete:'Could not delete the channel.',wa_bad_phone:'The phone must be in international format (between 7 and 15 digits).',wa_bad_name:'The name cannot be empty.',pl_active:'Active',pl_inactive:'Inactive',lh_title:'Login header',lh_desc:'Shows above the blue box on the login screen. Set the background color and the links to display (for example the club website, social media, contact).',lh_color_lbl:'Background color',lh_textcolor_lbl:'Text color',lh_textcolor_auto:'auto based on background',lh_textcolor_reset:'Reset to automatic',lh_add_link:'Add link',lh_link_text:'Text',lh_link_url:'URL (with https://)',lh_link_delete:'Delete',lh_no_links:'No links yet. Add the first one so the bar shows up.',lh_saved:'Login header updated.',lh_url_bad:'URL must start with http:// or https://.',lh_text_bad:'Link text cannot be empty.',lh_del_confirm:'Delete link "{n}"?',
+admin_profile:'My profile — Administrator',player_mgmt:'Player management',player_mgmt_hint:'Sorted alphabetically. Search by name. Edit name, email, phone, reset passwords, switch group or delete.',search_player:'Search player…',refresh_list:'Refresh list',no_results:'No results',save:'Save',reset_pass:'Reset password',reset_done:'{name}: password reset to the default password.',save_done:'{name}: details updated.',
+toast_confirmed:'Result confirmed and validated!',toast_disputed:'Result disputed. Admin will review it.',toast_pending_confirmed:'Pending results confirmed.',toast_simulated:'Cycle simulated and validated.',toast_dispute_resolved:'Dispute resolved.',
+reset_playoffs:'Reset Play Offs',
+reset_cycle:'Reset Cycle {n}',
+reset_confirm_po:'Are you sure you want to reset all Play Offs? This cannot be undone.',
+reset_confirm_cycle:'Delete all MATCHES in Cycle {n}? Groups and players are preserved; only the results loaded in that cycle will be removed.',
+reset_done:'Reset completed.',
+reset_cancel:'Cancel',
+tbd:'TBD',
+mine_label:'yours',
+pending_label:'Pending',
+po_size_label:'Bracket Size / Starting Round',
+po_size_auto:'Auto (based on players)',
+r_64:'Round of 64 (64 players)',
+r_32:'Round of 32 (32 players)',
+r_16:'Round of 16 (16 players)',
+r_8:'Quarterfinals (8 players)',
+r_4:'Semifinals (4 players)',
+r_2:'Final (2 players)',
+delete_match:'Delete',
+confirm_delete:'Are you sure you want to permanently delete this result?',
+match_deleted:'Result deleted.',
+undo_demo:'Undo simulation',confirm_undo_demo:'Undo the simulation? Only matches generated by the simulation will be deleted.',pass_changed:'Password updated successfully.',
+toast_demo_undone:'Simulations removed.',
+},};
+const LAYOUT='selector';const LOGINMODE='groups';
+let PUNTOS={1:[35,34,33,32,31],2:[32,31,30,29,28],3:[29,28,27,26,25],4:[26,25,24,23,22],5:[23,22,21,20,19],6:[20,19,18,17,16],7:[17,16,15,14,13],8:[14,13,12,11,10],9:[14,13,12,11,10],10:[11,10,9,8,7],11:[8,7,6,5,4],12:[5,4,3,2,1]};
+let DESTINO={1:['G1','G1','G2','G2','G3'],2:['G1','G1','G2','G3','G4'],3:['G1','G2','G3','G4','G5'],4:['G2','G3','G4','G5','G6'],5:['G3','G4','G5','G6','G7'],6:['G4','G5','G6','G7','G8'],7:['G5','G6','G7','G8','G9'],8:['G6','G7','G8','G9','G10'],9:['G7','G8','G9','G10','G11'],10:['G8','G9','G10','G11','G12'],11:['G9','G10','G11','G12','G12'],12:['G10','G11','G11','G12','G12']};
+let FECHAS=['15/06/26 – 19/07/26','20/07/26 – 23/08/26','24/08/26 – 27/09/26'];
+let PO_FECHAS = { r64:{type:'single',date:'',from:'',to:''}, r32:{type:'single',date:'',from:'',to:''}, r16:{type:'single',date:'',from:'',to:''}, r8:{type:'single',date:'',from:'',to:''}, r4:{type:'single',date:'',from:'',to:''}, r2:{type:'single',date:'',from:'',to:''} };
+const C1=[['Neil Young','Marcos Gavassa','Jeremy Pérez','Leo Ramos','Adrián Mariscal'],['Manuel de la Coba','Javier Lopez','Miguel Ángel Vargas','Jaime Govantes','Luis Gil-Delgado'],['Javier Ariño','Germán Pacheco','Oscar Pacheco','Dumitru Bucse','Gustavo Rodriguez'],['Juan Antonio Tabernero','Carlos Marin','Jose Maria Cantero','Javier Urbieta','Marco Musso'],['Miguel Ángel Acevedo','Esteban Benítez','Cesar Henry','Borja Muñoz','Julio Pajares'],['Borja Rosales','Rustam Abduraufov','Alfredo Perez Playa','Alberto Álvarez','Jose Manuel Maese'],['Jaime Crespi','Ildefonso Delgado','Viktor Kachalin','Álvaro Jaime','Ángel Poyato'],['Jesús Bermúdez','David González','Istvan Simon','Nicolás Feller','Enrique Urdiales'],['Juan Ignacio Insausti','Rafael Alves','Miguel Ángel Mérida','David Ruiz','Alejandro Gil'],['Emanuele Procopio','Andrés Slako','Anita Rachwalska','Maria Fernanda Quinto','Raúl Rubio'],['Carolina Graciano','Lucca Maciel','José Alejandro López','Tim Dobbin','Pedro Gómez'],['Paola Mateo','Maurizio Rainieri','Borja Martín','Julio Corzo','Manuel Soriano']];
+let cycles=[{n:1,status:'active',groups:C1.map(p=>({players:[...p]}))},{n:2,status:'locked',groups:null},{n:3,status:'locked',groups:null}];
+let playoff={started:false,numTramos:4,tramos:[],results:{},viewT:0,qualified:[],forcedSize:0};
+let matches=[],matchId=1,activeN=1,viewCycle=1,subView='grupos',currentModal=null,formClub='',poContext=null,selGroup=1,adminMode='',_formCycleN=null;
+let LOG=[]; // historial de acciones sobre resultados (max 500 entradas)
+let LEAGUE_NAME='Liga de Tenis Sohail'; // nombre editable de la liga
+// Configuración del header de la pantalla de LOGIN (arriba del recuadro azul):
+//   color: fondo de la barra
+//   textColor: color del texto y borde de los pills (vacío = auto según contraste)
+//   links: array de {text, url} — se renderean como pills clickeables abriendo
+//          en nueva pestaña. Sin límite duro, pero UX degrada arriba de ~5.
+// Solo aparece en el login. Una vez logueado, no se muestra (no distrae).
+// Se cachea en localStorage ('lh') para que aparezca en el primer paint del
+// login SIN esperar a que el admin se loguee — cualquier usuario que abre la
+// app ve la barra con lo último que el admin configuró.
+let LOGIN_HEADER = { color: '#0E3470', textColor: '', links: [] };
+let REGLAMENTO=''; // reglamento de la liga (texto), editable por admin, visible para todos
+let LEAGUE_SUBTITLE='Verano 2026'; // subtítulo editable
+let LEAGUE_COLOR_PRI='#1B4F9C';   // color primario (azul)
+let LEAGUE_COLOR_ACC='#F5C518';   // color acento (amarillo)
+let LEAGUE_COLOR_HL='#FFEDD5';    // color de resaltado (fondo de botones No jugado / W.O.)
+let ALLNAMES=C1.flat();
+
+// ===== CLUBES (dinámicos) =========================================================
+// Cada club es {id, name, bg}. El color del TEXTO no se guarda: se calcula como una
+// version oscura del fondo (autoTxt), asi el contraste queda garantizado pase lo que
+// pase con el color elegido. Es lo que se ve en la tabla de resultados.
+// El id es estable y NO cambia al renombrar; los partidos guardan el NOMBRE en
+// m.club y clubByName resuelve por nombre.
+let CLUBS = [
+  { id:'sohail', name:'Sohail', bg:'#D6ECFB' },
+  { id:'haza',   name:'Haza',   bg:'#FCE6CF' }
+];
+let COLOR_DISPUTA = '#FDE68A';
+let _clubNamesAtOpen = {};  // snapshot id→nombre para migrar partidos al renombrar
+
+// ===== RATING / NIVEL (opcional, el admin lo habilita) ============================
+// Motor verificado contra la tabla oficial de la Liga Tenis Málaga (4 decimales,
+// 29 jugadores G1–G24). Solo usa, por jugador y ciclo: grupo, victorias, derrotas.
+// Está OFF por defecto: la pestaña Rating no aparece hasta que un admin lo active.
+let RATING_ON = false;
+let RATING_SEEDS = {};        // {jugador: valor} punto de partida que da el admin
+let RATING_OVERRIDES = {};    // {jugador: valor} rating fijo puesto a mano por el admin
+
+const _FACTOR_MUESTRA = { 1: 0.5, 2: 0.75, 3: 0.92 };  // 4+ => 1.0
+const _factorMuestra = (n) => _FACTOR_MUESTRA[n] ?? 1.0;
+const _valorBase = (g) => 9.6 - 0.35 * (g - 1);
+const _eficienciaCiclo = (v, d) => (3 * v + d) / (3 * (v + d));
+const _ajusteCiclo = (v, d) => 0.8 * (v / (v + d) - 0.5) * _factorMuestra(v + d);
+const _notaCiclo = (g, v, d) => _valorBase(g) + _ajusteCiclo(v, d);
+
+// Recibe [{grupo, v, d}] con SOLO los ciclos jugados (v+d >= 1). Devuelve el rating
+// y todas las columnas intermedias. Idéntico a la implementación de referencia.
+
+
+// Deriva, para un jugador, la lista [{grupo, v, d}] de los ciclos que jugó, usando
+// computeStats (que ya cuenta victorias 'g' y derrotas 'p' por ciclo/grupo).
+
+
+// Tabla de rating de todos los jugadores con al menos 1 partido, ordenada desc.
+
+// Rating global de un jugador (para la columna de la tabla de grupos).
+// Devuelve el número redondeado a 1 decimal, o '' si todavía no tiene partidos.
+
+
+
+
+
+function autoTxt(hex){
+  const h = String(hex||'').replace('#','');
+  if(h.length!==6) return '#222222';
+  // 0.30 = conserva 30% del color, 70% a negro. Da contraste ~7.8 (nivel AAA)
+  // sobre fondos claros como los de los clubes, y mantiene el matiz del color.
+  const f = 0.30;
+  const r = Math.round(parseInt(h.slice(0,2),16)*f);
+  const g = Math.round(parseInt(h.slice(2,4),16)*f);
+  const b = Math.round(parseInt(h.slice(4,6),16)*f);
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function clubByName(name){ return CLUBS.find(c => c.name === name) || null; }
+function clubStyle(name){
+  const c = clubByName(name);
+  if(!c) return '';
+  return 'background:'+c.bg+';color:'+autoTxt(c.bg);
+}
+
+// Auxiliares de fechas
+function parseDateRange(str) {
+  const parts = (str||'').split('–').map(s=>s.trim());
+  const parse = (s) => {
+     if(!s) return '';
+     if(s.includes('-')) return s;
+     const p = s.split('/');
+     if(p.length===3) return `${p[2].length===2?'20'+p[2]:p[2]}-${p[1]}-${p[0]}`;
+     return '';
+  }
+  return [parse(parts[0]), parse(parts[1])];
+}
+// Mostrar fecha: ISO (o dd/mm/yy) -> DD/MM/YYYY
+function fmtDate(d){
+  if(!d)return '';
+  d=String(d).trim();
+  if(!d)return '';
+  if(/^\d{4}-\d{1,2}-\d{1,2}/.test(d)){const p=d.slice(0,10).split('-');return p[2].padStart(2,'0')+'/'+p[1].padStart(2,'0')+'/'+p[0];}
+  if(d.indexOf('/')>=0){const p=d.split('/');if(p.length===3){const y=p[2].length===2?'20'+p[2]:p[2];return p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0')+'/'+y;}}
+  return d;
+}
+// Rango de fechas de ciclo -> "DD/MM/YYYY – DD/MM/YYYY"
+function fmtRange(str){
+  if(!str)return '';
+  const r=parseDateRange(str);
+  const a=fmtDate(r[0]),b=fmtDate(r[1]);
+  if(a&&b)return a+' – '+b;
+  return a||b||'';
+}
+// Cualquier formato -> ISO (YYYY-MM-DD) para guardar
+function toISODate(d){
+  if(!d)return '';
+  d=String(d).trim().replace(/[.]/g,'/').replace(/-/g,'/');
+  if(!d)return '';
+  const p=d.split('/');
+  if(p.length!==3)return '';
+  if(p[0].length===4)return p[0]+'-'+p[1].padStart(2,'0')+'-'+p[2].padStart(2,'0');
+  let y=p[2];if(y.length===2)y='20'+y;
+  return y.padStart(4,'0')+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0');
+}
+function formatDispDate(d) {
+  if(!d) return '';
+  const p = d.split('-');
+  if(p.length===3) return `${p[2]}/${p[1]}/${p[0].slice(-2)}`;
+  return d;
+}
+function updateCycleDate(i, type, val) {
+  const parts = parseDateRange(FECHAS[i] || '');
+  if(type === 'start') parts[0] = val;
+  else parts[1] = val;
+  const d1 = formatDispDate(parts[0]);
+  const d2 = formatDispDate(parts[1]);
+  if(!d1 && !d2) FECHAS[i] = '';
+  else if(d1 && d2) FECHAS[i] = `${d1} – ${d2}`;
+  else FECHAS[i] = d1 || d2;
+  updateHdr(); renderCycleBar(); persist(true);
+}
+
+function ensureDestino(gid,len){if(!DESTINO)DESTINO={};if(!DESTINO[gid]||!Array.isArray(DESTINO[gid]))DESTINO[gid]=[];const maxG=(cycles[0]&&cycles[0].groups)?cycles[0].groups.length:12;while(DESTINO[gid].length<len)DESTINO[gid].push('G'+Math.min(gid+1,maxG));return DESTINO[gid];}
+function addPlayerToCycle(name,gid){if(!name||!cycles[activeN-1].groups||!cycles[activeN-1].groups[gid-1])return false;if(ALLNAMES.indexOf(name)<0)ALLNAMES.push(name);if(!USERS[name])USERS[name]={role:'player',pass:DEFAULT_PASS_HASH,name};cycles[activeN-1].groups[gid-1].players.push(name);ensureDestino(gid,cycles[activeN-1].groups[gid-1].players.length);return true;}
+function buildUsers(){const u={admin:{role:'admin',pass:ADMIN_PASS_HASH,name:'Organización',email:'',tel:''},superadmin:{role:'superadmin',pass:ADMIN_PASS_HASH,name:'Super Administrador',email:'',tel:''}};ALLNAMES.forEach(n=>u[n]={role:'player',pass:DEFAULT_PASS_HASH,name:n,email:'',tel:''});return u;}
+const USERS=buildUsers();let currentUser=null;
+function groupName(g){return (typeof t==='function'?t('group'):'Grupo')+' '+g;}
+function validSet(a,b){if(a==null||b==null||isNaN(a)||isNaN(b))return false;const hi=Math.max(a,b),lo=Math.min(a,b);if(hi===6&&lo<=4)return true;if(hi===7&&(lo===5||lo===6))return true;return false;}
+function validSTB(a,b){return (a===1&&b===0)||(a===0&&b===1);}
+function validMatch(s){if(s.length<2)return{ok:false,msg:t('valid_need2sets')};if(!validSet(s[0][0],s[0][1]))return{ok:false,msg:t('valid_set1')};if(!validSet(s[1][0],s[1][1]))return{ok:false,msg:t('valid_set2')};let w1=0,w2=0;[s[0],s[1]].forEach(([a,b])=>{if(a>b)w1++;else w2++;});if(w1===w2){if(s.length!==3)return{ok:false,msg:t('valid_need_stb')};if(!validSTB(s[2][0],s[2][1]))return{ok:false,msg:t('valid_stb_only')};}else if(s.length===3)return{ok:false,msg:t('valid_no_stb')};return{ok:true};}
+function findLoc(name,cycN){const c=cycles[cycN-1];if(!c||!c.groups)return null;for(let gi=0;gi<c.groups.length;gi++){if(c.groups[gi]&&c.groups[gi].players&&c.groups[gi].players.indexOf(name)>=0)return{g:gi+1};}return null;}
+function getActive(){return cycles[activeN-1];}
+function getInitials(n){if(!n)return'?';return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+function ptsForPos(gid,pos){
+  if(!PUNTOS)PUNTOS={};
+  let pb=PUNTOS[gid];
+  if(!pb||!Array.isArray(pb)||pb.length===0){
+    // Fallback: grupo sin escala definida (ej. liga ampliada más allá de 12 grupos).
+    // Extrapola usando la última escala conocida menos 3 puntos por cada grupo de diferencia.
+    const knownKeys=Object.keys(PUNTOS).map(Number).filter(k=>Array.isArray(PUNTOS[k])&&PUNTOS[k].length);
+    if(knownKeys.length){
+      const maxK=Math.max(...knownKeys);
+      const base=PUNTOS[maxK];
+      const diff=(gid-maxK)*3;
+      pb=base.map(v=>Math.max(1,v-diff));
+    } else pb=[5,4,3,2,1];
+  }
+  return pos<pb.length?pb[pos]:Math.max(0,pb[pb.length-1]-(pos-pb.length+1));
+}
+
+function computeStats(cycN,gid){
+  const c=cycles[cycN-1];if(!c||!c.groups||!c.groups[gid-1])return[];
+  const g=c.groups[gid-1];const players=(g.players||[]).filter(Boolean);
+  const st=players.map((name)=>({name,pts:0,g:0,p:0,nj:0,sg:0,sp:0,gw:0,gl:0}));
+  const byName={};st.forEach(s=>byName[s.name]=s);
+  const confirmed=matches.filter(m=>!m.po&&m.cycle===cycN&&m.g===gid&&m.status==='confirmed');
+  confirmed.forEach(m=>{
+    const a=byName[m.aName],b=byName[m.bName];if(!a||!b)return;
+    if(m.np){a.nj++;b.nj++;return;}
+    // Defensa contra sets malformados (import de Excel corrupto, edición manual del
+    // backup, etc.): si sets no es un array de pares numéricos, el partido se
+    // ignora en el cálculo en vez de romper toda la tabla del grupo.
+    if(!Array.isArray(m.sets)||!m.sets.every(s=>Array.isArray(s)&&s.length>=2&&isFinite(s[0])&&isFinite(s[1])))return;
+    let w1=0,w2=0,a_gw=0,a_gl=0;
+    m.sets.forEach(([x,y])=>{if(x>y)w1++;else w2++;a_gw+=x;a_gl+=y;});
+    a.sg+=w1;a.sp+=w2;b.sg+=w2;b.sp+=w1;
+    a.gw+=a_gw;a.gl+=a_gl;b.gw+=a_gl;b.gl+=a_gw;
+    if(w1>w2){a.g++;b.p++;a.pts+=3;b.pts+=1;}
+    else{b.g++;a.p++;b.pts+=3;a.pts+=1;}
+  });
+  function h2hStats(group){
+    const names=new Set(group.map(s=>s.name));
+    const h={};group.forEach(s=>h[s.name]={pts:0,sg:0,sp:0,gw:0,gl:0});
+    confirmed.forEach(m=>{
+      if(!names.has(m.aName)||!names.has(m.bName))return;
+      if(m.np)return;
+      if(!Array.isArray(m.sets)||!m.sets.every(st2=>Array.isArray(st2)&&st2.length>=2&&isFinite(st2[0])&&isFinite(st2[1])))return;
+      let w1=0,w2=0,a_gw=0,a_gl=0;
+      m.sets.forEach(([x,y])=>{if(x>y)w1++;else w2++;a_gw+=x;a_gl+=y;});
+      h[m.aName].sg+=w1;h[m.aName].sp+=w2;h[m.bName].sg+=w2;h[m.bName].sp+=w1;
+      h[m.aName].gw+=a_gw;h[m.aName].gl+=a_gl;h[m.bName].gw+=a_gl;h[m.bName].gl+=a_gw;
+      if(w1>w2){h[m.aName].pts+=3;h[m.bName].pts+=1;}
+      else{h[m.bName].pts+=3;h[m.aName].pts+=1;}
+    });
+    return h;
+  }
+  function tiebreakSort(group){
+    if(group.length<=1)return group;
+    group.sort((x,y)=>{
+      if(y.pts!==x.pts)return y.pts-x.pts;
+      const mpX=x.g+x.p, mpY=y.g+y.p;
+      if(mpY!==mpX)return mpY-mpX;
+      return 0;
+    });
+    const result=[];let i=0;
+    while(i<group.length){
+      let j=i+1;
+      while(j<group.length&&group[j].pts===(group[i].pts)&&(group[j].g+group[j].p)===(group[i].g+group[i].p)){j++;}
+      const tied=group.slice(i,j);
+      if(tied.length===1){result.push(tied[0]);i=j;continue;}
+      result.push(...breakTies(tied));
+      i=j;
+    }
+    return result;
+  }
+  function breakTies(tied){
+    if(tied.length===1)return tied;
+    const h=h2hStats(tied);
+    tied.sort((x,y)=>{
+      const hDiff=(h[y.name].pts)-(h[x.name].pts);if(hDiff!==0)return hDiff;
+      const sbDiff=(y.sg-y.sp)-(x.sg-x.sp);if(sbDiff!==0)return sbDiff;
+      const hsbDiff=(h[y.name].sg-h[y.name].sp)-(h[x.name].sg-h[x.name].sp);if(hsbDiff!==0)return hsbDiff;
+      return (y.gw-y.gl)-(x.gw-x.gl);
+    });
+    const result=[];let i=0;
+    while(i<tied.length){
+      let j=i+1;
+      while(j<tied.length){
+        const x=tied[i],y=tied[j];
+        const sameH2H=h[x.name].pts===h[y.name].pts;
+        const sameSB=(x.sg-x.sp)===(y.sg-y.sp);
+        const sameHSB=(h[x.name].sg-h[x.name].sp)===(h[y.name].sg-h[y.name].sp);
+        const sameGB=(x.gw-x.gl)===(y.gw-y.gl);
+        if(sameH2H&&sameSB&&sameHSB&&sameGB)j++;else break;
       }
-      estado.users = limpios;
+      const sub=tied.slice(i,j);
+      if(sub.length===tied.length||sub.length===1){result.push(...sub);i=j;}
+      else{
+        const h2=h2hStats(sub);
+        sub.sort((x,y)=>{
+          const hDiff=h2[y.name].pts-h2[x.name].pts;if(hDiff!==0)return hDiff;
+          const sbDiff=(h2[y.name].sg-h2[y.name].sp)-(h2[x.name].sg-h2[x.name].sp);if(sbDiff!==0)return sbDiff;
+          return(y.gw-y.gl)-(x.gw-x.gl);
+        });
+        result.push(...sub);i=j;
+      }
     }
-    res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({ ok: true, id: vid, nombre: entry.nombre, estado });
+    return result;
   }
-
-  const session = auth(req);
-  if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
-
-  let sesionState, sesionStateErr = null;
-  try { sesionState = await readState(body.ligaId || session.ligaId || undefined); }
-  catch(e){ sesionState = null; sesionStateErr = e; }
-  const esAdmin = sesionEsAdmin(session, sesionState && sesionState.users);
-  if(!esAdmin) return res.status(403).json({ error: 'Solo un administrador puede gestionar ligas.' });
-
-  if(accion === 'catalogo'){
-    let cat = {};
-    try { cat = await readCatalogo(); } catch(e){ cat = {}; }
-    const jugadores = Object.keys(cat).map(id => ({
-      jugadorId: id, nombre: (cat[id] && cat[id].nombre) || '', email: (cat[id] && cat[id].email) || ''
-    })).sort((a,b)=> a.nombre.localeCompare(b.nombre));
-    res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({ jugadores });
-  }
-
-  if(accion === 'jugadores'){
-    let cat = {}; try { cat = await readCatalogo(); } catch(e){ cat = {}; }
-    let idx = []; try { idx = await readLigaIndex(); } catch(e){ idx = []; }
-    const porNombre = {};
-    for(const l of idx){
-      let est; try { est = await readState(l.id); } catch(e){ continue; }
-      if(!est) continue;
-      const ms = est.matches || [];
-      const cuenta = {};
-      ms.forEach(m => { if(m){ if(m.aName) cuenta[m.aName]=(cuenta[m.aName]||0)+1; if(m.bName) cuenta[m.bName]=(cuenta[m.bName]||0)+1; } });
-      Object.keys(cuenta).forEach(nom => {
-        if(!porNombre[nom]) porNombre[nom] = { ligas: new Set(), partidos: 0 };
-        porNombre[nom].ligas.add(l.id);
-        porNombre[nom].partidos += cuenta[nom];
+  return tiebreakSort(st);
+}
+function findMatch(cycN,gid,n1,n2){return matches.find(m=>!m.po&&m.cycle===cycN&&m.g===gid&&((m.aName===n1&&m.bName===n2)||(m.aName===n2&&m.bName===n1)));}
+function pairsNeeded(c){
+  if(!c||!c.groups)return 0;
+  let t=0;
+  c.groups.forEach(g=>{
+    const pl=(g.players||[]).filter(n=>!(USERS[n]&&USERS[n].inactive));
+    t+=pl.length*(pl.length-1)/2;
+  });
+  return t;
+}
+function computeGeneral(){
+  // Puntos por ciclo de cada jugador, además del total. Los inactivos se calculan
+  // igual (con los puntos que sumaron) pero se marcan para ubicarlos al final.
+  const tot={};        // nombre -> total acumulado
+  const porCiclo={};   // nombre -> { ciclo1: pts, ciclo2: pts, ... }
+  cycles.forEach(c=>{
+    if(!c.groups)return;
+    c.groups.forEach((g,gi)=>{
+      const st=computeStats(c.n,gi+1);
+      st.forEach((s,pos)=>{
+        const v=ptsForPos(gi+1,pos)+(pos===0?2:0);
+        tot[s.name]=(tot[s.name]||0)+v;
+        if(!porCiclo[s.name])porCiclo[s.name]={};
+        porCiclo[s.name][c.n]=(porCiclo[s.name][c.n]||0)+v;
       });
-    }
-    const jugadores = Object.keys(cat).map(id => {
-      const nom = (cat[id] && cat[id].nombre) || '';
-      const info = porNombre[nom] || { ligas: new Set(), partidos: 0 };
-      return { jugadorId: id, nombre: nom, email: (cat[id] && cat[id].email) || '', ligas: info.ligas.size, partidos: info.partidos };
-    }).sort((a,b)=> a.nombre.localeCompare(b.nombre));
-    res.setHeader('Cache-Control', 'no-store');
-    return res.status(200).json({ jugadores });
+    });
+  });
+  // El último ciclo relevante para el desempate es el de mayor número que tenga datos.
+  const ciclosConDatos = cycles.map(c=>c.n).filter(n=>Object.values(porCiclo).some(pc=>pc[n]!==undefined));
+  const ultimoCiclo = ciclosConDatos.length ? Math.max(...ciclosConDatos) : (cycles.length?cycles[cycles.length-1].n:1);
+  const filas=Object.keys(tot).map(name=>{
+    const loc=findLoc(name,activeN);
+    return {
+      name,
+      total:tot[name],
+      porCiclo:porCiclo[name]||{},
+      inactive: !!(USERS[name] && USERS[name].inactive),
+      poDraw: poDrawDeJugador(name),   // cuadro de playoff (o null)
+      ptsUltimoCiclo: (porCiclo[name] && porCiclo[name][ultimoCiclo]) || 0,  // desempate 2
+      grupoActual: loc ? loc.g : 999   // desempate 3 (grupo más alto = número menor)
+    };
+  });
+  // Desempate para la clasificación general, en orden:
+  //   1) Total (mayor primero)
+  //   2) Puntaje del último ciclo (mayor primero)
+  //   3) Grupo más alto (número de grupo menor)
+  const cmp=(a,b)=>{
+    if(b.total!==a.total) return b.total-a.total;
+    if(b.ptsUltimoCiclo!==a.ptsUltimoCiclo) return b.ptsUltimoCiclo-a.ptsUltimoCiclo;
+    return a.grupoActual-b.grupoActual;
+  };
+  const activos=filas.filter(f=>!f.inactive).sort(cmp);
+  const inactivos=filas.filter(f=>f.inactive).sort(cmp);
+  return activos.concat(inactivos);
+}
+// Devuelve la etiqueta del cuadro de playoff donde está un jugador ('A','B',…) o null
+// si no está en ningún cuadro (o los playoffs no están activos).
+function poDrawDeJugador(name){
+  if(!playoff || (!playoff.started && !playoff.preview)) return null;
+  if(!Array.isArray(playoff.tramos)) return null;
+  for(const tr of playoff.tramos){
+    if(tr && Array.isArray(tr.seeds) && tr.seeds.includes(name)) return tr.label || '?';
   }
+  return null;
+}
+function demoFill(){const c=getActive();if(!c||!c.groups)return;const opts=[[[6,3],[6,4]],[[6,2],[4,6],[1,0]],[[7,5],[6,4]],[[6,4],[7,6]]];c.groups.forEach((g,gi)=>{const gid=gi+1;const pl=(g.players||[]).filter(n=>!(USERS[n]&&USERS[n].inactive));for(let i=0;i<pl.length;i++)for(let j=i+1;j<pl.length;j++){if(findMatch(activeN,gid,pl[i],pl[j]))continue;const w=Math.random()<0.5;const club=Math.random()<0.6?'Sohail':'Haza';const base=opts[Math.floor(Math.random()*opts.length)];matches.push({id:matchId++,cycle:activeN,g:gid,aName:pl[i],bName:pl[j],sets:w?base:base.map(([a,b])=>[b,a]),date:'2026-07-01',status:'confirmed',reporter:pl[i],club,locked:true,isDemo:true});}});}
 
-  if(accion === 'eliminarJugador'){
-    if(!(session && session.r === 'superadmin')) return res.status(403).json({ error: 'Solo el super administrador puede eliminar jugadores de la base.' });
-    const jid = String(body.jugadorId || '');
-    if(!jid) return res.status(400).json({ error: 'Falta el jugador.' });
-    let nombreJug = null;
-    try { const cat = await readCatalogo(); nombreJug = cat[jid] && cat[jid].nombre; } catch(_){}
-    try { await borrarJugador(jid); } catch(e){ return res.status(503).json({ error: 'No se pudo eliminar: ' + e.message }); }
-    if(nombreJug){ try { await borrarPasskeysDeUsuario(nombreJug); } catch(_){} }
-    logAudit(session.u, 'jugador.eliminar', jid, { nombre: nombreJug }, clientIP(req));
-    return res.status(200).json({ ok: true, jugadorId: jid });
+function allCyclesDone(){return cycles.every(c=>c.groups&&c.status==='finished');}
+
+// SOLO dibuja. Antes guardaba acá adentro, y eso significaba que cada repintado
+// disparaba un POST de 125 KB: al entrar, la tabla esperaba a ese guardado que no
+// tenía nada que guardar. 13 de las 15 llamadas ya hacían persist() justo antes,
+// así que además se guardaba dos veces. Ahora quien cambia datos, guarda; quien
+// dibuja, dibuja.
+function refreshAll(){
+  if(viewCycle==='po'){showPlayoffView();renderPend();renderCycleBar();return;}
+  if(subView==='grupos')renderGrupos();
+  if(subView==='general')renderGeneral();
+  if(subView==='pendientes')renderPend();
+  if(subView==='admin')renderAdmin();
+  if(subView==='cargar')renderCargarDisputas();
+  renderPend();renderCycleBar();updateBadge();
+}
+
+function splitTramos(qual,T){const n=qual.length;const base=Math.floor(n/T);const extra=n%T;const out=[];let idx=0;for(let t=0;t<T;t++){// extra players go to LAST brackets (D,C,B...) not first
+const size=base+(t>=(T-extra)?1:0);out.push(qual.slice(idx,idx+size));idx+=size;}return out;}
+function seedOrder(n){if(n===1)return[0];const prev=seedOrder(n/2);const res=[];prev.forEach(p=>{res.push(p);res.push(n-1-p);});return res;}
+function buildRounds(seeds){
+  let size=1;
+  if(playoff.forcedSize && playoff.forcedSize>=2) {
+    size = playoff.forcedSize;
+  } else {
+    while(size<seeds.length) size*=2;
+    if(size<2) size=2;
   }
+  let actualSeeds = seeds;
+  if(actualSeeds.length > size) actualSeeds = actualSeeds.slice(0, size);
+  
+  const order=seedOrder(size);
+  const slots=new Array(size).fill(null);
+  order.forEach((pos,k)=>{slots[k]=actualSeeds[pos]!==undefined?actualSeeds[pos]:null;});
+  const rounds=[];let cur=[];
+  for(let k=0;k<size;k+=2)cur.push({a:slots[k],b:slots[k+1],w:null,sets:null,locked:false,sid:[slots[k]?actualSeeds.indexOf(slots[k])+1:'',slots[k+1]?actualSeeds.indexOf(slots[k+1])+1:'']});
+  rounds.push(cur);
+  let cnt=cur.length;
+  while(cnt>1){cnt/=2;rounds.push(Array.from({length:cnt},()=>({a:null,b:null,w:null,sets:null,locked:false,sid:['','']})));}
+  rounds[0].forEach(m=>{if(m.a&&!m.b)m.w=m.a;if(m.b&&!m.a)m.w=m.b;});
+  return rounds;
+}
+function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].forEach((m,mi)=>{const sl=nx[Math.floor(mi/2)];if(mi%2===0)sl.a=m.w;else sl.b=m.w;});}}
+function applyStored(key,r){for(let p=0;p<r.length+1;p++){r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));propagate(r);}}
+function loserOf(m){return m.w&&m.a&&m.b?(m.w===m.a?m.b:m.a):null;}
+function label(i){return String.fromCharCode(65+i);}
+function rebuildTramo(t){const tr=playoff.tramos[t];if(!tr)return;tr.main=buildRounds(tr.seeds);applyStored(t,tr.main);const losers=tr.main[0].map(loserOf).filter(Boolean);tr.cons=losers.length>=2?buildRounds(losers):null;if(tr.cons)applyStored(t+'c',tr.cons);}
+function rebuildAll(){playoff.tramos.forEach((_,t)=>rebuildTramo(t));}
+function buildTramosFromGeneral(T){const gen=computeGeneral().map(x=>x.name);const slices=splitTramos(gen,T);return{numTramos:T,results:{},viewT:0,qualified:gen,tramos:slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null}))};}
+function previewPlayoff(){if(!allCyclesDone())return false;const T=playoff.numTramos||4;playoff=Object.assign({started:false,preview:true,forcedSize:playoff.forcedSize||0},buildTramosFromGeneral(T));rebuildAll();return true;}
+function confirmPlayoff(){if(!playoff.preview&&!playoff.started)return false;playoff.started=true;playoff.preview=false;return true;}
+function startPlayoff(){if(!allCyclesDone())return false;const T=playoff.numTramos||4;playoff=Object.assign({started:true,preview:false,forcedSize:playoff.forcedSize||0},buildTramosFromGeneral(T));rebuildAll();return true;}
+function setNumTramos(T){playoff.numTramos=T;if(playoff.started||playoff.preview){const gen=playoff.qualified;const slices=splitTramos(gen,T);playoff.results={};playoff.viewT=0;playoff.tramos=slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null}));rebuildAll();}}
+function removeSeed(t,name){const tr=playoff.tramos[t];tr.seeds=tr.seeds.filter(n=>n!==name);rebuildTramo(t);}
+function addSeed(t,name){const tr=playoff.tramos[t];if(name&&!tr.seeds.includes(name)){tr.seeds.push(name);
+const order=playoff.qualified||[];tr.seeds.sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0&&ib<0)return 0;if(ia<0)return 1;if(ib<0)return -1;return ia-ib;});}rebuildTramo(t);}
+function tramoOf(name){for(let t=0;t<playoff.tramos.length;t++)if(playoff.tramos[t].seeds.includes(name))return t;return -1;}
 
-  const id = String(body.id || '');
-  if(accion !== 'crear' && !ligaIdOK(id)){ return res.status(400).json({ error: 'Falta el identificador de la liga o es inválido.' }); }
+function movePlayer(name,fromG,toG){if(fromG===toG)return;const c=cycles[activeN-1];if(!c||!c.groups)return;const a=(c.groups[fromG-1]||{}).players||[];const i=a.indexOf(name);if(i<0)return;a.splice(i,1);if(c.groups[toG-1]&&c.groups[toG-1].players)c.groups[toG-1].players.push(name);}
+function removePlayerCycle(name,fromG){const c=cycles[activeN-1];if(!c||!c.groups)return;const a=(c.groups[fromG-1]||{}).players||[];const i=a.indexOf(name);if(i>=0)a.splice(i,1);}
+function movePlayerUI(name,fromG,toG){if(!toG)return;movePlayer(name,fromG,parseInt(toG));renderAdmin();persist(true);toast(name+' movido a '+groupName(parseInt(toG))+'.');}
 
-  // ================= CREAR LIGA =================
-  if(accion === 'crear'){
-    const nombre = String(body.nombre || '').trim();
-    const nuevoId = String(body.id || '').trim().toLowerCase();
-    if(!nombre) return res.status(400).json({ error: 'Falta el nombre de la liga.' });
-    if(!ligaIdOK(nuevoId)) return res.status(400).json({ error: 'El identificador de la liga es inválido.' });
-
-    let idx; try { idx = await readLigaIndex(); } catch(e){ idx = []; }
-    if(idx.some(l => l.id === nuevoId)) return res.status(409).json({ error: 'Ya existe una liga con ese identificador.' });
-    if(!sesionState || !sesionState.users) return res.status(503).json({ error: 'No se pudo leer la liga actual para heredar administradores.' });
-
-    const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
-
-    // Mantener el diseño (colores) de la liga desde la que se está creando,
-    // para que las ligas nuevas no vuelvan al azul/amarillo por defecto.
-    if(sesionState){
-      if(sesionState.LEAGUE_COLOR_PRI) estado.LEAGUE_COLOR_PRI = sesionState.LEAGUE_COLOR_PRI;
-      if(sesionState.LEAGUE_COLOR_ACC) estado.LEAGUE_COLOR_ACC = sesionState.LEAGUE_COLOR_ACC;
-      if(sesionState.LEAGUE_COLOR_HL)  estado.LEAGUE_COLOR_HL  = sesionState.LEAGUE_COLOR_HL;
-      if(sesionState.COLOR_DISPUTA)    estado.COLOR_DISPUTA    = sesionState.COLOR_DISPUTA;
+function updateBadge() {
+  const pend = matches.filter(m => m.status === 'pending');
+  const disp = matches.filter(m => m.status === 'disputed');
+  // Para el badge del admin: partidos donde el rival (no-reporter) puede confirmar
+  // Si el rival está inactivo, sigue contando para que el admin sepa que debe resolverlo
+  const userPend = pend.filter(m => {
+    if(m.po) return m.poNames && m.poNames.includes(currentUser.name);
+    return m.aName === currentUser.name || m.bName === currentUser.name;
+  });
+  // Excluir del badge partidos donde AMBOS jugadores son inactivos (nadie puede resolverlos sin admin)
+  const activePend = pend.filter(m=>{
+    const a=m.po?(m.poNames&&m.poNames[0]):m.aName;
+    const b=m.po?(m.poNames&&m.poNames[1]):m.bName;
+    return !(USERS[a]&&USERS[a].inactive&&USERS[b]&&USERS[b].inactive);
+  });
+  const cnt = esAdmin(currentUser) ? (activePend.length + disp.length) : userPend.length;
+  const pn = document.getElementById('pend-n');
+  if (pn) {
+    pn.textContent = cnt;
+    if (cnt > 0) {
+      pn.style.background = 'var(--danger)';
+      pn.style.color = '#fff';
+      pn.style.display = 'inline-block';
+    } else {
+      pn.style.display = 'none';
     }
+  }
+}
 
-    // Clubes elegidos por el admin al crear la liga (nombre + color hex).
-    // Si no manda ninguno válido, se quedan los clubes por defecto de estadoInicial.
-    const clubsElegidos = sanitizarClubs(body.clubs);
-    if(clubsElegidos) estado.CLUBS = clubsElegidos;
+// Pinta el desplegable a partir de una estructura ya conocida. No toca la red:
+// es puro DOM, tarda milisegundos. Mismo patrón que ya usan los colores ('lsc')
+// y el nombre de la liga ('lsn'): dibujar de la caché primero, refrescar después.
+function pintarLogin(d){
+  const s=document.getElementById('login-user');if(!s)return;
+  const prev=s.value;
+  s.innerHTML='';
+  const ph=document.createElement('option');ph.value='';ph.textContent=t('select_user');s.appendChild(ph);
+  const opt=u=>new Option(u.i?u.v+' (inactivo)':u.v,u.v);
+  // 1) El administrador, arriba de todo
+  const admin=document.createElement('option');admin.value='admin';admin.textContent=t('admin_org');s.appendChild(admin);
+  // 2) Las secciones: grupos del ciclo activo, o cuadros si están los playoffs
+  const esPO=d.mode==='po';
+  (d.sections||[]).forEach(sec=>{
+    const og=document.createElement('optgroup');
+    og.label=esPO?('Cuadro '+sec.k):groupName(sec.k);
+    (sec.players||[]).forEach(u=>og.appendChild(opt(u)));
+    s.appendChild(og);
+  });
+  // 3) Jugadores que no cayeron en ninguna sección (si los hubiera)
+  if((d.loose||[]).length){
+    const og=document.createElement('optgroup');og.label='Sin grupo';
+    d.loose.forEach(u=>og.appendChild(opt(u)));
+    s.appendChild(og);
+  }
+  // 4) Super Admin, abajo de todo
+  const saOg=document.createElement('optgroup');saOg.label='Super Admin';
+  saOg.appendChild(new Option('Super Administrador','superadmin'));
+  s.appendChild(saOg);
+  if(prev)s.value=prev;
+}
 
-    // HEREDAR ADMINS CORRECTAMENTE
-    if(sesionState && sesionState.users){
-      for(const k of Object.keys(sesionState.users)){
-        const su = sesionState.users[k];
-        if(su && (su.role === 'superadmin' || su.role === 'admin' || su.isAdmin === true)){ 
-            estado.users[k] = { ...su }; 
-        }
-      }
-    }
-
-    const jugadores = Array.isArray(body.jugadores) ? body.jugadores : [];
-    let catalogo = {}; try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
-
-    for(const j of jugadores){
-      if(!j) continue;
-      let perfil = null;
-
-      if(j.jugadorId && catalogo[j.jugadorId]){
-        perfil = catalogo[j.jugadorId];
-      } else if(j.email){
-        try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
-        if(!perfil && j.nombre){
-          perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
-          try { await upsertJugador(perfil); } catch(e){}
-        }
-      } else if(j.nombre){
-        perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: null, pass: null };
-        try { await upsertJugador(perfil); } catch(e){}
-      }
-
-      if(perfil && perfil.nombre){
-        const nomNorm = perfil.nombre.trim().toLowerCase();
-        if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
-        
-        if(!estado.ALLNAMES.includes(perfil.nombre)) {
-          estado.ALLNAMES.push(perfil.nombre);
-          
-          const numGroups = estado.cycles[0].groups.length;
-          let targetIndex = (parseInt(j.grupo, 10) || 1) - 1;
-          if (targetIndex < 0 || targetIndex >= numGroups) targetIndex = 0; 
-          
-          if (numGroups > 0) {
-            estado.cycles[0].groups[targetIndex].players.push(perfil.nombre);
-          }
-        }
-        
-        // GUARDADO EXPLÍCITO DE NAME Y EMAIL
-        if(estado.users[perfil.nombre]) {
-            estado.users[perfil.nombre].jugadorId = perfil.id;
-            estado.users[perfil.nombre].name = perfil.nombre;
-            if (perfil.email) estado.users[perfil.nombre].email = perfil.email;
-        } else {
-            estado.users[perfil.nombre] = { 
-                role: 'player', 
-                name: perfil.nombre, 
-                email: perfil.email || null, 
-                jugadorId: perfil.id 
-            };
-        }
-      }
-    }
-
+// Renderiza el header configurable de la pantalla de login. Se ejecuta al
+// arrancar la app y cada vez que el admin cambia la config. El header se
+// oculta si no hay ningún link (nada útil que mostrar).
+function renderLoginHeader(){
+  const el = document.getElementById('login-header');
+  if(!el) return;
+  // Rehidratar desde localStorage si la config en memoria está vacía. Esto
+  // es CRÍTICO para visitantes que abren el login SIN loguearse: hasta que
+  // alguien no se loguea, no hay hydrate desde el server. El cache local es
+  // la única fuente de verdad para ese primer paint.
+  // Si ya hay algo en memoria (por ej. el admin loguado editando), NO se
+  // pisa — la config en memoria es más nueva que el cache.
+  if((!LOGIN_HEADER || !Array.isArray(LOGIN_HEADER.links) || !LOGIN_HEADER.links.length)){
     try {
-      await writeState(nuevoId, estado);
-      const orden = (idx.length ? Math.max(...idx.map(l => l.orden || 0)) : 0) + 1;
-      await upsertLigaIndex({ id: nuevoId, nombre, estado: 'activa', orden });
-    } catch(e){ return res.status(503).json({ error: 'No se pudo crear la liga: ' + e.message }); }
-
-    logAudit(session.u, 'liga.crear', nuevoId, { nombre, jugadores: estado.ALLNAMES.length }, clientIP(req));
-    return res.status(200).json({ ok: true, id: nuevoId, jugadores: estado.ALLNAMES.length });
-  }
-
-  // ================= AGREGAR JUGADORES A UNA LIGA YA CREADA =================
-  // Permite al admin/superadmin sumar jugadores del catálogo (de ligas pasadas
-  // o de otras ligas) a una liga ya existente, eligiendo a qué grupo del ciclo
-  // activo va cada uno. { accion:'agregarJugadores', id, jugadores:[{jugadorId?|nombre?,email?,grupo}] }
-  if(accion === 'agregarJugadores'){
-    const jugadoresIn = Array.isArray(body.jugadores) ? body.jugadores : [];
-    if(!jugadoresIn.length) return res.status(400).json({ error: 'No se especificaron jugadores para agregar.' });
-
-    let estado;
-    try { estado = await readState(id); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga.' }); }
-    if(!estado) return res.status(404).json({ error: 'Esa liga no tiene datos.' });
-
-    const cicloActivo = (estado.cycles || []).find(c => c && c.n === estado.activeN) || (estado.cycles || [])[(estado.activeN || 1) - 1];
-    if(!cicloActivo || !Array.isArray(cicloActivo.groups) || !cicloActivo.groups.length){
-      return res.status(400).json({ error: 'La liga no tiene un ciclo activo con grupos para agregar jugadores.' });
-    }
-    const numGrupos = cicloActivo.groups.length;
-
-    let catalogo = {}; try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
-    if(!estado.ALLNAMES) estado.ALLNAMES = [];
-    if(!estado.users) estado.users = {};
-
-    const agregados = [];
-    for(const j of jugadoresIn){
-      if(!j) continue;
-      let perfil = null;
-
-      if(j.jugadorId && catalogo[j.jugadorId]){
-        perfil = catalogo[j.jugadorId];
-      } else if(j.email){
-        try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
-        if(!perfil && j.nombre){
-          perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
-          try { await upsertJugador(perfil); } catch(e){}
-        }
-      } else if(j.nombre){
-        perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: null, pass: null };
-        try { await upsertJugador(perfil); } catch(e){}
-      }
-
-      if(!perfil || !perfil.nombre) continue;
-      const nomNorm = perfil.nombre.trim().toLowerCase();
-      if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
-
-      // Ya está jugando el ciclo activo de esta liga: no duplicar.
-      const yaEnCicloActivo = cicloActivo.groups.some(g => (g.players || []).includes(perfil.nombre));
-      if(yaEnCicloActivo) continue;
-
-      let targetIndex = (parseInt(j.grupo, 10) || 1) - 1;
-      if(targetIndex < 0 || targetIndex >= numGrupos) targetIndex = 0;
-      cicloActivo.groups[targetIndex].players.push(perfil.nombre);
-
-      if(!estado.ALLNAMES.includes(perfil.nombre)) estado.ALLNAMES.push(perfil.nombre);
-
-      if(estado.users[perfil.nombre]){
-        estado.users[perfil.nombre].jugadorId = perfil.id;
-        estado.users[perfil.nombre].name = perfil.nombre;
-        if(perfil.email) estado.users[perfil.nombre].email = perfil.email;
-        if(estado.users[perfil.nombre].inactive) delete estado.users[perfil.nombre].inactive;
-      } else {
-        estado.users[perfil.nombre] = {
-          role: 'player', name: perfil.nombre, email: perfil.email || null, jugadorId: perfil.id
+      const cached = JSON.parse(localStorage.getItem('lh') || 'null');
+      if(cached && typeof cached === 'object'){
+        LOGIN_HEADER = {
+          color: (typeof cached.color === 'string' && cached.color) ? cached.color : '#0E3470',
+          textColor: (typeof cached.textColor === 'string') ? cached.textColor : '',
+          links: Array.isArray(cached.links) ? cached.links.filter(l => l && l.text && l.url) : []
         };
       }
-      agregados.push({ nombre: perfil.nombre, grupo: targetIndex + 1 });
+    } catch(_){ /* cache corrupta: ignorar y seguir con default */ }
+  }
+  const cfg = LOGIN_HEADER || { color:'#0E3470', textColor:'', links:[] };
+  const links = Array.isArray(cfg.links) ? cfg.links.filter(l => l && l.text && l.url) : [];
+  if(!links.length){
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  // Color de texto: usa el custom si el admin lo definió; si no, calcula
+  // automático con autoTxt() (claro sobre fondo oscuro, oscuro sobre claro).
+  const bg = cfg.color || '#0E3470';
+  const fg = (cfg.textColor && String(cfg.textColor).trim())
+    ? cfg.textColor
+    : ((typeof autoTxt === 'function') ? autoTxt(bg) : '#fff');
+  // Usa la clase .login-header-bar (definida en el CSS) para heredar padding,
+  // gap, media queries móvil, negrita y borde grueso. Los estilos inline solo
+  // definen los colores (dinámicos según config del admin). Sin la clase, las
+  // media queries no aplicaban y el header se veía roto en móvil.
+  el.className = 'login-header-bar';
+  el.style.cssText = 'display:flex;background:' + bg + ';color:' + fg + ';box-shadow:0 1px 3px rgba(0,0,0,.08)';
+  el.innerHTML = links.map(l => {
+    // target=_blank + rel=noopener por seguridad (evita tabnabbing).
+    const url = String(l.url).replace(/"/g, '&quot;');
+    const txt = String(l.text).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
+    return '<a href="' + url + '" target="_blank" rel="noopener" style="color:' + fg + ';border-color:' + fg + '">' + txt + '</a>';
+  }).join('');
+}
+
+async function initLogin(){
+  const e=document.getElementById('login-err');
+
+  // Pintar el header custom del login (config editable por admin, ver
+  // renderLoginHeader). Se hace apenas se abre el login, sin esperar a la
+  // red — usa lo que haya en cache (localStorage 'lh' + memoria).
+  try { renderLoginHeader(); } catch(_){}
+
+  // En PARALELO, refrescar el header consultando al server. Este endpoint
+  // NO requiere login: el header es info pública (color y links a la web
+  // del club). Sin esta llamada, un móvil que nunca se logueó veía la
+  // versión vieja del cache local hasta que alguien se logueara desde ese
+  // dispositivo. Con esta llamada, cualquier cambio del admin se refleja
+  // en todos los dispositivos apenas alguien abre el login.
+  //
+  // Fire-and-forget: no bloqueamos el flujo del login esperando esta
+  // respuesta. Si el server tarda, el header aparece con lo que había en
+  // cache y se actualiza cuando termina el fetch.
+  fetch(_conLiga('/api/login-header'), { cache: 'no-store' })
+    .then(r => r.ok ? r.json() : null)
+    .then(cfg => {
+      if(!cfg || typeof cfg !== 'object') return;
+      // Solo actualizamos si algo cambió, para no re-renderear al pedo
+      const nuevo = JSON.stringify({
+        color: cfg.color || '#0E3470',
+        textColor: cfg.textColor || '',
+        links: Array.isArray(cfg.links) ? cfg.links : []
+      });
+      const viejo = JSON.stringify(LOGIN_HEADER || {});
+      if(nuevo === viejo) return;
+      LOGIN_HEADER = JSON.parse(nuevo);
+      try { localStorage.setItem('lh', nuevo); } catch(_){}
+      try { renderLoginHeader(); } catch(_){}
+    })
+    .catch(() => { /* si falla, seguimos con lo cacheado */ });
+
+  // 0) Determinar a qué liga se hace login. Si hay una sola activa, esa. Si hay
+  //    varias, se muestra un selector. Esto hace el login dinámico: nunca entra
+  //    a una liga cerrada, y sigue a la liga activa aunque cambie.
+  await detectarLigaActiva();
+
+  // 1) Pintar YA con lo último que sabemos. El desplegable aparece instantáneo
+  //    en recargas y al cambiar de cuenta, sin esperar a la red.
+  let hayCache=false;
+  try{
+    const c=localStorage.getItem('lsu');
+    if(c){ pintarLogin(JSON.parse(c)); hayCache=true; }
+  }catch(_){ /* caché corrupta: se ignora y se pide de nuevo */ }
+
+  // 2) Precalentar las dos funciones en paralelo. Un GET a /api/login devuelve
+  //    405 al instante sin tocar la base, pero deja la función levantada.
+  fetch('/api/login',{method:'GET'}).catch(()=>{});
+
+  // 3) Traer la lista de verdad y refrescar por detrás.
+  let d={};
+  try{
+    const r=await fetch(_conLiga('/api/users'),{cache:'no-store'});
+    if(!r.ok){
+      const err=await r.json().catch(()=>({}));
+      const msg=r.status===404 ? t('err_users_404') : t('err_server_said')+r.status+'. '+(err.error||'');
+      // Si ya hay algo pintado de la caché, no se rompe la pantalla por un fallo
+      // de refresco: se puede entrar igual y el servidor valida al final.
+      if(e && !hayCache){e.textContent=t('err_no_users')+' '+msg;e.style.display='block';}
+      console.error('/api/users →',r.status,err);
+      return;
+    }
+    d=await r.json().catch(()=>({}));
+    if(e)e.style.display='none';
+  }catch(err){
+    if(e && !hayCache){e.textContent=t('err_users_csp');e.style.display='block';}
+    console.error('fetch /api/users falló:',err);
+    return;
+  }
+
+  // 4) Repintar solo si algo cambió, y guardar para la próxima vez.
+  const nuevo=JSON.stringify(d);
+  let viejo=null; try{ viejo=localStorage.getItem('lsu'); }catch(_){}
+  if(nuevo!==viejo){
+    pintarLogin(d);
+    // Solo nombres y grupos: no viajan hashes ni roles (lo garantiza /api/users).
+    try{ localStorage.setItem('lsu',nuevo); }catch(_){ /* modo privado: sin caché */ }
+  }
+  cargarLigasPasadas();
+}
+
+// Detecta las ligas activas y decide a cuál hacer login.
+// - 1 activa  → se elige sola (login directo a esa).
+// - 2+ activas → se muestra un selector arriba del login.
+// - 0 activas → cae en la liga por defecto (compatibilidad).
+let _ligasActivas=[];
+async function detectarLigaActiva(){
+  let todas=[];
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    todas=(d.ligas||[]);
+    _ligasActivas=todas.filter(l=>l.estado==='activa')
+      .sort((a,b)=>(b.orden||0)-(a.orden||0));
+  }catch(_){ _ligasActivas=[]; todas=[]; }
+  const sel=document.getElementById('liga-selector');
+  // CASO ESPECIAL: ninguna liga activa. El admin igual tiene que poder entrar
+  // (para reabrir o crear una). Elegimos la última liga (la más reciente aunque
+  // esté cerrada) como destino de login, y mostramos el acceso admin especial.
+  if(_ligasActivas.length===0){
+    const ultima=todas.slice().sort((a,b)=>(b.orden||0)-(a.orden||0))[0];
+    _ligaActual = ultima ? ultima.id : null;
+    _sinLigasActivas = true;
+    if(sel) sel.style.display='none';
+    aplicarNombreLigaLogin();
+    mostrarAccesoAdmin(ultima);
+    return;
+  }
+  _sinLigasActivas = false;
+  ocultarAccesoAdmin();
+  if(_ligasActivas.length===1){
+    _ligaActual = _ligasActivas[0].id;
+    if(sel) sel.style.display='none';
+    aplicarNombreLigaLogin();
+    return;
+  }
+  // Varias activas: si no hay una elegida (o la elegida ya no está activa), tomar la primera.
+  if(!_ligaActual || !_ligasActivas.some(l=>l.id===_ligaActual)){
+    _ligaActual=_ligasActivas[0].id;
+  }
+  pintarSelectorLigas();
+  aplicarNombreLigaLogin();
+}
+// Muestra los botones para elegir entre varias ligas activas.
+function pintarSelectorLigas(){
+  let sel=document.getElementById('liga-selector');
+  if(!sel){
+    sel=document.createElement('div');
+    sel.id='liga-selector';
+    sel.className='liga-selector';
+    const wrap=document.querySelector('.login-wrap');
+    if(wrap&&wrap.parentNode){ wrap.parentNode.insertBefore(sel, wrap); }
+  }
+  sel.style.display='';
+  sel.innerHTML='<div class="liga-sel-lbl">'+t('lsel_title')+'</div><div class="liga-sel-btns">'
+    + _ligasActivas.map(l=>
+      '<button class="liga-sel-btn'+(l.id===_ligaActual?' on':'')+'" onclick="elegirLigaLogin(\''+String(l.id).replace(/\\\\/g,'\\\\\\\\').replace(/'/g,"\\\\'")+'\')">'
+      + '<i class="ti ti-trophy"></i> '+escPast(l.nombre)+'</button>').join('')
+    +'</div>';
+}
+// El usuario elige a qué liga activa entrar: recargamos la lista de usuarios de esa liga.
+async function elegirLigaLogin(id){
+  _ligaActual=id;
+  pintarSelectorLigas();
+  aplicarNombreLigaLogin();
+  // Recargar la lista de usuarios para la liga elegida.
+  try{
+    const r=await fetch(_conLiga('/api/users'),{cache:'no-store'});
+    if(r.ok){ const d=await r.json(); pintarLogin(d); try{ localStorage.setItem('lsu',JSON.stringify(d)); }catch(_){}}
+  }catch(_){}
+}
+// Pone el nombre de la liga activa elegida en el encabezado del login.
+function aplicarNombreLigaLogin(){
+  const activa=_ligasActivas.find(l=>l.id===_ligaActual);
+  if(activa){
+    const tit=document.getElementById('login-title');
+    if(tit&&activa.nombre) tit.textContent=activa.nombre;
+  }
+}
+// Acceso admin cuando NO hay ninguna liga activa: un aviso en el login para que
+// el admin/superadmin igual pueda entrar (a la última liga) y reabrir o crear.
+function mostrarAccesoAdmin(ultima){
+  let box=document.getElementById('admin-access');
+  if(!box){
+    box=document.createElement('div');
+    box.id='admin-access';
+    box.className='admin-access';
+    const wrap=document.querySelector('.login-wrap');
+    if(wrap&&wrap.parentNode){ wrap.parentNode.insertBefore(box, wrap); }
+  }
+  box.style.display='';
+  box.innerHTML='<div class="aa-ic"><i class="ti ti-shield-lock"></i></div>'
+    +'<div class="aa-tx"><b>'+t('aa_title')+'</b><span>'+t('aa_sub')+'</span></div>';
+  // El login normal ya apunta _ligaActual a la última liga: el admin entra con su
+  // usuario y contraseña habituales. Solo lo avisamos con este cartel.
+}
+function ocultarAccesoAdmin(){
+  const box=document.getElementById('admin-access');
+  if(box) box.style.display='none';
+}
+
+// ---- Ligas pasadas (sistema unificado) ----
+// Escapa texto para meterlo en HTML sin romper nada (nombres de liga).
+function escPast(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+// Trae la lista de ligas del índice y muestra las finalizadas en el desplegable
+// público del login. Consulta sin cuenta, solo lectura.
+async function cargarLigasPasadas(){
+  const cont=document.getElementById('past-leagues');
+  const list=document.getElementById('past-list');
+  if(!cont||!list) return;
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    const ligas=(d.ligas||[]).filter(l=>l.estado==='finalizada')
+      .sort((a,b)=>(b.orden||0)-(a.orden||0))   // más recientes primero
+      .slice(0,3);                               // solo las últimas 3
+    if(!ligas.length){ cont.style.display='none'; return; }
+    list.innerHTML=ligas.map(l=>
+      '<div class="past-item" onclick="entrarLigaPasada(\''+String(l.id).replace(/'/g,"\\'")+'\',\''+String(l.nombre).replace(/'/g,"\\'")+'\')">'
+      +'<div class="past-item-ic"><i class="ti ti-trophy"></i></div>'
+      +'<div class="past-item-tx"><b>'+escPast(l.nombre)+'</b><span>'+t('past_view')+'</span></div>'
+      +'<i class="ti ti-chevron-right" style="color:var(--text2)"></i></div>'
+    ).join('');
+    cont.style.display='';
+  }catch(_){ cont.style.display='none'; }
+}
+function togglePastLeagues(){
+  document.getElementById('past-leagues').classList.toggle('open');
+}
+// Entra a una liga pasada en modo consulta (solo lectura, sin login).
+async function entrarLigaPasada(id, nombre){
+  const e=document.getElementById('login-err');
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ if(e){e.textContent=d.error||'No se pudo abrir esa liga.';e.style.display='block';} return; }
+    // Activar modo consulta: sin token, liga fija, solo lectura.
+    _ligaActual=id; _ligaReadOnly=true; _token=null;
+    currentUser={ name:'', role:'guest', key:'' };   // invitado: no edita nada
+    const ok=_hydrate(d.estado);
+    if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} _ligaReadOnly=false; _ligaActual=null; return; }
+    applyLeagueNameToDOM();
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('main-app').style.display='block';
+    document.body.classList.add('readonly-mode');
+    // Mostrar el banner de solo lectura y entrar a la vista de grupos del ciclo activo.
+    mostrarBannerReadonly(nombre);
+    if(playoff.started){ viewCycle='po';renderShell();showPlayoffView();renderSubTabs();updateHdr(); }
+    else { viewCycle=activeN;renderShell();showSub('grupos'); }
+  }catch(err){ if(e){e.textContent=t('err_no_server');e.style.display='block';} }
+}
+// Banner "estás viendo una liga finalizada" + botón volver.
+function mostrarBannerSinLigas(){
+  let b=document.getElementById('nolig-banner');
+  if(!b){
+    b=document.createElement('div');
+    b.id='nolig-banner';
+    b.className='readonly-banner';
+    const app=document.getElementById('main-app');
+    app.insertBefore(b, app.firstChild);
+  }
+  b.innerHTML='<i class="ti ti-alert-triangle"></i><span>'+t('aa_banner')+'</span>'
+    +'<button onclick="showSub(\'admin\')"><i class="ti ti-settings"></i> '+t('tab_admin')+'</button>';
+  b.style.display='flex';
+}
+function mostrarBannerReadonly(nombre){
+  let b=document.getElementById('readonly-banner');
+  if(!b){
+    b=document.createElement('div');
+    b.id='readonly-banner';
+    b.className='readonly-banner';
+    const app=document.getElementById('main-app');
+    app.insertBefore(b, app.firstChild);
+  }
+  b.innerHTML='<i class="ti ti-eye"></i><span><b>'+escPast(nombre)+'</b> · '+t('past_readonly')+'</span>'
+    +'<button onclick="salirLigaPasada()"><i class="ti ti-arrow-left"></i> '+t('past_back')+'</button>';
+  b.style.display='flex';
+}
+// Volver del modo consulta al login.
+function salirLigaPasada(){
+  _ligaReadOnly=false; _ligaActual=null; currentUser=null;
+  document.body.classList.remove('readonly-mode');
+  const b=document.getElementById('readonly-banner'); if(b)b.style.display='none';
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').style.display='block';
+  initLogin();
+}
+
+// ==================== GESTIÓN DE LIGAS (admin) ====================
+// Lista las ligas del sistema con sus acciones (cerrar / reabrir / eliminar).
+async function cargarGestionLigas(){
+  const cont=document.getElementById('liga-mgmt-list');
+  if(!cont) return;
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    const ligas=d.ligas||[];
+    if(!ligas.length){ cont.innerHTML='<div class="pm-past-empty">'+t('lm_none')+'</div>'; return; }
+    cont.innerHTML=ligas.map(l=>{
+      const activa=l.estado==='activa';
+      const esActual=(_ligaActual? l.id===_ligaActual : activa);   // la que estás usando
+      const badge=activa
+        ? '<span class="lm-badge lm-on">'+t('lm_active')+'</span>'
+        : '<span class="lm-badge lm-off">'+t('lm_finished')+'</span>';
+      let acciones='';
+      if(activa){
+        acciones+='<button class="btn btn-sm" onclick="cerrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-flag-check"></i> '+t('lm_close')+'</button>';
+      } else {
+        acciones+='<button class="btn btn-sm" onclick="reabrirLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-lock-open"></i> '+t('lm_reopen')+'</button>';
+      }
+      acciones+='<button class="btn btn-sm" onclick="renombrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-pencil"></i> '+t('lm_rename')+'</button>';
+      acciones+='<button class="btn btn-sm" onclick="renombrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-pencil"></i> '+t('lm_rename')+'</button>';
+      acciones+='<button class="btn btn-sm btn-danger" onclick="eliminarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-trash"></i> '+t('lm_delete')+'</button>';
+      return '<div class="lm-item">'
+        +'<div class="lm-item-h"><b>'+escPast(l.nombre)+'</b>'+badge+(esActual?' <span class="lm-badge lm-cur">'+t('past_current')+'</span>':'')+'</div>'
+        +'<div class="lm-item-actions">'+acciones+'</div></div>';
+    }).join('');
+  }catch(_){ cont.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+}
+// Escape para meter texto dentro de un atributo onclick con comillas simples.
+function escJsAttr(s){return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+
+// ---- Crear liga: modal con selector de jugadores del catálogo + nuevos ----
+let _crearLigaCat=[];       // catálogo cargado
+let _crearLigaSel={};       // jugadorId -> true (seleccionados)
+let _crearLigaNuevos=[];    // [{nombre,email}] jugadores nuevos a mano
+let _crearLigaClubs=[];     // [{id,name,bg}] clubes que van a participar en la liga nueva
+async function abrirCrearLiga(){
+  document.getElementById('modal-title').textContent=t('lm_new_title');
+  document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
+  document.getElementById('modal-bg').classList.add('open');
+  _crearLigaSel={}; _crearLigaNuevos=[];
+  // Los clubes arrancan como copia de los de la liga actual (mismo diseño de
+  // partida); el admin los puede renombrar, recolorear, agregar o sacar.
+  _crearLigaClubs=(Array.isArray(CLUBS)&&CLUBS.length) ? CLUBS.map(c=>({id:c.id,name:c.name,bg:c.bg})) : [{id:'c1',name:'Club A',bg:'#D6ECFB'}];
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'catalogo',ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    _crearLigaCat=d.jugadores||[];
+  }catch(_){ _crearLigaCat=[]; }
+  pintarCrearLiga();
+}
+function pintarCrearLiga(){
+  const body=document.getElementById('modal-body');
+  let h='<div class="cl-form">';
+  // Nombre de la liga
+  h+='<label class="cl-lbl">'+t('lm_name_lbl')+'</label>';
+  h+='<input id="cl-nombre" class="cl-inp" placeholder="'+t('lm_name_ph')+'" oninput="clSyncId()">';
+  h+='<label class="cl-lbl">'+t('lm_id_lbl')+'</label>';
+  h+='<input id="cl-id" class="cl-inp" placeholder="verano-2026">';
+  h+='<div class="cl-hint">'+t('lm_id_hint')+'</div>';
+  // Cantidad de grupos y ciclos
+  h+='<div class="cl-gc">';
+  h+='<div class="cl-gc-item"><label class="cl-lbl">'+t('lm_groups')+'</label><input id="cl-grupos" class="cl-inp" type="number" min="1" max="30" value="1" oninput="pintarCatFiltrado();pintarNuevos()"></div>';
+  h+='<div class="cl-gc-item"><label class="cl-lbl">'+t('lm_cycles')+'</label><input id="cl-ciclos" class="cl-inp" type="number" min="1" max="12" value="3"></div>';
+  h+='</div>';
+  h+='<div class="cl-hint">'+t('lm_gc_hint')+'</div>';
+  // Clubes que participan
+  h+='<label class="cl-lbl" style="margin-top:12px">'+t('lm_clubs_lbl')+'</label>';
+  h+='<div class="cl-hint" style="margin-top:-4px">'+t('lm_clubs_hint')+'</div>';
+  h+='<div id="cl-clubs"></div>';
+  h+='<button class="btn btn-sm" onclick="clAddClub()"><i class="ti ti-plus"></i> '+t('club_add')+'</button>';
+  // Jugadores del catálogo
+  h+='<label class="cl-lbl" style="margin-top:12px">'+t('lm_players_lbl')+'</label>';
+  if(_crearLigaCat.length){
+    h+='<div class="cl-search"><i class="ti ti-search"></i><input id="cl-search" placeholder="'+t('lm_search_ph')+'" oninput="pintarCatFiltrado()"></div>';
+    h+='<div class="cl-cat" id="cl-cat"></div>';
+  } else {
+    h+='<div class="cl-hint">'+t('lm_no_catalog')+'</div>';
+  }
+  // Jugadores nuevos
+  h+='<label class="cl-lbl" style="margin-top:12px">'+t('lm_new_players_lbl')+'</label>';
+  h+='<div id="cl-nuevos"></div>';
+  h+='<button class="btn btn-sm" onclick="clAddNuevo()"><i class="ti ti-plus"></i> '+t('lm_add_player')+'</button>';
+  h+='<div class="cl-count" id="cl-count"></div>';
+  h+='</div>';
+  body.innerHTML=h;
+  document.getElementById('modal-actions').innerHTML=
+    '<button class="btn" onclick="closeM()">'+t('close')+'</button>'
+    +'<button class="btn btn-primary" onclick="crearLigaConfirmar()"><i class="ti ti-check"></i> '+t('lm_create')+'</button>';
+  pintarClCLubs(); pintarCatFiltrado(); pintarNuevos(); clActualizarCount();
+}
+// ---- Editor de clubes dentro del modal de crear liga ----
+// Mismo patrón visual que clubsEditorHTML() del panel Admin, pero opera sobre
+// _crearLigaClubs (liga todavía no creada) en vez del CLUBS global.
+function pintarClCLubs(){
+  const cont=document.getElementById('cl-clubs'); if(!cont)return;
+  cont.innerHTML=_crearLigaClubs.map((c,i)=>
+    '<div class="club-edit-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:.5rem;padding:.5rem;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">'
+    +'<input type="text" value="'+attr(c.name)+'" maxlength="24" oninput="clUpdateClubName('+i+',this.value)" style="flex:1;min-width:120px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px" placeholder="'+t('club_name_ph')+'">'
+    +'<input id="cl-club-color-'+i+'" type="color" value="'+c.bg+'" oninput="clUpdateClubColor('+i+',this.value)" style="width:44px;height:34px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">'
+    +'<input id="cl-club-hex-'+i+'" type="text" value="'+c.bg+'" maxlength="7" spellcheck="false" oninput="clUpdateClubColorHex('+i+',this.value)" style="width:82px;font-size:12px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)" placeholder="#RRGGBB">'
+    +'<span id="cl-club-demo-'+i+'" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:'+c.bg+';color:'+autoTxt(c.bg)+'">'+(attr(c.name)||t('club_short'))+'</span>'
+    +'<button class="btn btn-sm" onclick="clRemoveClub('+i+')" title="'+t('club_delete')+'" style="background:#fee2e2;color:#b91c1c"><i class="ti ti-trash"></i></button>'
+    +'</div>').join('');
+}
+function clUpdateClubName(i,val){
+  if(!_crearLigaClubs[i])return;
+  _crearLigaClubs[i].name=val;
+  const demo=document.getElementById('cl-club-demo-'+i);
+  if(demo) demo.textContent=val||t('club_short');
+}
+function clUpdateClubColor(i,val){
+  if(!_crearLigaClubs[i])return;
+  _crearLigaClubs[i].bg=val;
+  const hex=document.getElementById('cl-club-hex-'+i);
+  if(hex){ hex.value=val; hex.style.borderColor=''; }
+  const demo=document.getElementById('cl-club-demo-'+i);
+  if(demo){ demo.style.background=val; demo.style.color=autoTxt(val); }
+}
+function clUpdateClubColorHex(i,val){
+  if(!_crearLigaClubs[i])return;
+  const hexInp=document.getElementById('cl-club-hex-'+i);
+  let v=(val||'').trim();
+  if(v&&v[0]!=='#')v='#'+v;
+  let full=null;
+  if(/^#[0-9a-fA-F]{6}$/.test(v)) full=v;
+  else if(/^#[0-9a-fA-F]{3}$/.test(v)){ const h=v.slice(1); full='#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; }
+  if(!full){ if(hexInp) hexInp.style.borderColor='#e55'; return; }
+  if(hexInp) hexInp.style.borderColor='';
+  _crearLigaClubs[i].bg=full;
+  const picker=document.getElementById('cl-club-color-'+i);
+  if(picker) picker.value=full;
+  const demo=document.getElementById('cl-club-demo-'+i);
+  if(demo){ demo.style.background=full; demo.style.color=autoTxt(full); }
+}
+function clAddClub(){
+  const id='c'+Date.now().toString(36);
+  _crearLigaClubs.push({ id, name:'', bg:'#E5E7EB' });
+  pintarClCLubs();
+}
+function clRemoveClub(i){
+  if(!_crearLigaClubs[i])return;
+  if(_crearLigaClubs.length<=1){ toast(t('club_min_one')); return; }
+  _crearLigaClubs.splice(i,1);
+  pintarClCLubs();
+}
+function _clNumGrupos(){ return parseInt(document.getElementById('cl-grupos')?.value,10)||1; }
+// callExpr: expresión JS completa a ejecutar en el onchange, ej "clSetGrupo('id',this.value)"
+function _clGrupoSelectHTML(cur,callExpr){
+  const n=_clNumGrupos();
+  if(n<=1) return '';
+  let h='<select class="cl-grp-sel" onclick="event.stopPropagation()" onchange="'+callExpr+'">';
+  for(let g=1; g<=n; g++) h+='<option value="'+g+'"'+(g===cur?' selected':'')+'>'+t('group')+' '+g+'</option>';
+  return h+'</select>';
+}
+function pintarCatFiltrado(){
+  const cont=document.getElementById('cl-cat'); if(!cont)return;
+  const q=(document.getElementById('cl-search')?.value||'').toLowerCase().trim();
+  const lista=_crearLigaCat.filter(j=>!q||j.nombre.toLowerCase().includes(q));
+  cont.innerHTML=lista.map(j=>{
+    const sel=_crearLigaSel[j.jugadorId];
+    const on=!!sel;
+    const grpSel=on?_clGrupoSelectHTML(sel.grupo||1,"clSetGrupo('"+escJsAttr(j.jugadorId)+"',this.value)"):'';
+    return '<div class="cl-cat-item'+(on?' on':'')+'" onclick="clToggle(\''+escJsAttr(j.jugadorId)+'\')">'
+      +'<div class="cl-chk">'+(on?'<i class="ti ti-check"></i>':'')+'</div>'
+      +'<span>'+escPast(j.nombre)+'</span>'+grpSel+'</div>';
+  }).join('')||'<div class="cl-hint">'+t('lm_no_match')+'</div>';
+}
+function clToggle(id){ if(_crearLigaSel[id])delete _crearLigaSel[id]; else _crearLigaSel[id]={grupo:1}; pintarCatFiltrado(); clActualizarCount(); }
+function clSetGrupo(id,v){ if(_crearLigaSel[id]) _crearLigaSel[id].grupo=parseInt(v,10)||1; }
+function clAddNuevo(){ _crearLigaNuevos.push({nombre:'',email:'',grupo:1}); pintarNuevos(); clActualizarCount(); }
+function clDelNuevo(i){ _crearLigaNuevos.splice(i,1); pintarNuevos(); clActualizarCount(); }
+function clSetGrupoNuevo(i,v){ if(_crearLigaNuevos[i]) _crearLigaNuevos[i].grupo=parseInt(v,10)||1; }
+function pintarNuevos(){
+  const cont=document.getElementById('cl-nuevos'); if(!cont)return;
+  cont.innerHTML=_crearLigaNuevos.map((n,i)=>
+    '<div class="cl-nuevo-row">'
+    +'<input class="cl-inp cl-inp-sm" placeholder="'+t('lm_np_name')+'" value="'+escPast(n.nombre)+'" oninput="_crearLigaNuevos['+i+'].nombre=this.value;clActualizarCount()">'
+    +'<input class="cl-inp cl-inp-sm" placeholder="'+t('lm_np_email')+'" value="'+escPast(n.email)+'" oninput="_crearLigaNuevos['+i+'].email=this.value">'
+    +_clGrupoSelectHTML(n.grupo||1,'clSetGrupoNuevo('+i+',this.value)')
+    +'<button class="cl-del" onclick="clDelNuevo('+i+')"><i class="ti ti-x"></i></button>'
+    +'</div>').join('');
+}
+function clActualizarCount(){
+  const el=document.getElementById('cl-count'); if(!el)return;
+  const nSel=Object.keys(_crearLigaSel).length;
+  const nNew=_crearLigaNuevos.filter(n=>n.nombre.trim()).length;
+  el.textContent=t('lm_total').replace('{n}', nSel+nNew);
+}
+// Deriva un id sugerido a partir del nombre (minúsculas, guiones).
+function clSyncId(){
+  const nom=document.getElementById('cl-nombre')?.value||'';
+  const idInp=document.getElementById('cl-id'); if(!idInp)return;
+  if(idInp.dataset.touched==='1')return;
+  idInp.value=nom.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,64);
+}
+async function crearLigaConfirmar(){
+  const nombre=(document.getElementById('cl-nombre')?.value||'').trim();
+  const id=(document.getElementById('cl-id')?.value||'').trim().toLowerCase();
+  const numGrupos=parseInt(document.getElementById('cl-grupos')?.value,10)||1;
+  const numCiclos=parseInt(document.getElementById('cl-ciclos')?.value,10)||1;
+  if(!nombre){ alert(t('lm_err_name')); return; }
+  if(!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)){ alert(t('lm_err_id')); return; }
+  // Validar clubes: ninguno vacío, sin nombres repetidos.
+  const nombresClubs=_crearLigaClubs.map(c=>(c.name||'').trim());
+  if(nombresClubs.some(n=>!n)){ alert(t('club_err_empty')); return; }
+  if(new Set(nombresClubs.map(n=>n.toLowerCase())).size!==nombresClubs.length){ alert(t('club_err_dup')); return; }
+  const clubs=_crearLigaClubs.map(c=>({id:c.id,name:c.name.trim(),bg:c.bg}));
+  // Armar la lista de jugadores: del catálogo + nuevos con nombre.
+  const jugadores=[];
+  Object.keys(_crearLigaSel).forEach(jid=>jugadores.push({jugadorId:jid, grupo:(_crearLigaSel[jid]&&_crearLigaSel[jid].grupo)||1}));
+  _crearLigaNuevos.forEach(n=>{ if(n.nombre.trim()) jugadores.push({nombre:n.nombre.trim(), email:(n.email||'').trim(), grupo:n.grupo||1}); });
+  if(!jugadores.length){ if(!confirm(t('lm_confirm_empty')))return; }
+  const btn=event&&event.target?event.target.closest('button'):null;
+  if(btn){btn.disabled=true;btn.textContent=t('lm_creating');}
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'crear',id,nombre,jugadores,numGrupos,numCiclos,clubs,ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||t('lm_err_create')); if(btn){btn.disabled=false;btn.textContent=t('lm_create');} return; }
+    closeM();
+    toast(t('lm_created').replace('{n}', escPast(nombre)));
+    cargarGestionLigas();
+  }catch(_){ alert(t('lm_err_create')); if(btn){btn.disabled=false;btn.textContent=t('lm_create');} }
+}
+
+// ---- Agregar jugadores de ligas anteriores a la liga ya creada ----
+// Mismo patrón que "crear liga": modal con catálogo + buscador, pero acá
+// se suman a la liga actual (_ligaActual) en vez de crear una liga nueva,
+// y el admin elige a qué grupo del ciclo activo va cada jugador.
+let _addLigaCat=[];   // catálogo filtrado (sin los que ya están en esta liga)
+let _addLigaSel={};   // jugadorId -> {grupo}
+async function abrirAgregarJugadores(){
+  document.getElementById('modal-title').textContent=t('aj_title');
+  document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
+  document.getElementById('modal-bg').classList.add('open');
+  _addLigaSel={};
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'catalogo',ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    const yaEnLiga=new Set(ALLNAMES||[]);
+    _addLigaCat=(d.jugadores||[]).filter(j=>!yaEnLiga.has(j.nombre));
+  }catch(_){ _addLigaCat=[]; }
+  pintarAgregarJugadores();
+}
+function _ajNumGrupos(){ const grps=(getActive()&&getActive().groups)?getActive().groups:[]; return grps.length||1; }
+function pintarAgregarJugadores(){
+  const body=document.getElementById('modal-body');
+  let h='<div class="cl-form">';
+  h+='<p class="legend-txt" style="margin-top:0">'+t('aj_desc')+'</p>';
+  if(_addLigaCat.length){
+    h+='<div class="cl-search"><i class="ti ti-search"></i><input id="aj-search" placeholder="'+t('lm_search_ph')+'" oninput="pintarAjFiltrado()"></div>';
+    h+='<div class="cl-cat" id="aj-cat"></div>';
+  } else {
+    h+='<div class="cl-hint">'+t('aj_none')+'</div>';
+  }
+  h+='<div class="cl-count" id="aj-count"></div>';
+  h+='</div>';
+  body.innerHTML=h;
+  document.getElementById('modal-actions').innerHTML=
+    '<button class="btn" onclick="closeM()">'+t('close')+'</button>'
+    +'<button class="btn btn-primary" onclick="agregarJugadoresConfirmar()"><i class="ti ti-user-plus"></i> '+t('aj_add')+'</button>';
+  pintarAjFiltrado(); ajActualizarCount();
+}
+function pintarAjFiltrado(){
+  const cont=document.getElementById('aj-cat'); if(!cont)return;
+  const q=(document.getElementById('aj-search')?.value||'').toLowerCase().trim();
+  const lista=_addLigaCat.filter(j=>!q||j.nombre.toLowerCase().includes(q));
+  const numGrupos=_ajNumGrupos();
+  cont.innerHTML=lista.map(j=>{
+    const sel=_addLigaSel[j.jugadorId];
+    const on=!!sel;
+    let grpSel='';
+    if(on && numGrupos>1){
+      const cur=sel.grupo||1;
+      grpSel='<select class="cl-grp-sel" onclick="event.stopPropagation()" onchange="ajSetGrupo(\''+escJsAttr(j.jugadorId)+'\',this.value)">';
+      for(let g=1; g<=numGrupos; g++) grpSel+='<option value="'+g+'"'+(g===cur?' selected':'')+'>'+groupName(g)+'</option>';
+      grpSel+='</select>';
+    }
+    return '<div class="cl-cat-item'+(on?' on':'')+'" onclick="ajToggle(\''+escJsAttr(j.jugadorId)+'\')">'
+      +'<div class="cl-chk">'+(on?'<i class="ti ti-check"></i>':'')+'</div>'
+      +'<span>'+escPast(j.nombre)+'</span>'+grpSel+'</div>';
+  }).join('')||'<div class="cl-hint">'+t('lm_no_match')+'</div>';
+}
+function ajToggle(id){ if(_addLigaSel[id])delete _addLigaSel[id]; else _addLigaSel[id]={grupo:1}; pintarAjFiltrado(); ajActualizarCount(); }
+function ajSetGrupo(id,v){ if(_addLigaSel[id]) _addLigaSel[id].grupo=parseInt(v,10)||1; }
+function ajActualizarCount(){
+  const el=document.getElementById('aj-count'); if(!el)return;
+  el.textContent=t('aj_total').replace('{n}', Object.keys(_addLigaSel).length);
+}
+async function agregarJugadoresConfirmar(){
+  const ids=Object.keys(_addLigaSel);
+  if(!ids.length){ toast(t('aj_none_sel')); return; }
+  const jugadores=ids.map(jid=>({jugadorId:jid, grupo:_addLigaSel[jid].grupo||1}));
+  const btn=event&&event.target?event.target.closest('button'):null;
+  if(btn){btn.disabled=true;btn.textContent=t('aj_adding');}
+  try{
+    // Guardamos primero cualquier cambio local pendiente para no pisarlo,
+    // pedimos al servidor que agregue los jugadores directo sobre la liga,
+    // y después releemos el estado para reflejarlo acá.
+    await persist(true);
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'agregarJugadores', id:_ligaActual, jugadores, ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||t('aj_err')); if(btn){btn.disabled=false;btn.textContent=t('aj_add');} return; }
+    closeM();
+    toast(t('aj_done').replace('{n}', (d.agregados||[]).length));
+    await loadState();
+    renderShell();
+    showSub('perfil');
+  }catch(_){ alert(t('aj_err')); if(btn){btn.disabled=false;btn.textContent=t('aj_add');} }
+}
+
+// ---- Cerrar / reabrir / eliminar ----
+async function cerrarLigaUI(id,nombre){
+  if(!(await confirmarModal(t('lm_close_confirm').replace('{n}',nombre), {titulo:t('lm_close'), okTxt:t('lm_close')})))return;
+  await accionLiga('cerrar',{id});
+}
+async function reabrirLigaUI(id,nombre){
+  if(!(await confirmarModal(t('lm_reopen_confirm').replace('{n}',nombre), {titulo:t('lm_reopen'), okTxt:t('lm_reopen')})))return;
+  await accionLiga('reabrir',{id});
+}
+async function renombrarLigaUI(id,nombre){
+  const nuevo=prompt(t('lm_rename_prompt'), nombre);
+  if(nuevo===null)return;
+  const n=nuevo.trim();
+  if(!n){ alert(t('lm_rename_empty')); return; }
+  if(n===nombre)return;   // sin cambios
+  await accionLiga('renombrar',{id,nombre:n});
+}
+async function eliminarLigaUI(id,nombre){
+  // Doble confirmación: la segunda pide escribir el nombre exacto.
+  if(!(await confirmarModal(t('lm_delete_confirm1').replace('{n}',nombre), {titulo:t('lm_delete'), okTxt:t('lm_delete'), peligro:true})))return;
+  const tecleado=prompt(t('lm_delete_confirm2').replace('{n}',nombre));
+  if(tecleado===null)return;
+  if(tecleado.trim()!==nombre && tecleado.trim()!==id){ alert(t('lm_delete_mismatch')); return; }
+  await accionLiga('eliminar',{id,confirmar:tecleado.trim()});
+}
+// Renombrar el nombre visible de una liga (el id interno queda fijo).
+async function renombrarLigaUI(id,nombreActual){
+  const nuevo=prompt(t('lm_rename_prompt'), nombreActual);
+  if(nuevo===null)return;
+  const limpio=nuevo.trim();
+  if(!limpio){ alert(t('lm_rename_empty')); return; }
+  if(limpio===nombreActual)return;
+  await accionLiga('renombrar',{id,nombre:limpio});
+}
+async function accionLiga(accion,extra){
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify(Object.assign({accion,ligaId:_ligaActual||undefined},extra))});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||t('lm_err_action')); return; }
+    toast(t('lm_action_ok'));
+    cargarGestionLigas();
+  }catch(_){ alert(t('lm_err_action')); }
+}
+
+// ==================== ESTADÍSTICAS DEL JUGADOR ====================
+// Calcula PJ/PG/PP de un jugador dado el estado de una liga (cuenta por sets ganados).
+function statsJugadorEnEstado(name, estado){
+  const all = (estado && estado.matches) || [];
+  // Reconocemos DOS formatos de match: liga regular (aName/bName) y playoff
+  // (po:true con poNames array). Antes filtrábamos solo por aName/bName, así que
+  // los playoffs quedaban invisibles: un jugador que jugó 4+3 partidos de ciclos
+  // + 2 de playoff veía "7 partidos" en su perfil en lugar de 9.
+  const ms = all.filter(m => {
+    if(!m || m.status !== 'confirmed') return false;
+    if(m.aName === name || m.bName === name) return true;
+    if(m.po && Array.isArray(m.poNames) && m.poNames.indexOf(name) !== -1) return true;
+    return false;
+  });
+  let g=0,p=0;
+  ms.forEach(m=>{
+    // En playoffs preferimos usar m.winner (nombre del ganador guardado explícito
+    // al confirmar), porque en algunos casos los sets pueden estar vacíos
+    // (W.O., no jugado). Para liga regular el winner se deduce de los sets.
+    if(m.po && m.winner){
+      if(m.winner === name) g++; else p++;
+      return;
+    }
+    // Cálculo por sets: primero determinamos si el jugador es "A" o "B"
+    // en la estructura correspondiente al formato del match.
+    const yoA = m.po ? (m.poNames && m.poNames[0] === name) : (m.aName === name);
+    let sgA=0,sgB=0;
+    (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
+    const gane=yoA?sgA>sgB:sgB>sgA;
+    if(gane)g++;else p++;
+  });
+  return {pj:g+p, pg:g, pp:p};
+}
+// HTML de un bloque de estadísticas (una tarjeta con PJ/PG/PP/%).
+function bloqueStatsHTML(titulo, st, cargando){
+  const pct=st.pj>0?Math.round((st.pg/st.pj)*100):0;
+  const num=(v)=>cargando?'<span class="stat-load">·</span>':v;
+  return '<div class="stat-block"><div class="stat-block-t">'+titulo+'</div>'
+    +'<div class="stat-grid">'
+    +'<div class="stat-cell"><b>'+num(st.pj)+'</b><span>'+t('st_pj')+'</span></div>'
+    +'<div class="stat-cell"><b class="stat-w">'+num(st.pg)+'</b><span>'+t('st_pg')+'</span></div>'
+    +'<div class="stat-cell"><b class="stat-l">'+num(st.pp)+'</b><span>'+t('st_pp')+'</span></div>'
+    +'<div class="stat-cell"><b class="stat-pct">'+num(pct+'%')+'</b><span>'+t('st_pct')+'</span></div>'
+    +'</div></div>';
+}
+// Suma las stats de la liga actual + todas las pasadas para un jugador (async).
+async function cargarStatsTotales(name, actualSt){
+  const cont=document.getElementById('stat-total');
+  if(!cont)return;
+  let tot={pj:actualSt.pj, pg:actualSt.pg, pp:actualSt.pp};
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
+    for(const l of pasadas){
+      try{
+        const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
+        if(!rv.ok)continue;
+        const dv=await rv.json().catch(()=>({}));
+        const st=statsJugadorEnEstado(name, dv.estado||{});
+        tot.pj+=st.pj; tot.pg+=st.pg; tot.pp+=st.pp;
+      }catch(_){}
+    }
+  }catch(_){}
+  cont.innerHTML=bloqueStatsHTML(t('st_total'), tot, false);
+}
+// Arma los dos bloques (actual + total) y dispara la carga async del total.
+function statsPerfilHTML(name){
+  const actual=statsJugadorEnEstado(name, {matches:matches});
+  setTimeout(()=>cargarStatsTotales(name, actual), 30);   // el total se completa solo
+  return '<div class="card"><div class="section-lbl"><i class="ti ti-chart-bar"></i> '+t('st_title')+'</div>'
+    +'<div class="stat-blocks">'
+    + bloqueStatsHTML(t('st_current'), actual, false)
+    + '<div id="stat-total">'+bloqueStatsHTML(t('st_total'), actual, true)+'</div>'
+    +'</div></div>';
+}
+
+// ==================== CATÁLOGO DE JUGADORES (superadmin) ====================
+let _catJugadores=[];
+async function cargarCatJugadores(){
+  const cont=document.getElementById('cat-jugadores-list');
+  if(!cont)return;
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'jugadores',ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ cont.innerHTML='<div class="pm-past-empty">'+(d.error||t('past_loading_err'))+'</div>'; return; }
+    _catJugadores=d.jugadores||[];
+    pintarCatJugadores();
+  }catch(_){ cont.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+}
+function pintarCatJugadores(){
+  const cont=document.getElementById('cat-jugadores-list');
+  if(!cont)return;
+  const q=(document.getElementById('cj-search')?.value||'').toLowerCase().trim();
+  const lista=_catJugadores.filter(j=>!q||j.nombre.toLowerCase().includes(q));
+  if(!lista.length){ cont.innerHTML='<div class="pm-past-empty">'+t('cj_none')+'</div>'; return; }
+  cont.innerHTML='<div class="cj-count">'+t('cj_total').replace('{n}',_catJugadores.length)+'</div>'
+    + lista.map(j=>{
+    // Un jugador con partidos NO se puede borrar (protege el historial).
+    const tienePartidos=j.partidos>0;
+    const meta=[];
+    if(j.email) meta.push('<i class="ti ti-mail"></i> '+escPast(j.email));
+    meta.push('<i class="ti ti-trophy"></i> '+t('cj_leagues').replace('{n}',j.ligas));
+    meta.push('<i class="ti ti-ball-tennis"></i> '+t('cj_matches').replace('{n}',j.partidos));
+    const btn=tienePartidos
+      ? '<button class="cj-del" disabled title="'+t('cj_has_matches')+'"><i class="ti ti-lock"></i></button>'
+      : '<button class="cj-del cj-del-on" onclick="eliminarJugadorUI(\''+escJsAttr(j.jugadorId)+'\',\''+escJsAttr(j.nombre)+'\')"><i class="ti ti-trash"></i></button>';
+    return '<div class="cj-item"><div class="cj-item-tx"><b>'+escPast(j.nombre)+'</b>'
+      +'<span class="cj-meta">'+meta.join(' · ')+'</span></div>'+btn+'</div>';
+  }).join('');
+}
+function filtrarCatJugadores(){ pintarCatJugadores(); }
+async function eliminarJugadorUI(jid,nombre){
+  if(!(await confirmarModal(t('cj_del_confirm').replace('{n}',nombre), {titulo:t('lm_delete'), okTxt:t('lm_delete'), peligro:true})))return;
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'eliminarJugador',jugadorId:jid,ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||t('cj_del_err')); return; }
+    toast(t('cj_deleted').replace('{n}',nombre));
+    cargarCatJugadores();
+  }catch(_){ alert(t('cj_del_err')); }
+}
+
+// ==================== CATÁLOGO DE JUGADORES fin ====================
+
+// ==================== REGLAMENTO ====================
+// Visible para todos (incluso en ligas pasadas). Editable solo por admin.
+let _rgEdit=false;
+function renderReglamento(){
+  const cont=document.getElementById('view-reglamento');
+  if(!cont)return;
+  const admin=!_ligaReadOnly && esAdmin(currentUser);
+  const vacio=!REGLAMENTO||!REGLAMENTO.trim();
+  let h='<div class="card">';
+  h+='<div class="section-lbl"><i class="ti ti-book"></i> '+t('rg_title')+'</div>';
+  if(_rgEdit && admin){
+    // Barra de herramientas del editor enriquecido.
+    h+='<div class="rg-toolbar">';
+    h+=' <button type="button" class="rg-tb" title="'+t('rg_bold')+'" onmousedown="rgCmd(event,\'bold\')"><b>B</b></button>';
+    h+=' <button type="button" class="rg-tb" title="'+t('rg_italic')+'" onmousedown="rgCmd(event,\'italic\')"><i>I</i></button>';
+    h+=' <button type="button" class="rg-tb" title="'+t('rg_underline')+'" onmousedown="rgCmd(event,\'underline\')"><u>U</u></button>';
+    h+=' <span class="rg-sep"></span>';
+    h+=' <select class="rg-size" title="'+t('rg_size')+'" onchange="rgSize(this)"><option value="">'+t('rg_size')+'</option><option value="2">'+t('rg_size_s')+'</option><option value="3">'+t('rg_size_m')+'</option><option value="5">'+t('rg_size_l')+'</option><option value="6">'+t('rg_size_xl')+'</option></select>';
+    h+=' <span class="rg-sep"></span>';
+    h+=' <button type="button" class="rg-tb" title="'+t('rg_ul')+'" onmousedown="rgCmd(event,\'insertUnorderedList\')"><i class="ti ti-list"></i></button>';
+    h+=' <button type="button" class="rg-tb" title="'+t('rg_ol')+'" onmousedown="rgCmd(event,\'insertOrderedList\')"><i class="ti ti-list-numbers"></i></button>';
+    h+=' <span class="rg-sep"></span>';
+    h+=' <button type="button" class="rg-tb" title="'+t('rg_img')+'" onmousedown="rgPickImg(event)"><i class="ti ti-photo"></i></button>';
+    h+='</div>';
+    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" data-ph="'+t('rg_placeholder')+'">'+(REGLAMENTO||'')+'</div>';
+    h+='<input type="file" id="rg-file" accept="image/*" style="display:none" onchange="rgInsertFile(this)">';
+    h+='<div class="rg-hint">'+t('rg_img_hint')+'</div>';
+    h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:10px">';
+    h+='<button class="btn btn-primary" onclick="guardarReglamento()"><i class="ti ti-check"></i> '+t('rg_save')+'</button>';
+    h+='<button class="btn" onclick="_rgEdit=false;renderReglamento()">'+t('close')+'</button>';
+    h+='<button class="btn btn-sm" onclick="copiarReglamentoUI()"><i class="ti ti-copy"></i> '+t('rg_copy')+'</button>';
+    h+='</div>';
+  } else {
+    if(vacio){
+      h+='<p class="legend-txt">'+t('rg_empty')+'</p>';
+    } else {
+      h+='<div class="rg-content">'+sanitizarReglamento(REGLAMENTO)+'</div>';   // sanitizado al vuelo (limpia contenido viejo)
+    }
+    if(admin){
+      h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:12px">';
+      h+='<button class="btn btn-primary" onclick="_rgEdit=true;renderReglamento()"><i class="ti ti-edit"></i> '+(vacio?t('rg_create'):t('rg_edit'))+'</button>';
+      if(!vacio) h+='<button class="btn btn-sm" onclick="copiarReglamentoUI()"><i class="ti ti-copy"></i> '+t('rg_copy')+'</button>';
+      h+='</div>';
+    }
+  }
+  h+='</div>';
+  cont.innerHTML=h;
+  // Enganchar el pegado de imágenes en el editor.
+  const ed=document.getElementById('rg-editor');
+  if(ed){ ed.addEventListener('paste', rgOnPaste); }
+}
+// Comandos de formato (negrita, listas, etc.). onmousedown + preventDefault para
+// no perder la selección del texto en el editor.
+function rgCmd(ev, cmd){ ev.preventDefault(); document.execCommand(cmd,false,null); document.getElementById('rg-editor')?.focus(); }
+function rgSize(sel){ if(sel.value){ document.execCommand('fontSize',false,sel.value); sel.value=''; } document.getElementById('rg-editor')?.focus(); }
+function rgPickImg(ev){ ev.preventDefault(); document.getElementById('rg-file')?.click(); }
+// Límite de tamaño por imagen (para no inflar el estado guardado).
+const RG_IMG_MAX = 2*1024*1024;  // 2 MB
+function rgInsertFile(inp){
+  const f=inp.files&&inp.files[0]; if(!f)return;
+  if(f.size>RG_IMG_MAX){ alert(t('rg_img_big')); inp.value=''; return; }
+  rgComprimirImg(f, (dataUrl)=>{ if(dataUrl) rgInsertImg(dataUrl); });
+  inp.value='';
+}
+function rgInsertImg(dataUrl){
+  const ed=document.getElementById('rg-editor'); if(!ed)return;
+  ed.focus();
+  document.execCommand('insertHTML',false,'<img src="'+dataUrl+'" style="max-width:100%;height:auto;border-radius:8px;margin:6px 0">');
+}
+// Comprime y redimensiona una imagen a un tamaño razonable ANTES de guardarla.
+// Sin esto, una foto de celular (varios MB en base64) infla el estado y hace
+// que el guardado falle por tamaño. La bajamos a máx 1200px y JPEG calidad 0.75.
+function rgComprimirImg(fileOrDataUrl, cb){
+  const img=new Image();
+  img.onload=function(){
+    const MAX=1200;
+    let w=img.width, h=img.height;
+    if(w>MAX||h>MAX){ if(w>=h){ h=Math.round(h*MAX/w); w=MAX; } else { w=Math.round(w*MAX/h); h=MAX; } }
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    cv.getContext('2d').drawImage(img,0,0,w,h);
+    try{ cb(cv.toDataURL('image/jpeg',0.75)); }
+    catch(_){ cb(typeof fileOrDataUrl==='string'?fileOrDataUrl:null); }
+  };
+  img.onerror=function(){ cb(null); };
+  if(typeof fileOrDataUrl==='string'){ img.src=fileOrDataUrl; }
+  else { const r=new FileReader(); r.onload=()=>{ img.src=r.result; }; r.readAsDataURL(fileOrDataUrl); }
+}
+// Pegar imágenes directo (Ctrl+V) desde el portapapeles.
+function rgOnPaste(ev){
+  const items=(ev.clipboardData&&ev.clipboardData.items)||[];
+  for(const it of items){
+    if(it.type&&it.type.indexOf('image')===0){
+      ev.preventDefault();
+      const f=it.getAsFile();
+      if(f&&f.size>RG_IMG_MAX){ alert(t('rg_img_big')); return; }
+      rgComprimirImg(f, (dataUrl)=>{ if(dataUrl) rgInsertImg(dataUrl); });
+      return;
+    }
+  }
+  // Pegado de texto: limpiamos el HTML externo (Word/web traen tamaños y estilos
+  // gigantes que rompen el layout). Conservamos negrita/cursiva/listas, sin estilos.
+  const cd=ev.clipboardData;
+  if(cd){
+    const html=cd.getData('text/html');
+    if(html){
+      ev.preventDefault();
+      document.execCommand('insertHTML', false, rgLimpiarPegado(html));
+    }
+  }
+}
+// Limpia HTML pegado: quita estilos inline, clases, y tamaños de fuente externos.
+function rgLimpiarPegado(html){
+  const tmp=document.createElement('div');
+  tmp.innerHTML=html;
+  const OK={B:1,STRONG:1,I:1,EM:1,U:1,BR:1,P:1,DIV:1,UL:1,OL:1,LI:1,H1:1,H2:1,H3:1,H4:1};
+  (function limpiar(node){
+    Array.prototype.slice.call(node.childNodes).forEach(n=>{
+      if(n.nodeType===1){
+        if(!OK[n.tagName]){
+          // Reemplazar la etiqueta por su contenido (sin perder el texto)
+          while(n.firstChild) node.insertBefore(n.firstChild, n);
+          node.removeChild(n); return;
+        }
+        Array.prototype.slice.call(n.attributes).forEach(a=>n.removeAttribute(a.name));
+        limpiar(n);
+      } else if(n.nodeType===8){ node.removeChild(n); }
+    });
+  })(tmp);
+  return tmp.innerHTML;
+}
+// Formatea el texto plano del reglamento a HTML seguro (respeta saltos de línea).
+function formatearReglamento(txt){
+  return escPast(txt).replace(/\n/g,'<br>');
+}
+async function guardarReglamento(){
+  const ed=document.getElementById('rg-editor');
+  if(!ed)return;
+  REGLAMENTO=sanitizarReglamento(ed.innerHTML);
+  _rgEdit=false;
+  persist(true);
+  renderReglamento();
+  renderSubTabs();   // la pestaña puede aparecer/desaparecer si pasó de vacío a lleno
+  toast(t('rg_saved'));
+}
+// Limpia el HTML del reglamento: permite solo etiquetas de formato seguras y quita
+// cualquier script/handler. Así el HTML se puede mostrar sin riesgo de inyección.
+function sanitizarReglamento(html){
+  const tmp=document.createElement('div');
+  tmp.innerHTML=html||'';
+  const OK={B:1,STRONG:1,I:1,EM:1,U:1,BR:1,P:1,DIV:1,SPAN:1,UL:1,OL:1,LI:1,FONT:1,IMG:1,H1:1,H2:1,H3:1,H4:1};
+  // Solo estas propiedades de estilo sobreviven. Nada de font-size gigante,
+  // background, position, width fijos, etc. que rompen el layout de la app.
+  function filtrarStyle(valor, esImg){
+    const permitidas=['font-weight','font-style','text-decoration','text-align'];
+    const out=[];
+    String(valor||'').split(';').forEach(par=>{
+      const idx=par.indexOf(':'); if(idx<0)return;
+      const prop=par.slice(0,idx).trim().toLowerCase();
+      const val=par.slice(idx+1).trim();
+      if(/javascript:|expression|@import|url\(/i.test(val))return;   // nada peligroso
+      if(permitidas.includes(prop)) out.push(prop+':'+val);
+    });
+    if(esImg){ out.push('max-width:100%'); out.push('height:auto'); }   // imagen siempre acotada
+    return out.join(';');
+  }
+  (function limpiar(node){
+    const hijos=Array.prototype.slice.call(node.childNodes);
+    hijos.forEach(n=>{
+      if(n.nodeType===1){ // elemento
+        if(!OK[n.tagName]){ // etiqueta no permitida: se reemplaza por su contenido
+          while(n.firstChild) node.insertBefore(n.firstChild, n);
+          node.removeChild(n); return;
+        }
+        const esImg=(n.tagName==='IMG');
+        Array.prototype.slice.call(n.attributes).forEach(a=>{
+          const an=a.name.toLowerCase();
+          if(an==='src' && esImg){
+            const v=(a.value||'').trim().toLowerCase();
+            if(!(v.startsWith('data:image/')||v.startsWith('https://'))) n.removeAttribute(a.name);
+            return;
+          }
+          if(an==='style'){
+            const limpio=filtrarStyle(a.value, esImg);
+            if(limpio) n.setAttribute('style', limpio); else n.removeAttribute('style');
+            return;
+          }
+          // FONT size/color: se descartan los tamaños externos gigantes; el formato
+          // va por los botones del editor (que usan etiquetas, no font-size libre).
+          n.removeAttribute(a.name);
+        });
+        // Quitar font-size heredado que quedara en FONT sin size real
+        limpiar(n);
+      } else if(n.nodeType===8){ node.removeChild(n); }
+    });
+  })(tmp);
+  return tmp.innerHTML;
+}
+// Copiar el reglamento de otra liga.
+async function copiarReglamentoUI(){
+  document.getElementById('modal-title').textContent=t('rg_copy_title');
+  document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
+  document.getElementById('modal-bg').classList.add('open');
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
+    const body=document.getElementById('modal-body');
+    if(!otras.length){ body.innerHTML='<div class="pm-past-empty">'+t('rg_copy_none')+'</div>'; return; }
+    body.innerHTML='<p class="legend-txt" style="margin-top:0">'+t('rg_copy_desc')+'</p>'
+      +'<div class="lm-list">'+otras.map(l=>
+        '<button class="btn rg-src-btn" onclick="copiarReglamentoDe(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')">'
+        +'<i class="ti ti-book"></i> '+escPast(l.nombre)+'</button>').join('')+'</div>';
+  }catch(_){ document.getElementById('modal-body').innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+}
+async function copiarReglamentoDe(ligaId,nombre){
+  try{
+    let estado=null;
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
+    if(r.ok){ const d=await r.json().catch(()=>({})); estado=d.estado; }
+    else {
+      const r2=await fetch(_conLiga2('/api/state',ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+      if(r2.ok){ estado=await r2.json().catch(()=>null); }
+    }
+    const regla=estado&&typeof estado.REGLAMENTO==='string'?estado.REGLAMENTO:'';
+    if(!regla.trim()){ alert(t('rg_copy_empty').replace('{n}',nombre)); return; }
+    REGLAMENTO=regla;
+    closeM();
+    _rgEdit=true;   // abrir en edición para que el admin revise antes de guardar
+    renderReglamento();
+    toast(t('rg_copied').replace('{n}',nombre));
+  }catch(_){ alert(t('past_loading_err')); }
+}
+// Helper: URL de state para una liga específica (para copiar reglamento de liga activa).
+function _conLiga2(url,ligaId){ return url+(url.includes('?')?'&':'?')+'liga='+encodeURIComponent(ligaId); }
+function applyLeagueNameToDOM(){
+  const _lt=document.getElementById('login-title');if(_lt&&LEAGUE_NAME)_lt.textContent=LEAGUE_NAME;
+  const _ls=document.getElementById('login-sub');if(_ls&&LEAGUE_SUBTITLE)_ls.textContent=LEAGUE_SUBTITLE;
+  if(LEAGUE_NAME)document.title=LEAGUE_NAME;
+  // Cacheado para que la próxima pantalla de login ya muestre el nombre correcto
+  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE}));}catch(e){}
+}
+// ==================== PASSKEYS (Face ID / Touch ID) ====================
+// Login con clave sigue intacto: esto es una capa opcional encima.
+// La librería del cliente expone el objeto global SimpleWebAuthnBrowser.
+
+// ¿El dispositivo soporta passkeys? Si no, ni mostramos los botones.
+function passkeySoportada(){
+  return !!(window.SimpleWebAuthnBrowser && window.PublicKeyCredential);
+}
+
+// Mostrar el botón "Entrar con Face ID" si el dispositivo lo soporta.
+function mostrarBotonPasskeyLogin(){
+  try{
+    const b=document.getElementById('login-btn-pk');
+    if(b && passkeySoportada()) b.style.display='';
+  }catch(_){}
+}
+
+// LOGIN con passkey: pide al dispositivo autenticarse y manda al servidor.
+async function loginConPasskey(){
+  const e=document.getElementById('login-err');
+  const btn=document.getElementById('login-btn-pk');
+  if(!passkeySoportada()){ if(e){e.textContent=t('pk_unsupported');e.style.display='block';} return; }
+  if(btn) btn.disabled=true;
+  try{
+    // 1) Pedir el challenge al servidor
+    const r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-start'})});
+    const opts=await r1.json();
+    if(!r1.ok) throw new Error(opts.error||'No se pudo iniciar.');
+    // 2) El dispositivo autentica (acá aparece el Face ID / Touch ID)
+    const cred=await SimpleWebAuthnBrowser.startAuthentication({optionsJSON:opts});
+    // 3) Mandar la respuesta firmada al servidor
+    const ligaId=(typeof _ligaActual!=='undefined'&&_ligaActual)?_ligaActual:undefined;
+    const r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-finish',cred,ligaId})});
+    const d=await r2.json();
+    if(!r2.ok) throw new Error(d.error||'No se pudo entrar.');
+    // 4) Entrar con el token, igual que el login con clave
+    entrarConToken(d);
+    // Si la contraseña sigue siendo pública, forzar el cambio. En este flujo no
+    // tenemos la clave anterior (entramos con Face ID): pasamos null y el
+    // servidor la acepta porque la clave guardada está en la lista pública.
+    if(d && d.mustChangePw) forcePwChange(null);
+  }catch(err){
+    // Si el usuario cancela el Face ID, no es un error para mostrar feo.
+    const msg=(err&&err.name==='NotAllowedError')?t('pk_cancelled'):(err.message||t('pk_login_err'));
+    if(e){e.textContent=msg;e.style.display='block';}
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+// ACTIVAR passkey (registro): se llama desde el perfil, ya logueado.
+async function activarPasskey(){
+  // Diagnóstico: este alert confirma que el botón SÍ dispara la función.
+  // Si no ves ni este aviso, el problema es que la librería rompió el onclick.
+  try{
+    if(typeof window.SimpleWebAuthnBrowser==='undefined'){
+      alert('La librería de Face ID no cargó. Puede estar bloqueada por la configuración de seguridad (CSP). Avisá al administrador.');
+      return;
+    }
+    if(!window.PublicKeyCredential){
+      alert('Este navegador o dispositivo no admite Face ID / passkeys.');
+      return;
+    }
+    if(!_token){ toast(t('pk_need_login')); return; }
+    // 1) Pedir opciones de registro (requiere token del login con clave)
+    let r1, opts;
+    try{
+      r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-start'})});
+    }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 1). ¿Está subido /api/passkey?'); }
+    const txt1=await r1.text();
+    try{ opts=JSON.parse(txt1); }catch(_){ throw new Error('El servidor no respondió bien (paso 1). Código '+r1.status+'. ¿Falta el package.json o la librería en Vercel?'); }
+    if(!r1.ok) throw new Error((opts&&opts.error)||('Error del servidor al iniciar (código '+r1.status+').'));
+    // 2) El dispositivo crea la passkey (aparece el Face ID / Touch ID)
+    let cred;
+    try{
+      cred=await SimpleWebAuthnBrowser.startRegistration({optionsJSON:opts});
+    }catch(devErr){
+      if(devErr&&devErr.name==='NotAllowedError'){ toast(t('pk_cancelled')); return; }
+      if(devErr&&devErr.name==='InvalidStateError'){ toast('Este dispositivo ya tiene una passkey registrada para tu cuenta.'); return; }
+      throw new Error('El dispositivo no pudo crear la passkey: '+(devErr&&devErr.message||devErr&&devErr.name||'desconocido'));
+    }
+    // 3) Un nombre para reconocer el dispositivo
+    const deviceLabel=navigator.platform||navigator.userAgent.slice(0,40)||'Mi dispositivo';
+    // 4) Guardar en el servidor
+    let r2, d;
+    try{
+      r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-finish',cred,deviceLabel})});
+    }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 4).'); }
+    const txt2=await r2.text();
+    try{ d=JSON.parse(txt2); }catch(_){ throw new Error('El servidor no respondió bien al guardar (paso 4). Código '+r2.status+'. ¿Creaste la tabla passkeys en Supabase?'); }
+    if(!r2.ok) throw new Error((d&&d.error)||('Error al guardar la passkey (código '+r2.status+').'));
+    toast(t('pk_activated'));
+    try{ localStorage.setItem('pk_hint','1'); }catch(_){}
+    // Refrescá la vista del perfil si está abierta: pasamos de "activar" a mostrar el dispositivo nuevo.
+    try{ if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys(); }catch(_){}
+  }catch(err){
+    const msg=(err&&err.name==='NotAllowedError')?t('pk_cancelled'):(err.message||t('pk_reg_err'));
+    toast(msg);
+  }
+}
+
+// Escapa texto para meterlo dentro de HTML atributo/contenido sin riesgo de XSS.
+// deviceLabel viene del navegador (navigator.platform) — no es hostil, pero
+// mejor no confiar en nada que se ponga en innerHTML.
+function _pkEsc(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Trae del servidor las passkeys del usuario logueado y redibuja el pk-body:
+// si hay 0 → muestra el mensaje inicial + botón "Activar".
+// si hay 1+ → muestra el estado "Activado" + lista de dispositivos + botón "Activar en otro".
+async function refrescarListaPasskeys(){
+  const body = document.getElementById('pk-body');
+  if(!body) return;                       // el perfil no está abierto
+  if(!_token) return;                     // sin sesión no se puede pedir la lista
+  try{
+    const r = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      credentials:'same-origin',
+      body: JSON.stringify({ accion:'list' })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || 'list failed');
+    const lista = Array.isArray(d.passkeys) ? d.passkeys : [];
+    if(lista.length === 0){
+      // Estado sin passkeys: la vista original.
+      body.innerHTML =
+        `<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>` +
+        `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button>`;
+      return;
+    }
+    // Estado con passkeys: cabecera, lista de dispositivos con botón desactivar, y opción de agregar otro.
+    const fmtFecha = iso => {
+      if(!iso) return t('pk_never_used');
+      try{ return new Date(iso).toLocaleDateString(); }catch(_){ return iso.slice(0,10); }
+    };
+    let html =
+      `<div style="display:flex;align-items:center;gap:.5rem;margin:.15rem 0 .35rem;color:var(--success);font-weight:600;font-size:14px">` +
+        `<i class="ti ti-shield-check"></i>${_pkEsc(t('pk_status_active'))}` +
+      `</div>` +
+      `<p class="legend-txt" style="margin:0 0 .75rem">${t('pk_status_active_hint')}</p>` +
+      `<div class="section-lbl" style="font-size:12px;margin:.5rem 0 .35rem">${_pkEsc(t('pk_devices_lbl'))}</div>` +
+      `<div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem">`;
+    for(const p of lista){
+      const label = _pkEsc(p.deviceLabel);
+      const reg   = fmtFecha(p.createdAt);
+      const uso   = p.lastUsedAt ? fmtFecha(p.lastUsedAt) : t('pk_never_used');
+      const escCid = _pkEsc(p.credentialId).replace(/'/g,"&#39;");
+      const escLbl = label.replace(/'/g,"&#39;");
+      html +=
+        `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.5rem .65rem;border:1px solid var(--border,#e2e8f0);border-radius:8px">` +
+          `<div style="min-width:0;flex:1">` +
+            `<div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center">` +
+              `<i class="ti ti-device-mobile" style="margin-right:.25rem;opacity:.7"></i>` +
+              `<span style="overflow:hidden;text-overflow:ellipsis">${label}</span>` +
+              `<button class="pk-device-edit-btn" title="Renombrar" onclick="renombrarPasskey('${escCid}', '${escLbl}')"><i class="ti ti-pencil"></i></button>` +
+            `</div>` +
+            `<div class="legend-txt" style="font-size:11px;margin-top:.15rem">${_pkEsc(t('pk_registered_at'))}: ${_pkEsc(reg)} · ${_pkEsc(t('pk_last_used'))}: ${_pkEsc(uso)}</div>` +
+          `</div>` +
+          `<button class="btn btn-sm" style="background:transparent;color:var(--danger);border:1px solid var(--danger);flex-shrink:0;white-space:nowrap" onclick="desactivarPasskey('${escCid}', '${escLbl}')"><i class="ti ti-trash"></i> ${_pkEsc(t('pk_device_deactivate'))}</button>` +
+        `</div>`;
+    }
+    html += `</div>`;
+    html += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-plus"></i> ${_pkEsc(t('pk_added_more'))}</button>`;
+    body.innerHTML = html;
+  }catch(err){
+    // Si falla la lista, no rompemos la app: dejamos el botón activar por si acaso.
+    body.innerHTML =
+      `<p class="legend-txt" style="margin:.35rem 0 .5rem;color:var(--danger)">${t('pk_list_err')}</p>` +
+      `<p class="legend-txt" style="margin:0 0 .75rem">${t('pk_section_hint')}</p>` +
+      `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button>`;
+  }
+}
+
+// Desactiva (borra en Supabase) una passkey del propio usuario y refresca la vista.
+// El backend valida que la passkey pertenezca al usuario del token: no se puede
+// desactivar la de otro pasando el credentialId a mano.
+async function desactivarPasskey(credId, label){
+  if(!credId) return;
+  const msg = t('pk_device_deactivate_confirm').replace('{n}', label || 'este dispositivo');
+  if(!(await confirmarModal(msg, {titulo:t('pk_device_deactivate'), okTxt:t('pk_device_deactivate'), peligro:true}))) return;
+  try{
+    const r = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      credentials:'same-origin',
+      body: JSON.stringify({ accion:'delete', credentialId: credId })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || 'delete failed');
+    toast(t('pk_device_deactivated').replace('{n}', label || t('pk_devices_lbl')));
+    refrescarListaPasskeys();
+  }catch(err){
+    toast(t('pk_device_deactivate_err'));
+  }
+}
+
+// ============================================================================
+// SELECTOR DE APARIENCIA (Tema) — light / dark / system.
+// Se guarda por dispositivo en localStorage ('theme'). El script del <head>
+// lo lee y aplica ANTES del primer paint (evita flash).
+// - 'system' (default): el navegador respeta prefers-color-scheme del OS.
+// - 'light' o 'dark': override manual vía atributo data-theme en <html>.
+// ============================================================================
+function currentTheme(){
+  // Default sin preferencia guardada = 'light' (antes era 'system').
+  try { return localStorage.getItem('theme') || 'light'; } catch(_){ return 'light'; }
+}
+
+// Escuchar cambios del OS en vivo: si el usuario tiene modo 'system' seleccionado
+// y cambia dark/light desde el OS mientras la app está abierta, aplicamos
+// el cambio sin necesidad de recargar. Se dispara sólo si estamos en 'system'
+// (los modos 'light'/'dark' explícitos no dependen del OS).
+try {
+  if(window.matchMedia){
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if(currentTheme() === 'system' && typeof aplicarTema === 'function'){
+        aplicarTema('system');
+      }
+    });
+  }
+} catch(_){}
+
+function aplicarTema(modo){
+  try {
+    // Guardar la preferencia. El script del <head> la aplica al cargar,
+    // y acá abajo la aplicamos inmediatamente sin recargar la página —
+    // así el usuario no pierde la sesión, el scroll, ni la subvista actual.
+    localStorage.setItem('theme', modo);
+
+    // Aplicar el data-theme al <html> en el momento:
+    //   - 'system' → quitar el atributo para que respete prefers-color-scheme
+    //   - 'light' / 'dark' → setear el atributo explícito
+    if(modo === 'system'){
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', modo);
     }
 
-    if(!agregados.length){
-      return res.status(400).json({ error: 'No se agregó ningún jugador (ya estaban en el ciclo activo o los datos no eran válidos).' });
-    }
-
-    try { await writeState(id, estado); }
-    catch(e){ return res.status(503).json({ error: 'No se pudo guardar la liga: ' + e.message }); }
-
-    logAudit(session.u, 'liga.agregarJugadores', id, { jugadores: agregados.map(a => a.nombre) }, clientIP(req));
-    return res.status(200).json({ ok: true, id, agregados });
-  }
-
-  // ================= CERRAR, REABRIR, ELIMINAR =================
-  if(accion === 'cerrar'){
-    try { await setEstadoLiga(id, 'finalizada'); } catch(e){ return res.status(503).json({ error: 'No se pudo cerrar: ' + e.message }); }
-    logAudit(session.u, 'liga.cerrar', id, null, clientIP(req));
-    return res.status(200).json({ ok: true, id, estado: 'finalizada' });
-  }
-
-  if(accion === 'reabrir'){
-    try { await setEstadoLiga(id, 'activa'); } catch(e){ return res.status(503).json({ error: 'No se pudo reabrir: ' + e.message }); }
-    logAudit(session.u, 'liga.reabrir', id, null, clientIP(req));
-    return res.status(200).json({ ok: true, id, estado: 'activa' });
-  }
-
-  if(accion === 'renombrar'){
-    const nuevoNombre = String(body.nombre || '').trim();
-    if(!nuevoNombre || nuevoNombre.length > 80) return res.status(400).json({ error: 'Nombre inválido.' });
+    // La mayoría del contenido usa CSS variables (--surface, --text, --border...)
+    // y se re-pinta solo. Pero algunos componentes tienen inline styles calculados
+    // (rating con clubStyle, pk-body, admin panel con badges de club, WhatsApp
+    // panel con APIKEY enmascarado) que quedaron con los colores del tema anterior.
+    // Los volvemos a renderear disparando la vista actual.
     try {
-      const idx = await readLigaIndex();
-      const entry = idx.find(l => l.id === id);
-      if(!entry) return res.status(404).json({ error: 'Esa liga no existe.' });
-      await upsertLigaIndex({ id, nombre: nuevoNombre, estado: entry.estado, orden: entry.orden });
-      const estado = await readState(id);
-      if(estado){ estado.LEAGUE_NAME = nuevoNombre; await writeState(id, estado); }
-    } catch(e){ return res.status(503).json({ error: 'No se pudo renombrar: ' + e.message }); }
-    logAudit(session.u, 'liga.renombrar', id, { nuevo: nuevoNombre }, clientIP(req));
-    return res.status(200).json({ ok: true, id, nombre: nuevoNombre });
+      if(typeof subView === 'string' && typeof showSub === 'function'){
+        showSub(subView);
+      }
+    } catch(_){ /* si algo falla acá, el tema ya cambió, solo puede quedar
+                   algún componente con estilo viejo hasta la próxima navegación */ }
+
+    if(typeof toast === 'function' && typeof t === 'function'){
+      toast(t('theme_saved'));
+    }
+  } catch(e){ console.error('Theme error:', e); }
+}
+
+// HTML del card. Se inserta en ambos perfiles (admin y jugador) antes del pk-card.
+function renderThemeCard(){
+  const cur = currentTheme();
+  const btn = (mode, label, icon) => {
+    const active = (mode === cur);
+    const bg = active ? 'var(--pri)' : 'var(--surface2)';
+    const fg = active ? '#fff' : 'var(--text)';
+    const bd = active ? 'var(--pri)' : 'var(--border)';
+    return `<button class="theme-btn" data-mode="${mode}" onclick="aplicarTema('${mode}')" style="flex:1;padding:10px 12px;border:1.5px solid ${bd};border-radius:8px;background:${bg};color:${fg};font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-${icon}"></i>${label}</button>`;
+  };
+  return `<div class="card"><div class="section-lbl"><i class="ti ti-palette"></i> ${t('theme_section')}</div>` +
+    `<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('theme_hint')}</p>` +
+    `<div style="display:flex;gap:8px;flex-wrap:wrap">` +
+      btn('system', t('theme_system'), 'device-desktop') +
+      btn('light', t('theme_light'), 'sun') +
+      btn('dark', t('theme_dark'), 'moon') +
+    `</div></div>`;
+}
+
+
+// ============================================================================
+// PANEL ADMIN DE PASSKEYS — el admin ve quién tiene ingreso rápido activado
+// y puede desactivar dispositivos de otros (útil si perdieron el iPhone).
+// Usa los endpoints admin-stats + admin-list-user + admin-delete-user.
+// ============================================================================
+async function cargarPasskeysAdmin(){
+  const metricsEl = document.getElementById('pk-admin-metrics');
+  const listEl = document.getElementById('pk-admin-list');
+  if(!metricsEl || !listEl) return;
+  mostrarSkeleton(listEl, 4);
+  try{
+    // Traemos métricas y lista de todos los jugadores con passkey en paralelo.
+    // Para la lista, recorremos users y pedimos por cada uno que tenga passkeys
+    // (dos requests: stats primero, luego por jugador). Para no saturar Supabase
+    // con 60 requests, hacemos SOLO stats acá y expandimos por jugador on-click.
+    const rStats = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ accion:'admin-stats', ligaId: _ligaActual || undefined })
+    });
+    const stats = await rStats.json().catch(()=>({}));
+    if(!rStats.ok) throw new Error(stats.error || 'stats failed');
+
+    // Métricas
+    metricsEl.innerHTML =
+      `<div class="metric-tile"><span class="metric-n">${stats.conPasskey||0}</span><span class="metric-lbl">${t('pk_admin_metric_users')}</span></div>` +
+      `<div class="metric-tile"><span class="metric-n">${stats.totalPasskeys||0}</span><span class="metric-lbl">${t('pk_admin_metric_devices')}</span></div>` +
+      `<div class="metric-tile"><span class="metric-n">${stats.pct||0}%</span><span class="metric-lbl">${t('pk_admin_metric_pct')}</span></div>`;
+
+    // Para el listado detallado, necesitamos saber qué jugadores tienen passkeys.
+    // El endpoint admin-stats devuelve totales pero no la lista. Hacemos una
+    // pasada por USERS local (que ya está en memoria) y pedimos passkeys por
+    // cada jugador. Para no explotar, solo pedimos jugadores activos (no inactive).
+    // Peor caso: 60 fetches en paralelo, ~2 s.
+    const users = USERS || {};
+    const jugadoresActivos = Object.keys(users)
+      .filter(n => (users[n].role || 'player') === 'player' && !users[n].inactive)
+      .sort((a,b) => a.localeCompare(b, 'es'));
+    if(!jugadoresActivos.length){ listEl.innerHTML = `<p class="legend-txt">${t('pk_admin_none')}</p>`; return; }
+
+    const rs = await Promise.all(jugadoresActivos.map(nom =>
+      fetch('/api/passkey', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+        body: JSON.stringify({ accion:'admin-list-user', userName: nom, ligaId: _ligaActual || undefined })
+      }).then(r => r.ok ? r.json() : { passkeys: [] }).catch(() => ({ passkeys: [] }))
+    ));
+    const jugadoresConPasskeys = [];
+    rs.forEach((d, i) => {
+      if(d.passkeys && d.passkeys.length) jugadoresConPasskeys.push({ nombre: jugadoresActivos[i], passkeys: d.passkeys });
+    });
+    if(!jugadoresConPasskeys.length){ listEl.innerHTML = `<p class="legend-txt">${t('pk_admin_none')}</p>`; return; }
+
+    const fmtFecha = iso => { if(!iso) return t('pk_never_used'); try{ return new Date(iso).toLocaleDateString(); }catch(_){ return iso.slice(0,10); } };
+    let html = '';
+    jugadoresConPasskeys.forEach(j => {
+      const nombreEsc = _pkEsc(j.nombre);
+      html += `<details style="border:1px solid var(--border,#e2e8f0);border-radius:8px;margin-bottom:6px">` +
+        `<summary style="cursor:pointer;padding:10px 12px;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center">` +
+          `<span><i class="ti ti-user" style="margin-right:.35rem;opacity:.7"></i>${nombreEsc}</span>` +
+          `<span style="font-size:11px;color:var(--text2,#64748b);font-weight:500">${j.passkeys.length} disp.</span>` +
+        `</summary>` +
+        `<div style="padding:8px 12px 12px;display:flex;flex-direction:column;gap:6px">`;
+      j.passkeys.forEach(p => {
+        const label = _pkEsc(p.deviceLabel);
+        const escCid = _pkEsc(p.credentialId).replace(/'/g,"&#39;");
+        const escLbl = label.replace(/'/g,"&#39;");
+        const escUser = nombreEsc.replace(/'/g,"&#39;");
+        html +=
+          `<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.4rem .5rem;background:var(--surface2,#f8fafc);border-radius:6px">` +
+            `<div style="min-width:0;flex:1">` +
+              `<div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="ti ti-device-mobile" style="opacity:.6"></i> ${label}</div>` +
+              `<div style="font-size:10.5px;color:var(--text2,#64748b);margin-top:2px">${t('pk_last_used')}: ${_pkEsc(p.lastUsedAt ? fmtFecha(p.lastUsedAt) : t('pk_never_used'))}</div>` +
+            `</div>` +
+            `<button class="btn btn-sm" style="background:transparent;color:var(--danger);border:1px solid var(--danger);flex-shrink:0;font-size:11px;padding:4px 8px" onclick="desactivarPasskeyAdmin('${escUser}','${escCid}','${escLbl}')"><i class="ti ti-trash"></i></button>` +
+          `</div>`;
+      });
+      html += `</div></details>`;
+    });
+    listEl.innerHTML = html;
+  }catch(err){
+    metricsEl.innerHTML = '';
+    listEl.innerHTML = `<p class="legend-txt" style="color:var(--danger)">${t('pk_list_err')}</p>`;
+  }
+}
+
+// Admin desactiva un dispositivo de otro jugador.
+async function desactivarPasskeyAdmin(userName, credId, label){
+  if(!userName || !credId) return;
+  const msg = t('pk_admin_del_confirm').replace('{d}', label || 'este dispositivo').replace('{n}', userName);
+  if(!(await confirmarModal(msg, { titulo: t('pk_device_deactivate'), okTxt: t('pk_device_deactivate'), peligro: true }))) return;
+  try{
+    const r = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ accion:'admin-delete-user', userName, credentialId: credId, ligaId: _ligaActual || undefined })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || 'admin delete failed');
+    toast(t('pk_admin_del_ok'));
+    cargarPasskeysAdmin();   // refrescar la lista
+  }catch(err){
+    toast(t('pk_admin_del_err'));
+  }
+}
+
+
+// ============================================================================
+// EXPORTAR LIGA A EXCEL — usa SheetJS (ya cargado globalmente como XLSX).
+// Arma un workbook con 4 hojas: Jugadores, Clasificación, Partidos, Ciclos.
+// ============================================================================
+function exportarLigaExcel(){
+  if(typeof XLSX === 'undefined'){ toast('Error: librería Excel no cargada.'); return; }
+  toast(t('export_working'));
+  try{
+    const wb = XLSX.utils.book_new();
+
+    // ---- Hoja 1: Jugadores (con estadísticas totales) ----
+    const stats = {};
+    Object.keys(USERS).forEach(n => {
+      if(n === 'admin' || n === 'superadmin') return;
+      stats[n] = { pj:0, pg:0, pp:0, gg:0, gp:0 };
+    });
+    matches.forEach(m => {
+      if(m.status !== 'confirmed') return;
+      const a = m.po ? m.poNames[0] : m.aName;
+      const b = m.po ? m.poNames[1] : m.bName;
+      if(!stats[a] || !stats[b]) return;
+      let ga = 0, gb = 0;
+      (m.sets || []).forEach(s => { ga += s[0]||0; gb += s[1]||0; });
+      stats[a].pj++; stats[b].pj++;
+      stats[a].gg += ga; stats[a].gp += gb;
+      stats[b].gg += gb; stats[b].gp += ga;
+      // Ganador: quien ganó más sets
+      let wa = 0, wb = 0;
+      (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
+      if(wa > wb){ stats[a].pg++; stats[b].pp++; }
+      else if(wb > wa){ stats[b].pg++; stats[a].pp++; }
+    });
+    const jugadoresRows = [['Nombre','Grupo actual','Email','Teléfono','PJ','PG','PP','% Victorias','Games ganados','Games perdidos','Rating']];
+    Object.keys(USERS).filter(n => n!=='admin' && n!=='superadmin').sort((a,b)=>a.localeCompare(b,'es')).forEach(n => {
+      const u = USERS[n];
+      const loc = findPlayer(n);
+      const grupo = loc ? groupName(loc.g) : '';
+      const s = stats[n] || { pj:0, pg:0, pp:0, gg:0, gp:0 };
+      const pct = s.pj > 0 ? Math.round(100 * s.pg / s.pj) + '%' : '';
+      let rating = '';
+      try { if(window.ratingsUTR && typeof window.ratingsUTR === 'object' && window.ratingsUTR[n]){ rating = window.ratingsUTR[n].rating ? window.ratingsUTR[n].rating.toFixed(2) : ''; } } catch(_){}
+      jugadoresRows.push([n, grupo, u.email||'', u.tel||'', s.pj, s.pg, s.pp, pct, s.gg, s.gp, rating]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(jugadoresRows), t('export_sheet_jugadores'));
+
+    // ---- Hoja 2: Clasificación general (usa computeGeneralStanding si existe) ----
+    try {
+      if(typeof computeGeneralStanding === 'function'){
+        const gs = computeGeneralStanding();
+        const genRows = [['Pos','Jugador','Puntos totales','Puntos último ciclo','Grupo actual']];
+        gs.forEach((r, i) => {
+          genRows.push([i+1, r.name, r.total, r.last, r.grupo || '']);
+        });
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(genRows), t('export_sheet_general'));
+      }
+    } catch(_){}
+
+    // ---- Hoja 3: Partidos ----
+    const partRows = [['Ciclo','Grupo','Fase','Jugador A','Jugador B','Sets','Ganador','Estado','Club']];
+    matches.forEach(m => {
+      const a = m.po ? (m.poNames && m.poNames[0]) : m.aName;
+      const b = m.po ? (m.poNames && m.poNames[1]) : m.bName;
+      const fase = m.po ? (playoff.tramos && playoff.tramos[m.ti] ? 'PO ' + playoff.tramos[m.ti].label : 'PO') : ('Ciclo '+m.cycle);
+      const sets = (m.sets || []).map(s => (s[0]||0)+'-'+(s[1]||0)).join(' · ');
+      let ganador = '';
+      let wa = 0, wb = 0;
+      (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
+      if(wa > wb) ganador = a; else if(wb > wa) ganador = b;
+      const estado = m.status || 'confirmed';
+      const club = (CLUBS && m.clubId) ? (CLUBS.find(c => c.id === m.clubId)?.name || '') : '';
+      partRows.push([m.cycle || '', m.g || '', fase, a, b, sets, ganador, estado, club]);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(partRows), t('export_sheet_partidos'));
+
+    // ---- Hoja 4: Ciclos (estado y jugadores por grupo) ----
+    const cycRows = [['Ciclo','Estado','Grupo','Jugadores']];
+    (cycles || []).forEach(c => {
+      const st = c.status === 'active' ? 'Activo' : (c.status === 'finished' ? 'Finalizado' : 'Bloqueado');
+      if(c.groups && c.groups.length){
+        c.groups.forEach((g, gi) => {
+          cycRows.push([c.n, st, gi+1, (g.players||[]).join(', ')]);
+        });
+      } else {
+        cycRows.push([c.n, st, '', '']);
+      }
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cycRows), t('export_sheet_ciclos'));
+
+    // ---- Descargar ----
+    const nombreLiga = (typeof LEAGUE_NAME === 'string' && LEAGUE_NAME) ? LEAGUE_NAME : 'liga';
+    const fname = 'liga-' + nombreLiga.replace(/[^a-z0-9]+/gi,'_').toLowerCase() + '-' + new Date().toISOString().slice(0,10) + '.xlsx';
+    XLSX.writeFile(wb, fname);
+    toast(t('export_ok'));
+  }catch(err){
+    console.error('Export error:', err);
+    toast(t('export_err'));
+  }
+}
+
+
+// Renombrar una passkey del propio usuario. Pide un nombre nuevo en un modal
+// (con input) y llama al endpoint. El backend valida que sea del usuario.
+async function renombrarPasskey(credId, labelActual){
+  if(!credId) return;
+  const nuevo = await confirmarModal(
+    t('pk_rename_prompt'),
+    { titulo: t('pk_rename_title'), okTxt: t('rg_save')||'Guardar', inputPlaceholder: labelActual || 'Ej: iPhone del trabajo' }
+  );
+  if(nuevo === null || nuevo === false) return;   // canceló
+  const nombre = String(nuevo || '').trim();
+  if(!nombre){ toast(t('pk_rename_empty')); return; }
+  if(nombre === labelActual) return;              // sin cambios
+  try{
+    const r = await fetch('/api/passkey', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      credentials:'same-origin',
+      body: JSON.stringify({ accion:'rename', credentialId: credId, deviceLabel: nombre })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error(d.error || 'rename failed');
+    toast(t('pk_renamed'));
+    refrescarListaPasskeys();
+  }catch(err){
+    toast(t('pk_rename_err'));
+  }
+}
+
+async function doLogin(){
+  const uv=(document.getElementById('login-user').value||'').trim();
+  const pv=document.getElementById('login-pass').value;
+  const e=document.getElementById('login-err');
+  const btn=document.getElementById('login-btn');
+  if(!uv||!pv){e.textContent=t('err_need_both');e.style.display='block';return;}
+  if(btn){btn.disabled=true;btn.textContent=t('login_working');}
+  try{
+    // La contraseña se verifica en el servidor. Acá no hay ningún hash con qué compararla.
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){e.textContent=d.error||'Usuario o contraseña incorrectos.';e.style.display='block';return;}
+    _token=d.token;
+    // El estado ya viene en la respuesta del login: no hace falta una segunda
+    // llamada a /api/state, que releía los mismos 222 KB de la base.
+    if(d.state){
+      const ok=_hydrate(d.state);
+      if(!ok){e.textContent=t('err_hydrate');e.style.display='block';_token=null;return;}
+      _lastSaved=_serialize();
+      _loadOK=true;
+    }else{
+      await loadState();
+    }
+    if(!_loadOK){e.textContent=t('err_no_data');e.style.display='block';_token=null;return;}
+    const u=USERS[d.name];
+    if(!u){e.textContent=t('err_no_user_league');e.style.display='block';_token=null;return;}
+    if(u.inactive&&d.role==='player'){e.textContent=t('err_inactive');e.style.display='block';_token=null;return;}
+    currentUser=u; currentUser.key=d.name;
+    // Si no hay ninguna liga activa, solo admin/superadmin pueden entrar (para
+    // reabrir o crear). Un jugador no tiene nada que hacer hasta que haya una liga.
+    if(_sinLigasActivas && !esAdmin(currentUser)){
+      e.textContent=t('err_no_active_league');e.style.display='block';_token=null;currentUser=null;
+      if(btn){btn.disabled=false;btn.textContent=t('enter');}
+      return;
+    }
+    // El servidor detectó una contraseña por defecto: se bloquea la app hasta cambiarla.
+    if(d.mustChangePw) forcePwChange(pv);
+  }catch(err){
+    e.textContent=t('err_no_server');e.style.display='block';return;
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=t('enter')||'Entrar';}
+  }
+  montarAppTrasLogin();
+}
+
+// Monta la app tras un login exitoso (con clave o con passkey). currentUser,
+// _token y el estado ya deben estar cargados antes de llamar a esto.
+function montarAppTrasLogin(){
+  const e=document.getElementById('login-err');
+  if(e) e.style.display='none';
+  _lastActivity=Date.now();
+  applyLeagueNameToDOM();
+  _lastActivity=Date.now();
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('main-app').style.display='block';
+  if(_sinLigasActivas && esAdmin(currentUser)){ mostrarBannerSinLigas(); } else { const b=document.getElementById('nolig-banner'); if(b)b.style.display='none'; }
+  document.getElementById('cur-name').textContent=currentUser.name;
+  document.getElementById('cur-role').innerHTML=currentUser.role==='superadmin'?'<span class="role-badge" style="background:#8b5cf6">Super Admin</span>':esAdmin(currentUser)?'<span class="role-badge">'+t('role_admin')+'</span>':t('role_player');
+  if(currentUser.role==='player'){const loc=findLoc(currentUser.name,activeN);if(loc)selGroup=loc.g;}
+  // Redirigir al lugar correcto según el estado de la liga
+  if(playoff.started||(playoff.preview&&esAdmin(currentUser))){
+    viewCycle='po';renderShell();showPlayoffView();renderSubTabs();updateHdr();
+    // renderSubTabs() re-crea el elemento #pend-n (con display:none y "0"),
+    // pisando el resultado que había dejado el updateBadge() interno de
+    // renderShell. Sin este updateBadge() extra, el admin entra en playoffs
+    // y NO ve el badge de pendientes hasta que hace clic en algún tab.
+    updateBadge();
+  } else {
+    viewCycle=activeN;renderShell();showSub('grupos');
+    // Calcular el rating global (todas las ligas) en segundo plano. Cuando termina,
+    // refresca la vista para que la columna y la ficha muestren los números.
+    if(RATING_ON){ calcularRatingGlobal(true).then(()=>{ try{ if(subView==='grupos'||subView==='rating') showSub(subView); }catch(_){}}); }
+  }
+  document.getElementById('login-pass').value='';
+  clearForm();
+}
+
+// Entrar con un token+state ya obtenidos (usado por el login con passkey).
+// Replica los chequeos de doLogin sobre el resultado del servidor.
+function entrarConToken(d){
+  const e=document.getElementById('login-err');
+  _token=d.token;
+  if(d.state){
+    const ok=_hydrate(d.state);
+    if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} _token=null; return; }
+    _lastSaved=_serialize();
+    _loadOK=true;
+  }
+  if(!_loadOK){ if(e){e.textContent=t('err_no_data');e.style.display='block';} _token=null; return; }
+  const u=USERS[d.name];
+  if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} _token=null; return; }
+  if(u.inactive&&d.role==='player'){ if(e){e.textContent=t('err_inactive');e.style.display='block';} _token=null; return; }
+  currentUser=u; currentUser.key=d.name;
+  if(_sinLigasActivas && !esAdmin(currentUser)){
+    if(e){e.textContent=t('err_no_active_league');e.style.display='block';} _token=null; currentUser=null; return;
+  }
+  montarAppTrasLogin();
+}
+function doLogout(){closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='block';document.getElementById('login-pass').value='';initLogin();}
+function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
+function renderCycleBar(){const bar=document.getElementById('cycle-bar');let html='';cycles.forEach(c=>{const playable=!!c.groups;const isView=viewCycle===c.n;const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;});const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;bar.innerHTML=html;}
+function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');}
+function viewCyc(n){
+  viewCycle=n;
+  if(n==='po'){
+    ['grupos','general','cargar','pendientes','admin','perfil'].forEach(v=>{
+      const el=document.getElementById('view-'+v);
+      if(el)el.style.display='none';
+    });
+    const pv=document.getElementById('view-playoff');
+    if(pv)pv.style.display='block';
+    renderShell();
+    showPlayoffView();
+  }else{
+    // Al cambiar a un ciclo normal, auto-ajustar el grupo seleccionado al
+    // grupo donde juega el usuario en ESE ciclo. Sin esto, si Víctor estaba
+    // viendo Ciclo 2 · Grupo 3 y cambiaba a Ciclo 1, se quedaba en Grupo 3
+    // (donde no juega en C1) en vez de saltar a su grupo real (Grupo 5).
+    //
+    // Aplicamos a CUALQUIER usuario que tenga un grupo en el ciclo destino
+    // (no solo currentUser.role === 'player'). Cubre también a jugadores que
+    // fueron ascendidos a admin — mantienen sus partidos como jugador y les
+    // interesa ver su grupo propio al cambiar de ciclo. Los admins puros
+    // (Organización) sin grupo asignado no entran a este `if` y conservan
+    // selGroup — que es lo correcto para ellos.
+    if(currentUser && currentUser.name && typeof findLoc === 'function'){
+      const loc = findLoc(currentUser.name, n);
+      if(loc && loc.g){
+        selGroup = loc.g;
+      }
+      // Nota: si no encuentra al usuario en el ciclo destino (por ej. Víctor
+      // en un ciclo donde no jugó), NO tocamos selGroup — así el usuario se
+      // queda viendo el mismo número de grupo que venía viendo antes.
+    }
+    const pv=document.getElementById('view-playoff');
+    if(pv)pv.style.display='none';
+    renderShell();
+    showSub('grupos');
+  }
+}
+function showSub(name){if(viewCycle==='po')viewCycle=activeN;subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
+function updateHdr(){const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+fmtRange(FECHAS[viewCycle-1]||'')+' · '+(cycles[viewCycle-1]?cycles[viewCycle-1].status:'');const sub=document.getElementById('hdr-sub');if(sub)sub.textContent=hs;
+const lsub=document.getElementById('login-sub');if(lsub)lsub.textContent=LEAGUE_SUBTITLE||'';const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME||t('app_title');
+const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME||t('app_title');const eb=document.getElementById('exit-btn');if(eb)eb.textContent=t('exit');}
+
+function groupCardHTML(gid){
+  try {
+      const c=cycles[viewCycle-1];
+      if(!c || !c.groups || !c.groups[gid-1]) return '';
+      const isActive=c.status==='active'||!!c.editMode;
+      const grp=c.groups[gid-1];
+      const players=(grp.players||[]).filter(Boolean); // Filtro contra nulls
+      let st=computeStats(viewCycle,gid);
+      if(!DESTINO) DESTINO = {};
+      const dest=DESTINO[gid] || ensureDestino(gid, Math.max(1, players.length));
+      
+      const fc={};
+      players.forEach(p=>{const f=p.split(' ')[0];fc[f]=(fc[f]||0)+1;});
+      const lbl=p=>{if(!p)return'';const f=p.split(' ')[0];return fc[f]>1?p:f;};
+
+      // Reordenar para la clasificación: los activos primero (respetando el orden por
+      // desempate que ya trae computeStats), y los inactivos al final, ordenados entre
+      // ellos por nivel (rating). Así un jugador que se dio de baja no ocupa un puesto
+      // por encima de los que siguen compitiendo.
+      const _esInact = nm => USERS[nm] && USERS[nm].inactive;
+      // Se guarda la posición ORIGINAL (_pos0) ANTES de reordenar, para que los puntos
+      // En la mini-clasificación del grupo: los activos siempre aparecen. Los inactivos
+      // aparecen si y solo si jugaron al menos un partido en este ciclo/grupo. Si un
+      // inactivo no jugó nada en este ciclo, no tiene sentido que ocupe un puesto.
+      st.forEach((s,idx) => { s._pos0 = idx; });
+      st = st.filter(s => {
+        if(!_esInact(s.name)) return true;  // activos siempre
+        return matches.some(m => !m.po && m.cycle===viewCycle && m.g===gid
+          && (m.aName===s.name || m.bName===s.name));
+      });
+
+      let cls=st.map((s,i)=>{
+        const pos0 = (s._pos0 !== undefined) ? s._pos0 : i;
+        const d=dest[pos0]||'',dn=parseInt((d||'G99').replace('G',''));
+        const ar=dn<gid?'dest-up':dn>gid?'dest-down':'dest-same';
+        const ic=dn<gid?'↑':dn>gid?'↓':'=';
+        const ex=pos0===0?2:0;
+        const base=ptsForPos(gid,pos0);
+        const pInactive = USERS[s.name]&&USERS[s.name].inactive;
+        const inactiveBadge = pInactive?'<span style="font-size:9px;background:#e55;color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:700">INACTIVO</span>':'';
+        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.55':''}"><td>${(!pInactive&&d)?`<span class="dest ${ar}">${ic}${groupName(dn)}</span>`:pInactive?'<span style="font-size:9px;color:#aaa">—</span>':''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${pInactive?'<span style="font-size:10px;color:#e55;font-weight:700">—</span>':base}</td><td>${ex>0?ex:''}</td><td><strong>${pInactive?'<span style="font-size:10px;color:#e55">inactivo</span>':base+ex}</strong></td></tr>`;
+      }).join('');
+      
+      // Para la MATRIZ de resultados: los activos siempre aparecen. Los inactivos
+      // aparecen SOLO si tienen al menos un partido en este grupo/ciclo (confirmado,
+      // pendiente o disputado). Si un inactivo no jugó nada, no ocupa columna ni fila.
+      const playersMtx = players.filter(p => {
+        if(!(USERS[p] && USERS[p].inactive)) return true; // activo → siempre
+        return matches.some(m => !m.po && m.cycle===viewCycle && m.g===gid
+          && (m.aName===p || m.bName===p));
+      });
+      const head=playersMtx.map(p=>`<th class="${currentUser&&p===currentUser.name?'me-mtx':''}">${lbl(p)}</th>`).join('');
+      let mrows=playersMtx.map((p,i)=>{
+        const cols=playersMtx.map((q,j)=>{
+          if(i===j)return`<td class="res-black"></td>`;
+          const m=findMatch(viewCycle,gid,p,q);
+          if(m&&m.np)return`<td class="cell-club" style="background:${LEAGUE_COLOR_HL};color:${autoTxt(LEAGUE_COLOR_HL)};font-size:10px;font-weight:700" onclick="openModal(${m.id})">NJ</td>`;
+          if(m&&m.status==='confirmed'){const sc=m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');return`<td class="cell-club" style="${clubStyle(m.club)}" onclick="openModal(${m.id})">${sc}</td>`;}
+          if(m&&m.status==='pending'){const sc=m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');return`<td class="cell-pending" onclick="openModal(${m.id})">${sc}⏳</td>`;}
+          if(m&&m.status==='disputed')return`<td class="cell-disputed" style="background:${COLOR_DISPUTA};color:${autoTxt(COLOR_DISPUTA)}" onclick="openModal(${m.id})">disp.</td>`;
+          if(isActive&&canCreate(gid,p,q))return`<td class="cell-empty" onclick="openLoadModal(${gid},'${jsq(p)}','${jsq(q)}')">+</td>`;
+          return`<td class="cell-locked">·</td>`;
+        }).join('');
+        return`<tr><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
+      }).join('');
+      
+      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> ${t('edit')}</button>` : '');
+      const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th>${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th>${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
+      
+      return `<div class="card grp-card"><div class="grp-title">${t('group')} ${gid}</div><div class="overflow-x"><table class="cls-table"><thead><tr class="clg-head"><th colspan="9"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div><p class="legend-txt">${t('legend_pts')}</p><div class="section-lbl">${t('players_col')} ${groupName(gid)}</div><div class="overflow-x"><table class="res-table"><thead><tr><th>${t('players_col')}</th>${head}</tr></thead><tbody>${mrows}</tbody></table></div><p class="legend-txt">${t('legend_matrix')}</p></div>`;
+  } catch(e) {
+      console.error("Error regenerando tabla del grupo:", gid, e);
+      return `<div class="card"><div class="alert alert-err">Datos corruptos en el Grupo ${gid}.</div></div>`;
+  }
+}
+
+// ¿Puede esta persona VALIDAR este partido al cargarlo?
+// Es admin, sí — pero no si lo jugó ella. Un jugador ascendido que carga su propio
+// resultado lo dejaba 'confirmed' al instante y su rival no podía ni disputarlo
+// (un confirmado ya no admite disputa). Ahora va a 'pending' como el de cualquiera:
+// su rival puede disputarlo, y lo confirma OTRO administrador. Confirmar es acción
+// de admin: el rival no tiene ese botón, solo el de disputa.
+// ¿Este partido lo jugué yo? Sirve para todas las acciones de admin: validar,
+// marcar no jugado, resolver una disputa. Un admin que además juega no debe
+// arbitrar sus propios partidos: lo hace su rival o cualquier otro admin.
+function esMiPartido(m){
+  if(!m || !currentUser) return false;
+  const yo = currentUser.name;
+  if(m.po) return !!(m.poNames && m.poNames.includes(yo));
+  return m.aName === yo || m.bName === yo;
+}
+function validaAlCargar(a, b){
+  // Un administrador valida al cargar, incluido su propio partido.
+  // Antes se le bloqueaba para que no arbitrara lo suyo. Ahora el control es la
+  // TRANSPARENCIA en vez de la prohibición: todo partido guarda vBy con el nombre
+  // de quien lo validó y queda a la vista en el modal. En una liga de conocidos,
+  // que alguien tenga que esperar a otro admin para cerrar su partido trababa más
+  // de lo que protegía. Los parámetros quedan por compatibilidad de las llamadas.
+  return esAdmin(currentUser);
+}
+// Dos escapes distintos, porque son dos problemas distintos.
+//
+// jsq(): para meter un valor DENTRO de un string de JavaScript, que a su vez vive
+// dentro de un atributo:  onclick="verFicha('${jsq(nombre)}')"
+// Solo tiene que neutralizar el apóstrofo, que es lo que cierra ese string.
+// Nació por los apellidos tipo O'Brien, que rompían el onclick.
+//
+// attr(): para meter un valor como VALOR de un atributo HTML:
+//   value="${attr(email)}"   id="pe-name-${attr(nombre)}"
+// Acá el peligro es la comilla doble, que cierra el atributo y deja inyectar
+// otro (por ejemplo onfocus=). El apóstrofo no molesta, pero se escapa igual.
+//
+// Antes ambas cosas las hacía una sola función llamada esc(), que solo tocaba el
+// apóstrofo: correcta para los 15 casos de JS, inútil para los 13 de atributos.
+// El nombre sugería "escape de HTML" y no lo era: una trampa para el que viniera
+// después. La validación del servidor tapa el agujero, pero el nombre mentía.
+function jsq(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+function attr(s){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function renderGrupos(){
+  try {
+      const c=cycles[viewCycle-1];
+      let html='';
+      if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
+      
+      if(LAYOUT==='selector'){
+        html+=`<div class="card"><div class="section-lbl">${t('choose_group')}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
+            const gid=i+1;
+            const loc=currentUser?findLoc(currentUser.name,viewCycle):null;
+            const mine=currentUser&&currentUser.role==='player'&&loc&&loc.g===gid;
+            return `<button class="grp-btn ${selGroup===gid?'active':''}" onclick="setSelGroup(${gid})">${groupName(gid)}${mine?`<span class="mine">${t('mine_label')}</span>`:''}</button>`;
+        }).join('')+`</div></div>`;
+        if(selGroup>c.groups.length)selGroup=1;
+        html+=groupCardHTML(selGroup);
+      }else{
+        c.groups.forEach((g,gi)=>{html+=groupCardHTML(gi+1);if(gi<c.groups.length-1)html+='<div class="grp-sep"></div>';});
+      }
+      
+      // Leyenda dinámica: un cuadradito por club (con su color real), más el resto
+      // de estados. Se arma desde CLUBS y COLOR_DISPUTA, así refleja lo que el admin
+      // configuró en vez de tener Sohail/Haza fijos.
+      const clubsLeg = CLUBS.map(c=>
+        `<span><span class="dot" style="background:${c.bg}"></span> ${attr(c.name)}</span>`
+      ).join('');
+      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
+      document.getElementById('view-grupos').innerHTML=html;
+  } catch(e) {
+      console.error("Error crítico en renderGrupos:", e);
+      document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
+  }
+}
+function setSelGroup(g){selGroup=g;renderGrupos();}
+function canCreate(gid,n1,n2){if(viewCycle!==activeN)return false;if(esAdmin(currentUser))return true;const rival=currentUser.name===n1?n2:n1;if(USERS[rival]&&USERS[rival].inactive)return false;const loc=findLoc(currentUser.name,activeN);return loc&&loc.g===gid&&(currentUser.name===n1||currentUser.name===n2);}
+function renderGeneral(){
+const all=computeGeneral();const pc=['p1','p2','p3'];
+const title=document.getElementById('gen-title');if(title)title.textContent=t('general_title');
+const tb=document.getElementById('gen-tiebreak');if(tb)tb.innerHTML=t('gen_tiebreak_note');
+// Reconstruir el encabezado: #, Jugador, Grupo, Total, una columna por ciclo, y
+// (si los playoffs YA ESTÁN INICIADOS — no en preview) la columna de cuadro.
+// En preview el admin ve los cuadros en la pestaña Play Offs, pero no se refleja
+// en la clasificación general para no confundir a los jugadores.
+const poActivoHdr=playoff&&playoff.started;
+const thCiclos=cycles.map(c=>'<th title="'+attr(t('gen_cycle_pts'))+'">'+t('cycle_short')+c.n+'</th>').join('');
+const thPO=poActivoHdr?('<th>'+t('gen_po_col')+'</th>'):'';
+const headRow=document.getElementById('gen-thead-row');
+if(headRow)headRow.innerHTML='<th>#</th><th style="text-align:left">'+t('player')+'</th><th>'+t('current_group')+'</th><th>'+t('total')+'</th>'+thCiclos+thPO;
+document.getElementById('gen-body').innerHTML=all.map((p,i)=>{const me=currentUser&&currentUser.role==='player'&&p.name===currentUser.name;const loc=findLoc(p.name,activeN);
+  // Una celda por ciclo con los puntos que sumó ese ciclo (— si no jugó ese ciclo).
+  const celdasCiclos=cycles.map(c=>{const v=p.porCiclo[c.n];return '<td class="gen-cyc">'+(v!==undefined?v:'<span class="gen-dash">—</span>')+'</td>';}).join('');
+  // Columna de playoff: solo si están iniciados (no en preview).
+  const poActivo=playoff&&playoff.started;
+  const celdaPO=poActivo?('<td class="gen-po">'+(p.poDraw?('<span class="po-chip">'+t('draw')+' '+attr(p.poDraw)+'</span>'):'<span class="gen-dash">—</span>')+'</td>'):'';
+  const inactBadge=p.inactive?' <span class="badge-inact">'+t('inactive_short')+'</span>':'';
+  return '<tr class="'+(me?'me-row':'')+'" style="'+(p.inactive?'opacity:.55':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong></td>'+celdasCiclos+celdaPO+'</tr>';}).join('');}
+
+// Dibuja un botón por club en el formulario de carga, desde CLUBS. Reemplaza a los
+// dos botones fijos Sohail/Haza. Cada botón lleva el color del club como fondo.
+function renderClubButtons(){
+  const box=document.getElementById('club-pick');
+  if(!box)return;
+  box.innerHTML=CLUBS.map(c=>
+    `<div class="club-opt" data-club="${attr(c.name)}" onclick="pickClub('${jsq(c.name)}')" style="--cbg:${c.bg};--ctx:${autoTxt(c.bg)}">${attr(c.name)}</div>`
+  ).join('');
+  // Re-marcar el seleccionado si ya había uno
+  if(formClub) pickClub(formClub);
+}
+function pickClub(c){
+  formClub=c;
+  const box=document.getElementById('club-pick');
+  if(box){
+    box.querySelectorAll('.club-opt').forEach(el=>{
+      const sel = el.getAttribute('data-club')===c;
+      el.classList.toggle('club-sel', sel);
+    });
+    box.classList.remove('req-empty');
+  }
+}
+function getMyPoMatch(){
+  if(!playoff.started&&!playoff.preview)return null;
+  if(!currentUser||esAdmin(currentUser))return null;
+  const name=currentUser.name;
+  for(let ti=0;ti<playoff.tramos.length;ti++){
+    const tr=playoff.tramos[ti];
+    if(!tr)continue;
+    // Buscar en main draw
+    for(const which of['main','cons']){
+      const rounds=tr[which];
+      if(!Array.isArray(rounds))continue;
+      for(let ri=0;ri<rounds.length;ri++){
+        for(let mi=0;mi<rounds[ri].length;mi++){
+          const m=rounds[ri][mi];
+          if((m.a===name||m.b===name)&&m.a&&m.b&&!m.w){
+            // ¿Ya hay un resultado cargado (pending/disputed) para este slot?
+            // Si sí, este partido NO se debe ofrecer en el tab Cargar como
+            // pendiente de jugar. El jugador ya lo cargó (o el rival lo cargó)
+            // y ahora está esperando confirmación/disputa. Sin este chequeo, el
+            // tab Cargar seguía mostrando el formulario con el rival autoseleccionado,
+            // habilitando que el mismo jugador cargue un DUPLICADO por encima.
+            //
+            // Estrategia doble para blindar (misma que matchBox):
+            //   1) Coincidencia por índices ti/which/ri/mi con coerción de tipo.
+            //   2) Fallback por nombres: un match de playoff con exactamente los
+            //      mismos 2 jugadores es único. Si un match antiguo tiene otros
+            //      índices por un rearmado del bracket, igual lo atrapamos.
+            const rival = m.a === name ? m.b : m.a;
+            const yaCargado = (matches || []).some(function(x){
+              if(!x || x.po !== true) return false;
+              if(x.status !== 'pending' && x.status !== 'disputed') return false;
+              // Criterio 1: mismas coordenadas del bracket
+              var sameCoord = (Number(x.ti) === Number(ti))
+                           && (String(x.which) === String(which))
+                           && (Number(x.ri) === Number(ri))
+                           && (Number(x.mi) === Number(mi));
+              if(sameCoord) return true;
+              // Criterio 2: mismos 2 jugadores en cualquier orden
+              if(Array.isArray(x.poNames) && x.poNames.length === 2
+                 && x.poNames.indexOf(name) !== -1
+                 && x.poNames.indexOf(rival) !== -1) return true;
+              return false;
+            });
+            if(yaCargado) continue;
+            const total=rounds.length;
+            const fe=total-1-ri;
+            const roundName=fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':fe===4?'16avos':'Ronda '+(ri+1);
+            const drawName=which==='cons'?'Consolación '+tr.label:'Cuadro '+tr.label;
+            return{ti,which,ri,mi,rival,roundName,drawName,trLabel:tr.label};
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function populateForm(gid,na,nb){poContext=null;formClub='';renderClubButtons();const r=document.getElementById('f-reporter'),o=document.getElementById('f-rival'),note=document.getElementById('cargar-note');r.innerHTML='<option value="">— Jugador —</option>';o.innerHTML='<option value="">— Rival —</option>';
+  // Ciclo para cargar: el activo, O un ciclo cerrado con editMode habilitado por el admin.
+  // Si hay editMode, se usa ese ciclo (tanto para admins como para jugadores).
+  const editCycle = cycles.find(cx=>cx.editMode);
+  const c = editCycle || getActive();
+  const cycleN = editCycle ? editCycle.n : activeN;
+  _formCycleN = cycleN;  // submitResult lo lee para saber en qué ciclo guardar
+  if(!c||!c.groups){note.textContent="Ciclo inactivo.";r.disabled=true;o.disabled=true;return;}
+// Ocultar/mostrar el filtro de grupo/playoff según el rol
+const _fw=document.getElementById('admin-group-filter');
+if(_fw)_fw.style.display=(esAdmin(currentUser))?'flex':'none';
+// Bloquear carga si el ciclo está finalizado y sin editMode ni playoffs activos.
+// Con editMode activo el admin habilitó explícitamente la carga: cualquiera puede cargar.
+if(c.status==='finished'&&!c.editMode&&!playoff.started&&!playoff.preview&&!esAdmin(currentUser)){
+  note.innerHTML='<span style="color:var(--text2)">La temporada regular ha finalizado. Esperá que el administrador habilite los Play Offs.</span>';
+  r.disabled=true;o.disabled=true;r.className='score-sel-locked';o.className='score-sel-locked';return;
+}
+// Si hay editMode activo, mostrar banner informativo del ciclo habilitado
+if(editCycle){
+  note.innerHTML=`<strong style="color:#f59e0b"><i class="ti ti-pencil"></i> Carga habilitada en Ciclo ${cycleN} — los resultados se guardan en ese ciclo.</strong>`;
+}
+if(currentUser.role==='player' && !esAdmin(currentUser)){
+  // Un jugador que además es admin NO entra acá: cae en la rama else de abajo,
+  // que le deja elegir a cualquiera de los dos jugadores (poder de admin).
+  // Si no, este bloque le bloqueaba el reporter en su propio nombre y no podía
+  // cargar el partido de otros.
+  const myPo=getMyPoMatch();
+  if(myPo&&!na){
+    // Modo playoff: formulario bloqueado con el rival de llaves
+    note.innerHTML='<strong style="color:var(--pri)">🏆 '+tf('po_form_note',{draw:myPo.drawName,round:myPo.roundName})+'</strong>';
+    r.add(new Option(currentUser.name,currentUser.name));
+    r.value=currentUser.name;
+    r.disabled=true;r.className='score-sel-locked';
+    o.add(new Option(myPo.rival,myPo.rival));
+    o.value=myPo.rival;
+    o.disabled=true;o.className='score-sel-locked';
+    poContext={ti:myPo.ti,which:myPo.which,ri:myPo.ri,mi:myPo.mi};
+    renderClubButtons();
+    document.getElementById('f-fecha').value=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+    _updateCargarLabels();
+    return;
+  }
+  // Si estamos en playoffs y el jugador NO tiene ningún partido de playoff
+  // pendiente (ya perdió, quedó afuera, o le toca esperar la siguiente ronda),
+  // NO le mostramos el formulario de liga. La liga regular ya terminó — no debe
+  // poder cargar resultados de partidos del ciclo cerrado que nunca se jugaron.
+  if((playoff.started||playoff.preview) && !myPo){
+    note.innerHTML='<span style="color:var(--text2)"><i class="ti ti-trophy"></i> Estamos en Play Offs. No tenés ningún partido pendiente por cargar en este momento.</span>';
+    r.disabled=true;o.disabled=true;r.className='score-sel-locked';o.className='score-sel-locked';
+    return;
+  }
+  // Modo liga normal
+  const loc=findLoc(currentUser.name,cycleN);if(!loc){note.textContent=t('not_in_cycle');return;}
+  r.add(new Option(currentUser.name,currentUser.name));r.value=currentUser.name;r.disabled=true;r.className='score-sel-locked';
+  (c.groups[loc.g-1].players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>{if(j!==currentUser.name && !(USERS[j]&&USERS[j].inactive) && !findMatch(cycleN, loc.g, currentUser.name, j))o.add(new Option(j,j));});
+  o.disabled=false;o.className='score-sel-pick';
+  note.textContent=tf('load_note_player',{g:groupName(loc.g)});
+}else{r.disabled=false;
+  // Llenar el select de reporter con todos los grupos (sin filtro)
+  function fillReporterAll(){
+    r.innerHTML='<option value="">— '+t('select_user')+' —</option>';
+    c.groups.forEach((g,gi)=>{const gid2=gi+1;const og=document.createElement('optgroup');og.label=groupName(gid2);(g.players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>og.appendChild(new Option(j,gi+'|'+j)));r.appendChild(og);});
+  }
+  function fillReporterByGroup(fgi){
+    r.innerHTML='<option value="">— '+t('select_user')+' —</option>';
+    const g=c.groups[fgi];if(!g)return;
+    (g.players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>r.appendChild(new Option(j,fgi+'|'+j)));
+  }
+  // Construir opciones del filtro incluyendo playoffs dinámicos
+  function buildFilterOptions(){
+    let html='<option value="">— Todos los grupos —</option>';
+    const haspo=(playoff.started||playoff.preview)&&playoff.tramos&&playoff.tramos.length>0;
+    if(haspo){
+      html+='<optgroup label="─── Play Offs ───">';
+      playoff.tramos.forEach((tr,ti)=>{
+        const roundName=(ri,total)=>{const fe=total-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);};
+        ['main','cons'].forEach(which=>{
+          const rounds=tr[which];
+          if(!Array.isArray(rounds))return;
+          // Contar partidos abiertos
+          let open=0;rounds.forEach(rd=>rd.forEach(m=>{if(!m.w&&m.a&&m.b)open++;}));
+          if(open===0)return; // sección eliminada — no aparece en el filtro
+          const lbl=which==='cons'?'Consolación '+tr.label:'Cuadro '+tr.label;
+          html+='<option value="po:'+ti+':'+which+'">'+lbl+'</option>';
+        });
+      });
+      html+='</optgroup><optgroup label="─── Liga ───">';
+    }
+    html+=c.groups.map((_,gi)=>'<option value="'+gi+'">'+groupName(gi+1)+'</option>').join('');
+    if(haspo)html+='</optgroup>';
+    return html;
   }
 
-  if(accion === 'eliminar'){
-    try { await borrarLiga(id); } catch(e){ return res.status(503).json({ error: 'No se pudo eliminar: ' + e.message }); }
-    logAudit(session.u, 'liga.eliminar', id, {}, clientIP(req));
-    return res.status(200).json({ ok: true, id, eliminada: true });
+  function fillReporterByPoSection(ti,which){
+    r.innerHTML='<option value="">— Seleccioná jugador —</option>';
+    const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
+    const rounds=tr[which];
+    const added=new Set();
+    rounds.forEach((round,ri)=>round.forEach((m,mi)=>{
+      if(!m.w&&m.a&&m.b){
+        if(!added.has(m.a)){added.add(m.a);r.appendChild(new Option(m.a,'po:'+ti+':'+which+':'+m.a));}
+        if(!added.has(m.b)){added.add(m.b);r.appendChild(new Option(m.b,'po:'+ti+':'+which+':'+m.b));}
+      }
+    }));
+    r.onchange=function(){
+      const val=this.value;
+      if(!val||!val.startsWith('po:'))return;
+      const parts=val.split(':');const pti=+parts[1],pwhich=parts[2],pname=parts[3];
+      const ptr=playoff.tramos[pti];if(!ptr||!ptr[pwhich])return;
+      let rival=null,pri=-1,pmi=-1;
+      ptr[pwhich].forEach((round,ri)=>round.forEach((m,mi)=>{
+        if(!m.w&&(m.a===pname||m.b===pname)&&m.a&&m.b){
+          rival=m.a===pname?m.b:m.a;pri=ri;pmi=mi;
+        }
+      }));
+      if(rival){
+        o.innerHTML='<option value="'+rival+'">'+rival+'</option>';
+        o.value=rival;o.disabled=true;
+        poContext={ti:pti,which:pwhich,ri:pri,mi:pmi};
+        const total=ptr[pwhich].length;
+        const fe=total-1-pri;
+        const rn=fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(pri+1);
+        const sn=pwhich==='cons'?'Consolación '+ptr.label:'Cuadro '+ptr.label;
+        note.innerHTML='<strong style="color:var(--pri)">🏆 Play Offs — '+sn+' · '+rn+'</strong>';
+      } else {
+        o.innerHTML='<option value="">—</option>';o.disabled=false;poContext=null;
+        note.textContent=t('load_note_admin');
+      }
+      syncNoJugado();
+    };
   }
 
-  return res.status(400).json({ error: 'Acción desconocida: ' + accion });
-};
+  // Insertar selector de grupo/playoff filtro antes del note
+  const filterWrap=document.getElementById('admin-group-filter');
+  if(!filterWrap){
+    const fw=document.createElement('div');
+    fw.id='admin-group-filter';
+    fw.className='filter-row'; // fila sin recuadro, fondo sutil
+    const lbl=document.createElement('label');lbl.textContent='Filtrar:';lbl.style.cssText='font-size:13px;color:var(--text2);white-space:nowrap;font-weight:400';
+    const sel=document.createElement('select');sel.id='admin-grp-filter-sel';sel.style.cssText='flex:1;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px';
+    sel.innerHTML=buildFilterOptions();
+    sel.onchange=function(){
+      const v=this.value;
+      o.innerHTML='<option value="">—</option>';o.disabled=false;poContext=null;r.value='';
+      if(v===''){fillReporterAll();r.onchange=function(){filterRival(this.value,null);};note.textContent=t('load_note_admin');}
+      else if(v.startsWith('po:')){
+        const parts=v.split(':');fillReporterByPoSection(+parts[1],parts[2]);
+      }else{fillReporterByGroup(+v);r.onchange=function(){filterRival(this.value,null);};note.textContent=t('load_note_admin');}
+      syncNoJugado();
+    };
+    fw.appendChild(lbl);fw.appendChild(sel);
+    const cfWrap=document.getElementById('club-fecha-wrap');
+    if(cfWrap&&cfWrap.nextSibling){cfWrap.parentNode.insertBefore(fw,cfWrap.nextSibling);}
+    else if(cfWrap){cfWrap.parentNode.appendChild(fw);}
+  } else {
+    const sel=document.getElementById('admin-grp-filter-sel');
+    if(sel){
+      sel.innerHTML=buildFilterOptions();
+      sel.value='';
+      // Actualizar el onchange con el closure fresco (nuevos grupos incluidos)
+      sel.onchange=function(){
+        const v=this.value;
+        o.innerHTML='<option value="">—</option>';o.disabled=false;poContext=null;r.value='';
+        if(v===''){fillReporterAll();r.onchange=function(){filterRival(this.value,null);};note.textContent=t('load_note_admin');}
+        else if(v.startsWith('po:')){
+          const parts=v.split(':');fillReporterByPoSection(+parts[1],parts[2]);
+        }else{fillReporterByGroup(+v);r.onchange=function(){filterRival(this.value,null);};note.textContent=t('load_note_admin');}
+        syncNoJugado();
+      };
+    }
+    filterWrap.style.display='flex';
+  }
+  fillReporterAll();
+  r.className='score-sel-pick';o.className='score-sel-pick';
+  r.onchange=function(){
+    this.className='score-sel-pick';
+    const val=this.value;
+    // Auto-detectar grupo y actualizar el filtro de grupo
+    if(val&&val.includes('|')){
+      const gi=+val.split('|')[0];
+      const fs=document.getElementById('admin-grp-filter-sel');
+      if(fs&&fs.value!==String(gi)){
+        fs.value=String(gi);
+        // No re-poblar el reporter para no perder la selección, solo actualizar nota
+        const noteEl=document.getElementById('cargar-note');
+        if(noteEl)noteEl.textContent=t('load_note_admin');
+      }
+    }
+    filterRival(val,null);
+    o.className='score-sel-pick';
+  };
+  note.textContent=t('load_note_admin');
+  if(gid!=null){const gi=gid-1;
+    const fs=document.getElementById('admin-grp-filter-sel');if(fs)fs.value=String(gi);
+    fillReporterByGroup(gi);
+    r.value=`${gi}|${na}`;filterRival(`${gi}|${na}`,nb);
+  }else{filterRival('',null);}}formClub='';renderClubButtons();document.getElementById('f-fecha').value=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})();
+_updateCargarLabels();}
+// Actualizar los labels traducibles del formulario Cargar. Se llama desde ambos
+// caminos de populateForm (playoff y liga normal) para que al cambiar idioma
+// mientras estás en la pestaña Upload los textos se actualicen bien.
+function _updateCargarLabels(){
+  var lc=document.getElementById('lbl-club');if(lc)lc.innerHTML=`${t('club_label')} <span class="reqmark">${t('reqmark_label')}</span>`;
+  var lf=document.getElementById('lbl-fecha-field');if(lf)lf.innerHTML=`${t('date_label')} <span class="reqmark">${t('reqmark_label')}</span>`;
+  var rp=document.getElementById('f-reporter-lbl');if(rp)rp.textContent=t('reporter');
+  var rv=document.getElementById('f-rival-lbl');if(rv)rv.textContent=t('rival');
+  var ss=document.getElementById('sets-section-lbl');if(ss)ss.textContent=t('sets_section');
+  var rr=document.getElementById('report-result-lbl');if(rr)rr.textContent=t('report_result');
+  // Hint de sets ("6-0 a 6-4, 7-5 o 7-6" / "6-0 to 6-4, 7-5 or 7-6")
+  document.querySelectorAll('.set-hint').forEach(el=>{el.textContent=t('set_hint');});
+}
+function filterRival(repVal,preselect){
+  const o=document.getElementById('f-rival');
+  syncNoJugado();
+  o.innerHTML='<option value="">—</option>';
+  if(!repVal)return;
+  const parts=repVal.split('|');
+  if(parts.length<2)return;
+  const gi=+parts[0];const repName=parts[1];
+  const c=getActive();if(!c||!c.groups)return;
+  const g=c.groups[gi];if(!g)return;
+  const og=document.createElement('optgroup');
+  og.label=groupName(gi+1);
+  (g.players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>{
+    if(j===repName)return;
+    const hasMatch=findMatch(activeN,gi+1,repName,j);
+    const jInactive=USERS[j]&&USERS[j].inactive;
+    // Admin y jugador: solo rivales pendientes (sin partido confirmado/pendiente aún)
+    // Excepción: preselect siempre aparece (para edición)
+    if((!hasMatch&&!jInactive)||j===preselect){
+      const label=jInactive?j+' (INACTIVO)':j;
+      og.appendChild(new Option(label,`${gi}|${j}`));
+    }
+  });
+  o.appendChild(og);
+  if(preselect)o.value=`${gi}|${preselect}`;
+}
+function prefill(gid,n1,n2){
+  showSub('cargar');
+  if(currentUser.role==='player' && !esAdmin(currentUser)){
+    // Jugador sin permisos de admin: es uno de los dos, se setea el rival.
+    document.getElementById('f-rival').value=(currentUser.name===n1?n2:n1);
+  }else{
+    // Admin (incluido el jugador-admin): rellena AMBOS jugadores del partido
+    // clickeado, sin asumir que el que carga es uno de ellos.
+    const gi=gid-1;
+    const repVal=`${gi}|${n1}`;
+    const r=document.getElementById('f-reporter');
+    r.value=repVal;
+    filterRival(repVal, n2);
+  }
+}
+
+function toggleSTB(){const row=document.getElementById('s3-row');const btn=document.getElementById('stb-toggle-btn');if(row.style.display==='none'||row.style.display===''){row.style.display='flex';btn.innerHTML='<i class="ti ti-x"></i> '+t('remove_stb');['s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}else{row.style.display='none';btn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');['s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}}
+function checkAutoSTB(){const s1a=+document.getElementById('s1a').value,s1b=+document.getElementById('s1b').value;const s2a=+document.getElementById('s2a').value,s2b=+document.getElementById('s2b').value;if(!s1a&&!s1b&&!s2a&&!s2b)return;let w1=0,w2=0;if(validSet(s1a,s1b)){if(s1a>s1b)w1++;else w2++;}if(validSet(s2a,s2b)){if(s2a>s2b)w1++;else w2++;}const row=document.getElementById('s3-row');const btn=document.getElementById('stb-toggle-btn');if(w1===1&&w2===1){
+if(row.style.display==='none'||row.style.display===''){row.style.display='flex';if(btn)btn.innerHTML='<i class="ti ti-x"></i> '+t('remove_stb');}}else if(w1===2||w2===2){
+row.style.display='none';if(btn)btn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');['s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}}
+function readSets(){const s=[[+document.getElementById('s1a').value,+document.getElementById('s1b').value],[+document.getElementById('s2a').value,+document.getElementById('s2b').value]];let w1=0,w2=0;[s[0],s[1]].forEach(([a,b])=>{if(a>b)w1++;else w2++;});if(document.getElementById('s3-row').style.display!=='none'&&w1===1&&w2===1)s.push([+document.getElementById('s3a').value,+document.getElementById('s3b').value]);return s;}
+function parseSel(v){if(v.indexOf('|')>=0){const p=v.split('|');return{g:+p[0]+1,name:p[1]};}return{g:null,name:v};}
+
+function submitResult(){
+  const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value,fecha=document.getElementById('f-fecha').value;
+  if(!rv||!iv){fAlert(t('select_two'),'err');return;}
+  // Si hay poContext activo, redirigir a lógica de playoff
+  if(poContext){
+    if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
+    if(!fecha){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
+    const s=readSets();const v=validMatch(s);if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
+    const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
+    const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
+    const m=tr[which][ri][mi];if(!m)return;
+    const isAdmin=validaAlCargar(m.a,m.b);
+    // Guardar resultado en matches igual que submitPo
+    matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
+    // Calcular ganador igual que submitPo
+    let w1=0,w2=0;s.forEach(([a,b])=>{if(a>b)w1++;else w2++;});
+    const winner=w1>w2?m.a:m.b;
+    const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:playoff.tramos[ti].label,poNames:[m.a,m.b],sets:s,date:fecha,club:formClub||'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,locked:isAdmin};
+    matches.push(newM);
+    if(isAdmin){
+      storePo(ti,which,m.a,m.b,s,winner);
+      rebuildTramo(ti);
+    } else {
+      applyPoPending(newM);
+    }
+    const _rn=(()=>{const fe=tr[which].length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
+    addLog(isAdmin?'Playoff: validado (admin)':'Playoff: cargado',{a:m.a,b:m.b,sets:s,winner,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn});
+    clearForm();poContext=null;
+    fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
+    persist(true);
+    // Forzar actualización del bracket en todos los casos
+    if(typeof showPlayoffView==='function')showPlayoffView();
+    refreshAll();
+    // Admin: repoblar el form para siguiente resultado
+    if(isAdmin)setTimeout(()=>populateForm(),50);
+    return;
+  }
+  let repName,rivName,gid;
+  const _cN = _formCycleN || activeN;  // ciclo donde se guarda el partido (editMode o activo)
+  if(currentUser.role==='player' && !esAdmin(currentUser)){
+    // Jugador sin permisos de admin: él es el reporter, el rival sale del select.
+    repName=currentUser.name;rivName=iv;const loc=findLoc(repName,_cN);gid=loc?loc.g:null;
+    if(!gid){fAlert(t('not_in_cycle'),'err');return;}
+  }else{
+    // Admin (incluido el jugador-admin): ambos jugadores salen de los dos selects,
+    // sin asumir que el que envía es uno de ellos.
+    const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
+    const a=parseSel(repVal),b=parseSel(iv);
+    if(a.g!==b.g){fAlert(t('same_group'),'err');return;}
+    gid=a.g;repName=a.name;rivName=b.name;
+  }
+  if(repName===rivName){fAlert(t('select_two'),'err');return;}
+  if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
+  if(!fecha){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
+  const ex=findMatch(_cN,gid,repName,rivName);
+  if(ex&&ex.locked&&!esAdmin(currentUser)){fAlert(t('validated_admin_only'),'err');return;}
+  if(ex&&ex.status==='disputed'&&!esAdmin(currentUser)){fAlert('Este resultado está en disputa. El administrador debe resolverlo primero.','err');return;}
+  const s=readSets();const v=validMatch(s);
+  if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
+  
+  matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
+  const isAdmin=validaAlCargar(repName,rivName);
+  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub,locked:isAdmin});
+  addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,grupo:gid,po:false});
+  clearForm();
+  fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
+  persist(true);
+  refreshAll();
+  if(isAdmin) setTimeout(()=>populateForm(),50);
+}
+// Muestra el botón "No jugado" solo para admin y solo en modo liga (no en playoffs)
+function syncNoJugado(){
+  const b=document.getElementById('btn-nojugado');if(!b)return;
+  const isAdmin=esAdmin(currentUser);
+  const fs=document.getElementById('admin-grp-filter-sel');
+  const poFilter=!!(fs&&fs.value&&fs.value.startsWith('po:'));
+  b.style.display=(isAdmin&&!poContext&&!poFilter)?'':'none';
+}
+// El admin marca un partido de liga como NO JUGADO: ambos suman 1 en NJ y 0 puntos.
+function markNotPlayed(){
+  const isAdmin=esAdmin(currentUser);
+  if(!isAdmin){fAlert('Solo el administrador puede marcar partidos como no jugados.','err');return;}
+  if(poContext){fAlert('“No jugado” no aplica a partidos de Play Offs.','err');return;}
+  const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
+  if(!rv||!iv){fAlert(t('select_two'),'err');return;}
+  const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
+  const a=parseSel(repVal),b=parseSel(iv);
+  if(a.g==null||b.g==null||a.g!==b.g){fAlert(t('same_group'),'err');return;}
+  const gid=a.g,repName=a.name,rivName=b.name;
+  if(repName===rivName){fAlert(t('select_two'),'err');return;}
+  const ex=findMatch(activeN,gid,repName,rivName);
+  if(ex&&ex.status==='disputed'){fAlert('Este partido está en disputa; resolvelo antes de marcarlo como no jugado.','err');return;}
+  if(!confirm('¿Marcar como NO JUGADO el partido '+repName+' vs '+rivName+'?\n\nAmbos jugadores suman 1 en la columna NJ y 0 puntos por este partido. Podés deshacerlo borrando el partido desde la tabla del grupo.'))return;
+  matches=matches.filter(m=>!(m.cycle===activeN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
+  matches.push({id:matchId++,cycle:activeN,g:gid,aName:repName,bName:rivName,sets:[],np:true,date:'',status:'confirmed',reporter:currentUser.name,club:'',locked:true});
+  addLog('Liga: marcado no jugado',{a:repName,b:rivName,grupo:gid,po:false});
+  clearForm();
+  fAlert('Partido marcado como no jugado.','ok');
+  persist(true);
+  refreshAll();
+  setTimeout(()=>populateForm(),50);
+}
+
+function fAlert(m,t){const e=document.getElementById('form-alert');e.className=`alert alert-${t}`;e.textContent=m;setTimeout(()=>{e.textContent='';e.className='';},6000);}
+function clearForm(){if(esAdmin(currentUser)){const r=document.getElementById('f-reporter');if(r)r.value='';}const rv=document.getElementById('f-rival');if(rv)rv.value='';['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='0';});const sr=document.getElementById('s3-row');if(sr)sr.style.display='none';const stbBtn=document.getElementById('stb-toggle-btn');if(stbBtn)stbBtn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');formClub='';renderClubButtons();const ff=document.getElementById('f-fecha');if(ff){const d=new Date();ff.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}const cp=document.getElementById('club-pick');if(cp)cp.classList.remove('req-empty');const fp2=document.getElementById('f-fecha');if(fp2)fp2.classList.remove('req-empty');}
+function involvedPend(m){if(esAdmin(currentUser))return true;if(m.po)return m.poNames&&m.poNames.includes(currentUser.name)&&m.reporter!==currentUser.name;return (m.aName===currentUser.name||m.bName===currentUser.name)&&m.reporter!==currentUser.name;}
+function renderPend(){
+  var _pt=document.getElementById('pend-title');if(_pt)_pt.textContent=t('pending_title');
+  const pend=matches.filter(m=>m.status==='pending').sort((a,b)=>b.id-a.id);
+  const disp=matches.filter(m=>m.status==='disputed').sort((a,b)=>b.id-a.id);
+  const userPend = pend.filter(m => {
+    if(m.po) return m.poNames && m.poNames.includes(currentUser.name);
+    return m.aName === currentUser.name || m.bName === currentUser.name;
+  });
+  updateBadge();
+
+  let html = '';
+
+  if(currentUser&&esAdmin(currentUser) && pend.length > 0){
+    html += `<div style="margin-bottom:.75rem"><button class="btn btn-accent" onclick="forceConfirmAll()"><i class="ti ti-checks"></i> ${t('confirm_pending')}</button></div>`;
+  }
+
+  if(currentUser&&esAdmin(currentUser) && disp.length > 0) {
+    html += `<div class="section-lbl" style="margin-top:0">${t('disputes_title')}</div>`;
+    html += disp.map(m=>{
+      let p1,p2;if(m.po){p1=m.poNames[0];p2=m.poNames[1];}else{p1=m.aName;p2=m.bName;}
+      const sc=m.sets.map(([a,b])=>`${a}-${b}`).join(' / ');
+      return`<div class="disp-item"><span class="badge badge-disp">${m.po?'PO '+m.tLabel:'C'+m.cycle+' '+groupName(m.g)}</span><span>${p1} ${sc} ${p2}</span><div class="disp-act"><button class="btn btn-success btn-sm" onclick="resolveD(${m.id})">${t('validate')}</button>${!m.po?`<button class="btn btn-primary btn-sm" onclick="adminEdit(${m.id})">${t('edit')}</button>`:''}</div></div>`;
+    }).join('');
+    html += `<div class="grp-sep" style="margin:1rem 0"></div>`;
+  }
+
+  const vis = (currentUser&&esAdmin(currentUser)) ? pend : userPend;
+  if(vis.length > 0) {
+    if(currentUser&&esAdmin(currentUser) && disp.length > 0) html += `<div class="section-lbl">${t('pending_title')}</div>`;
+    html += vis.map(m=>{
+      let p1,p2,tag;if(m.po){p1=m.poNames[0];p2=m.poNames[1];tag='Play Off '+m.tLabel;}else{p1=m.aName;p2=m.bName;tag=`C${m.cycle}·${groupName(m.g)}`;}
+      const sc=m.sets.map(([a,b])=>`${a}-${b}`).join(' / ');
+      const ca=involvedPend(m);
+      const wait=currentUser&&currentUser.role==='player'&&m.reporter===currentUser.name;
+      return`<div class="pend-item"><span class="badge badge-tag">${tag}</span><span class="pend-nm">${p1}</span><span class="pend-sc">${sc}</span><span class="pend-nm">${p2}</span>${m.club?`<span class="badge" style="${clubStyle(m.club)}">${m.club}</span>`:''}<span class="badge badge-pend">${t('legend_pending')}</span>${wait?`<span class="lock-note">${t('waiting_admin')}</span>`:''}${ca?`<div class="pend-act"><button class="btn btn-accent btn-sm" onclick="openModal(${m.id})"><i class="ti ti-eye"></i> ${t('review')}</button></div>`:''}</div>`;
+    }).join('');
+  } else if (disp.length === 0) {
+    html = `<div class="empty">${t('no_pending')}</div>`;
+  }
+  
+  const listEl = document.getElementById('pend-list');
+  if(listEl) listEl.innerHTML = html;
+}
+function openModal(mid){const m=matches.find(x=>x.id===mid);if(!m)return;currentModal=mid;let p1,p2,rep,tag;if(m.po){p1=m.poNames[0];p2=m.poNames[1];rep=m.reporter;tag='Play Off '+m.tLabel;}else{p1=m.aName;p2=m.bName;rep=m.reporter;tag=`C${m.cycle} ${groupName(m.g)}`;}const sc=m.sets.map(([a,b])=>`${a}-${b}`).join(' / ');
+document.getElementById('modal-title').textContent=(m.status==='confirmed'?t('validated_result'):m.status==='disputed'?t('disputed_result'):t('review_result'))+` · ${tag}`;
+const statusLabel = m.status === 'confirmed' ?
+t('confirmed_label') : m.status === 'disputed' ? t('legend_disputed') : t('legend_pending');
+if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${p1} &nbsp;vs&nbsp; ${p2}</p></div><p class="modal-meta" style="text-align:center"><strong>Partido no jugado</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${rep}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${m.club}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${p1} ${sc} ${p2}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser);const isPend=m.status==='pending';
+if(isAdmin){
+  // El botón no se dibuja si el partido es propio: confirmM() lo rechazaría igual,
+  // y un botón que existe pero no funciona confunde más que no tenerlo.
+  if(isPend) h+=`<button class="btn btn-success" onclick="confirmM()"><i class="ti ti-check"></i> ${t('validate')}</button>`;
+  if(!m.po&&!m.np) h+=`<button class="btn btn-primary" onclick="adminEdit(${mid})"><i class="ti ti-edit"></i> ${t('edit')}</button>`;
+  h+=`<button class="btn btn-danger" onclick="deleteMatch(${mid})"><i class="ti ti-trash"></i> ${t('delete_match')}</button>`;
+} else {
+  if(isPend&&involvedPend(m)) h+=`<button class="btn btn-danger" onclick="disputeM()"><i class="ti ti-x"></i> ${t('dispute')}</button>`;
+  else if(m.status==='confirmed'&&!m.po) h+=`<span class="lock-note" style="align-self:center">${t('validated_only_admin')}</span>`;
+}
+h+=`<button class="btn" onclick="closeM()">${t('close')}</button>`;acts.innerHTML=h;document.getElementById('modal-bg').classList.add('open');}
+function closeM(){document.getElementById('modal-bg').classList.remove('open');}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeM();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeM();});
+function confirmM(){if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));return;}const m=matches.find(x=>x.id===currentModal);if(m){m.vBy=currentUser.name;m.status='confirmed';m.locked=true;if(m.po){applyPoPending(m);const tr=playoff.tramos[m.ti];const rnd=(()=>{const rounds=m.which==='main'?tr.main:tr.cons;const fe=rounds.length-1-m.ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(m.ri+1);})();addLog('Playoff: confirmado',{a:m.poNames[0],b:m.poNames[1],sets:m.sets,winner:m.winner,po:true,cuadro:tr.label,which:m.which,round:rnd});}else{addLog('Liga: confirmado',{a:m.aName,b:m.bName,sets:m.sets,grupo:m.g,po:false});}}closeM();refreshAll();toast(t('toast_confirmed'));persist(true);}
+function disputeM(){const m=matches.find(x=>x.id===currentModal);if(m)m.status='disputed';closeM();refreshAll();toast(t('toast_disputed'));persist(true);}
+function deleteMatch(mid){if(confirm(t('confirm_delete'))){const dm=matches.find(x=>x.id===mid);if(dm){if(dm.po){const tr=playoff.tramos[dm.ti];addLog('Playoff: eliminado',{a:dm.poNames[0],b:dm.poNames[1],sets:dm.sets,po:true,cuadro:tr?tr.label:'',which:dm.which});}else{addLog('Liga: eliminado',{a:dm.aName,b:dm.bName,sets:dm.sets,grupo:dm.g,po:false});}}matches=matches.filter(x=>x.id!==mid);closeM();refreshAll();toast(t('match_deleted'));persist(true);}}
+function adminEdit(mid){const m=matches.find(x=>x.id===mid);closeM();showSub('cargar');populateForm(m.g,m.aName,m.bName);pickClub(m.club);['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>document.getElementById(id).value='');document.getElementById('s3-row').style.display='none';m.sets.forEach((s,i)=>{const a=document.getElementById(`s${i+1}a`),b=document.getElementById(`s${i+1}b`);if(a)a.value=s[0];if(b)b.value=s[1];if(i===2)document.getElementById('s3-row').style.display='flex';});document.getElementById('f-fecha').value=m.date;}
+
+function setTotalCycles(val){
+  const newTotal = parseInt(val);
+  if(newTotal < activeN) {
+    toast('No podés reducir a menos ciclos de los que ya están en juego.');
+    renderAdmin(); 
+    return;
+  }
+  if(newTotal === cycles.length) return;
+
+  if(newTotal > cycles.length) {
+    for(let i = cycles.length; i < newTotal; i++) {
+      cycles.push({n: i+1, status: 'locked', groups: null});
+      FECHAS.push('');
+    }
+  } else {
+    cycles.splice(newTotal);
+    FECHAS.splice(newTotal);
+  }
+  persist(true);
+  renderCycleBar();
+  renderAdmin();
+  toast('Cantidad de ciclos actualizada a ' + newTotal + '.');
+}
+
+function setNumGroups(val){
+  const newNum = parseInt(val);
+  if(!newNum || newNum < 1 || newNum > 50) return;
+  const c = getActive();
+  if(!c || !c.groups) return;
+  const cur = c.groups.length;
+  const ppg = c.groups[0] ? c.groups[0].players.length : 5;
+  if(newNum > cur){
+    if(!confirm('¿Agregar '+(newNum-cur)+' grupo'+(newNum-cur>1?'s':'')+' a la liga? Se crearán con jugadores placeholder que deberás renombrar desde Perfil & Jugadores.')) { renderAdmin(); return; }
+    for(let i = cur; i < newNum; i++){
+      const newPlayers = [];
+      for(let j = 0; j < ppg; j++){
+        let nm, k=0;
+        do { nm = 'Jugador nuevo'+(k>0?' '+(k+1):'')+' G'+(i+1)+'-'+(j+1); k++; }
+        while(ALLNAMES.includes(nm) || USERS[nm]);
+        newPlayers.push(nm);
+      }
+      c.groups.push({players: newPlayers});
+      ensureDestino(i+1, ppg);
+    }
+  } else if(newNum < cur){
+    if(!confirm('¿Reducir a '+newNum+' grupos? Los jugadores de los grupos eliminados se perderán.')) { renderAdmin(); return; }
+    const removedNames = c.groups.slice(newNum).flatMap(g=>g.players||[]);
+    c.groups.splice(newNum);
+    Object.keys(DESTINO).forEach(k=>{ if(parseInt(k)>newNum) delete DESTINO[k]; });
+    Object.keys(PUNTOS).forEach(k=>{ if(parseInt(k)>newNum) delete PUNTOS[k]; });
+    removedNames.forEach(n=>{
+      const stillUsed = cycles.some(cy=>cy.groups&&cy.groups.some(g=>(g.players||[]).includes(n)));
+      if(!stillUsed){
+        delete USERS[n];
+        const idx=ALLNAMES.indexOf(n); if(idx>=0) ALLNAMES.splice(idx,1);
+      }
+    });
+  }
+  c.groups.flatMap(g=>g.players).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
+  persist(true); renderAdmin();
+  toast(newNum + ' grupos configurados.');
+}
+
+function setPlayersPerGroup(val){
+  const ppg = parseInt(val);
+  if(!ppg || ppg < 2) return;
+  const c = getActive();
+  if(!c || !c.groups) return;
+  // Chequear si reducir va a eliminar jugadores con partidos jugados
+  const willRemove = [];
+  c.groups.forEach((g, gi) => {
+    if(ppg < g.players.length){
+      g.players.slice(ppg).forEach(n=>{
+        const hasMatches = matches.some(m=>m.cycle===c.n&&m.g===gi+1&&(m.aName===n||m.bName===n));
+        if(hasMatches) willRemove.push(n);
+      });
+    }
+  });
+  if(willRemove.length && !confirm('Esto va a quitar a estos jugadores que ya tienen partidos cargados: '+willRemove.join(', ')+'. ¿Continuar?')){
+    renderAdmin(); return;
+  }
+  c.groups.forEach((g, gi) => {
+    const cur = g.players.length;
+    if(ppg > cur){
+      for(let j = cur; j < ppg; j++){
+        let nm, k=0;
+        do { nm = 'Jugador nuevo'+(k>0?' '+(k+1):'')+' G'+(gi+1)+'-'+(j+1); k++; }
+        while(ALLNAMES.includes(nm) || USERS[nm]);
+        g.players.push(nm);
+      }
+    } else if(ppg < cur){
+      const removed = g.players.slice(ppg);
+      g.players.splice(ppg);
+      removed.forEach(n=>{
+        const stillUsed = cycles.some(cy=>cy.groups&&cy.groups.some(gg=>(gg.players||[]).includes(n)));
+        if(!stillUsed){
+          delete USERS[n];
+          const idx=ALLNAMES.indexOf(n); if(idx>=0) ALLNAMES.splice(idx,1);
+        }
+      });
+    }
+    ensureDestino(gi+1, ppg);
+  });
+  c.groups.flatMap(g=>g.players).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
+  persist(true); renderAdmin();
+  toast('Grupos actualizados a '+ppg+' jugadores.');
+}
+
+function applyGroupsUpdate(){
+  persist(true);  // explícito: refreshAll ya no guarda
+  refreshAll();
+  persist(true);
+  toast('Grupos actualizados.');
+}
+
+// ===== GESTIÓN DE LIGA =====
+
+// 1. Descargar plantilla Excel para importar jugadores
+function descargarPlantillaImport(){
+  if(typeof XLSX==='undefined'){toast('Error: librería Excel no cargada.');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Nombre','Apellido','Email','Tel','Grupo'],
+    ['Juan','Pérez','juan@email.com','612345678',1],
+    ['María','García','maria@email.com','698765432',1],
+    ['Carlos','López','carlos@email.com','611111111',2],
+  ]);
+  ws['!cols']=[{wch:16},{wch:16},{wch:28},{wch:14},{wch:8}];
+  XLSX.utils.book_append_sheet(wb,ws,'Jugadores');
+  XLSX.writeFile(wb,'plantilla_importar_jugadores.xlsx');
+  toast('Plantilla descargada. Completala y volvé a importarla.');
+}
+
+// 2. Importar jugadores desde Excel
+function importarJugadoresExcel(input){
+  const file=input.files[0];
+  if(!file)return;
+  if(typeof XLSX==='undefined'){toast('Error: librería Excel no cargada.');return;}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length){toast('El archivo está vacío o no tiene el formato correcto.');return;}
+      const c=getActive();if(!c){toast('No hay un ciclo activo.');return;}
+      let imported=0,dupes=[],errors=[];
+      const maxGrp=Math.max(...rows.map(r=>parseInt(r['Grupo']||r['grupo']||1)||1));
+      while(c.groups.length<maxGrp){
+        const gi=c.groups.length;
+        c.groups.push({players:[]});
+        ensureDestino(gi+1,5);
+      }
+      rows.forEach((row,idx)=>{
+        const nom=(String(row['Nombre']||row['nombre']||'')).trim();
+        const ape=(String(row['Apellido']||row['apellido']||'')).trim();
+        const email=(String(row['Email']||row['email']||'')).trim();
+        const tel=(String(row['Tel']||row['tel']||row['Teléfono']||row['telefono']||'')).trim();
+        const grp=parseInt(row['Grupo']||row['grupo']||1)||1;
+        if(!nom&&!ape){errors.push('Fila '+(idx+2)+': sin nombre');return;}
+        const full=(nom+' '+ape).trim();
+        if(USERS[full]){dupes.push(full);return;}
+        // Los mismos caracteres que rechaza /api/save. Sin este chequeo el import
+        // decía "importado correctamente" y después el guardado moría con un 400:
+        // el jugador aparecía en pantalla y se perdía al recargar.
+        if(/[<>"`\\]/.test(full)||/[<>"`\\]/.test(email)||/[<>"`\\]/.test(tel)){
+          errors.push('Fila '+(idx+2)+': caracteres no permitidos (< > \" ` \\)');return;
+        }
+        if(grp<1||grp>c.groups.length){errors.push('Fila '+(idx+2)+': grupo '+grp+' inválido');return;}
+        USERS[full]={role:'player',pass:DEFAULT_PASS_HASH,name:full,email,tel};
+        if(!ALLNAMES.includes(full))ALLNAMES.push(full);
+        c.groups[grp-1].players.push(full);
+        imported++;
+      });
+      persist(true);renderShell();showSub('perfil');
+      let msg=imported+' jugador'+(imported!==1?'es':'')+' importado'+(imported!==1?'s':'')+' correctamente.';
+      if(dupes.length)msg+=' '+dupes.length+' ya existían (ignorados): '+dupes.slice(0,3).join(', ')+(dupes.length>3?'...':'');
+      if(errors.length)msg+=' Errores: '+errors.slice(0,3).join('; ')+(errors.length>3?'...':'');
+      toast(msg);
+      if(errors.length)alert(msg);
+    }catch(err){toast('Error al leer el archivo: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+  input.value=''; // reset para poder reimportar el mismo archivo
+}
+
+// 3. Limpiar todos los participantes (con doble backup Excel)
+// Sincroniza el selector de color con el campo de texto hex (bidireccional).
+// source==='picker' → el usuario movió la paleta; si no, escribió un código.
+// ===== Gestor de clubes (panel de apariencia) ====================================
+// Dibuja una fila por club: nombre editable + color + botón borrar. Cada cambio se
+// aplica en vivo sobre CLUBS y se persiste al Guardar. El demo muestra el texto
+// auto-oscurecido para que el admin vea el contraste real antes de guardar.
+function clubsEditorHTML(){
+  // Snapshot de id→nombre al momento de abrir el editor. Si el admin renombra un
+  // club y guarda, se usa para migrar los partidos viejos (que guardan el nombre)
+  // del nombre anterior al nuevo, así no pierden el color.
+  _clubNamesAtOpen = {};
+  CLUBS.forEach(c => { _clubNamesAtOpen[c.id] = c.name; });
+  let h='';
+  CLUBS.forEach((c,i)=>{
+    h+=`<div class="club-edit-row" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:.5rem;padding:.5rem;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">
+      <input type="text" value="${attr(c.name)}" maxlength="24" oninput="updateClubName(${i},this.value)" style="flex:1;min-width:120px;padding:6px 10px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px" placeholder="${t('club_name_ph')}">
+      <input id="club-color-${i}" type="color" value="${c.bg}" oninput="updateClubColor(${i},this.value)" style="width:44px;height:34px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+      <input id="club-hex-${i}" type="text" value="${c.bg}" maxlength="7" spellcheck="false" oninput="updateClubColorHex(${i},this.value)" style="width:82px;font-size:12px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)" placeholder="#RRGGBB">
+      <span id="club-demo-${i}" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${c.bg};color:${autoTxt(c.bg)}">${attr(c.name)||t('club_short')}</span>
+      <button class="btn btn-sm" onclick="removeClub(${i})" title="${t('club_delete')}" style="background:#fee2e2;color:#b91c1c"><i class="ti ti-trash"></i></button>
+    </div>`;
+  });
+  h+=`<button class="btn btn-sm" onclick="addClub()" style="margin-top:.25rem"><i class="ti ti-plus"></i> ${t('club_add')}</button>`;
+  return h;
+}
+function redibujarClubs(){
+  const box=document.getElementById('clubs-editor');
+  if(box) box.innerHTML=clubsEditorHTML();
+}
+// Habilita o deshabilita la pestaña Rating para toda la liga. Solo el admin lo ve.
+// Al cambiar, se guarda y se redibujan las pestañas (aparece/desaparece Rating).
+function toggleRating(){
+  RATING_ON = !RATING_ON;
+  const btn = document.getElementById('rating-toggle-btn');
+  if(btn){
+    btn.className = 'btn' + (RATING_ON ? ' btn-success' : '');
+    btn.innerHTML = `<i class="ti ${RATING_ON?'ti-eye':'ti-eye-off'}"></i> ${RATING_ON?t('rating_on'):t('rating_off')}`;
+  }
+  renderSubTabs();
+  persist(true);
+  toast(RATING_ON ? t('rating_enabled_toast') : t('rating_disabled_toast'));
+}
+function updateClubName(i,val){
+  if(!CLUBS[i])return;
+  CLUBS[i].name=val;
+  const demo=document.getElementById('club-demo-'+i);
+  if(demo) demo.textContent=val||t('club_short');
+}
+function updateClubColor(i,val){
+  if(!CLUBS[i])return;
+  CLUBS[i].bg=val;
+  const hex=document.getElementById('club-hex-'+i);
+  if(hex){ hex.value=val; hex.style.borderColor=''; }
+  const demo=document.getElementById('club-demo-'+i);
+  if(demo){ demo.style.background=val; demo.style.color=autoTxt(val); }
+}
+// Escribir el hex a mano: valida formato (#RGB o #RRGGBB) antes de aplicar.
+function updateClubColorHex(i,val){
+  if(!CLUBS[i])return;
+  const hexInp=document.getElementById('club-hex-'+i);
+  let v=(val||'').trim();
+  if(v&&v[0]!=='#')v='#'+v;
+  let full=null;
+  if(/^#[0-9a-fA-F]{6}$/.test(v)) full=v;
+  else if(/^#[0-9a-fA-F]{3}$/.test(v)){ const h=v.slice(1); full='#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; }
+  if(!full){ if(hexInp) hexInp.style.borderColor='#e55'; return; }
+  if(hexInp) hexInp.style.borderColor='';
+  CLUBS[i].bg=full;
+  const picker=document.getElementById('club-color-'+i);
+  if(picker) picker.value=full;
+  const demo=document.getElementById('club-demo-'+i);
+  if(demo){ demo.style.background=full; demo.style.color=autoTxt(full); }
+}
+function addClub(){
+  // id único y estable: no se deriva del nombre, así renombrar no lo rompe.
+  const id='c'+Date.now().toString(36);
+  CLUBS.push({ id, name:'', bg:'#E5E7EB' });
+  redibujarClubs();
+}
+function removeClub(i){
+  if(!CLUBS[i])return;
+  if(CLUBS.length<=1){ toast(t('club_min_one')); return; }
+  // Si hay partidos jugados en este club, avisar: quedarían sin color en la matriz
+  // y la leyenda perdería la referencia. Mejor que el admin sepa antes de borrar.
+  const enUso=matches.filter(m=>m.club===CLUBS[i].id).length;
+  if(enUso>0){
+    if(!confirm('⚠️ Hay '+enUso+' partido'+(enUso===1?'':'s')+' jugado'+(enUso===1?'':'s')+' en "'+(CLUBS[i].name||'este club')+'".\n\nSi lo borrás, esos partidos quedan sin el color del club en las tablas (los resultados NO se pierden).\n\n¿Borrar el club igualmente?'))return;
+  }else{
+    if(!confirm(t('club_delete_confirm').replace('{n}',CLUBS[i].name||t('club_short'))))return;
+  }
+  CLUBS.splice(i,1);
+  redibujarClubs();
+}
+function syncHex(which,source){
+  const picker=document.getElementById('sa-color-'+which);
+  const txt=document.getElementById('sa-'+which+'-hex');
+  if(!picker||!txt)return;
+  const demo=document.getElementById('sa-'+which+'-demo');
+  if(source==='picker'){
+    txt.value=picker.value;txt.style.borderColor='';
+    if(demo){demo.style.background=picker.value; if(which==='disp')demo.style.color=autoTxt(picker.value);}
+    return;
+  }
+  let v=(txt.value||'').trim();
+  if(v&&v[0]!=='#')v='#'+v;
+  if(/^#[0-9a-fA-F]{6}$/.test(v)){picker.value=v;txt.style.borderColor='';if(demo)demo.style.background=v;}
+  else if(/^#[0-9a-fA-F]{3}$/.test(v)){const h=v.slice(1);const full='#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2];picker.value=full;txt.style.borderColor='';if(demo)demo.style.background=full;}
+  else{txt.style.borderColor='#ef4444';}
+}
+function previewLeagueColors(){
+  const pri=document.getElementById('sa-color-pri');
+  const acc=document.getElementById('sa-color-acc');
+  const hl=document.getElementById('sa-color-hl');
+  if(!pri||!acc)return;
+  document.getElementById('sa-pri-hex').value=pri.value;
+  document.getElementById('sa-acc-hex').value=acc.value;
+  if(hl)document.getElementById('sa-hl-hex').value=hl.value;
+  // Actualizar también en memoria para que los pickers mantengan coherencia
+  LEAGUE_COLOR_PRI=pri.value;
+  LEAGUE_COLOR_ACC=acc.value;
+  if(hl)LEAGUE_COLOR_HL=hl.value;
+  applyLeagueColors(pri.value,acc.value,hl?hl.value:LEAGUE_COLOR_HL);
+  toast('Vista previa aplicada. Usá "Guardar todo" para persistir los cambios.');
+}
+function resetLeagueColors(){
+  LEAGUE_COLOR_PRI='#1B4F9C';LEAGUE_COLOR_ACC='#F5C518';LEAGUE_COLOR_HL='#FFEDD5';
+  COLOR_DISPUTA='#FDE68A';
+  try{localStorage.removeItem('lsc');}catch(e){}
+  applyLeagueColors(LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL);
+  const pri=document.getElementById('sa-color-pri');if(pri)pri.value='#1B4F9C';
+  const acc=document.getElementById('sa-color-acc');if(acc)acc.value='#F5C518';
+  const hl=document.getElementById('sa-color-hl');if(hl)hl.value='#FFEDD5';
+  const ph=document.getElementById('sa-pri-hex');if(ph){ph.value='#1B4F9C';ph.style.borderColor='';}
+  const ah=document.getElementById('sa-acc-hex');if(ah){ah.value='#F5C518';ah.style.borderColor='';}
+  const hh=document.getElementById('sa-hl-hex');if(hh){hh.value='#FFEDD5';hh.style.borderColor='';}
+  const dm=document.getElementById('sa-hl-demo');if(dm)dm.style.background='#FFEDD5';
+  // El color de disputa también vuelve al valor por defecto (su picker y demo).
+  const dc=document.getElementById('sa-color-disp');if(dc)dc.value='#FDE68A';
+  const dh=document.getElementById('sa-disp-hex');if(dh){dh.value='#FDE68A';dh.style.borderColor='';}
+  const dd=document.getElementById('sa-disp-demo');if(dd){dd.style.background='#FDE68A';dd.style.color=autoTxt('#FDE68A');}
+  persist(true);toast('Colores restablecidos.');
+}
+
+function applyLeagueColors(pri, acc, hl){
+  if(!pri||!/^#[0-9a-fA-F]{6}$/.test(pri))return;
+  if(!acc||!/^#[0-9a-fA-F]{6}$/.test(acc))return;
+  hl=(hl&&/^#[0-9a-fA-F]{6}$/.test(hl))?hl:((typeof LEAGUE_COLOR_HL!=='undefined'&&LEAGUE_COLOR_HL)||'#FFEDD5');
+  const priD=shadeColor(pri,-20);
+  const soft=tintColor(pri,88);
+  const accD=shadeColor(acc,-15);
+  const accT=shadeColor(pri,-30);
+  const winrow=tintColor(acc,92);
+  const cream=tintColor(acc,95);
+  const root=document.documentElement;
+  root.style.setProperty('--pri',pri);
+  root.style.setProperty('--priD',priD);
+  root.style.setProperty('--soft',soft);
+  root.style.setProperty('--acc',acc);
+  root.style.setProperty('--accD',accD);
+  root.style.setProperty('--accT',accT);
+  root.style.setProperty('--winrow',winrow);
+  root.style.setProperty('--cream',cream);
+  root.style.setProperty('--hl',hl);
+  // Guardar en localStorage para aplicación inmediata en próximo load (evita flash)
+  try{localStorage.setItem('lsc',JSON.stringify({p:pri,pd:priD,s:soft,a:acc,ad:accD,at:accT,wr:winrow,cr:cream,hl:hl}));}catch(e){}
+}
+function shadeColor(hex,pct){
+  const n=parseInt(hex.replace('#',''),16);
+  const r=Math.min(255,Math.max(0,((n>>16)&0xff)+Math.round(2.55*pct)));
+  const g=Math.min(255,Math.max(0,((n>>8)&0xff)+Math.round(2.55*pct)));
+  const b=Math.min(255,Math.max(0,(n&0xff)+Math.round(2.55*pct)));
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+// tintColor: mezcla con blanco (pct=% de blanco, 0=color puro, 100=blanco puro)
+function tintColor(hex,pct){
+  const n=parseInt(hex.replace('#',''),16);
+  const mix=1-(pct/100);
+  const r=Math.round(255*(pct/100)+((n>>16)&0xff)*mix);
+  const g=Math.round(255*(pct/100)+((n>>8)&0xff)*mix);
+  const b=Math.round(255*(pct/100)+(n&0xff)*mix);
+  return '#'+[r,g,b].map(x=>Math.min(255,x).toString(16).padStart(2,'0')).join('');
+}
+
+function saveLeagueName(){
+  const inp=document.getElementById('sa-league-name');
+  const sub=document.getElementById('sa-league-sub');
+  const pri=document.getElementById('sa-color-pri');
+  const acc=document.getElementById('sa-color-acc');
+  const hl=document.getElementById('sa-color-hl');
+  const al=document.getElementById('sa-league-alert');
+  if(!inp||!inp.value.trim()){if(al)al.innerHTML='<span style="color:#e55">El nombre no puede estar vacío.</span>';return;}
+  LEAGUE_NAME=inp.value.trim();
+  if(sub)LEAGUE_SUBTITLE=sub.value.trim();
+  if(pri)LEAGUE_COLOR_PRI=pri.value;
+  if(acc)LEAGUE_COLOR_ACC=acc.value;
+  if(hl)LEAGUE_COLOR_HL=hl.value;
+  const disp=document.getElementById('sa-color-disp');
+  if(disp)COLOR_DISPUTA=disp.value;
+  // Clubes: ya se modificaron en vivo sobre CLUBS. Validar antes de persistir:
+  // sin nombre vacío y sin nombres repetidos (romperían clubByName).
+  const nombres=CLUBS.map(c=>(c.name||'').trim());
+  if(nombres.some(n=>!n)){if(al)al.innerHTML='<span style="color:#e55">'+t('club_err_empty')+'</span>';return;}
+  if(new Set(nombres.map(n=>n.toLowerCase())).size!==nombres.length){if(al)al.innerHTML='<span style="color:#e55">'+t('club_err_dup')+'</span>';return;}
+  CLUBS.forEach(c=>{c.name=c.name.trim();});
+  // Migrar los partidos al nuevo nombre de club. Se hace en DOS pasos con un id
+  // temporal para evitar pisadas cuando dos clubes intercambian nombre:
+  // si Sohail→Haza y Haza→Sohail se hicieran secuencialmente por nombre, el primer
+  // paso mandaría todo a Haza y el segundo lo traería todo de vuelta a Sohail.
+  // Marcando primero con el id (único) y resolviendo después, cada partido llega
+  // a su destino correcto.
+  // Se calcula el nuevo club de cada partido en un array paralelo y recién al final
+  // se asigna. Así no hay pisadas en intercambios (Sohail↔Haza) ni dependencia de
+  // ningún carácter mágico: el mapeo viejo→id→nuevo se resuelve de una vez.
+  const idToNewName = {};
+  CLUBS.forEach(c=>{ idToNewName[c.id] = c.name; });
+  const nameToId = {};  // nombre viejo → id (del snapshot al abrir el editor)
+  Object.keys(_clubNamesAtOpen).forEach(id=>{ nameToId[_clubNamesAtOpen[id]] = id; });
+  const nuevos = matches.map(m=>{
+    const id = nameToId[m.club];
+    return (id && idToNewName[id] !== undefined) ? idToNewName[id] : m.club;
+  });
+  matches.forEach((m,i)=>{ m.club = nuevos[i]; });
+  // Aplicar colores
+  applyLeagueColors(LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL);
+  // Actualizar textos
+  const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME;
+  const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME;
+  const lsb=document.getElementById('login-sub');if(lsb)lsb.textContent=LEAGUE_SUBTITLE;
+  document.title=LEAGUE_NAME;
+  addLog('Config: nombre y colores actualizados',{po:null,a:LEAGUE_NAME,b:LEAGUE_SUBTITLE});
+  // Guardar en localStorage para recuperación inmediata sin flash
+  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE}));}catch(e){}
+  persist(true);
+  if(al)al.innerHTML='<span style="color:#22c55e">✓ Configuración guardada.</span>';
+  setTimeout(()=>{if(al)al.innerHTML='';},3000);
+}
+
+function limpiarJugadoresUI(){
+  // Primera confirmación
+  if(!confirm('⚠️ Limpiar jugadores\n\nEsto eliminará TODOS los jugadores y sus resultados del ciclo activo.\nLa estructura de grupos se mantiene vacía.\n\n¿Querés continuar?')) return;
+  // Segunda confirmación
+  if(!confirm('⛔ Segunda confirmación\n\n¿Estás seguro que querés borrar todos los jugadores y resultados?\nEsta acción no se puede deshacer.')) return;
+  // Ejecutar limpieza solo de jugadores
+  const c=cycles[activeN-1];
+  const numGrupos=c&&c.groups?c.groups.length:12;
+  matches=matches.filter(m=>m.po); // mantener matches de playoff si los hay
+  ALLNAMES=[];
+  const adminU=USERS['admin']||{role:'admin',pass:ADMIN_PASS_HASH,name:'Organización',email:'',tel:''};
+  USERS={admin:adminU};
+  cycles.forEach((cy,i)=>{
+    if(cy.groups)cy.groups.forEach(g=>{g.players=[];});
+  });
+  persist(true);renderPerfil();
+  toast('✅ '+numGrupos+' grupos vaciados. Podés importar nuevos jugadores.');
+}
+
+function mostrarModalReiniciar(){
+  // PASO 1: Ofrecer descarga del Excel (Enter = descargar)
+  let _excelDescargado=false;
+  let overlay=document.getElementById('reiniciar-overlay');
+  if(overlay)overlay.remove();
+  overlay=document.createElement('div');
+  overlay.id='reiniciar-overlay';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem';
+
+  function paso2(){
+    const estado=_excelDescargado
+      ?'<span style="color:#22c55e;font-weight:600">✅ Excel descargado correctamente</span>'
+      :'<span style="color:#f59e0b;font-weight:600">⚠️ No descargaste el Excel (continuaste sin respaldo)</span>';
+    overlay.innerHTML=`
+      <div style="background:var(--surface);border-radius:16px;padding:1.5rem;max-width:440px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+        <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">PASO 2 DE 2</div>
+        <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">⛔ Confirmar reinicio</div>
+        <p style="font-size:13px;margin-bottom:.75rem">${estado}</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:.35rem">Para confirmar, escribí exactamente:</p>
+        <p style="font-family:monospace;font-size:14px;font-weight:700;color:var(--pri);background:var(--surface2,#f5f5f5);padding:6px 12px;border-radius:8px;margin-bottom:.75rem;display:inline-block">reiniciar liga</p>
+        <input id="reiniciar-input" type="text" placeholder="Escribí aquí..." autocomplete="off"
+          style="width:100%;padding:10px 14px;border:1.5px solid var(--border2);border-radius:10px;font-size:15px;margin-bottom:1rem;box-sizing:border-box;outline:none"
+          oninput="document.getElementById('btn-confirm-reiniciar').disabled=this.value!=='reiniciar liga'">
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn" onclick="document.getElementById('reiniciar-overlay').remove()">Cancelar</button>
+          <button id="btn-confirm-reiniciar" class="btn btn-danger" disabled onclick="ejecutarReiniciar()">
+            <i class="ti ti-trash"></i> Reiniciar liga
+          </button>
+        </div>
+      </div>`;
+    setTimeout(()=>{ const i=document.getElementById('reiniciar-input'); if(i)i.focus(); },100);
+  }
+
+  overlay.innerHTML=`
+    <div style="background:var(--surface);border-radius:16px;padding:1.5rem;max-width:440px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+      <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">PASO 1 DE 2</div>
+      <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">⛔ Reiniciar Liga</div>
+      <p style="color:var(--text);font-size:14px;margin-bottom:1.25rem">Esta acción eliminará <strong>todos los jugadores, partidos y resultados</strong>. No se puede deshacer.<br><br>
+      ¿Querés descargar un respaldo en Excel antes de continuar?</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <button id="btn-excel-reiniciar" class="btn btn-success" style="justify-content:center;font-size:15px;padding:10px">
+          <i class="ti ti-file-spreadsheet"></i> Descargar Excel y continuar
+        </button>
+        <button class="btn" style="justify-content:center;color:var(--text2);font-size:13px" id="btn-sin-excel">
+          Continuar sin descargar
+        </button>
+        <button class="btn" style="justify-content:center" onclick="document.getElementById('reiniciar-overlay').remove()">Cancelar</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(overlay);
+
+  // Botón descargar Excel (default — también responde al Enter)
+  document.getElementById('btn-excel-reiniciar').addEventListener('click',()=>{
+    exportExcel();
+    _excelDescargado=true;
+    setTimeout(()=>paso2(),600);
+  });
+  document.getElementById('btn-sin-excel').addEventListener('click',()=>{
+    _excelDescargado=false;
+    paso2();
+  });
+  // Enter en el modal paso 1 = descargar Excel
+  overlay.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&document.getElementById('btn-excel-reiniciar')){
+      document.getElementById('btn-excel-reiniciar').click();
+    }
+  });
+  document.getElementById('btn-excel-reiniciar').focus();
+}
+
+async function ejecutarReiniciar(){
+  const overlay=document.getElementById('reiniciar-overlay');
+  if(overlay)overlay.remove();
+  // Ejecutar el reinicio (el Excel ya se descargó en el paso 1 si se eligió)
+  const c=cycles[activeN-1];
+  const numGrupos=c&&c.groups?c.groups.length:12;
+  matches=[];matchId=1;ALLNAMES=[];LOG=[];
+  const adminU=USERS['admin']||{role:'admin',pass:ADMIN_PASS_HASH,name:'Organización',email:'',tel:''};
+  USERS={admin:adminU};
+  cycles.forEach((cy,i)=>{
+    if(i===0){cy.groups=Array.from({length:numGrupos},()=>({players:[]}));cy.status='active';}
+    else{cy.groups=null;cy.status='locked';}
+  });
+  activeN=1;viewCycle=1;
+  playoff={started:false,numTramos:playoff.numTramos||4,tramos:[],results:{},viewT:0,qualified:[],preview:false,forcedSize:0};
+  PO_FECHAS={};
+  persist(true);renderShell();showSub('admin');
+  toast('✅ Liga reiniciada. '+numGrupos+' grupos vacíos listos. Importá jugadores con el botón "Importar jugadores (Excel)".');
+}
+
+// Alias para el botón
+function limpiarParticipantesUI(){ mostrarModalReiniciar(); }
+
+// 4. Nueva liga — genera un index.html listo para nuevo repo + Supabase
+async function nuevaLigaUI(){
+  const info='NUEVA LIGA\n\nGenera un archivo index.html con el nombre de la liga nueva.\n\nOJO: ahora las credenciales NO van en el archivo, van en Vercel.\n\nPasos:\n1. Crear un proyecto nuevo en supabase.com y correr supabase_lockdown.sql\n2. Subir este archivo + la carpeta /api a un repo nuevo de GitHub\n3. Conectar el repo a Vercel\n4. En Vercel > Settings > Environment Variables cargar:\n   SUPABASE_URL, SUPABASE_SERVICE_KEY, SESSION_SECRET\n5. Listo: nueva liga en nuevo URL, con su propia base aislada';
+  if(!confirm(info+' \n\n¿Seguimos?'))return;
+  const nombre=prompt('Nombre de la nueva liga (aparece en el título):','Liga de Tenis');
+  if(!nombre)return;
+  toast('Generando archivo...');
+  try{
+    const resp=await fetch(location.href);
+    let src=await resp.text();
+    // Solo se reemplaza el título: las credenciales viven en el servidor.
+    src=src.replace(/<title>[^<]*<\/title>/,`<title>${nombre}</title>`);
+    src=src.replace(/Liga de Tenis Sohail/g,nombre);
+    const blob=new Blob([src],{type:'text/html'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download='index.txt';a.click();
+    URL.revokeObjectURL(url);
+    toast('✅ Archivo descargado. Subilo con la carpeta /api a un repo nuevo y cargá las variables de entorno en Vercel. La base de esta liga queda intacta.');
+  }catch(err){
+    toast('Error al generar el archivo: '+err.message);
+  }
+}
+
+// ===== HISTORIAL =====
+function addLog(action, detail){
+  const now=new Date();
+  const ts=now.toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  LOG.unshift({ts,who:currentUser?currentUser.name:'Sistema',role:currentUser?currentUser.role:'system',action,detail});
+  if(LOG.length>500)LOG.splice(500);
+}
+function fmtSets(sets){if(!sets||!sets.length)return '—';return sets.map(([a,b])=>a+'-'+b).join(' ');}
+
+
+// Modal para que el admin ajuste el seed y/o el override de un jugador.
+
+
+// Guarda seed/override y recalcula.
+
+function renderHistorial(){
+  const el=document.getElementById('view-historial');if(!el)return;
+  const filter=document.getElementById('hist-filter')?document.getElementById('hist-filter').value:'all';
+  const search=document.getElementById('hist-search')?document.getElementById('hist-search').value.toLowerCase():'';
+  const isSA=currentUser&&currentUser.role==='superadmin';
+  const rows=LOG.filter(e=>{
+    // Admin no ve acciones del superadmin (config de liga, colores, etc.)
+    if(!isSA&&e.role==='superadmin')return false;
+    if(filter==='liga'&&(e.detail&&(e.detail.po===true||e.detail.po===null)))return false;
+    if(filter==='playoff'&&(!e.detail||e.detail.po!==true))return false;
+    if(search&&!(e.who.toLowerCase().includes(search)||e.action.toLowerCase().includes(search)||(e.detail&&JSON.stringify(e.detail).toLowerCase().includes(search))))return false;
+    return true;
+  });
+  const icons={
+    'Liga: cargado':'<i class="ti ti-upload" style="color:#3b82f6"></i>',
+    'Liga: confirmado':'<i class="ti ti-circle-check" style="color:#22c55e"></i>',
+    'Liga: validado (admin)':'<i class="ti ti-shield-check" style="color:#22c55e"></i>',
+    'Liga: editado':'<i class="ti ti-pencil" style="color:#f59e0b"></i>',
+    'Liga: eliminado':'<i class="ti ti-trash" style="color:#ef4444"></i>',
+    'Liga: marcado no jugado':'<i class="ti ti-ban" style="color:#64748b"></i>',
+    'Liga: en disputa':'<i class="ti ti-alert-triangle" style="color:#ef4444"></i>',
+    'Liga: disputa resuelta':'<i class="ti ti-gavel" style="color:#8b5cf6"></i>',
+    'Playoff: cargado':'<i class="ti ti-upload" style="color:#3b82f6"></i>',
+    'Playoff: validado (admin)':'<i class="ti ti-shield-check" style="color:#22c55e"></i>',
+    'Playoff: confirmado':'<i class="ti ti-circle-check" style="color:#22c55e"></i>',
+    'Playoff: editado':'<i class="ti ti-pencil" style="color:#f59e0b"></i>',
+    'Playoff: eliminado':'<i class="ti ti-trash" style="color:#ef4444"></i>',
+    'Playoff: W.O.':'<i class="ti ti-arrow-big-right-lines" style="color:#ea580c"></i>',
+    'Playoff: disputa resuelta':'<i class="ti ti-gavel" style="color:#8b5cf6"></i>',
+  };
+  let h='<div class="card"><div class="section-lbl">Historial de resultados</div>';
+  h+='<div style="display:flex;gap:8px;margin-bottom:.75rem;flex-wrap:wrap">';
+  h+='<select id="hist-filter" onchange="renderHistorial()" style="padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:13px">';
+  h+='<option value="all">Todos</option><option value="liga" '+(filter==='liga'?'selected':'')+'>Solo liga</option><option value="playoff" '+(filter==='playoff'?'selected':'')+'>Solo playoff</option>';
+  h+='</select>';
+  h+='<input id="hist-search" placeholder="Buscar jugador o acción..." value="'+attr(search)+'" oninput="renderHistorial()" style="flex:1;min-width:160px;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:13px">';
+  h+='</div>';
+  if(!rows.length){h+='<p style="color:var(--text2);font-style:italic;text-align:center;padding:2rem 0">Sin entradas en el historial todavía.</p></div>';el.innerHTML=h;return;}
+  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">';
+  h+='<thead><tr style="border-bottom:2px solid var(--border2);text-align:left">';
+  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600;white-space:nowrap">Fecha y hora</th>';
+  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600">Quién</th>';
+  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600">Acción</th>';
+  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600">Detalle</th>';
+  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600;white-space:nowrap">Sets</th>';
+  h+='</tr></thead><tbody>';
+  rows.forEach((e,i)=>{
+    const ic=icons[e.action]||'<i class="ti ti-dots" style="color:var(--text2)"></i>';
+    const d=e.detail||{};
+    let detalle='';
+    if(d.po){
+      const rnd=d.round||'';const cuadro=d.cuadro?'Cuadro '+d.cuadro:'';
+      const draw=d.which==='cons'?'Consolación':'Principal';
+      detalle=cuadro+(rnd?' · '+rnd:'')+(draw?' ('+draw+')':'');
+      if(d.a&&d.b)detalle+='<br><span style="font-weight:500">'+d.a+'</span> vs <span style="font-weight:500">'+d.b+'</span>';
+    } else {
+      if(d.grupo)detalle='Grupo '+d.grupo;
+      if(d.a&&d.b)detalle+=(detalle?'<br>':'')+'<span style="font-weight:500">'+d.a+'</span> vs <span style="font-weight:500">'+d.b+'</span>';
+    }
+    const sets=fmtSets(d.sets);
+    const winner=d.winner?'<br><span style="font-size:11px;color:#22c55e;font-weight:600">🏆 '+d.winner+'</span>':'';
+    h+=`<tr style="border-bottom:1px solid var(--border);background:${i%2===0?'transparent':'var(--surface2,#f8f9fb)'}">`;
+    h+=`<td style="padding:7px 8px;color:var(--text2);font-size:12px;white-space:nowrap">${e.ts}</td>`;
+    h+=`<td style="padding:7px 8px;font-weight:500">${e.who}</td>`;
+    h+=`<td style="padding:7px 8px;white-space:nowrap">${ic} ${e.action}</td>`;
+    h+=`<td style="padding:7px 8px">${detalle}${winner}</td>`;
+    h+=`<td style="padding:7px 8px;font-family:monospace;white-space:nowrap">${sets}</td>`;
+    h+='</tr>';
+  });
+  h+='</tbody></table></div>';
+  h+=`<p style="font-size:11px;color:var(--text2);margin-top:.5rem;text-align:right">${rows.length} de ${LOG.length} entradas</p>`;
+  h+='</div>';
+  el.innerHTML=h;
+}
+
+function setPoFecha(r, field, v) {
+  if(!PO_FECHAS[r])PO_FECHAS[r]={type:'single',date:'',from:'',to:''};
+  PO_FECHAS[r][field]=v;
+  persist(true);
+  // Re-render bracket if playoff is active
+  if(viewCycle==='po')showPlayoffView();
+}
+function setPoFechaType(r, type) {
+  if(!PO_FECHAS[r])PO_FECHAS[r]={type:'single',date:'',from:'',to:''};
+  PO_FECHAS[r].type=type;
+  persist(true);
+  if(viewCycle==='po')showPlayoffView();
+  else if(subView==='admin')renderAdmin();
+}
+
+function renderAdmin(){
+  if(!currentUser||!esAdmin(currentUser))return;
+  try {
+    const c = getActive() || { groups: [] };
+    const grps = c.groups || [];
+    const need = pairsNeeded(c);
+    const done = matches.filter(m=>m.cycle===activeN&&!m.po&&m.status==='confirmed').length;
+    const notC = matches.filter(m=>m.cycle===activeN&&!m.po&&m.status!=='confirmed').length;
+    const ready = done>=need&&notC===0;
+    // Se PUEDE cerrar mientras no queden partidos cargados sin validar. Que falten
+    // partidos por jugar no bloquea: el admin puede cerrar igual (con confirmación).
+    const puedeCerrar = notC===0;
+    const faltanJugar = need-done-notC;
+    const cyclesDone = allCyclesDone();
+
+    // ¿Hay algún ciclo con editMode activo? (carga habilitada manualmente por admin)
+    const cicloEditMode = cycles.find(c2=>c2.editMode);
+    
+    let h=`<div class="card"><div class="section-lbl">${t('admin_cycle_status')}</div><div class="alert ${ready?'alert-ok':(puedeCerrar?'alert-warn':'alert-info')}">${t('cycle')} ${activeN}: ${tf('validated_count',{done,need})}${notC>0?` · ${notC} ${t('unvalidated_short')}`:''}. ${ready?t('ready_close'):(notC>0?t('missing_results'):tf('close_can_incomplete',{n:faltanJugar}))}</div>`+
+    (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ¡Todos los partidos validados! Presioná "Finalizar último ciclo" para habilitar los Play Offs.</div>`:'')+
+    // Banner de ciclo con editMode activo
+    (cicloEditMode?`<div class="alert alert-warn" style="margin-top:.4rem"><i class="ti ti-pencil"></i> <strong>Carga habilitada en Ciclo ${cicloEditMode.n}</strong> — jugadores y admins pueden cargar resultados en ese ciclo aunque esté cerrado. Deshabilitalo cuando termines.</div>`:'')+
+    `<div class="gap-sm mt-sm">${activeN<cycles.length?`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar)?'disabled':''} onclick="startNextCycle()"><i class="ti ti-arrow-right-circle"></i> ${t('close_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`:`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar||(c&&c.status==='finished'))?'disabled':''} onclick="finishLastCycle()"><i class="ti ti-flag-check"></i> ${t('finish_last_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`}<button class="btn" onclick="demoFillUI()"><i class="ti ti-wand"></i> ${t('simulate')}</button><button class="btn btn-danger" onclick="undoDemoUI()"><i class="ti ti-eraser"></i> ${t('undo_demo')}</button></div>` +
+    // Sección de rehabilitar carga (solo si hay ciclos cerrados)
+    (cycles.some(c2=>c2.status==='finished')?`<div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.75rem">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:.25rem"><i class="ti ti-pencil"></i> Habilitar carga de partidos en un ciclo cerrado</div>
+      <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.5rem">Si necesitás agregar resultados en un ciclo ya cerrado (sin borrar los existentes), habilitá ese ciclo temporalmente. Jugadores y admins van a poder cargar partidos en él desde la pestaña Cargar. Deshabilitalo cuando termines.</p>
+      <div class="gap-sm" style="flex-wrap:wrap">
+        ${cycles.filter(c2=>c2.status==='finished').map(c2=>`<button class="btn btn-sm ${c2.editMode?'btn-warn':''}" onclick="toggleEditMode(${c2.n})"><i class="ti ti-${c2.editMode?'lock-open':'lock'}"></i> Ciclo ${c2.n} ${c2.editMode?'(carga activa — click para cerrar)':'(cerrado)'}</button>`).join('')}
+      </div>
+    </div>`:'') +
+    `</div>`;
+    
+    const numGrupos = grps.length || 12;
+    const ppg = (grps[0]&&grps[0].players)?grps[0].players.length:5;
+    const cActiveHasMatches = matches.some(m=>m.cycle===activeN&&!m.po);
+    if(currentUser.role==='superadmin'){ h += `<div class="card"><div class="section-lbl">Configuración de la Liga (Ciclo ${activeN})</div>
+          <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
+             <div class="form-group">
+                <label>Total de ciclos (1 a 8)</label>
+                <select onchange="setTotalCycles(this.value)">
+                   ${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}" ${cycles.length===n?'selected':''}>${n} ciclo${n>1?'s':''}</option>`).join('')}
+                </select>
+             </div>
+             <div class="form-group">
+                <label>Grupos en la liga (1 a 50)</label>
+                <select onchange="setNumGroups(this.value)">
+                   ${Array.from({length:50},(_,i)=>i+1).map(n=>`<option value="${n}" ${numGrupos===n?'selected':''}>${n} grupo${n>1?'s':''}</option>`).join('')}
+                </select>
+             </div>
+             <div class="form-group">
+                <label>Jugadores por grupo</label>
+                <select onchange="setPlayersPerGroup(this.value)">
+                   ${[2,3,4,5,6,7,8].map(n=>`<option value="${n}" ${ppg===n?'selected':''}>${n} jugadores</option>`).join('')}
+                </select>
+             </div>
+          </div>
+          <p class="legend-txt" style="margin-top:0">Cambiar grupos o jugadores por grupo ajusta la estructura del <strong>Ciclo ${activeN}</strong> (el ciclo activo). ${cActiveHasMatches?'<span style="color:#e55;font-weight:600">⚠ Este ciclo ya tiene partidos cargados — reducir grupos puede borrar resultados.</span>':''}</p>
+          </div>
+          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">⚡ ${t('autoscale_title')}</div>
+            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('autoscale_hint')}</p>
+            <div class="form-row" style="grid-template-columns:1fr auto;align-items:end;gap:.625rem">
+              <div class="form-group">
+                <label>${t('autoscale_step')}</label>
+                <input type="number" id="autoscale-step" value="3" min="1" max="20" style="width:100%;padding:.5rem;border:1.5px solid var(--border2);border-radius:8px">
+              </div>
+              <button class="btn btn-accent" onclick="autoGenerarEscala()">${t('autoscale_btn')}</button>
+            </div>
+          </div>`;
+    } // fin config exclusiva superadmin
+
+    h+=`<div class="form-row" style="grid-template-columns:1fr 1fr;gap:.625rem;align-items:start">`;
+    
+    h+=`<div class="card" style="margin:0"><div class="section-lbl">${t('cycle_dates')}</div><div style="display:grid;grid-template-columns:1fr;gap:12px">`+
+       cycles.map((cyc,i)=>{
+         const [d1, d2] = parseDateRange(FECHAS[i]);
+         return `<div class="form-group"><label>${t('cycle')} ${i+1}</label>
+                 <div style="display:flex;gap:6px;align-items:center">
+                   <input type="date" value="${d1}" onchange="updateCycleDate(${i}, 'start', this.value)" style="padding:6px 8px">
+                   <span style="color:var(--text2);font-weight:bold">–</span>
+                   <input type="date" value="${d2}" onchange="updateCycleDate(${i}, 'end', this.value)" style="padding:6px 8px">
+                 </div></div>`;
+       }).join('')+
+       `</div><p class="legend-txt" style="margin-top:.4rem">Seleccioná inicio y fin de cada ciclo.</p></div>`;
+
+    h+=`<div class="card" style="margin:0"><div class="section-lbl">${t('playoffs_title')}</div>`;
+    h+=(cyclesDone?`<div class="alert alert-ok" style="margin-bottom:.5rem">${t('playoffs_ready')}</div>`:`<div class="alert alert-info" style="margin-bottom:.5rem">${t('playoffs_not_ready')}</div>`);
+    h+=`<div class="form-row"><div class="form-group"><label>${t('how_many_playoffs')}</label><select onchange="setPoNum(this.value)">${[1,2,3,4,5,6].map(k=>`<option value="${k}" ${playoff.numTramos===k?'selected':''}>${k} ${k>1?t('bracket_plural'):t('bracket_singular')}</option>`).join('')}</select></div>`;
+    h+=`<div class="form-group"><label>${t('po_size_label')}</label><select onchange="setPoSize(this.value)"><option value="0" ${!playoff.forcedSize?'selected':''}>${t('po_size_auto')}</option><option value="64" ${playoff.forcedSize===64?'selected':''}>${t('r_64')}</option><option value="32" ${playoff.forcedSize===32?'selected':''}>${t('r_32')}</option><option value="16" ${playoff.forcedSize===16?'selected':''}>${t('r_16')}</option><option value="8" ${playoff.forcedSize===8?'selected':''}>${t('r_8')}</option><option value="4" ${playoff.forcedSize===4?'selected':''}>${t('r_4')}</option><option value="2" ${playoff.forcedSize===2?'selected':''}>${t('r_2')}</option></select></div></div>`;
+    h+=`<div><button class="btn btn-primary" ${cyclesDone&&!playoff.started?'':'disabled'} onclick="previewPlayoffUI()"><i class="ti ti-eye"></i> ${t('preview_po')}</button></div>`;
+    h+=(playoff.started?`<p class="legend-txt">${t('po_started')}</p>`:playoff.preview?`<p class="legend-txt">${t('po_preview_active')}</p>`:'');
+    h+=`</div>`;
+    h+=`</div>`;
+
+    h+=`<div class="card"><div class="section-lbl">Exportar / Importar</div>
+      <div style="margin-top:.35rem">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Exportar</div>
+      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Descargá los resultados completos o los Play Offs para compartir o imprimir.</p>
+      <div class="gap-sm" style="flex-wrap:wrap">`;
+    cycles.forEach(cy => {
+        h += `<button class="btn btn-sm" onclick="printCycle(${cy.n})"><i class="ti ti-printer"></i> PDF Ciclo ${cy.n}</button>`;
+    });
+    h += `<button class="btn btn-sm" onclick="printPlayoffs()"><i class="ti ti-printer"></i> PDF Play Offs</button>`;
+    h += `<button class="btn btn-success btn-sm" onclick="exportExcel()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>`;
+    h += `</div>
+      </div>
+      <div style="height:1px;background:var(--border);margin:1.1rem 0"></div>
+      <div>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Importar</div>
+      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Cargá resultados de liga desde un Excel con el mismo formato de la plantilla.</p>
+      <div class="gap-sm" style="flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="descargarPlantillaResultados()"><i class="ti ti-file-download"></i> Plantilla de resultados</button>
+        <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> Importar resultados (Excel)
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarResultadosExcel(this)">
+        </label>
+      </div>
+      <p class="legend-txt" style="margin-bottom:0;margin-top:.65rem;font-size:11px">Solo resultados de liga (grupos), no Play Offs. Quedan validados. Un resultado ya cargado del mismo partido se reemplaza.</p>
+      </div>
+    </div>`;
+
+    h+=`<div class="card" style="border:1.5px solid var(--pri)"><div class="section-lbl"><i class="ti ti-shield-check"></i> Copia de seguridad (backup completo)</div>
+      <p class="legend-txt" style="margin-top:.35rem;margin-bottom:.85rem">Descargá un backup en Excel con TODA la liga (jugadores, grupos, ciclos, resultados, ascensos/descensos, puntos, colores y nombre). Si algún día se pierde la data, con este archivo restaurás todo en un clic. <b>Recomendado: bajá un backup cada semana.</b></p>
+      <div class="gap-sm" style="flex-wrap:wrap">
+        <button class="btn btn-success btn-sm" onclick="exportBackup()"><i class="ti ti-download"></i> Descargar backup (Excel)</button>
+        <label class="btn btn-danger btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> Restaurar backup
+          <input type="file" accept=".xlsx,.xls,.json,application/json" style="display:none" onchange="importBackup(this)">
+        </label>
+      </div>
+      <p class="legend-txt" style="margin-bottom:0;margin-top:.7rem;font-size:11px">Restaurar REEMPLAZA todo el estado actual por el del archivo (pide confirmación). Acepta el backup en Excel o los .json viejos. Es la forma segura de recuperar la liga completa.</p>
+    </div>`;
+
+    h+=`<div class="card"><div class="section-lbl">${tf('edit_groups',{n:activeN})}</div><p class="legend-txt" style="margin-top:0">${t('edit_groups_hint')}</p><div style="margin-bottom:.75rem"><button class="btn btn-primary" onclick="applyGroupsUpdate()"><i class="ti ti-refresh"></i> Actualizar grupos</button></div>`;
+    h+=`<div class="grpedit">`+grps.map((g,gi)=>{
+      const gid=gi+1;
+      const players = g.players || [];
+      return `<div class="ge-group"><div class="ge-gtitle">${groupName(gid)} (${players.length})</div>`+
+      players.map(n=>`<div class="ge-row"><span class="ge-nm">${n}</span><select class="ge-sel" onchange="movePlayerUI('${jsq(n)}',${gid},this.value)"><option value="">${t('move_to')}</option>${grps.map((_,k)=>k+1!==gid?`<option value="${k+1}">${groupName(k+1)}</option>`:'').join('')}</select><button class="btn btn-danger btn-sm" onclick="removePlayerUI('${jsq(n)}',${gid})">${t('remove')}</button></div>`).join('')+`</div>`;
+    }).join('')+`</div></div>`;
+    h+=destinoCard();
+
+    h+='<div class="card"><div class="section-lbl">Reiniciar y retroceder</div>';
+    h+='<p class="legend-txt" style="margin-top:0;margin-bottom:.75rem">Tres opciones según lo que necesitás:</p>';
+
+    // Acción 1: solo borrar partidos del ciclo activo (conserva grupos y jugadores)
+    h+=`<div style="border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem">
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-eraser" style="color:#f59e0b"></i> Reiniciar partidos del ciclo activo</div>
+      <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">Borra solo los partidos del ciclo activo (Ciclo ${activeN}). Los grupos, jugadores, inactivos y movimientos entre grupos se conservan. Útil para empezar a jugar desde cero con los mismos grupos.</p>
+      <button class="btn btn-warn btn-sm" onclick="resetCycleUI(${activeN})"><i class="ti ti-eraser"></i> Borrar partidos del Ciclo ${activeN}</button>
+    </div>`;
+
+    // Acción 2: retroceder al ciclo anterior (solo si hay ciclo anterior)
+    if(activeN>1){
+      h+=`<div style="border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem">
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-arrow-back-up" style="color:#3b82f6"></i> Volver al ciclo anterior (Ciclo ${activeN-1})</div>
+        <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">Reabre el Ciclo ${activeN-1} para seguir cargando partidos. Descarta la estructura del Ciclo ${activeN} (los partidos de ese ciclo también se borran). Los partidos del Ciclo ${activeN-1} se conservan.</p>
+        <button class="btn btn-sm" style="border-color:#3b82f6;color:#3b82f6" onclick="retrocederCicloUI()"><i class="ti ti-arrow-back-up"></i> Volver al Ciclo ${activeN-1}</button>
+      </div>`;
+    }
+
+    // Acción 3: reiniciar playoffs
+    if(playoff.started||playoff.preview){
+      h+=`<div style="border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem">
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-trash" style="color:#e55"></i> Reiniciar Play Offs</div>
+        <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">Borra todos los cuadros y resultados de Play Offs. Los partidos de liga no se tocan.</p>
+        <button class="btn btn-danger btn-sm" onclick="resetPlayoffUI()"><i class="ti ti-trash"></i> Reiniciar Play Offs</button>
+      </div>`;
+    }
+    h+='</div>';
+
+    if(currentUser.role==='superadmin'){
+    h+='<div class="card" style="border:1.5px solid var(--danger,#e55);border-radius:12px">';
+    h+='<div class="section-lbl" style="color:var(--danger,#e55)">Nueva temporada</div>';
+    h+='<p class="legend-txt" style="margin-top:0">Reiniciá la liga para una nueva temporada. Los partidos actuales se borran.</p>';
+    h+='<div class="gap-sm" style="flex-wrap:wrap">';
+    h+='<button class="btn btn-danger" onclick="limpiarParticipantesUI()"><i class="ti ti-refresh"></i> Reiniciar liga</button>';
+    h+='</div></div>';
+    }
+
+    // ---- Gestión de ligas (sistema unificado) ----
+    // Panel para crear ligas nuevas desde el catálogo de jugadores, y para
+    // cerrar / reabrir / eliminar las existentes. Visible para cualquier admin.
+    h+='<div class="card" id="liga-mgmt-card">';
+    h+='<div class="section-lbl"><i class="ti ti-trophy"></i> '+t('lm_title')+'</div>';
+    h+='<p class="legend-txt" style="margin-top:0">'+t('lm_desc')+'</p>';
+    h+='<div class="gap-sm" style="flex-wrap:wrap;margin-bottom:10px">';
+    h+='<button class="btn btn-primary" onclick="abrirCrearLiga()"><i class="ti ti-plus"></i> '+t('lm_new')+'</button>';
+    h+='</div>';
+    h+='<div id="liga-mgmt-list" class="lm-list"><div class="pm-past-load">'+t('past_loading')+'</div></div>';
+    h+='</div>';
+
+    // ==================== CARD: Métricas + Panel de Ingreso Rápido ====================
+    // Muestra métricas de adopción de Face ID y permite al admin desactivar
+    // dispositivos de cualquier jugador (útil si perdieron el iPhone).
+    h+=`<div class="card"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_admin_title')}</div>`;
+    h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_admin_desc')}</p>`;
+    h+=`<div id="pk-admin-metrics" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>`;
+    h+=`<div id="pk-admin-list"></div></div>`;
+
+    // ==================== CARD: Notificaciones WhatsApp (CallMeBot) ====================
+    // Solo admin original y superadmin pueden gestionar canales de notificación.
+    // Un admin ascendido no ve este card (evita que agregue números arbitrarios
+    // y reciba data sensible de la liga).
+    if(puedeGestionarAdmins(currentUser)){
+      h+=`<div class="card"><div class="section-lbl"><i class="ti ti-brand-whatsapp"></i> ${t('wa_admin_title')}</div>`;
+      h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('wa_admin_desc')}</p>`;
+      h+=`<div class="gap-sm" style="flex-wrap:wrap;margin-bottom:12px">`;
+      h+=`<button class="btn btn-primary" onclick="abrirModalCanalWA()"><i class="ti ti-plus"></i> 📱 ${t('wa_add_btn')}</button>`;
+      h+=`</div>`;
+      h+=`<div id="wa-channels-list"><div class="pm-past-load">${t('past_loading')}</div></div></div>`;
+    }
+
+    // ==================== CARD: Header del login (editable) ====================
+    // Barra superior de la pantalla de login con color + links configurables.
+    // Solo admin original y superadmin la editan (misma restricción que WA).
+    if(puedeGestionarAdmins(currentUser)){
+      h+=`<div class="card"><div class="section-lbl"><i class="ti ti-layout-navbar"></i> ${t('lh_title')}</div>`;
+      h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('lh_desc')}</p>`;
+      h+=`<div class="form-row" style="align-items:flex-end;flex-wrap:wrap">`;
+      h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_color_lbl')}</label><input type="color" id="lh-color" value="${(LOGIN_HEADER&&LOGIN_HEADER.color)||'#0E3470'}" style="height:38px;padding:2px;cursor:pointer" onchange="saveLoginHeader()"></div>`;
+      h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_textcolor_lbl')} <span class="legend-txt" style="font-size:10px">(${t('lh_textcolor_auto')})</span></label><div style="display:flex;gap:4px;align-items:center"><input type="color" id="lh-textcolor" value="${(LOGIN_HEADER&&LOGIN_HEADER.textColor)||'#ffffff'}" style="height:38px;padding:2px;cursor:pointer;flex:1" onchange="saveLoginHeader()"><button class="btn btn-sm" onclick="resetLoginHeaderTextColor()" title="${t('lh_textcolor_reset')}"><i class="ti ti-refresh"></i></button></div></div>`;
+      h+=`<div class="form-group"><button class="btn" onclick="addLoginHeaderLink()"><i class="ti ti-plus"></i> ${t('lh_add_link')}</button></div>`;
+      h+=`</div>`;
+      h+=`<div id="lh-links-list" style="margin-top:.5rem"></div>`;
+      h+=`<div style="margin-top:.75rem;padding:.65rem;background:var(--soft);border-radius:8px;border:1px dashed var(--border2)"><div style="font-size:11px;color:var(--text2);margin-bottom:.35rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${t('preview')}</div><div id="lh-preview" style="border-radius:6px;overflow:hidden"></div></div>`;
+      h+=`</div>`;
+    }
+
+    // ==================== CARD: Exportar liga a Excel ====================
+    h+=`<div class="card"><div class="section-lbl"><i class="ti ti-file-spreadsheet"></i> ${t('export_title')}</div>`;
+    h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('export_desc')}</p>`;
+    h+=`<button class="btn btn-primary btn-sm" onclick="exportarLigaExcel()"><i class="ti ti-download"></i> ${t('export_btn')}</button></div>`;
+
+    document.getElementById('view-admin').innerHTML=h;
+    cargarGestionLigas();
+    // Cargar el card de passkeys admin (fetch async, no bloquea el render)
+    if(typeof cargarPasskeysAdmin==='function') cargarPasskeysAdmin();
+    // Cargar el card de canales WhatsApp (fetch async, solo si el card se renderizó)
+    if(puedeGestionarAdmins(currentUser) && typeof cargarCanalesWhatsApp==='function') cargarCanalesWhatsApp();
+    if(puedeGestionarAdmins(currentUser) && typeof renderLoginHeaderLinks==='function') renderLoginHeaderLinks();
+  } catch (err) {
+    console.error("Error en renderAdmin:", err);
+    document.getElementById('view-admin').innerHTML = `<div class="card"><div class="alert alert-err" style="margin-bottom:0"><b>Error cargando el panel Admin:</b> ${err.message}<br>Por favor recargá la página o contactá a soporte técnico.</div></div>`;
+  }
+}
+
+function printCycle(n) {
+  const c = cycles[n-1];
+  if(!c || !c.groups) { toast('Ciclo sin datos.'); return; }
+  let html = `<h2 style="margin-bottom:1rem;color:var(--priD)">Liga de Tenis Sohail - Ciclo ${n}</h2>`;
+  const oldView = viewCycle;
+  viewCycle = n;
+  c.groups.forEach((g, gi) => { html += groupCardHTML(gi + 1); });
+  viewCycle = oldView;
+  const pa = document.getElementById('print-area');
+  pa.innerHTML = html;
+  
+  setTimeout(() => { 
+      window.print(); 
+      setTimeout(() => { pa.innerHTML = ''; }, 800); 
+  }, 350);
+}
+
+function printPlayoffs() {
+  if(!playoff.started && !playoff.preview) { toast('Play Offs no disponibles.'); return;
+  }
+  let html = `<h2 style="margin-bottom:1rem;color:var(--priD)">Liga de Tenis Sohail - Play Offs</h2>`;
+  playoff.tramos.forEach((tr, ti) => {
+     if(!tr.main)return;
+     html += `<div class="po-card">`;
+     html += `<h3 style="background:var(--pri);color:#fff;padding:8px;border-radius:8px;margin-bottom:10px">${tf('po_main_title',{l:tr.label})}</h3>`;
+     html += bracketHTML(tr.main, ti, 'main');
+     if(tr.cons) {
+        html += `<h3 style="background:#854F0B;color:#fff;padding:8px;border-radius:8px;margin-top:1.5rem;margin-bottom:10px">${tf('po_cons_title',{l:tr.label})}</h3>`;
+        html += bracketHTML(tr.cons, ti, 'cons');
+     }
+     html += `</div>`;
+  });
+  const pa = document.getElementById('print-area');
+  pa.innerHTML = html;
+
+  const style = document.createElement('style');
+  style.id = 'print-landscape-style';
+  style.innerHTML = '@page { size: landscape; }';
+  document.head.appendChild(style);
+
+  setTimeout(() => { 
+      window.print(); 
+      setTimeout(() => { 
+          pa.innerHTML = ''; 
+          const sl = document.getElementById('print-landscape-style');
+          if(sl) document.head.removeChild(sl);
+      }, 800); 
+  }, 350);
+}
+
+function exportExcel(){
+  if(typeof XLSX==='undefined'){toast('Error: librería Excel no cargada.');return;}
+  const wb=XLSX.utils.book_new();
+
+  // ===== HOJA: GRUPOS (todos los ciclos, todos los grupos en una sola pestaña) =====
+  const gAOA=[];
+  cycles.forEach(cy=>{
+    if(!cy.groups)return;
+    gAOA.push(['CICLO '+cy.n]);
+    gAOA.push([]);
+    cy.groups.forEach((g,gi)=>{
+      const gid=gi+1;
+      gAOA.push([groupName(gid)]);
+      gAOA.push(['Destino','Jugador','Pts','G','P','NJ','SG','SP','Bal','P.Puesto','Extra','Total']);
+      const st=computeStats(cy.n,gid);
+      const dest=DESTINO[gid]||[];
+      st.forEach((s,i)=>{
+        const d=dest[i]||'';
+        const base=ptsForPos(gid,i);
+        const ex=i===0?2:0;
+        const isInactive=USERS[s.name]&&USERS[s.name].inactive;
+        gAOA.push([d, s.name+(isInactive?' (INACTIVO)':''), s.pts, s.g, s.p, s.nj, s.sg, s.sp, s.sg-s.sp, isInactive?'':base, ex>0?ex:'', isInactive?'':base+ex]);
+      });
+      gAOA.push([]);
+      // Matriz de resultados
+      const players=(g.players||[]).filter(Boolean);
+      gAOA.push(['Resultados '+groupName(gid)]);
+      gAOA.push(['Jugador',...players]);
+      players.forEach(p=>{
+        const row=[p];
+        players.forEach(q=>{
+          if(p===q){row.push('');return;}
+          const m=findMatch(cy.n,gid,p,q);
+          if(m&&m.np){row.push('NJ');return;}
+          if(m&&m.status==='confirmed'){
+            const sc=m.aName===p?m.sets.map(([a,b])=>a+'-'+b).join(' '):m.sets.map(([a,b])=>b+'-'+a).join(' ');
+            row.push(sc);
+          } else row.push('');
+        });
+        gAOA.push(row);
+      });
+      gAOA.push([]);
+    });
+    gAOA.push([]);
+  });
+  const wsG=XLSX.utils.aoa_to_sheet(gAOA);
+  wsG['!cols']=[{wch:10},{wch:24},{wch:6},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:6},{wch:9},{wch:7},{wch:7}];
+  XLSX.utils.book_append_sheet(wb,wsG,'Grupos');
+
+  // ===== HOJA: PLAY OFFS =====
+  if(playoff.started||playoff.preview){
+    const pAOA=[];
+    playoff.tramos.forEach(tr=>{
+      if(!tr.main)return;
+      pAOA.push(['CUADRO '+tr.label+' - Principal']);
+      pAOA.push(['Ronda','Jugador A','Jugador B','Resultado','Ganador']);
+      tr.main.forEach((round,ri)=>{
+        round.forEach(m=>{
+          const sc=m.np?'No jugado':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
+          pAOA.push([rName_export(ri,tr.main.length), m.a||'BYE', m.b||(m.a?'BYE':''), sc, m.w||'']);
+        });
+      });
+      pAOA.push([]);
+      if(tr.cons){
+        pAOA.push(['CUADRO '+tr.label+' - Consolación']);
+        pAOA.push(['Ronda','Jugador A','Jugador B','Resultado','Ganador']);
+        tr.cons.forEach((round,ri)=>{
+          round.forEach(m=>{
+            const sc=m.np?'No jugado':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
+            pAOA.push([rName_export(ri,tr.cons.length), m.a||'BYE', m.b||(m.a?'BYE':''), sc, m.w||'']);
+          });
+        });
+        pAOA.push([]);
+      }
+    });
+    const wsP=XLSX.utils.aoa_to_sheet(pAOA);
+    wsP['!cols']=[{wch:14},{wch:24},{wch:24},{wch:16},{wch:24}];
+    XLSX.utils.book_append_sheet(wb,wsP,'Play Offs');
+  }
+
+  // ===== HOJA: RESULTADOS (formato plano — base para importar) =====
+  const rAOA=[['Ciclo','Grupo','Jugador A','Jugador B','Resultado','Club','Fecha']];
+  cycles.forEach(cy=>{
+    if(!cy.groups)return;
+    cy.groups.forEach((g,gi)=>{
+      const gid=gi+1;
+      const players=(g.players||[]).filter(Boolean);
+      for(let i=0;i<players.length;i++)for(let j=i+1;j<players.length;j++){
+        const m=findMatch(cy.n,gid,players[i],players[j]);
+        if(!m||m.status!=='confirmed'||m.po)continue;
+        const sc=m.sets.map(([a,b])=>a+'-'+b).join(' ');
+        rAOA.push([cy.n,gid,m.aName,m.bName,sc,m.club||'',fmtDate(m.date)]);
+      }
+    });
+  });
+  const wsR=XLSX.utils.aoa_to_sheet(rAOA);
+  wsR['!cols']=[{wch:7},{wch:7},{wch:22},{wch:22},{wch:16},{wch:9},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsR,'Resultados');
+
+  // ===== HOJA: JUGADORES (padrón: grupo por ciclo, estado, contacto) =====
+  const nameSet={};
+  ALLNAMES.forEach(n=>{nameSet[n]=1;});
+  Object.keys(USERS).forEach(n=>{if(USERS[n]&&USERS[n].role==='player')nameSet[n]=1;});
+  cycles.forEach(cy=>{if(cy.groups)cy.groups.forEach(g=>(g.players||[]).forEach(n=>{if(n)nameSet[n]=1;}));});
+  const roster=Object.keys(nameSet).sort((a,b)=>a.localeCompare(b,'es'));
+  const jHead=['Jugador','Email','Teléfono','Estado'];
+  cycles.forEach(cy=>jHead.push('Ciclo '+cy.n));
+  const jAOA=[jHead];
+  roster.forEach(name=>{
+    const u=USERS[name]||{};
+    const row=[name,u.email||'',u.tel||'',u.inactive?'Inactivo':'Activo'];
+    cycles.forEach(cy=>{
+      if(!cy.groups){row.push('—');return;}
+      const loc=findLoc(name,cy.n);
+      row.push(loc?('Grupo '+loc.g):'—');
+    });
+    jAOA.push(row);
+  });
+  const wsJ=XLSX.utils.aoa_to_sheet(jAOA);
+  const jCols=[{wch:24},{wch:26},{wch:16},{wch:10}];
+  cycles.forEach(()=>jCols.push({wch:10}));
+  wsJ['!cols']=jCols;
+  XLSX.utils.book_append_sheet(wb,wsJ,'Jugadores');
+
+  const fname='Liga_Sohail_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  XLSX.writeFile(wb,fname);
+  toast('Excel exportado: '+fname);
+}
+function rName_export(ri,total){const fe=total-1-ri;if(fe===0)return 'Final';if(fe===1)return 'Semifinal';if(fe===2)return 'Cuartos';if(fe===3)return 'Octavos';if(fe===4)return '16avos';return 'Ronda '+(ri+1);}
+
+// ===== Importar resultados (mismo formato que la hoja "Resultados" de la exportación) =====
+function descargarPlantillaResultados(){
+  if(typeof XLSX==='undefined'){toast('Error: librería Excel no cargada.');return;}
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['Ciclo','Grupo','Jugador A','Jugador B','Resultado','Club','Fecha'],
+    [1,1,'Juan Pérez','María García','6-3 6-4','Sohail','01/07/2026'],
+    [1,1,'Carlos López','Ana Ruiz','6-2 4-6 1-0','Haza','02/07/2026'],
+  ]);
+  ws['!cols']=[{wch:7},{wch:7},{wch:22},{wch:22},{wch:16},{wch:9},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws,'Resultados');
+  XLSX.writeFile(wb,'plantilla_importar_resultados.xlsx');
+  toast('Plantilla descargada. El formato coincide con la hoja "Resultados" de la exportación.');
+}
+function parseResultado(str){
+  if(str==null)return[];
+  str=String(str).trim();
+  if(!str)return[];
+  const tokens=str.split(/[\s,;]+/).filter(Boolean);
+  const sets=[];
+  for(const tok of tokens){
+    const parts=tok.split(/[-–—:]/).map(x=>x.trim());
+    if(parts.length!==2)return null;
+    const a=parseInt(parts[0],10),b=parseInt(parts[1],10);
+    if(isNaN(a)||isNaN(b))return null;
+    sets.push([a,b]);
+  }
+  return sets;
+}
+function importarResultadosExcel(input){
+  const file=input.files[0];
+  if(!file)return;
+  if(typeof XLSX==='undefined'){toast('Error: librería Excel no cargada.');input.value='';return;}
+  if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));input.value='';return;}
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=new Uint8Array(e.target.result);
+      const wb=XLSX.read(data,{type:'array'});
+      const shName=wb.SheetNames.find(n=>/result/i.test(n))||wb.SheetNames[0];
+      const ws=wb.Sheets[shName];
+      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+      if(!rows.length){toast('El archivo está vacío o no tiene el formato correcto.');input.value='';return;}
+      let imported=0,replaced=0,errors=[];
+      const G=(row,keys)=>{for(const k of keys){for(const kk in row){if(kk.trim().toLowerCase()===k)return row[kk];}}return '';};
+      rows.forEach((row,idx)=>{
+        const fila=idx+2;
+        const cicN=parseInt(G(row,['ciclo','cycle']),10);
+        const gid=parseInt(G(row,['grupo','group']),10);
+        const pa=String(G(row,['jugador a','jugadora','player a','jugador_a'])).trim();
+        const pb=String(G(row,['jugador b','jugadorb','player b','jugador_b'])).trim();
+        const resStr=String(G(row,['resultado','result','marcador'])).trim();
+        let club=String(G(row,['club'])).trim();
+        let fecha=String(G(row,['fecha','date'])).trim();
+        if(!pa&&!pb&&!resStr)return; // fila vacía → ignorar en silencio
+        if(!cicN||isNaN(cicN)){errors.push('Fila '+fila+': ciclo inválido');return;}
+        const c=cycles[cicN-1];
+        if(!c||!c.groups){errors.push('Fila '+fila+': el ciclo '+cicN+' no tiene grupos activos');return;}
+        if(!gid||gid<1||gid>c.groups.length){errors.push('Fila '+fila+': grupo inválido ('+cicN+')');return;}
+        const gpl=(c.groups[gid-1].players||[]);
+        if(!pa||!pb){errors.push('Fila '+fila+': faltan jugadores');return;}
+        if(pa===pb){errors.push('Fila '+fila+': Jugador A y B son el mismo');return;}
+        if(gpl.indexOf(pa)<0){errors.push('Fila '+fila+': "'+pa+'" no está en '+groupName(gid)+' (ciclo '+cicN+')');return;}
+        if(gpl.indexOf(pb)<0){errors.push('Fila '+fila+': "'+pb+'" no está en '+groupName(gid)+' (ciclo '+cicN+')');return;}
+        const sets=parseResultado(resStr);
+        if(sets===null){errors.push('Fila '+fila+': no se pudo leer el resultado "'+resStr+'"');return;}
+        const vr=validMatch(sets);
+        if(!vr.ok){errors.push('Fila '+fila+': '+vr.msg+' ("'+resStr+'")');return;}
+        if(/haza/i.test(club))club='Haza';else if(/sohail/i.test(club))club='Sohail';else club='';
+        fecha=toISODate(fecha)||new Date().toISOString().slice(0,10);
+        const exist=findMatch(cicN,gid,pa,pb);
+        if(exist){matches=matches.filter(m=>m!==exist);replaced++;}
+        // Un admin que además juega no valida sus propios partidos ni por Excel:
+        // era la última puerta que quedaba abierta para saltearse la regla.
+        const propio=!validaAlCargar(pa,pb);
+        matches.push({id:matchId++,cycle:cicN,g:gid,aName:pa,bName:pb,sets:sets,date:fecha,status:propio?'pending':'confirmed',vBy:propio?undefined:currentUser.name,reporter:pa,club:club,locked:!propio});
+        imported++;
+      });
+      addLog('Liga: import de resultados',{importados:imported,reemplazados:replaced,errores:errors.length});
+      persist(true);refreshAll();
+      let msg=imported+' resultado'+(imported!==1?'s':'')+' importado'+(imported!==1?'s':'')+' y validado'+(imported!==1?'s':'')+'.';
+      if(replaced)msg+=' '+replaced+' reemplazaron uno existente.';
+      if(errors.length)msg+=' '+errors.length+' con error.';
+      toast(msg);
+      if(errors.length)alert('Errores de importación:\n\n'+errors.join('\n'));
+    }catch(err){toast('Error al leer el archivo: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+  input.value='';
+}
+function setViewT(i){playoff.viewT=i;showPlayoffView();}
+
+function moveSeedUI(toTi){
+  const sel=document.getElementById('po-move-'+toTi);
+  const name=sel?sel.value:'';
+  if(!name){toast(t('po_move_no_player'));return;}
+  let fromTi=-1;
+  playoff.tramos.forEach((tr,i)=>{if(tr.seeds.includes(name))fromTi=i;});
+  if(fromTi<0||fromTi===toTi){toast(t('po_move_not_found'));return;}
+  if(!confirm(tf('po_move_confirm',{n:name,from:playoff.tramos[fromTi].label,to:playoff.tramos[toTi].label})))return;
+  playoff.tramos[fromTi].seeds=playoff.tramos[fromTi].seeds.filter(n=>n!==name);
+  const srcKey=fromTi+'#';
+  Object.keys(playoff.results).forEach(k=>{if(k.startsWith(srcKey)&&k.includes(name))delete playoff.results[k];});
+  rebuildTramo(fromTi);
+  addSeed(toTi,name);
+  showPlayoffView();
+  toast(tf('po_move_ok',{n:name,to:playoff.tramos[toTi].label}));
+  persist(true);
+}
+// Reordenar seeds dentro del MISMO cuadro (cambia los emparejamientos del bracket).
+// Si ya hay resultados cargados en ese cuadro, se pide confirmación porque los
+// enfrentamientos cambian y esos resultados dejan de tener sentido.
+function _poHasResultsInBracket(ti){
+  const prefix=ti+'#';
+  return Object.keys(playoff.results||{}).some(k=>k.startsWith(prefix));
+}
+function _poClearBracketResults(ti){
+  const prefix=ti+'#';
+  Object.keys(playoff.results||{}).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
+}
+function _swapSeeds(ti,i,j){
+  const tr=playoff.tramos[ti];
+  if(!tr||!Array.isArray(tr.seeds))return false;
+  if(i<0||j<0||i>=tr.seeds.length||j>=tr.seeds.length)return false;
+  const label=tr.label;
+  // Si hay resultados en el cuadro, avisar. Después borrar para rearmar limpio.
+  if(_poHasResultsInBracket(ti)){
+    if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
+    _poClearBracketResults(ti);
+  }
+  const tmp=tr.seeds[i];tr.seeds[i]=tr.seeds[j];tr.seeds[j]=tmp;
+  rebuildTramo(ti);
+  return true;
+}
+function moveSeedUpUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  const idx=tr.seeds.indexOf(name);
+  if(idx<=0)return;
+  if(_swapSeeds(ti,idx,idx-1)){
+    showPlayoffView();
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
+function moveSeedDownUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  const idx=tr.seeds.indexOf(name);
+  if(idx<0||idx>=tr.seeds.length-1)return;
+  if(_swapSeeds(ti,idx,idx+1)){
+    showPlayoffView();
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
+function removeSeedUI(ti,name){removeSeed(ti,name);showPlayoffView();toast(tf('po_seed_removed',{name}));persist(true);}
+function addSeedUI(ti){const sel=document.getElementById('po-add-'+ti);const name=sel?sel.value:'';if(!name){toast(t('po_choose_add'));return;}addSeed(ti,name);showPlayoffView();toast(tf('po_seed_added',{name}));persist(true);}
+
+function matchBox(m,ti,which,ri,mi,isFirstRound){
+  const realMatch=!!(m.a&&m.b);const aw=realMatch&&m.w&&m.w===m.a,bw=realMatch&&m.w&&m.w===m.b;
+  const sc=m.np?t('po_not_played'):m.wo?'W.O.':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
+  // Busca si hay un resultado ya cargado (pending o disputed) en `matches` para
+  // este slot del bracket. Sin este chequeo, el rival veía el slot como
+  // "Pendiente de juego" y podía cargar OTRO resultado (duplicado).
+  //
+  // Búsqueda con dos criterios en cascada:
+  //   1) Coordenadas del bracket (ti/which/ri/mi), coercionadas a number/string
+  //      para tolerar que algún deploy viejo las haya guardado como string.
+  //   2) Fallback por nombres: si algún match antiguo no tiene coordenadas
+  //      exactas, matcheamos por poNames que contengan ambos jugadores del slot.
+  //      Esto cubre partidos de la misma llave aunque las coordenadas hayan
+  //      cambiado tras una reorganización del bracket.
+  const _poPending = (m.a && m.b && !m.w)
+    ? (matches || []).find(function(x){
+        if(!x || x.po !== true) return false;
+        if(x.status !== 'pending' && x.status !== 'disputed') return false;
+        // Criterio 1: coordenadas del bracket (con coerción defensiva).
+        var sameCoord = (Number(x.ti) === Number(ti))
+                     && (String(x.which) === String(which))
+                     && (Number(x.ri) === Number(ri))
+                     && (Number(x.mi) === Number(mi));
+        if(sameCoord) return true;
+        // Criterio 2: mismos 2 jugadores (en cualquier orden). Un partido de
+        // playoff con exactamente estos 2 jugadores es único en la liga —
+        // no puede haber dos matches pending distintos entre los mismos
+        // jugadores. Sin este fallback, si por algún motivo los índices
+        // ti/which/ri/mi guardados no coinciden con los del bracket (por un
+        // rearmado, reset o guardado con tipos distintos), el partido se
+        // mostraba invisible y el rival podía cargar un duplicado.
+        if(Array.isArray(x.poNames) && x.poNames.length === 2
+           && x.poNames.indexOf(m.a) !== -1
+           && x.poNames.indexOf(m.b) !== -1) return true;
+        return false;
+      })
+    : null;
+  const canLoad=m.a&&m.b&&!m.w&&!_poPending&&(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name);
+  const emptyTxt=isFirstRound?'BYE':t('tbd');
+  const isBYE_A=!m.a&&m.b;const isBYE_B=!m.b&&m.a;
+  const meA=currentUser&&m.a===currentUser.name;const meB=currentUser&&m.b===currentUser.name;
+  // Nota: cuando meA/meB, el fondo cream #FFF8DC + clase .po-me-slot fuerzan
+  // texto oscuro en dark mode (regla en CSS). El seed number y el chip "yo"
+  // heredan la clase para no quedar en blanco sobre cream.
+  const sA=aw?'background:var(--winrow);font-weight:700;color:var(--priD);':meA?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_A?'background:var(--surface2);':'';
+  const sB=bw?'background:var(--winrow);font-weight:700;color:var(--priD);':meB?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_B?'background:var(--surface2);':'';
+  const iA=!m.a?'color:var(--text2);font-style:italic;':'';
+  const iB=!m.b&&m.a?'color:var(--text2);font-style:italic;':'';
+  const nmA=m.a||emptyTxt;const nmB=m.b||(m.a?'BYE':emptyTxt);
+  const clA=m.a?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.a)+'\')">'+nmA+'</span>':nmA;
+  const clB=m.b?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')">'+nmB+'</span>':nmB;
+  const seedA=m.sid[0]||'';const seedB=m.sid[1]||'';
+  function fn(n){return n?n.split(' ')[0]:'';}
+  const fA=fn(m.a),fB=fn(m.b);
+  const sameFirst=m.a&&m.b&&fA===fB;
+  const lblA=m.a?(sameFirst?m.a:fA):'';
+  const lblB=m.b?(sameFirst?m.b:fB):'';
+  const hA='';
+  const hB='';
+  let bot='';
+  if(m.w&&m.a&&m.b){
+    const editRow=esAdmin(currentUser)
+      ?'<div style="display:flex;gap:6px;padding:5px 8px;border-top:1px solid var(--border);background:var(--surface)">'
+        +'<button class="po-slot-btn po-slot-edit" onclick="poReport('+ti+',\''+which+'\','+ri+','+mi+')"><i class="ti ti-edit"></i> '+t('edit')+'</button>'
+        +'<button class="po-slot-btn po-slot-del" onclick="deletePoDirect('+ti+',\''+which+'\','+ri+','+mi+')"><i class="ti ti-trash"></i> '+t('po_delete_btn')+'</button>'
+        +'</div>'
+      :'<div style="height:0"></div>';
+    bot='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:var(--surface2);font-size:11px;border-top:1px solid var(--border)"><span style="color:var(--text2)">'+sc+'</span><span style="color:#085041;font-weight:700">✓ '+m.w+'</span></div>'+editRow;
+  }else if(_poPending){
+    // Resultado cargado esperando validación. Mostramos el marcador + reloj,
+    // igual que en la tabla de grupos, y un botón que abre el modal existente
+    // (openModal) que ya sabe manejar matches de playoff: el rival puede
+    // disputar, el admin puede validar, todos pueden ver el detalle.
+    const pSc = _poPending.np ? t('po_not_played')
+              : _poPending.wo ? 'W.O.'
+              : (_poPending.sets ? _poPending.sets.map(([a,b])=>a+'-'+b).join(' ') : '');
+    const disputed = _poPending.status === 'disputed';
+    // Estilo del row del resultado: fondo warn con reloj para pending,
+    // fondo disputa para disputed. Usa las mismas clases que grupos.
+    const stCls = disputed ? 'cell-disputed' : 'cell-pending';
+    const stIco = disputed ? '⚠️' : '⏳';
+    const stLbl = disputed ? t('legend_disputed') : t('legend_pending');
+    bot = '<div class="'+stCls+'" style="padding:5px 12px;font-size:11px;border-top:1px solid var(--border);text-align:center;cursor:pointer" onclick="openModal('+_poPending.id+')">'
+        +   '<span style="font-weight:600">'+pSc+' '+stIco+'</span>'
+        +   '<span style="font-size:10px;margin-left:6px;opacity:.85">'+stLbl+'</span>'
+        + '</div>'
+        // Fila de acciones inferior, mismo alto que la que se muestra cuando m.w existe,
+        // para que las cajas del bracket queden alineadas en todas las rondas.
+        + '<div style="display:flex;gap:6px;padding:5px 8px;border-top:1px solid var(--border);background:var(--surface)">'
+        +   '<button class="po-slot-btn po-slot-edit" onclick="openModal('+_poPending.id+')"><i class="ti ti-eye"></i> '+t('review')+'</button>'
+        + '</div>';
+  }else if(canLoad){
+    bot='<div style="padding:6px 8px;border-top:1px solid var(--border);text-align:center"><button class="po-load" onclick="poReport('+ti+',\''+which+'\','+ri+','+mi+')"><i class="ti ti-upload"></i> '+t('po_load_result')+'</button></div>'
+      +(esAdmin(currentUser)?'<div style="height:34px"></div>':'');
+  }else if(m.a&&m.b&&!m.w){
+    bot='<div style="padding:5px 8px;border-top:1px solid var(--border);text-align:center"><span style="font-size:11px;color:var(--text2);font-style:italic">'+t('pending_match')+'</span></div>'
+      +(esAdmin(currentUser)?'<div style="height:34px"></div>':'');
+  }else{
+    bot=esAdmin(currentUser)?'<div style="height:56px"></div>':'<div style="height:22px"></div>';
+  }
+  return '<div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);width:220px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
+    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'
+    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;font-size:12px;min-height:32px;'+sB+iB+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'
+    +bot+'</div>';
+}
+
+function bracketHTML(rounds,ti,which){
+  if(!rounds||!rounds.length)return'';
+  const total=rounds.length;
+  // BH = actual rendered box height (must match CSS)
+  // 2 name headers (~15px each) + 2 slots (34px each) + result row (22px) + edit row (34px admin) = ~154px
+  // Use consistent 160px so SVG always centers correctly
+  const BW=220, BH=160, GAP=24, GX=72, LABEL_H=(currentUser&&currentUser.role==="admin"?90:58);
+  // Slot connect offset: name header(14) + slot(34)/2 = 14+17 = 31 from top (first player slot center)
+  // Second player slot center: 14+34+14+17 = 79
+  // Mid-box connect point: (31+79)/2 = 55 from top of box
+  const BOX_CONNECT=55;
+  function slotSpacing(ri){ return Math.pow(2,ri)*(BH+GAP); }
+  function matchCount(ri){ return rounds[ri].length; }
+  function matchY(ri,mi){
+    const sp=slotSpacing(ri);
+    const n=matchCount(ri);
+    const totalH=n*sp;
+    const firstCenter=sp/2;
+    return firstCenter+mi*sp;
+  }
+  const totalH=matchCount(0)*(BH+GAP);
+  const svgH=totalH+LABEL_H;
+  const totalW=total*(BW+GX);
+  function rName(ri){const fe=total-1-ri;if(fe===0)return t('round_final');if(fe===1)return t('round_semi');if(fe===2)return t('round_quarters');if(fe===3)return t('round_16');if(fe===4)return t('round_32');return tf('round_n',{n:ri+1});}
+  function rKey(ri){const fe=total-1-ri;if(fe===0)return 'r2';if(fe===1)return 'r4';if(fe===2)return 'r8';if(fe===3)return 'r16';if(fe===4)return 'r32';return 'r64';}
+  function fmtD(s){if(!s)return '';const p=s.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:s;}
+  function rDateLabel(ri){const k=rKey(ri);const f=PO_FECHAS[k];if(!f)return '';if(f.type==='range'&&f.from&&f.to)return fmtD(f.from)+' → '+fmtD(f.to);if(f.type==='single'&&f.date)return fmtD(f.date);if(typeof f==='string'&&f)return fmtD(f);return '';}
+  let svg='';
+  for(let ri=0;ri<total-1;ri++){
+    const n=rounds[ri].length;
+    const x1=ri*(BW+GX)+BW;
+    const x2=(ri+1)*(BW+GX);
+    const xm=x1+GX/2;
+    for(let mi=0;mi<n;mi+=2){
+      const yA=matchY(ri,mi);// yA/yB are box centers; adjust to slot centers
+      const yB=matchY(ri,mi+1);
+      const yM=(yA+yB)/2;
+      const yN=matchY(ri+1,mi/2);
+      svg+=`<line x1="${x1}" y1="${yA}" x2="${xm}" y2="${yA}" stroke="#C8D0DC" stroke-width="1.5"/>`;
+      svg+=`<line x1="${x1}" y1="${yB}" x2="${xm}" y2="${yB}" stroke="#C8D0DC" stroke-width="1.5"/>`;
+      svg+=`<line x1="${xm}" y1="${yA}" x2="${xm}" y2="${yB}" stroke="#C8D0DC" stroke-width="1.5"/>`;
+      svg+=`<line x1="${xm}" y1="${yM}" x2="${x2}" y2="${yN}" stroke="#C8D0DC" stroke-width="1.5"/>`;
+    }
+  }
+  let cols='';
+  for(let ri=0;ri<total;ri++){
+    const rd=rounds[ri];const isFirst=ri===0;
+    const cx=ri*(BW+GX);
+    // Single column div - header at top, matches absolutely positioned below
+    cols+=`<div style="position:absolute;left:${cx}px;top:0;width:${BW}px">`;
+    // Round name + date
+    const dateStr=rDateLabel(ri);
+    const rk=rKey(ri);
+    const pf=PO_FECHAS[rk]||{type:'single',date:'',from:'',to:''};
+    const isAdmin=esAdmin(currentUser);
+    let dateLine='';
+    if(isAdmin){
+      const isSingle=pf.type==='single';
+      const selHtml='<select onchange="setPoFechaType(\''+rk+'\',this.value);showPlayoffView()" style="font-size:10px;padding:2px 4px;border-radius:5px;border:1px solid var(--border2);background:var(--surface);margin-bottom:3px;width:100%"><option value="single" '+(isSingle?'selected':'')+'>'+t('po_date_single')+'</option><option value="range" '+(!isSingle?'selected':'')+'>'+t('po_date_range')+'</option></select>';
+      const inpHtml=isSingle
+        ?'<input type="date" value="'+attr(pf.date||'')+'" onchange="setPoFecha(\''+rk+'\',\'date\',this.value)" style="font-size:10px;padding:2px 6px;border-radius:5px;border:1px solid var(--border2);background:var(--surface);width:100%">'
+        :'<div style="display:flex;gap:4px;align-items:center"><input type="date" value="'+attr(pf.from||'')+'" onchange="setPoFecha(\''+rk+'\',\'from\',this.value)" style="flex:1;font-size:10px;padding:2px 4px;border-radius:5px;border:1px solid var(--border2);background:var(--surface)"><span style="font-size:10px;color:var(--text2)">→</span><input type="date" value="'+attr(pf.to||'')+'" onchange="setPoFecha(\''+rk+'\',\'to\',this.value)" style="flex:1;font-size:10px;padding:2px 4px;border-radius:5px;border:1px solid var(--border2);background:var(--surface)"></div>';
+      dateLine='<div style="margin-top:2px">'+selHtml+inpHtml+'</div>';
+    } else if(dateStr){
+      dateLine='<span style="font-size:11px;font-weight:700;color:var(--pri);letter-spacing:.03em">'+dateStr+'</span>';
+    }
+    cols+='<div style="text-align:center;height:'+LABEL_H+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px">'
+      +'<span style="font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.06em">'+rName(ri)+'</span>'
+      +dateLine
+      +'</div>';
+    rd.forEach((m,mi)=>{
+      const yc=matchY(ri,mi);
+      const yTop=yc-BOX_CONNECT;
+      cols+=`<div style="position:absolute;top:${LABEL_H+yTop}px;left:0;width:${BW}px">${matchBox(m,ti,which,ri,mi,isFirst)}</div>`;
+    });
+    cols+='</div>';
+  }
+  return `<div style="overflow-x:auto;padding:.5rem 0"><div style="position:relative;width:${totalW}px;height:${svgH}px;flex-shrink:0"><svg style="position:absolute;top:${LABEL_H}px;left:0;width:${totalW}px;height:${totalH}px;overflow:visible;pointer-events:none">${svg}</svg>${cols}</div></div>`;
+}
+
+function showPlayoffView(){
+  const pv=document.getElementById('view-playoff');
+  if(!pv)return;
+  pv.style.display='block';
+  ['grupos','general','cargar','pendientes','admin','perfil'].forEach(v=>{
+    const el=document.getElementById('view-'+v);
+    if(el)el.style.display='none';
+  });
+  if(!playoff.started&&!playoff.preview){
+    pv.innerHTML=`<div class="card"><div class="empty">${t('po_not_yet')}</div></div>`;
+    return;
+  }
+  try{
+  const isAdmin=esAdmin(currentUser);
+  let html='';
+
+  if(playoff.preview&&!playoff.started){
+    html+=`<div class="card po-preview-banner"><p class="pp-title"><i class="ti ti-eye"></i> ${t('po_preview_banner')}</p><p class="legend-txt" style="margin-top:0">${t('po_preview_hint')}</p>${isAdmin?`<button class="btn btn-accent" onclick="confirmPlayoffUI()"><i class="ti ti-check"></i> ${t('po_confirm_start')}</button>`:''}</div>`;
+  }
+
+  // Auto-jump to own bracket only on first visit (viewT starts at 0)
+  if(currentUser&&currentUser.role==='player'&&playoff._autoJumped!==currentUser.name){
+    const myTi=playoff.tramos.findIndex(tr=>tr.seeds.includes(currentUser.name));
+    if(myTi>=0){playoff.viewT=myTi;playoff._autoJumped=currentUser.name;}
+  }
+
+  html+=`<div class="po-tramos">${playoff.tramos.map((tr,i)=>{
+    const hasMe=currentUser&&currentUser.role==='player'&&tr.seeds.includes(currentUser.name);
+    const badge=hasMe?'<span style="font-size:9px;background:var(--acc);color:var(--priD);border-radius:4px;padding:1px 4px;font-weight:700">✓</span>':'';
+    return '<button class="po-tab '+(playoff.viewT===i?'active':'')+'" onclick="setViewT('+i+')">'+tf('po_match',{l:tr.label})+(badge?'&nbsp;'+badge:'')+'<br><span class="po-rng">'+tr.seeds.length+' '+t('po_tab_players')+'</span></button>';
+  }).join('')}</div>`;
+
+  const ti=playoff.viewT;
+  const tr=playoff.tramos[ti];
+  if(!tr){pv.innerHTML=html+`<div class="card"><div class="empty">${t('po_no_bracket')}</div></div>`;return;}
+
+  if(isAdmin){
+    const standingsOrder=playoff.qualified||[];
+    const inPo={};playoff.tramos.forEach((tr2,ti2)=>tr2.seeds.forEach(n=>inPo[n]=ti2));
+    const avail=ALLNAMES.filter(n=>!Object.keys(inPo).includes(n));
+    function availLabel(n){return (USERS[n]&&USERS[n].inactive)?n+' (INACTIVO)':n;}
+    const inOtherBrackets=standingsOrder.filter(n=>inPo[n]!==undefined&&inPo[n]!==ti);
+    function rank(n){const r=standingsOrder.indexOf(n);return r>=0?r+1:'';}
+    html+=`<div class="card"><div class="section-lbl">${tf('po_seeds_title',{l:tr.label})}</div>
+    <div class="seed-list">${tr.seeds.map((n,idx)=>{const isFirst=idx===0;const isLast=idx===tr.seeds.length-1;return `<span class="seed-chip" style="${(USERS[n]&&USERS[n].inactive)?'background:#FCEBEB':''}"><span style="color:var(--text2);font-size:10px;min-width:18px;display:inline-block">#${rank(n)}</span> ${availLabel(n)} <button class="mv" onclick="moveSeedUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveSeedDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button><button class="rm" onclick="removeSeedUI(${ti},'${jsq(n)}')" aria-label="Quitar"><i class="ti ti-x"></i></button></span>`;}).join('')}</div>
+    <div class="form-row" style="margin-top:.6rem">
+      <div class="form-group"><label>${t('po_add_label')}</label><select id="po-add-${ti}"><option value="">${t('po_add_choose')}</option>${avail.map(n=>`<option value="${n}">#${rank(n)} ${availLabel(n)}</option>`).join('')}</select></div>
+      <div class="form-group" style="align-self:end"><button class="btn btn-primary btn-sm" onclick="addSeedUI(${ti})"><i class="ti ti-plus"></i> ${t('po_add_btn')}</button></div>
+    </div>
+    <div class="form-row" style="margin-top:.4rem">
+      <div class="form-group"><label>${t('po_move_from')}</label><select id="po-move-${ti}"><option value="">${t('po_choose_player')}</option>${inOtherBrackets.map(n=>`<option value="${n}">#${rank(n)} ${n} (${t('draw')} ${playoff.tramos[inPo[n]].label})</option>`).join('')}</select></div>
+      <div class="form-group" style="align-self:end"><button class="btn btn-sm po-move-btn" onclick="moveSeedUI(${ti})"><i class="ti ti-arrows-exchange"></i> ${t('po_move_here')}</button></div>
+    </div>
+    <p class="legend-txt">${t('po_bye_note')}</p></div>`;
+  }
+
+  const finalM=tr.main&&tr.main.length?tr.main[tr.main.length-1][0]:null;
+  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}</div>${bracketHTML(tr.main,ti,'main')}${finalM&&finalM.w?`<div class="champ-card"><div class="lbl">${tf('po_champ',{l:tr.label})}</div><div class="who"><i class="ti ti-crown"></i> <span class="nm-link" onclick="showPlayerHistory('${jsq(finalM.w)}')">${finalM.w}</span></div></div>`:''}</div>`;
+  if(tr.cons){
+    const cf=tr.cons[tr.cons.length-1][0];
+    html+=`<div class="card"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}</div>${bracketHTML(tr.cons,ti,'cons')}${cf&&cf.w?`<div class="champ-card champ-cons"><div class="lbl">${tf('po_champ_cons',{l:tr.label})}</div><div class="who"><span class="nm-link" onclick="showPlayerHistory('${jsq(cf.w)}')">${cf.w}</span></div></div>`:''}</div>`;
+  }
+
+  html+=`<div class="card legend-card"><p class="legend-txt">${t('po_legend')}</p></div>`;
+  pv.innerHTML=html;
+  }catch(err){
+    console.error('showPlayoffView ERROR:',err);
+    pv.innerHTML='<div class="card"><div class="empty" style="color:red">Error al mostrar playoffs: '+err.message+'</div></div>';
+  }
+}
+function removePlayerUI(name,fromG){removePlayerCycle(name,fromG);renderAdmin();toast(name+' quitado del ciclo.');persist(true);}
+
+function resetCycleUI(n){
+  // Mismo criterio que retroceder: con playoffs activos, cambiar resultados de un
+  // ciclo altera la general con la que se armaron los cuadros.
+  if(playoff.started||playoff.preview){
+    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nBorrar los partidos de un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reiniciá los Play Offs (Admin → Reiniciar Play Offs) y después reiniciá el ciclo.');
+    return;
+  }
+  if(!confirm(tf('reset_confirm_cycle',{n})))return;
+  // Solo se borran los PARTIDOS del ciclo. Los grupos, sus jugadores, los movimientos
+  // entre grupos y los inactivos se conservan exactamente como están. Antes se
+  // reseteaba la estructura entera al estado inicial (C1 hardcodeado), lo que perdía
+  // todos los movimientos de jugadores que el admin había hecho durante el ciclo.
+  matches=matches.filter(m=>m.cycle!==n);
+  // Limpiar editMode colgado (el ciclo pasa a activo normal, no necesita el flag).
+  cycles.forEach(cx=>delete cx.editMode);
+  // El ciclo se reabre (status='active') y todos los ciclos posteriores se bloquean.
+  cycles[n-1].status='active';
+  for(let i=n;i<cycles.length;i++){
+    cycles[i].status='locked';
+    cycles[i].groups=null;  // los ciclos posteriores se limpian igual: su estructura
+  }                          // se armaría al cerrar el ciclo N de nuevo.
+  activeN=n;
+  viewCycle=n;
+  persist(true);renderShell();showSub('admin');toast(t('reset_done'));
+}
+
+// Habilita/deshabilita la carga de partidos en un ciclo cerrado.
+// Con editMode=true, jugadores y admins pueden cargar en ese ciclo desde "Cargar".
+// Solo un ciclo puede tener editMode activo a la vez (se desactiva el anterior).
+function toggleEditMode(n){
+  const c2=cycles[n-1]; if(!c2)return;
+  // Solo tiene sentido en ciclos cerrados: el activo ya permite cargar normalmente.
+  if(!c2.editMode && c2.status!=='finished'){toast('El Ciclo '+n+' no está cerrado; ya se puede cargar normalmente.');return;}
+  if(c2.editMode){
+    delete c2.editMode;
+    toast('Carga deshabilitada en Ciclo '+n+'. El ciclo volvió a estar cerrado.');
+  }else{
+    cycles.forEach(cx=>delete cx.editMode);
+    c2.editMode=true;
+    toast('Carga habilitada en Ciclo '+n+'. Podés cargar resultados desde Grupos o Cargar.');
+  }
+  persist(true);
+  // Navegar al ciclo habilitado para que se vean los "+" en la matriz
+  if(c2.editMode){
+    viewCycle=n;
+    renderShell();
+    showSub('grupos');
+  }else{
+    renderAdmin();
+  }
+}
+// Los partidos del ciclo N se CONSERVAN, solo se reabre para seguir cargando.
+// Es distinto de resetCycleUI (que borra partidos): esto simplemente "deshace" el
+// cierre del ciclo anterior para poder seguir cargando resultados en él.
+// Útil cuando se cerró un ciclo por error o hay partidos pendientes de cargar.
+function retrocederCicloUI(){
+  // Solo tiene sentido si hay al menos 2 ciclos y el activo no es el primero
+  if(activeN<=1){toast('Ya estás en el primer ciclo, no hay ciclo anterior al que volver.');return;}
+  // Con playoffs activos, retroceder deja los cuadros inconsistentes (se armaron
+  // con la clasificación general completa). Hay que reiniciarlos primero.
+  if(playoff.started||playoff.preview){
+    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nRetroceder un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reiniciá los Play Offs (Admin → Reiniciar Play Offs) y después retrocedé el ciclo.');
+    return;
+  }
+  const cycAnterior=activeN-1;
+  const cAnterior=cycles[cycAnterior-1];
+  if(!cAnterior){toast('No existe el ciclo anterior.');return;}
+  if(!confirm('RETROCEDER AL CICLO '+cycAnterior+'\n\n'
+    +'Esto reabre el Ciclo '+cycAnterior+' como activo y descarta la estructura del Ciclo '+activeN+'.\n\n'
+    +'Los PARTIDOS del Ciclo '+cycAnterior+' se conservan. Los del Ciclo '+activeN+' también se borran '
+    +'(si querés conservarlos, primero exportá un backup).\n\n'
+    +'¿Continuar?'))return;
+  // Borrar partidos del ciclo actual (el que se está "deshaciendo")
+  matches=matches.filter(m=>m.cycle!==activeN);
+  // Limpiar cualquier editMode colgado: al retroceder, el ciclo destino pasa a ser
+  // el activo normal (no necesita editMode) y el descartado deja de existir.
+  cycles.forEach(cx=>delete cx.editMode);
+  // Desbloquear el ciclo anterior
+  cycles[cycAnterior-1].status='active';
+  // Borrar la estructura del ciclo actual (que se armó al cerrar el anterior)
+  cycles[activeN-1].status='locked';
+  cycles[activeN-1].groups=null;
+  activeN=cycAnterior;
+  viewCycle=cycAnterior;
+  persist(true);renderShell();showSub('admin');
+  toast('Ciclo '+cycAnterior+' reabierto. Podés seguir cargando resultados.');
+}
+function resetPlayoffUI(){if(!confirm(t('reset_confirm_po')))return;playoff={started:false,numTramos:4,tramos:[],results:{},viewT:0,qualified:[],preview:false,forcedSize:0};matches=matches.filter(m=>!m.po);Object.keys(PO_FECHAS).forEach(k=>{PO_FECHAS[k]={type:'single',date:'',from:'',to:''};});if(viewCycle==='po')viewCycle=activeN;persist(true);renderShell();showSub('admin');toast(t('reset_done'));}
+function setPoNum(v){
+  const newV=+v;
+  if(playoff.started&&newV!==playoff.numTramos){
+    if(!confirm('⚠️ Los Play Offs ya están iniciados. Cambiar la cantidad de cuadros va a reorganizar todos los jugadores y se perderán los resultados ya cargados. ¿Confirmar cambio a '+newV+' cuadros?')){
+      const sel=document.querySelector('[onchange*="setPoNum"]');
+      if(sel)sel.value=playoff.numTramos;
+      return;
+    }
+  }
+  playoff.numTramos=newV;
+  if(playoff.started||playoff.preview){setNumTramos(newV);persist(true);}
+}
+
+function setPoSize(v){
+  const newV=+v;
+  if(playoff.started&&newV!==playoff.forcedSize){
+    if(!confirm('⚠️ Los Play Offs ya están iniciados. Cambiar el tamaño del cuadro va a reorganizar los brackets y se perderán los resultados ya cargados. ¿Confirmar?')){
+      const sel=document.querySelector('[onchange*="setPoSize"]');
+      if(sel)sel.value=playoff.forcedSize||0;
+      return;
+    }
+  }
+  playoff.forcedSize=newV;
+  if(playoff.started||playoff.preview){rebuildAll();showPlayoffView();toast('Tamaño del cuadro actualizado.');}
+}
+function addPlayerUI(){
+  const nom=(document.getElementById('ap-nom').value||'').trim();
+  const ape=(document.getElementById('ap-ape').value||'').trim();
+  const gid=+document.getElementById('ap-grp').value;
+  const full=(nom+' '+ape).trim();
+  if(!nom||!ape){toast(t('add_fill_both'));return;}
+  if(!gid){toast(t('add_choose_group'));return;}
+  // Verificar si ya está en algún grupo activo (no solo en USERS/ALLNAMES)
+  const inAnyGroup = cycles.some(c=>c.groups&&c.groups.some(g=>(g.players||[]).includes(full)));
+  if(inAnyGroup){toast(t('add_exists'));return;}
+  // Si existe en USERS pero no en ningún grupo, limpiarlo y re-agregar
+  if(USERS[full]) delete USERS[full];
+  const idxA = ALLNAMES.indexOf(full);
+  if(idxA>=0) ALLNAMES.splice(idxA,1);
+  addPlayerToCycle(full,gid);
+  renderPerfil();toast(tf('add_done',{name:full,g:groupName(gid)}));
+  // Primero guardar, DESPUÉS refrescar la lista: /api/users lee de la base,
+  // así que si refrescáramos antes traeríamos la lista sin el jugador nuevo.
+  persist(true).then(initLogin);
+}
+function setDestino(gid,pos,val){ensureDestino(gid,pos+1);DESTINO[gid][pos]='G'+val;if(subView==='admin')renderAdmin();toast(groupName(gid)+' · '+(pos+1)+'º → '+groupName(+val));persist(true);}
+function destinoCard(){
+  const grps=cycles[activeN-1]?.groups || [];
+  if(!grps.length) return '';
+  let html=`<div class="card"><div class="section-lbl">${t('promotions_title')}</div><p class="legend-txt" style="margin-top:0">${t('promotions_hint')}</p><div class="grpedit">`;
+  const totalGrps=grps.length;
+  grps.forEach(function(g,gi){
+    const gid=gi+1;
+    const len=Math.max(1,(g.players||[]).length);
+    ensureDestino(gid,len);
+    html+=`<div class="ge-group"><div class="ge-gtitle">${groupName(gid)} (${(g.players||[]).length})</div>`;
+    for(let pos=0;pos<len;pos++){
+      const cur=parseInt((DESTINO[gid][pos]||('G'+Math.min(gid+1,totalGrps))).replace('G',''));
+      html+=`<div class="ge-row"><span class="ge-nm">${tf('pos_goes_to',{pos:pos+1})}</span><select class="ge-sel" onchange="setDestino(${gid},${pos},this.value)">`;
+      for(let k=0;k<totalGrps;k++){
+        html+=`<option value="${k+1}"${cur===k+1?' selected':''}>${groupName(k+1)}</option>`;
+      }
+      html+='</select></div>';
+    }
+    html+='</div>';
+  });
+  return html+'</div></div>';
+}
+function setFecha(i,v){FECHAS[i]=v;updateHdr();renderCycleBar();toast('Fecha del Ciclo '+(i+1)+' actualizada.');persist(true);}
+async function previewPlayoffUI(){
+  if(!previewPlayoff()){toast(t('po_need_3cycles'));return;}
+  const gen=computeGeneral();
+  if(!gen||gen.length<2){toast('No hay suficientes jugadores activos para armar los Play Offs. Verificá que haya al menos 2 jugadores activos.');return;}
+  viewCycle='po';renderCycleBar();showPlayoffView();renderSubTabs();
+  toast('⏳ Guardando previsualización…');
+  const ok=await _criticalSave();
+  if(ok){
+    toast(t('po_preview_toast'));
+  }else{
+    // Revertir si no se pudo guardar
+    playoff.preview=false;
+    renderCycleBar();
+    alert('⚠️ No se pudo guardar la previsualización de Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecargá la página y volvé a intentarlo.');
+  }
+}
+async function confirmPlayoffUI(){
+  if(!confirmPlayoff())return;
+  // Mostrar al usuario que el proceso está en curso antes de hacer el fetch
+  toast('⏳ Iniciando Play Offs…');
+  const ok=await _criticalSave();
+  if(ok){
+    renderCycleBar();showPlayoffView();renderSubTabs();
+    toast(t('po_confirmed_toast'));
+  }else{
+    // Revertir el estado en memoria ya que no se pudo guardar
+    playoff.started=false;playoff.preview=true;
+    renderCycleBar();showPlayoffView();renderSubTabs();
+    // Usar alert para que el usuario no lo pierda (no desaparece solo)
+    alert('⚠️ No se pudo guardar el inicio de los Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecargá la página y volvé a intentarlo.\nSi el problema persiste, contactá al desarrollador.');
+  }
+}
+function renderCargarDisputas(){ }
+
+function resolveD(mid){
+  const m=matches.find(x=>x.id===mid);
+  if(!m)return;
+  m.vBy=currentUser.name;
+  m.status='confirmed';
+  m.locked=true;
+  if(m.po){applyPoPending(m);const tr=playoff.tramos[m.ti];addLog('Playoff: disputa resuelta',{a:m.poNames[0],b:m.poNames[1],sets:m.sets,winner:m.winner,po:true,cuadro:tr?tr.label:'',which:m.which});}
+  else{addLog('Liga: disputa resuelta',{a:m.aName,b:m.bName,sets:m.sets,grupo:m.g,po:false});}
+  persist(true);
+  refreshAll();
+  toast('Resultado validado correctamente.');
+}
+
+function forceConfirmAll(){
+  // Los partidos propios se saltean: si no, este botón desarma de un click todas
+  // las reglas de arbitraje propio. Los resuelve el rival u otro administrador.
+  matches.forEach(m=>{
+    if(m.status!=='pending')return;
+    m.vBy=currentUser.name;m.status='confirmed';m.locked=true;if(m.po)applyPoPending(m);
+  });
+  persist(true);
+  refreshAll();
+  toast(t('toast_pending_confirmed'));
+}
+
+function demoFillUI(){
+  if(!demoBackup)demoBackup=JSON.stringify({cycles,activeN,playoff});
+  demoFill();
+  persist(true);
+  refreshAll();
+  toast(t('toast_simulated'));
+}
+
+function undoDemoUI(){
+  if(!confirm(t('confirm_undo_demo')))return;
+  matches=matches.filter(m=>!m.isDemo);
+  if(demoBackup){
+    try{
+      const b=JSON.parse(demoBackup);
+      cycles=b.cycles;
+      activeN=b.activeN;
+      playoff=b.playoff;
+      viewCycle=activeN;
+      demoBackup=null;
+    }catch(e){}
+  }
+  persist(true);
+  refreshAll();
+  toast(t('toast_demo_undone'));
+}
+
+function startNextCycle(){
+  const c=getActive();
+  if(!c||!c.groups)return;
+  const need=pairsNeeded(c);
+  const done=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status==='confirmed').length;
+  const notC=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status!=='confirmed').length;
+  const faltanJugar=need-done-notC;  // partidos que ni siquiera se cargaron
+  // Los partidos CARGADOS pero sin validar (pendientes/en disputa) hay que resolverlos
+  // primero: no se puede cerrar dejando un resultado a medias sin decidir.
+  if(notC>0){toast(t('close_pending_first'));return;}
+  // Si faltan partidos por JUGAR (nunca se cargaron), el admin puede cerrar igual —
+  // puede pasar que no se jueguen todos. Se pide confirmación con el detalle.
+  if(faltanJugar>0){
+    if(!confirm(t('close_force_confirm').replace('{n}',faltanJugar)))return;
+  }
+  _doStartNextCycle(c);
+}
+// Ejecuta el cierre real del ciclo y el armado del siguiente. Separado de startNextCycle
+// para poder llamarlo tras la confirmación cuando se fuerza el cierre.
+function _doStartNextCycle(c){
+  const totalG=c.groups.length;
+  const buckets={};for(let k=1;k<=totalG;k++)buckets[k]=[];
+  c.groups.forEach((g,gi)=>{
+    const gid=gi+1;const st=computeStats(activeN,gid);ensureDestino(gid,st.length);
+    const dest=DESTINO[gid];
+    st.forEach((s,pos)=>{
+      if(USERS[s.name]&&USERS[s.name].inactive)return; // inactivos no se redistribuyen
+      const d=dest[pos]||('G'+Math.min(gid+1,totalG));
+      let dn=parseInt(d.replace('G',''));
+      if(!buckets[dn])dn=Math.min(Math.max(dn,1),totalG);
+      buckets[dn].push({name:s.name,total:ptsForPos(gid,pos)+(pos===0?2:0)});
+    });
+  });
+  const ng=[];for(let k=1;k<=totalG;k++)ng.push({players:buckets[k].sort((a,b)=>b.total-a.total).map(x=>x.name)});
+  c.status='finished';
+  let switched = false;
+  if(activeN<cycles.length){
+    const nx=cycles[activeN];
+    nx.groups=ng;
+    nx.status='active';
+    activeN=nx.n;
+    viewCycle=nx.n;
+    switched = true;
+    if(currentUser&&currentUser.role==='player'){const loc=findLoc(currentUser.name,activeN);if(loc)selGroup=loc.g;}
+    toast(tf('cycle_closed_next',{n:c.n,nx:nx.n}));
+  }else{
+    toast(t('cycle3_closed'));
+  }
+  
+  persist(true);
+  refreshAll();
+  if(switched) showSub('grupos');
+}
+
+function finishLastCycle(){
+  const c=getActive();
+  if(!c||!c.groups)return;
+  const need=pairsNeeded(c);
+  const done=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status==='confirmed').length;
+  const notC=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status!=='confirmed').length;
+  const faltanJugar=need-done-notC;
+  // Igual que al cerrar un ciclo intermedio: los pendientes sin validar hay que
+  // resolverlos primero; los partidos no jugados se pueden dejar y forzar el cierre.
+  if(notC>0){toast(t('close_pending_first'));return;}
+  if(faltanJugar>0){
+    if(!confirm(t('close_force_confirm_last').replace('{n}',faltanJugar)))return;
+  }
+  c.status='finished';
+  persist(true);
+  renderShell();
+  showSub('admin');
+  toast(t('last_cycle_finished'));
+}
+
+function editPuntosUI(gid){
+  const c=cycles[viewCycle-1];
+  if(!c||!c.groups)return;
+  const grp=c.groups[gid-1];
+  const len=Math.max(1,(grp.players||[]).length);
+  if(!PUNTOS[gid])PUNTOS[gid]=[];
+  let h=`<p class="legend-txt" style="margin-top:0;margin-bottom:.8rem">Ajustá los puntos que otorga cada posición en este grupo (0 a 100).</p>`;
+  h+=`<div class="form-row" style="grid-template-columns: 1fr;">`;
+  for(let i=0;i<len;i++){
+    let v=PUNTOS[gid][i]!==undefined?PUNTOS[gid][i]:0;
+    h+=`<div class="set-row"><label>${i+1}º Puesto</label><input type="number" id="pt-pos-${i}" value="${v}" min="0" max="100" class="po-in" style="width:70px"></div>`;
+  }
+  h+=`</div>`;
+  document.getElementById('modal-title').textContent=`Editar Puntos · ${groupName(gid)}`;
+  document.getElementById('modal-body').innerHTML=h;
+  document.getElementById('modal-actions').innerHTML=`<button class="btn btn-primary" onclick="savePuntos(${gid},${len})"><i class="ti ti-device-floppy"></i> Guardar</button><button class="btn" onclick="closeM()">Cancelar</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+// Genera la escala de puntos de TODOS los grupos con un patrón regular, para no tener
+// que editar cada grupo a mano en una liga nueva. Toma el puntaje del ganador del
+// grupo 1 y cuánto baja el ganador entre grupos consecutivos; dentro de cada grupo
+// baja de a 1 punto por posición (el patrón que ya usa la liga). Nunca baja de 1.
+function autoGenerarEscala(){
+  const stepEl=document.getElementById('autoscale-step');
+  const step=parseInt(stepEl&&stepEl.value,10);
+  if(!Number.isFinite(step)||step<1){toast(t('autoscale_bad_step'));return;}
+  const c=cycles[activeN-1];
+  const numGrupos=(c&&c.groups)?c.groups.length:12;
+  const ppg=(c&&c.groups&&c.groups[0]&&c.groups[0].players)?Math.max(2,c.groups[0].players.length):5;
+  // Confirmar porque sobrescribe cualquier escala editada a mano.
+  if(!confirm(tf('autoscale_confirm',{n:numGrupos,step})))return;
+  const nueva={};
+  const BASE=5;  // la escala por posición tiene 5 escalones; del 6º en adelante se repite el 5º
+  // Se construye DESDE ABAJO: el grupo más bajo (el de mayor número) ancla en 5-4-3-2-1,
+  // y cada grupo hacia arriba suma 'step' al puntaje del ganador. Así no hay techo fijo:
+  // el ganador del grupo 1 crece solo según cuántos grupos haya, y el último grupo
+  // siempre queda 5-4-3-2-1 sin importar el tamaño de la liga.
+  for(let g=1;g<=numGrupos;g++){
+    const distanciaDesdeAbajo = numGrupos - g;   // el último grupo está a 0
+    const ganador = 5 + distanciaDesdeAbajo * step;
+    const arr=[];
+    for(let pos=0;pos<ppg;pos++){
+      // 1º a 5º bajan de a 1. Del 6º en adelante se repite el valor del 5º puesto.
+      const escalon=Math.min(pos, BASE-1);
+      arr.push(Math.max(1, ganador-escalon));
+    }
+    nueva[g]=arr;
+  }
+  PUNTOS=nueva;
+  persist(true);
+  renderAdmin();
+  toast(tf('autoscale_done',{n:numGrupos}));
+}
+function savePuntos(gid,len){
+  const newPts=[];
+  for(let i=0;i<len;i++){
+    let v=parseInt(document.getElementById(`pt-pos-${i}`).value);
+    if(isNaN(v))v=0;
+    if(v<0)v=0;if(v>100)v=100;
+    newPts.push(v);
+  }
+  PUNTOS[gid]=newPts;
+  persist(true);
+  closeM();
+  refreshAll();
+  toast('Puntos actualizados.');
+}
+
+// ===== Historial de partidos por jugador =====
+function _histRow(rival,sc,won,extra,base){
+  const badge=won?`<span class="badge badge-ok">${t('hist_won')}</span>`:`<span class="badge badge-disp">${t('hist_lost')}</span>`;
+  const rivalCell = base
+    ? `<span class="h2h-link" style="flex:1;min-width:0;font-size:13px" onclick="abrirH2H('${jsq(base)}','${jsq(rival)}')" title="${t('h2h_title')}">${rival} <i class="ti ti-arrows-left-right" style="font-size:11px;opacity:.6"></i></span>`
+    : `<span style="flex:1;min-width:0;font-size:13px">${rival}</span>`;
+  return `<div class="hist-row" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">${badge}<span class="avatar">${getInitials(rival)}</span>${rivalCell}<strong style="font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap">${sc}</strong>${extra}</div>`;
+}
+function _histCard(title,g,p,rows){
+  return `<div class="card" style="margin-bottom:.6rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem"><div class="section-lbl" style="margin:0">${title}</div><div style="font-size:13px"><span style="color:#085041;font-weight:700">${g}</span><span style="color:var(--text2)"> – </span><span style="color:#791F1F;font-weight:700">${p}</span></div></div>${rows}</div>`;
+}
+function playerHistoryHTML(name){
+  let out='',any=false;
+  cycles.slice().sort((a,b)=>b.n-a.n).forEach(cy=>{
+    if(!cy.groups)return;
+    const ms=matches.filter(m=>!m.po&&m.cycle===cy.n&&m.status==='confirmed'&&!m.np&&(m.aName===name||m.bName===name)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id-a.id));
+    if(!ms.length)return;
+    any=true;let g=0,p=0;
+    const rows=ms.map(m=>{
+      const isA=m.aName===name,rival=isA?m.bName:m.aName;
+      const mine=m.sets.map(([a,b])=>isA?[a,b]:[b,a]);
+      let w=0,l=0;mine.forEach(([a,b])=>{if(a>b)w++;else l++;});
+      const won=w>l;if(won)g++;else p++;
+      const sc=mine.map(([a,b])=>a+'-'+b).join('  ');
+      const club=m.club?`<span class="badge" style="${clubStyle(m.club)}">${m.club}</span>`:'';
+      return _histRow(rival,sc,won,club,name);
+    }).join('');
+    const loc=findLoc(name,cy.n);
+    out+=_histCard(t('cycle')+' '+cy.n+(loc?' · '+groupName(loc.g):''),g,p,rows);
+  });
+  const poMs=matches.filter(m=>m.po&&m.status==='confirmed'&&m.poNames&&(m.poNames[0]===name||m.poNames[1]===name)).sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id-a.id));
+  if(poMs.length){
+    any=true;let g=0,p=0;
+    const rows=poMs.map(m=>{
+      const isA=m.poNames[0]===name,rival=isA?m.poNames[1]:m.poNames[0];
+      const mine=(m.sets||[]).map(([a,b])=>isA?[a,b]:[b,a]);
+      const sc=m.wo?'W.O.':mine.map(([a,b])=>a+'-'+b).join('  ');
+      const won=m.winner===name;if(won)g++;else p++;
+      const cuadro=m.tLabel?`<span class="badge badge-tag">${m.tLabel}</span>`:'';
+      const club=m.club?`<span class="badge" style="${clubStyle(m.club)}">${m.club}</span>`:'';
+      return _histRow(rival,sc,won,cuadro+club,name);
+    }).join('');
+    out=_histCard('Play Offs',g,p,rows)+out;
+  }
+  if(!any)return `<div class="lock-note" style="padding:.5rem 0">${t('hist_no_matches')}</div>`;
+  return out;
+}
+// Bloque de rating (estilo UTR) para la ficha del jugador.
+
+
+function showPlayerHistory(name){
+  if(!name)return;
+  document.getElementById('modal-title').textContent=t('hist_title')+' · '+name;
+  document.getElementById('modal-body').innerHTML=(RATING_ON?ratingFichaHTML(name):'')+playerHistoryHTML(name)
+    + '<div id="pm-past-wrap"></div>';   // acá se despliegan las ligas pasadas del jugador
+  // En modo consulta de una liga pasada no ofrecemos "ver otras pasadas" (ya estás en una).
+  const btnPast = _ligaReadOnly ? '' :
+    `<button class="btn btn-past" onclick="togglePlayerPast('${String(name).replace(/'/g,"\\'")}')"><i class="ti ti-history"></i> ${t('past_player_btn')}</button>`;
+  document.getElementById('modal-actions').innerHTML=
+    btnPast + `<button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+// Despliega/oculta las ligas pasadas donde jugó esa persona, dentro de la ficha.
+let _pmPastOpen=null;
+async function togglePlayerPast(name){
+  const wrap=document.getElementById('pm-past-wrap');
+  if(!wrap) return;
+  if(_pmPastOpen===name){ wrap.innerHTML=''; _pmPastOpen=null; return; }
+  _pmPastOpen=name;
+  wrap.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
+    if(!pasadas.length){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>'; return; }
+    // Botones de cada temporada pasada.
+    wrap.innerHTML='<div class="pm-past-box"><div class="pm-past-lbl">'+t('past_player_lbl')+'</div>'
+      +'<div class="pm-past-seasons" id="pm-past-seasons">'
+      + pasadas.map((l,i)=>'<button class="pm-season-btn'+(i===0?' on':'')+'" onclick="verJugadorEnLiga(\''+String(name).replace(/'/g,"\\'")+'\',\''+String(l.id).replace(/'/g,"\\'")+'\',this)">'+escPast(l.nombre)+'</button>').join('')
+      +'</div><div class="pm-season-results" id="pm-season-results"></div></div>';
+    verJugadorEnLiga(name, pasadas[0].id, null);
+  }catch(_){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+}
+// Trae los resultados de esa persona en una liga pasada específica.
+async function verJugadorEnLiga(name, ligaId, btn){
+  if(btn){ document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
+  const box=document.getElementById('pm-season-results');
+  if(box) box.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!d.estado){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; return; }
+    if(box) box.innerHTML=resultadosJugadorEnEstado(name, d.estado);
+  }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+}
+// Arma la lista de partidos de un jugador dado el estado de una liga.
+function resultadosJugadorEnEstado(name, estado){
+  const matches=(estado.matches||[]).filter(m=>m&&(m.aName===name||m.bName===name)&&m.status==='confirmed');
+  if(!matches.length) return '<div class="pm-past-empty">'+t('past_player_nomatch')+'</div>';
+  let g=0,p=0, rows='';
+  matches.forEach(m=>{
+    const yoA=m.aName===name; const rival=yoA?m.bName:m.aName;
+    const sets=(m.sets||[]).map(s=>Array.isArray(s)?(yoA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join(' ');
+    // ganador: quien tiene más sets ganados
+    let sgA=0,sgB=0; (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
+    const gane = yoA? sgA>sgB : sgB>sgA;
+    if(gane)g++;else p++;
+    rows+='<div class="pm-res-row"><span class="pm-wl '+(gane?'w':'l')+'">'+(gane?t('win_short'):t('loss_short'))+'</span>'
+      +'<span class="pm-res-rival">'+escPast(rival)+'</span><span class="pm-res-sc">'+escPast(sets)+'</span></div>';
+  });
+  return '<div class="pm-res-stats">'+g+' '+t('won_lc')+' · '+p+' '+t('lost_lc')+'</div>'+rows;
+}
+
+// ==================== H2H · CARA A CARA / HEAD 2 HEAD ====================
+// Extrae los partidos entre dos jugadores de un estado (liga), desde la
+// perspectiva de A. Devuelve {gA, gB, filas:[{sc, ganoA, ligaNombre}]}.
+function partidosEntre(a, b, estado, ligaNombre){
+  const ms=(estado&&estado.matches||[]).filter(m=>m&&m.status==='confirmed'&&!m.np&&(
+    (m.aName===a&&m.bName===b)||(m.aName===b&&m.bName===a)||
+    (m.po&&m.poNames&&((m.poNames[0]===a&&m.poNames[1]===b)||(m.poNames[0]===b&&m.poNames[1]===a)))
+  ));
+  let gA=0,gB=0; const filas=[];
+  ms.forEach(m=>{
+    const esPO=!!m.po;
+    const aEsA = esPO ? (m.poNames&&m.poNames[0]===a) : (m.aName===a);
+    let ganoA;
+    if(esPO && m.winner){ ganoA = (m.winner===a); }
+    else {
+      let sa=0,sb=0;(m.sets||[]).forEach(s=>{if(Array.isArray(s)){const x=aEsA?s[0]:s[1],y=aEsA?s[1]:s[0];if(x>y)sa++;else if(y>x)sb++;}});
+      ganoA = sa>sb;
+    }
+    if(ganoA)gA++;else gB++;
+    // Marcador orientado desde A
+    const sc = (esPO&&m.wo)?'W.O.':(m.sets||[]).map(s=>Array.isArray(s)?(aEsA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join('  ');
+    filas.push({sc, ganoA, ligaNombre: ligaNombre||'', fecha: m.date||'', mid: m.id||0});
+  });
+  return {gA, gB, filas};
+}
+// Abre el modal H2H entre dos jugadores, sumando la liga actual + las pasadas.
+async function abrirH2H(a, b){
+  document.getElementById('modal-title').textContent=t('h2h_title');
+  document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
+  document.getElementById('modal-bg').classList.add('open');
+  // Liga actual (lo que ya está en memoria)
+  let gA=0,gB=0; let filasHTML='';
+  const todasLasFilas=[];
+  const actual=partidosEntre(a,b,{matches:matches}, LEAGUE_NAME||t('past_current'));
+  gA+=actual.gA; gB+=actual.gB;
+  actual.filas.forEach(f=>todasLasFilas.push(f));
+  // Ligas pasadas: se suman a la MISMA lista (H2H histórico total, no por liga)
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const d=await r.json().catch(()=>({}));
+    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
+    for(const l of pasadas){
+      try{
+        const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
+        if(!rv.ok)continue;
+        const dv=await rv.json().catch(()=>({}));
+        const res=partidosEntre(a,b,dv.estado||{}, l.nombre);
+        if(res.filas.length){ gA+=res.gA; gB+=res.gB; res.filas.forEach(f=>todasLasFilas.push(f)); }
+      }catch(_){}
+    }
+    // Una sola lista corrida con todos los enfrentamientos, ordenados del más
+    // reciente al más antiguo (por fecha; si empatan, por id de partido).
+    todasLasFilas.sort((x,y)=>{
+      const fx=x.fecha||'', fy=y.fecha||'';
+      if(fx!==fy) return fy.localeCompare(fx);   // fecha desc (más nuevo arriba)
+      return (y.mid||0)-(x.mid||0);              // desempate: id desc
+    });
+    filasHTML='<div class="h2h-list">'+todasLasFilas.map(f=>
+      '<div class="h2h-row"><span class="h2h-wl '+(f.ganoA?'w':'l')+'">'+(f.ganoA?t('win_short'):t('loss_short'))+'</span>'
+      +'<span class="h2h-sc">'+escPast(f.sc)+'</span>'
+      +(f.ligaNombre?'<span class="h2h-liga-tag">'+escPast(f.ligaNombre)+'</span>':'')
+      +'</div>').join('')+'</div>';
+  }catch(_){}
+  // Armar el modal: A vs B + balance + partidos
+  const body=document.getElementById('modal-body');
+  if(gA+gB===0){ body.innerHTML='<div class="pm-past-empty">'+t('h2h_none').replace('{a}',escPast(a)).replace('{b}',escPast(b))+'</div>'; return; }
+  let h='<div class="h2h-head">';
+  h+='<div class="h2h-side"><span class="avatar h2h-av">'+getInitials(a)+'</span><b>'+escPast(a)+'</b></div>';
+  h+='<div class="h2h-score"><span class="'+(gA>gB?'h2h-win':'')+'">'+gA+'</span><i>–</i><span class="'+(gB>gA?'h2h-win':'')+'">'+gB+'</span></div>';
+  h+='<div class="h2h-side"><span class="avatar h2h-av">'+getInitials(b)+'</span><b>'+escPast(b)+'</b></div>';
+  h+='</div>';
+  h+='<div class="h2h-caption">'+t('h2h_balance').replace('{a}',escPast(a)).replace('{b}',escPast(b)).replace('{ga}',gA).replace('{gb}',gB)+'</div>';
+  h+=filasHTML;
+  body.innerHTML=h;
+}
+function renderPerfil(){
+  const u = currentUser;
+  if(u.role === 'admin' || u.role === 'superadmin') {
+    // Se filtra por CLAVE, no por rol: 'admin' y 'superadmin' son cuentas del sistema,
+    // no personas. Un jugador ascendido a admin tiene que SEGUIR apareciendo acá,
+    // si no no habría forma de quitarle el rol después.
+    const players = Object.entries(USERS).filter(([k,u])=>u&&k!=='admin'&&k!=='superadmin').map(([k,u])=>u).sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
+    let h = `<div class="card"><div class="section-lbl">${t('admin_profile')}</div>`;
+    h += `<div class="prof-row"><span>${t('full_name')}</span><span>${u.name}</span></div>`;
+    h += `<div class="prof-row"><span>${t('role_admin')}</span><span>${t('role_admin')}</span></div></div>`;
+    
+    h += renderThemeCard();
+        h += `<div class="card" id="pk-card" style="display:none"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_section')}</div>`;
+    h += `<div id="pk-body"><p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>`;
+    h += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button></div></div>`;
+    h += `<div class="card"><div class="section-lbl">${t('change_password')}</div><div id="pw-alert"></div>`;
+    h += `<div class="form-row"><div class="form-group"><label>${t('current_pass')}</label><input type="password" id="pw-old"></div>`;
+    h += `<div class="form-group"><label>${t('new_pass')}</label><input type="password" id="pw-new" autocomplete="new-password"></div></div>`;
+    h += `<div class="form-row"><div class="form-group"><label>${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
+    h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
+    // APARIENCIA: nombre, subtítulo, colores y clubes. Antes era exclusivo del
+    // superadmin; ahora cualquier admin puede cambiar la parte cosmética. Lo
+    // estructural (puntos, grupos, ciclos) sigue gateado aparte, más abajo.
+    if(esAdmin(currentUser)){
+      h += `<div class="card"><div class="section-lbl" style="color:var(--pri)">${t('appearance_title')}</div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Nombre de la liga</label>
+            <input id="sa-league-name" type="text" value="${attr(LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
+          </div>
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Subtítulo</label>
+            <input id="sa-league-sub" type="text" value="${attr(LEAGUE_SUBTITLE)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color primario</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input id="sa-color-pri" type="color" value="${LEAGUE_COLOR_PRI}" oninput="syncHex('pri','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-pri-hex" type="text" value="${LEAGUE_COLOR_PRI}" maxlength="7" spellcheck="false" oninput="syncHex('pri')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color acento</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input id="sa-color-acc" type="color" value="${LEAGUE_COLOR_ACC}" oninput="syncHex('acc','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-acc-hex" type="text" value="${LEAGUE_COLOR_ACC}" maxlength="7" spellcheck="false" oninput="syncHex('acc')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+            </div>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color de resaltado <span style="font-size:11px">(fondo de "No jugado" y "W.O.")</span></label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <input id="sa-color-hl" type="color" value="${LEAGUE_COLOR_HL}" oninput="syncHex('hl','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-hl-hex" type="text" value="${LEAGUE_COLOR_HL}" maxlength="7" spellcheck="false" oninput="syncHex('hl')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+              <span id="sa-hl-demo" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${LEAGUE_COLOR_HL};color:var(--priD);border:1px solid var(--priD)">No jugado</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('dispute_color')} <span style="font-size:11px">(${t('dispute_color_hint')})</span></label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <input id="sa-color-disp" type="color" value="${COLOR_DISPUTA}" oninput="syncHex('disp','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-disp-hex" type="text" value="${COLOR_DISPUTA}" maxlength="7" spellcheck="false" oninput="syncHex('disp')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+              <span id="sa-disp-demo" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${COLOR_DISPUTA};color:${autoTxt(COLOR_DISPUTA)}">${t('dispute_short')}</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-lbl" style="color:var(--pri);margin-top:1rem">${t('clubs_title')}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:.6rem">${t('clubs_hint')}</div>
+        <div id="clubs-editor">${clubsEditorHTML()}</div>
+        <div class="section-lbl" style="color:var(--pri);margin-top:1.5rem">${t('rating_feature')}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.85rem 1rem;border:1px solid var(--border2);border-radius:10px;background:var(--surface)">
+          <div style="flex:1;min-width:200px">
+            <div style="font-weight:600;font-size:.9rem">${t('rating_toggle_label')}</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">${t('rating_toggle_hint')}</div>
+          </div>
+          <button id="rating-toggle-btn" class="btn ${RATING_ON?'btn-success':''}" onclick="toggleRating()">
+            <i class="ti ${RATING_ON?'ti-eye':'ti-eye-off'}"></i> ${RATING_ON?t('rating_on'):t('rating_off')}
+          </button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:.25rem;margin-top:1rem">
+          <button class="btn btn-primary" onclick="previewLeagueColors()"><i class="ti ti-eye"></i> ${t('preview')}</button>
+          <button class="btn btn-success" onclick="saveLeagueName()"><i class="ti ti-device-floppy"></i> ${t('save_all')}</button>
+          <button class="btn" onclick="resetLeagueColors()"><i class="ti ti-refresh"></i> ${t('reset_colors')}</button>
+        </div>
+        <div id="sa-league-alert" style="margin-top:6px;font-size:12px"></div>
+      </div>`;
+    }
+    const grps = (getActive() && getActive().groups) ? getActive().groups : [];
+    h += `<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
+      <div class="section-lbl" style="margin:0">${t('add_player')}</div>
+      <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
+    </div>`;
+    h += `<div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end">`;
+    h += `<div class="form-group"><label>${t('first_name')}</label><input id="ap-nom" placeholder="${t('first_name')}"></div>`;
+    h += `<div class="form-group"><label>${t('last_name')}</label><input id="ap-ape" placeholder="${t('last_name')}"></div>`;
+    h += `<div class="form-group"><label>${t('group')}</label><select id="ap-grp">${grps.map((_,k)=>`<option value="${k+1}">${groupName(k+1)}</option>`).join('')}</select></div>`;
+    h += `<div class="form-group"><button class="btn btn-primary" onclick="addPlayerUI()"><i class="ti ti-user-plus"></i> ${t('add_btn')}</button></div>`;
+    h += `</div></div>`;
+
+    h += `<div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <div class="section-lbl" style="margin:0">${t('player_mgmt')}</div>
+        <div class="gap-sm">
+          <button class="btn btn-sm" onclick="renderPerfil()"><i class="ti ti-refresh"></i> ${t('refresh_list')}</button>
+        </div>
+      </div>
+      <p class="legend-txt" style="margin-top:0">${t('player_mgmt_hint')}</p>
+      ${(currentUser&&currentUser.role==='superadmin')?`<div class="gap-sm mt-sm" style="flex-wrap:wrap;margin-bottom:.75rem">
+        <button class="btn btn-sm" onclick="descargarPlantillaImport()"><i class="ti ti-file-download"></i> Descargar plantilla</button>
+        <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> Importar jugadores (Excel)
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarJugadoresExcel(this)">
+        </label>
+        <button class="btn btn-sm btn-danger" onclick="limpiarJugadoresUI()"><i class="ti ti-eraser"></i> Limpiar jugadores</button>
+      </div>`:''}
+      ${esAdmin(currentUser) ? `<div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.75rem;background:var(--surface)">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.5rem"><i class="ti ti-shield-check"></i> ${t('admins_section')}</div>
+        <p class="legend-txt" style="margin:0 0 .5rem">${t('admins_hint')}</p>
+        <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+          <span class="badge" style="background:var(--pri);color:#fff">Organización</span>
+          ${Object.entries(USERS).filter(([k,u])=>u&&u.isAdmin===true&&k!=='admin'&&k!=='superadmin').map(([k,u])=>`<span class="badge" style="background:var(--hl);color:var(--priD)">${u.name||k}</span>`).join('') || `<span class="legend-txt">${t('admins_none')}</span>`}
+        </div>
+      </div>` : ''}
+      <input type="text" id="player-search" placeholder="${t('search_player')}" oninput="filterPlayerList()" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px;margin-bottom:.75rem">
+      <div id="player-list">${renderPlayerList(players)}</div></div>`;
+    if(u.role==='superadmin'){
+      h += `<div class="card" id="cat-jugadores-card"><div class="section-lbl"><i class="ti ti-users"></i> ${t('cj_title')}</div>`;
+      h += `<p class="legend-txt" style="margin-top:0">${t('cj_desc')}</p>`;
+      h += `<div class="cj-search"><i class="ti ti-search"></i><input id="cj-search" placeholder="${t('cj_search')}" oninput="filtrarCatJugadores()"></div>`;
+      h += `<div id="cat-jugadores-list"><div class="pm-past-load">${t('past_loading')}</div></div></div>`;
+    }
+    document.getElementById('view-perfil').innerHTML = h; try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+    if(u.role==='superadmin') cargarCatJugadores();
+  } else {
+    const loc = findLoc(u.name, activeN);
+    let h = statsPerfilHTML(u.name);
+    h += `<div class="card"><div class="section-lbl">${t('my_profile')}</div>`;
+    h += `<div class="prof-row"><span>${t('full_name')}</span><span>${u.name}</span></div>`;
+    h += `<div class="prof-row"><span>${t('email')}</span><span>${u.email||'—'}</span></div>`;
+    h += `<div class="prof-row"><span>${t('phone')}</span><span>${u.tel||'—'}</span></div>`;
+    if(loc) h += `<div class="prof-row"><span>${t('current_group_label')}</span><span>${groupName(loc.g)}</span></div>`;
+    h += `</div>`;
+    h += renderThemeCard();
+        h += `<div class="card" id="pk-card" style="display:none"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_section')}</div>`;
+    h += `<div id="pk-body"><p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>`;
+    h += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button></div></div>`;
+    h += `<div class="card"><div class="section-lbl">${t('change_password')}</div><div id="pw-alert"></div>`;
+    h += `<div class="form-row"><div class="form-group"><label>${t('current_pass')}</label><input type="password" id="pw-old"></div>`;
+    h += `<div class="form-group"><label>${t('new_pass')}</label><input type="password" id="pw-new" autocomplete="new-password"></div></div>`;
+    h += `<div class="form-row"><div class="form-group"><label>${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
+    h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
+    h += `<div class="card"><div class="section-lbl">${t('my_history')}</div>${playerHistoryHTML(u.name)}</div>`;
+    document.getElementById('view-perfil').innerHTML = h; try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+  }
+}
+
+function renderPlayerList(players, filter) {
+  const f = (filter||'').toLowerCase();
+  const visible = players.filter(p => p && p.name && (!f || p.name.toLowerCase().includes(f)));
+  if (!visible.length) return `<div class="empty">${t('no_results')}</div>`;
+
+  // Particionar en 3 buckets: activos-sin-grupo, activos-con-grupo, inactivos.
+  // Los inactivos siempre van al final. Dentro de activos, primero los sin
+  // grupo (que necesitan atención del admin para asignarles uno).
+  const activosSinGrupo = [];
+  const activosConGrupo = [];
+  const inactivos       = [];
+  for(const p of visible){
+    if(p.inactive){ inactivos.push(p); continue; }
+    const loc = findLoc(p.name, activeN);
+    if(!loc) activosSinGrupo.push(p);
+    else activosConGrupo.push(p);
+  }
+  // Orden dentro de cada bucket:
+  //  - activosSinGrupo: alfabético (no hay otro criterio útil).
+  //  - activosConGrupo: por número de grupo asc y, dentro del grupo, alfabético.
+  //  - inactivos: alfabético.
+  // Localización 'es' para que las tildes ordenen bien (Ávila antes que Bar).
+  const _cmpNombre = (a,b) => (a.name||'').localeCompare(b.name||'', 'es');
+  activosSinGrupo.sort(_cmpNombre);
+  inactivos.sort(_cmpNombre);
+  activosConGrupo.sort((a,b) => {
+    const la = findLoc(a.name, activeN); const lb = findLoc(b.name, activeN);
+    const ga = la ? la.g : 999, gb = lb ? lb.g : 999;
+    if(ga !== gb) return ga - gb;
+    return _cmpNombre(a,b);
+  });
+
+  // Renderea una tarjeta de jugador. Extraído para no duplicar el HTML masivo.
+  const renderOne = (p) => {
+    const loc = findLoc(p.name, activeN);
+    const curG = loc ? loc.g : '';
+    const c = getActive();
+    const gOpts = (c && c.groups) ? c.groups.map((_,k) => `<option value="${k+1}" ${curG===k+1?'selected':''}>${groupName(k+1)}</option>`).join('') : '';
+    const isInactive = !!(p.inactive);
+    const sinGrupoBadge = (!loc && !isInactive) ? ' <span style="font-size:10px;background:var(--warnBg,#fef3c7);color:var(--warnT,#854d0e);border-radius:4px;padding:1px 5px;font-weight:700">Sin grupo</span>' : '';
+    return `<div class="ge-group" style="margin-bottom:.5rem;${isInactive?'opacity:.6':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="ge-gtitle">${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?' <span style="font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">INACTIVO</span>':''}</div>
+        <button class="btn btn-sm" onclick="togglePlayerEdit('${jsq(p.name)}')"><i class="ti ti-edit"></i> ${t('edit')}</button>
+      </div>
+      __PLAYER_CARD_BODY_${attr(p.name)}__
+    </div>`;
+  };
+
+  // Genera el body editable del jugador (se pega en el placeholder de arriba).
+  // Este bloque estaba antes en el mismo return del map, lo movemos acá para
+  // que la estructura de tarjeta se pueda envolver en secciones.
+  const renderBody = (p) => {
+    const loc = findLoc(p.name, activeN);
+    const curG = loc ? loc.g : '';
+    const c = getActive();
+    const gOpts = (c && c.groups) ? c.groups.map((_,k) => `<option value="${k+1}" ${curG===k+1?'selected':''}>${groupName(k+1)}</option>`).join('') : '';
+    // El body del bloque editable — copiado sin cambios del renderizado original.
+    // Se completa en la envolvente al reemplazar el marcador.
+    return renderPlayerBodyHTML(p, gOpts);
+  };
+
+  // Ensamblado: por cada jugador, tarjeta + body inyectado en su marcador.
+  const cardOf = (p) => renderOne(p).replace('__PLAYER_CARD_BODY_'+attr(p.name)+'__', renderBody(p));
+
+  // Estados de apertura de las secciones:
+  // - Sin filtro: Activos abiertos por defecto, Inactivos cerrados.
+  // - Con filtro: cualquier sección con matches se abre.
+  const filtering = !!f;
+  const openActivos   = filtering ? (activosSinGrupo.length + activosConGrupo.length > 0) : true;
+  const openInactivos = filtering ? inactivos.length > 0 : false;
+
+  const nAct = activosSinGrupo.length + activosConGrupo.length;
+  const nIna = inactivos.length;
+
+  // Estilo compartido del summary — cursor de mano, padding, semibold.
+  const sumStyle = 'cursor:pointer;padding:.55rem .75rem;font-weight:700;font-size:.9rem;border:1px solid var(--border2);border-radius:8px;background:var(--surface);margin-bottom:.4rem;user-select:none;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:.5rem';
+  const countStyle = 'font-size:.75rem;font-weight:600;color:var(--text2);background:var(--surface2);border-radius:999px;padding:2px 8px';
+
+  let out = '';
+
+  // ---- SECCIÓN ACTIVOS ----
+  if(nAct > 0){
+    out += `<details ${openActivos?'open':''} style="margin-bottom:.5rem"><summary style="${sumStyle}"><span><i class="ti ti-user-check"></i> ${t('pl_active')}</span><span style="${countStyle}">${nAct}</span></summary><div style="margin-top:.4rem">`;
+    // Primero los sin grupo (piden atención del admin)
+    if(activosSinGrupo.length){
+      out += activosSinGrupo.map(cardOf).join('');
+    }
+    // Después los con grupo (ya ordenados)
+    if(activosConGrupo.length){
+      out += activosConGrupo.map(cardOf).join('');
+    }
+    out += `</div></details>`;
+  }
+
+  // ---- SECCIÓN INACTIVOS ----
+  if(nIna > 0){
+    out += `<details ${openInactivos?'open':''} style="margin-bottom:.5rem"><summary style="${sumStyle}"><span><i class="ti ti-user-off"></i> ${t('pl_inactive')}</span><span style="${countStyle}">${nIna}</span></summary><div style="margin-top:.4rem">`;
+    out += inactivos.map(cardOf).join('');
+    out += `</div></details>`;
+  }
+
+  return out;
+}
+
+// Extraído de renderPlayerList: HTML del panel editable de un jugador. Se
+// separó para poder envolver las tarjetas en secciones sin duplicar código.
+function renderPlayerBodyHTML(p, gOpts){
+  const isInactive = !!(p.inactive);
+  return `<div id="pe-${attr(p.name)}" style="display:none;margin-top:.5rem;border:2px solid var(--pri);border-radius:12px;padding:.6rem;background:var(--soft)">
+        <div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem;background:var(--surface)">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-user"></i> Perfil del jugador</div>
+        <div class="form-row">
+          <div class="form-group"><label>Nombre</label><input type="text" id="pe-nombre-${attr(p.name)}" value="${attr(p.nombre!=null?p.nombre:_splitNom(p.name).nombre)}"></div>
+          <div class="form-group"><label>Apellido</label><input type="text" id="pe-apellido-${attr(p.name)}" value="${attr(p.apellido!=null?p.apellido:_splitNom(p.name).apellido)}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Email</label><input type="email" id="pe-email-${attr(p.name)}" value="${attr(p.email||'')}"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Teléfono</label><input type="tel" id="pe-tel-${attr(p.name)}" value="${attr(p.tel||'')}"></div>
+          <div class="form-group"><label>Grupo (Ciclo Activo)</label><select id="pe-grp-${attr(p.name)}"><option value="">Sin grupo</option>${gOpts}</select></div>
+        </div>
+        <div style="text-align:right;margin-top:.5rem">
+          <button class="btn btn-success btn-sm" onclick="savePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-device-floppy"></i> Guardar perfil</button>
+        </div>
+        </div>
+        ${(p.role==='superadmin'||p.role==='admin'||!puedeGestionarAdmins(currentUser)) ? '' : `
+        <div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem;background:var(--surface)">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-shield-lock"></i> ${t('role_section')}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <span class="badge" style="background:${esAdmin(p)?'var(--pri)':'var(--surface2)'};color:${esAdmin(p)?'#fff':'var(--text2)'}">${esAdmin(p)?t('role_is_admin'):t('role_is_player')}</span>
+            <button class="btn btn-sm" style="background:var(--hl);color:var(--priD)" onclick="toggleAdminRole('${jsq(p.name)}')">
+              <i class="ti ti-shield-${esAdmin(p)?'off':'check'}"></i> ${esAdmin(p)?t('role_make_player'):t('role_make_admin')}
+            </button>
+          </div>
+        </div>`}
+        <div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem;background:var(--surface)">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-lock"></i> Contraseña</div>
+        <div class="form-group">
+          <label>Poner una nueva contraseña</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="pe-pass-${attr(p.name)}" placeholder="Mín. 4 caracteres" autocomplete="new-password" style="flex:1">
+            <button class="btn btn-sm" style="white-space:nowrap" onclick="setPlayerPwd('${jsq(p.name)}')"><i class="ti ti-key"></i> Aplicar</button>
+          </div>
+        </div>
+        <div style="margin-top:.55rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text2)">o restablecer a la clave por defecto:</span>
+          <button class="btn btn-sm" onclick="resetPwd('${jsq(p.name)}')"><i class="ti ti-refresh"></i> Reset PSWD - tenis</button>
+        </div>
+        </div>
+        <div class="pe-danger-box" style="border:1.5px solid #e9b8b8;border-radius:10px;padding:.65rem .8rem;background:#fdf5f5">
+        <div class="pe-danger-title" style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#b91c1c;margin-bottom:.55rem"><i class="ti ti-alert-triangle"></i> Estado en la liga</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-sm" style="${isInactive?'background:var(--success)':'background:#f59e0b'};color:#fff" onclick="toggleInactive('${jsq(p.name)}')"><i class="ti ti-${isInactive?'user-check':'user-off'}"></i> ${isInactive?'Reactivar jugador':'Marcar inactivo'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-trash"></i> Eliminar de la liga</button>
+        </div>
+        </div>
+      </div>`;
+}
+function filterPlayerList(){const f=document.getElementById('player-search').value;/* Mismo criterio que renderPerfil: se filtra por CLAVE. Si filtrara por rol,
+   un jugador ascendido desaparecería apenas escribís en el buscador. */const players=Object.entries(USERS).filter(([k,u])=>u&&k!=='admin'&&k!=='superadmin').map(([k,u])=>u).sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));document.getElementById('player-list').innerHTML=renderPlayerList(players,f);}
+function togglePlayerEdit(name){const el=document.getElementById('pe-'+name);if(el)el.style.display=el.style.display==='none'?'block':'none';}
+
+// Renombra un jugador en TODO el estado (liga + playoffs). Un solo lugar para no olvidar ninguna referencia.
+function renamePlayerEverywhere(oldName,newName){
+  if(!oldName||!newName||oldName===newName)return;
+  // USERS (la clave ES el nombre) — conserva pass, email, tel, rol, inactive, etc.
+  if(USERS[oldName]){USERS[newName]={...USERS[oldName],name:newName};delete USERS[oldName];}
+  // ALLNAMES
+  const idx=ALLNAMES.indexOf(oldName);if(idx>=0)ALLNAMES[idx]=newName;
+  // Grupos de cada ciclo
+  cycles.forEach(c=>{if(!c.groups)return;c.groups.forEach(g=>{if(!g.players)return;const pi=g.players.indexOf(oldName);if(pi>=0)g.players[pi]=newName;});});
+  // Partidos (liga y playoff): todos los campos que guardan un nombre
+  matches.forEach(m=>{
+    if(m.aName===oldName)m.aName=newName;
+    if(m.bName===oldName)m.bName=newName;
+    if(m.reporter===oldName)m.reporter=newName;
+    if(m.vBy===oldName)m.vBy=newName;  // el validador también se renombra
+    if(m.winner===oldName)m.winner=newName;
+    if(m.poNames){if(m.poNames[0]===oldName)m.poNames[0]=newName;if(m.poNames[1]===oldName)m.poNames[1]=newName;}
+  });
+  // Playoffs
+  if(playoff){
+    if(Array.isArray(playoff.qualified)){const qi=playoff.qualified.indexOf(oldName);if(qi>=0)playoff.qualified[qi]=newName;}
+    if(playoff._autoJumped===oldName)playoff._autoJumped=newName;
+    if(Array.isArray(playoff.tramos)){
+      playoff.tramos.forEach(tr=>{
+        if(!tr)return;
+        if(Array.isArray(tr.seeds)){const si=tr.seeds.indexOf(oldName);if(si>=0)tr.seeds[si]=newName;}
+        ['main','cons'].forEach(which=>{
+          if(!Array.isArray(tr[which]))return;
+          tr[which].forEach(rd=>rd.forEach(m=>{if(!m)return;if(m.a===oldName)m.a=newName;if(m.b===oldName)m.b=newName;if(m.w===oldName)m.w=newName;}));
+        });
+      });
+    }
+    // playoff.results: la CLAVE lleva los dos nombres ordenados + el ganador está en .w
+    if(playoff.results&&typeof playoff.results==='object'){
+      const nr={};
+      Object.keys(playoff.results).forEach(k=>{
+        const hi=k.indexOf('#');
+        if(hi<0){nr[k]=playoff.results[k];return;}
+        const pre=k.slice(0,hi+1);
+        const pair=k.slice(hi+1).split('|').map(n=>n===oldName?newName:n).sort();
+        const v=playoff.results[k];
+        if(v&&v.w===oldName)v.w=newName;
+        nr[pre+pair.join('|')]=v;
+      });
+      playoff.results=nr;
+    }
+  }
+  // LOG (registro de actividad): actualizar el actor y los nombres dentro del detalle.
+  // Solo se reemplaza cuando el valor coincide EXACTO con el nombre viejo,
+  // así nunca se tocan nombres de liga, números ni etiquetas (cuadro, ronda, etc.).
+  if(Array.isArray(LOG)){
+    LOG.forEach(e=>{
+      if(!e)return;
+      if(e.who===oldName)e.who=newName;
+      const d=e.detail;
+      if(d&&typeof d==='object'){
+        if(d.a===oldName)d.a=newName;
+        if(d.b===oldName)d.b=newName;
+        if(d.winner===oldName)d.winner=newName;
+        if(d.reporter===oldName)d.reporter=newName;
+      }
+    });
+  }
+}
+
+// Separa un nombre completo en {nombre, apellido} para jugadores que ya existen
+// (los que se crearon antes de tener campos separados). La primera palabra es el
+// nombre; el resto, el apellido. Es solo un valor inicial editable por el admin.
+function _splitNom(full){
+  const partes=(full||'').trim().split(/\s+/);
+  if(partes.length<=1) return { nombre: partes[0]||'', apellido: '' };
+  return { nombre: partes[0], apellido: partes.slice(1).join(' ') };
+}
+
+function savePlayerAdmin(oldName){
+  if(esCuentaSistema(oldName)){toast('No se puede editar al administrador desde aquí.');return;}
+  const nombre=(document.getElementById('pe-nombre-'+oldName).value||'').trim();
+  const apellido=(document.getElementById('pe-apellido-'+oldName).value||'').trim();
+  // El nombre completo (identidad del jugador) es la unión de ambos.
+  const newName=(nombre+' '+apellido).trim().replace(/\s+/g,' ');
+  const email=(document.getElementById('pe-email-'+oldName).value||'').trim();
+  const tel=(document.getElementById('pe-tel-'+oldName).value||'').trim();
+  const grpEl=document.getElementById('pe-grp-'+oldName);
+  const newGrp=grpEl?parseInt(grpEl.value):NaN;
+  if(!newName){toast(t('name_empty'));return;}
+  const u=USERS[oldName];if(!u)return;
+  const loc=findLoc(oldName,activeN);
+  if(loc&&!isNaN(newGrp)&&loc.g!==newGrp){movePlayer(oldName,loc.g,newGrp);}
+  else if(!loc&&!isNaN(newGrp)){addPlayerToCycle(oldName,newGrp);}
+  u.email=email;u.tel=tel;u.nombre=nombre;u.apellido=apellido;
+  if(newName!==oldName){
+    if(USERS[newName]){toast('Ya existe un jugador llamado "'+newName+'". Elegí otro nombre.');renderPerfil();return;}
+    renamePlayerEverywhere(oldName,newName);
+  }
+  persist(true);renderPerfil();toast(tf('save_done',{name:newName}));
+}
+
+function deletePlayerAdmin(name){
+  if(esCuentaSistema(name)){toast('No se puede eliminar al administrador.');return;}
+  if(!confirm(`¿Seguro que querés eliminar a ${name} de la liga? Se borrará de los grupos actuales.`))return;
+  delete USERS[name];
+  const idx=ALLNAMES.indexOf(name);
+  if(idx>=0)ALLNAMES.splice(idx,1);
+  cycles.forEach(c=>{if(!c.groups)return;c.groups.forEach(g=>{const pi=(g.players||[]).indexOf(name);if(pi>=0)g.players.splice(pi,1);});});
+  persist(true);renderPerfil();toast(name+' ha sido eliminado.');
+}
+
+// Asciende un jugador a administrador o lo devuelve a jugador.
+// El super admin no aparece nunca acá: es único y el servidor lo blinda aparte.
+// ¿Esta persona puede administrar la liga?
+// OJO con el modelo: 'role' dice QUÉ SOS en la liga (jugador, cuenta del sistema);
+// 'isAdmin' dice si PODÉS ADMINISTRARLA. Son dos cosas distintas: un jugador
+// ascendido sigue siendo role:'player' —con su grupo, su fila, sus partidos—
+// y además lleva isAdmin:true. Si le pisáramos el role, desaparecería de la liga.
+// ¿Es una de las dos cuentas del sistema? Se pregunta por la CLAVE, nunca por el
+// rol ni por esAdmin(). 'admin' y 'superadmin' no son personas: no juegan, no se
+// editan ni se borran desde el panel de jugadores.
+// Un jugador ascendido SÍ es una persona: se le edita el perfil, se le resetea la
+// clave y se lo puede dar de baja como a cualquiera. Preguntar esAdmin() acá lo
+// dejaba a mitad de camino: editable y borrable, pero sin poder resetearle la clave.
+function esCuentaSistema(k){ return k==='admin' || k==='superadmin'; }
+
+function esAdmin(u){
+  return !!u && (u.role==='admin' || u.role==='superadmin' || u.isAdmin===true);
+}
+// Solo la cuenta original y el super admin reparten el rol: un admin ascendido
+// no puede crear más admins ni dejarse una puerta trasera.
+function puedeGestionarAdmins(u){
+  // Se compara por CLAVE, igual que el servidor (session.u === 'admin').
+  // Antes se aceptaba también name==='Organización': un jugador renombrado así
+  // veía el botón de repartir roles y se comía un 403 sin entender por qué.
+  return !!u && (u.role==='superadmin' || u.key==='admin');
+}
+
+function toggleAdminRole(name){
+  const u=USERS[name];
+  if(!u)return;
+  if(u.role==='superadmin'||u.role==='admin'){toast(t('reset_not_here'));return;}
+  if(!puedeGestionarAdmins(currentUser)){toast(t('role_only_owner'));return;}
+  const sube = !u.isAdmin;
+  if(!confirm(t(sube?'role_confirm_up':'role_confirm_down').replace('{n}',name)))return;
+  // Se mueve el FLAG. El role sigue en 'player': mantiene su grupo, su fila en la
+  // clasificación y sus partidos. Es jugador Y administrador a la vez.
+  if(sube) u.isAdmin=true; else delete u.isAdmin;
+  addLog(sube?'Alta de administrador':'Baja de administrador', name);
+  persist(true);
+  toast(t('role_done').replace('{n}',name));
+  renderPerfil();
+}
+
+async function resetPwd(name){
+  const u=USERS[name];if(!u)return;
+  if(esCuentaSistema(name)){toast(t('reset_not_here')||'No se puede desde aquí.');return;}
+  if(!confirm(t('reset_confirm').replace('{n}',name)))return;
+  // Va por /api/password, NO por /api/save: los hashes ya no viajan en el estado.
+  // El servidor lo hashea y, al ser la clave por defecto, en su próximo login
+  // el jugador queda obligado a cambiarla.
+  try{
+    const r=await fetch('/api/password',{method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+      body:JSON.stringify({target:name,newPass:'tenis',ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){toast(d.error||t('reset_err'));return;}
+    toast(t('reset_ok').replace('{n}',name));
+  }catch(e){toast(t('reset_err'));}
+}
+// El admin le pone una contraseña personalizada a un jugador (hasheada con PBKDF2 v2).
+async function setPlayerPwd(name){
+  const u=USERS[name];if(!u){toast('Jugador no encontrado.');return;}
+  if(esCuentaSistema(name)){toast('No se puede cambiar la contraseña del administrador desde aquí.');return;}
+  const inp=document.getElementById('pe-pass-'+name);
+  const pw=inp?(inp.value||'').trim():'';
+  if(!pw||pw.length<4){toast('La contraseña debe tener al menos 4 caracteres.');return;}
+  if(!confirm('¿Cambiar la contraseña de '+name+' a "'+pw+'"?'))return;
+  try{
+    const r=await fetch('/api/password',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+      body:JSON.stringify({target:name,newPass:pw,ligaId:_ligaActual||undefined})
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){toast(d.error||'No se pudo cambiar la contraseña.');return;}
+  }catch(e){toast('No se pudo conectar con el servidor.');return;}
+  if(inp)inp.value='';
+  toast(name+': contraseña actualizada.');
+}
+function toggleInactive(name){
+  const u=USERS[name];if(!u)return;
+  u.inactive=!u.inactive;
+  let sacado=false;
+  if(u.inactive){
+    // Al marcarlo inactivo, se intenta liberar su lugar en el grupo del ciclo activo.
+    // Solo se lo saca si aún no jugó partidos ese ciclo (si jugó, se queda para no
+    // romper los puntos de sus rivales). Sus partidos nunca se borran.
+    sacado=quitarDeGrupoActivo(name);
+  }
+  persist(true);
+  renderPerfil();
+  if(subView==='grupos')renderGrupos();
+  if(subView==='general')renderGeneral();
+  if(u.inactive){
+    toast(name+(sacado?' marcado como inactivo y quitado del ciclo actual.':' marcado como inactivo. (Ya jugó este ciclo, así que sigue en su grupo para no alterar los puntos; queda oculto en las vistas.)'));
+  }else{
+    toast(name+' activado. Si querés que vuelva a competir, agregalo a un grupo del ciclo.');
+  }
+}
+// Quita a un jugador del grupo que ocupe en el ciclo activo, PERO solo si todavía no
+// jugó ningún partido en ese ciclo. Si ya jugó, se lo deja en el array (el filtro de
+// inactivos lo oculta igual en las vistas), porque sacarlo haría que sus rivales
+// perdieran los puntos que le ganaron: computeStats cuenta los partidos recorriendo
+// los jugadores del grupo, y un partido contra alguien que ya no está se ignora.
+// Devuelve true si se lo pudo sacar del grupo.
+function quitarDeGrupoActivo(name){
+  const c=cycles[activeN-1];
+  if(!c||!c.groups)return false;
+  const jugoEnCiclo=matches.some(m=>!m.po && m.cycle===activeN && (m.aName===name||m.bName===name));
+  if(jugoEnCiclo)return false;  // ya jugó: se queda en el array para no romper la tabla
+  for(let gi=0;gi<c.groups.length;gi++){
+    const g=c.groups[gi];
+    if(g&&Array.isArray(g.players)){
+      const idx=g.players.indexOf(name);
+      if(idx>=0){ g.players.splice(idx,1); return true; }
+    }
+  }
+  return false;
+}
+// ============================================================================
+// "Olvidé mi contraseña" — muestra un aviso al usuario para que contacte al
+// administrador. Se optó por NO hacer reset por email porque si un atacante
+// tiene el móvil de la víctima, muy probablemente también tenga acceso al
+// email (sesión abierta en Gmail, Apple Mail, etc.) y podría usar el link
+// para tomar la cuenta. El reset manual por parte del admin es más seguro:
+// requiere contacto humano y una decisión activa.
+// ============================================================================
+async function mostrarResetRequest(){
+  await confirmarModal(t('forgot_msg'), {
+    titulo: t('forgot_title'),
+    okTxt: t('forgot_ok'),
+    cancelTxt: ''
+  });
+}
+
+// Cambio de contraseña obligatorio. Aparece cuando el servidor avisa que se
+// entró con una clave por defecto. No se puede cerrar ni saltear desde la UI.
+// oldPass puede ser null si el usuario entró con Face ID: en ese caso el
+// servidor acepta el cambio sin la clave anterior (el token ya prueba identidad
+// y la clave guardada es de la lista pública POR_DEFECTO_V2).
+function forcePwChange(oldPass){
+  const viaPasskey = (oldPass === null || oldPass === undefined);
+  const ov=document.createElement('div');
+  ov.id='_pwforce';
+  ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;padding:16px';
+  // Ofrecemos activar Face ID acá SOLO si el dispositivo lo soporta Y el usuario
+  // no acaba de entrar con Face ID (en ese caso ya está activado, no tiene sentido).
+  const soporta = (typeof passkeySoportada==='function' && passkeySoportada()) && !viaPasskey;
+  const pkCheck = soporta
+    ? '<label style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 4px;font-size:12.5px;line-height:1.4;color:var(--text2,#64748b);cursor:pointer">'+
+        '<input id="_pwfpk" type="checkbox" checked style="margin-top:2px;flex-shrink:0">'+
+        '<span>'+t('pwf_pk_offer')+'</span>'+
+      '</label>'+
+      '<p id="_pwfpkhint" style="margin:0 0 12px 26px;font-size:11.5px;line-height:1.35;color:var(--text2,#64748b);opacity:.85">'+t('pwf_pk_offer_after')+'</p>'
+    : '';
+  ov.innerHTML='<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
+    '<h3 style="margin:0 0 6px;font-size:17px">'+t('pwf_title')+'</h3>'+
+    '<p style="margin:0 0 14px;font-size:13px;line-height:1.45;color:var(--text2,#64748b)">'+t('pwf_why')+'</p>'+
+    '<input id="_pwf1" type="password" autocomplete="new-password" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<input id="_pwf2" type="password" autocomplete="new-password" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    pkCheck +
+    '<div id="_pwfe" style="display:none;font-size:12px;color:var(--danger);margin-bottom:8px"></div>'+
+    '<button id="_pwfb" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
+  '</div>';
+  document.body.appendChild(ov);
+  // Si el usuario desmarca el checkbox de Face ID, ocultamos el hint sobre
+  // el prompt biométrico: ya no aplica y confunde.
+  if(soporta){
+    const chk = document.getElementById('_pwfpk');
+    const hintEl = document.getElementById('_pwfpkhint');
+    if(chk && hintEl){
+      chk.addEventListener('change', () => { hintEl.style.display = chk.checked ? '' : 'none'; });
+    }
+  }
+  const err=m=>{const e=document.getElementById('_pwfe');e.textContent=m;e.style.display='block';};
+  document.getElementById('_pwfb').onclick=async function(){
+    const a=document.getElementById('_pwf1').value, b=document.getElementById('_pwf2').value;
+    if(!a||a.length<6) return err(t('pwf_short'));
+    // No comparar contra oldPass si vinimos por Face ID (no la tenemos, oldPass=null).
+    if(!viaPasskey && a===oldPass) return err(t('pwf_same'));
+    if(a!==b)          return err(t('pwf_nomatch'));
+    this.disabled=true;
+    try{
+      // Body: si entramos por Face ID, no mandamos oldPass. El servidor lo permite
+      // porque la clave actual está en POR_DEFECTO_V2 y ya tenemos token válido.
+      const payload = { newPass: a, ligaId: _ligaActual || undefined };
+      if(!viaPasskey) payload.oldPass = oldPass;
+      const r=await fetch('/api/password',{method:'POST',
+        headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+        body:JSON.stringify(payload)});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){this.disabled=false;return err(d.error||t('pwf_err'));}
+      // ¿El usuario pidió activar Face ID/Touch ID? Lo hacemos ahora, antes de cerrar
+      // el modal, para que quede claro qué ventana de biometría le va a aparecer.
+      const wantPk = soporta && document.getElementById('_pwfpk') && document.getElementById('_pwfpk').checked;
+      ov.remove();
+      if(typeof toast==='function')toast(t('pass_changed')||'OK');
+      if(wantPk && typeof activarPasskey==='function'){
+        // Pequeña espera para que el toast/re-render no compita con el prompt biométrico.
+        setTimeout(()=>{ try{ activarPasskey(); }catch(_){} }, 250);
+      }
+    }catch(e){this.disabled=false;err(t('pwf_err'));}
+  };
+  document.getElementById('_pwf1').focus();
+}
+
+async function changePw(){
+  const o=document.getElementById('pw-old').value,n=document.getElementById('pw-new').value,n2=document.getElementById('pw-new2').value,a=document.getElementById('pw-alert');
+  function al(m,cl){a.className='alert alert-'+cl;a.textContent=m;}
+  if(!n||n.length<4){al(t('pass_short'),'err');return;}
+  if(n!==n2){al(t('pass_no_match'),'err');return;}
+  // La contraseña anterior la verifica el servidor: acá ya no hay ningún hash.
+  try{
+    const r=await fetch('/api/password',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+      body:JSON.stringify({oldPass:o,newPass:n,ligaId:_ligaActual||undefined})
+    });
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){al(d.error||t('pass_wrong'),'err');return;}
+  }catch(e){al('No se pudo conectar con el servidor.','err');return;}
+  al(t('pass_ok'),'ok');
+  ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id).value='');
+}
+
+let poFormClub = '';
+function pickPoClub(c) {
+    poFormClub = c;
+    const box = document.getElementById('po-club-pick');
+    if(box){
+      box.querySelectorAll('.club-opt').forEach(el=>{
+        el.classList.toggle('club-sel', el.getAttribute('data-club')===c);
+      });
+      box.classList.remove('req-empty');
+    }
+}
+
+function poReport(ti,which,ri,mi){
+  const tr = playoff.tramos[ti];
+  const m = (which === 'main' ? tr.main : tr.cons)[ri][mi];
+  if(!m.a || !m.b){toast(t('po_report_no_players')); return;}
+  if(m.locked && !esAdmin(currentUser)){toast(t('po_locked')); return;}
+  // Verificación de "sos jugador del partido" para no-admins.
+  //
+  // Antes: `currentUser.role === 'player'` bloqueaba también a admins ascendidos
+  // (que tienen role='player' pero isAdmin=true). Y el `!==` estricto podía
+  // fallar por espacios sobrantes o mayúsculas/minúsculas invisibles al usuario.
+  //
+  // Ahora: usar esAdmin() como criterio canónico, y normalizar los nombres antes
+  // de comparar. Así un admin puede cargar cualquier partido, y un jugador puede
+  // cargar el suyo aunque el nombre en el bracket tenga un espacio extra.
+  if(!esAdmin(currentUser)){
+    const _n = (s)=>String(s||'').trim().toLocaleLowerCase('es');
+    const mine = _n(currentUser.name);
+    if(_n(m.a) !== mine && _n(m.b) !== mine){toast(t('po_not_yours')); return;}
+  }
+  poContext = {ti,which,ri,mi};
+  openPoForm(m,ti);
+}
+
+function openPoForm(m,ti){
+  const existing = m.locked && m.sets && m.sets.length;
+  document.getElementById('modal-title').textContent = (existing ? t('edit_result') : t('po_load_result')) + ' · ' + tf('po_match',{l:playoff.tramos[ti].label});
+  
+  const s1a = existing ? m.sets[0][0] : '', s1b = existing ? m.sets[0][1] : '', s2a = existing ? m.sets[1]?.[0] : '', s2b = existing ? m.sets[1]?.[1] : '';
+  const s3 = existing && m.sets[2]; const s3a = s3 ? m.sets[2][0] : '', s3b = s3 ? m.sets[2][1] : '';
+
+  const extMatch = matches.find(x => x.po && x.ti === ti && x.which === poContext.which && x.poNames && x.poNames.includes(m.a) && x.poNames.includes(m.b));
+  const extDate = extMatch && extMatch.date ? extMatch.date : (()=>{const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');})();
+  poFormClub = extMatch && extMatch.club ? extMatch.club : '';
+
+  document.getElementById('modal-body').innerHTML = `
+  <div class="req-wrap" style="margin-bottom:1.25rem">
+    <div class="form-row" style="margin-bottom:0">
+      <div class="form-group">
+        <label>${t('club_label')} <span class="reqmark">${t('reqmark_label')}</span></label>
+        <div class="club-pick" id="po-club-pick">${CLUBS.map(c=>`<div class="club-opt${poFormClub===c.name?' club-sel':''}" data-club="${attr(c.name)}" onclick="pickPoClub('${jsq(c.name)}')" style="--cbg:${c.bg};--ctx:${autoTxt(c.bg)}">${attr(c.name)}</div>`).join('')}</div>
+      </div>
+      <div class="form-group">
+        <label>${t('date_label')} <span class="reqmark">${t('reqmark_label')}</span></label>
+        <input type="date" id="po-f-fecha" class="req" value="${extDate}">
+      </div>
+    </div>
+  </div>
+
+  <!-- Nombres arriba, mismo estilo que la sección Cargar (.names-box) -->
+  <div class="names-box">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px">
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(m.a)}</div>
+      <div style="color:var(--border2);font-size:13px;font-weight:600;text-align:center">vs</div>
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(m.b)}</div>
+    </div>
+  </div>
+
+  <!-- Sets con inputs grandes (.score-inp-lg), mismo layout que Cargar -->
+  <div class="section-lbl" style="margin-bottom:.5rem">${t('sets_section')||'Resultado por sets'}</div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="po-s1a" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1a !== '' ? s1a : '0'}">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 1</span><span class="sep">–</span></div>
+    <input type="number" id="po-s1b" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s1b !== '' ? s1b : '0'}">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="po-s2a" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2a !== '' ? s2a : '0'}">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
+    <input type="number" id="po-s2b" min="0" max="7" class="score-inp-lg" oninput="checkPoAutoSTB()" value="${s2b !== '' ? s2b : '0'}">
+  </div>
+  <!-- Fila de supertiebreak: oculta por defecto salvo que el partido existente ya tenga tercer set -->
+  <div id="po-s3-row" style="display:${s3 ? 'grid' : 'none'};grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="po-s3a" min="0" class="score-inp-lg" value="${s3a !== '' ? s3a : '0'}">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
+    <input type="number" id="po-s3b" min="0" class="score-inp-lg" value="${s3b !== '' ? s3b : '0'}">
+  </div>
+  <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">${t('set_hint')||'6-0 a 6-4, 7-5 o 7-6'}</span></div>
+
+  <!-- Botón toggle del supertiebreak, mismo comportamiento que la sección Cargar -->
+  <div style="text-align:center;margin-top:8px">
+    <button class="btn btn-sm" id="po-stb-toggle-btn" onclick="togglePoSTB()"><i class="ti ti-${s3?'x':'plus'}"></i> ${s3?(t('remove_stb')||'Quitar STB'):(t('add_stb')||'Supertiebreak (1-1)')}</button>
+  </div>
+
+  ${esAdmin(currentUser)?`
+  <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+    <div id="po-wo-trigger" style="text-align:center">
+      <button class="btn btn-sm" onclick="document.getElementById('po-wo-trigger').style.display='none';document.getElementById('po-wo-opts').style.display='block'" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> Marcar como no jugado</button>
+    </div>
+    <div id="po-wo-opts" style="display:none">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:.5rem;text-align:center">Partido no jugado — ¿quién avanza por <strong style="color:var(--priD)">W.O.</strong> (walkover)?</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="markPoWO(true)" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-arrow-big-right-lines"></i> Avanza ${attr(m.a)}</button>
+        <button class="btn btn-sm" onclick="markPoWO(false)" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-arrow-big-right-lines"></i> Avanza ${attr(m.b)}</button>
+      </div>
+    </div>
+  </div>`:''}
+  <p class="lock-note" id="po-alert" style="margin-top:.5rem"></p>`;
+
+  let actions = `<button class="btn btn-accent" onclick="submitPo()"><i class="ti ti-send"></i> ${esAdmin(currentUser) ? t('save_validate') : t('send')}</button>`;
+  if(existing && esAdmin(currentUser)){
+    actions += `<button class="btn btn-danger" onclick="deletePo()" style="margin-left:.25rem"><i class="ti ti-trash"></i> Eliminar</button>`;
+  }
+  actions += `<button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-actions').innerHTML = actions;
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+// Toggle del supertiebreak dentro del modal de playoff. Espeja el comportamiento
+// de toggleSTB() de la sección Cargar: si está oculto lo muestra y cambia el
+// label del botón; si está visible lo oculta y limpia los valores.
+function togglePoSTB(){
+  const row = document.getElementById('po-s3-row');
+  const btn = document.getElementById('po-stb-toggle-btn');
+  if(!row) return;
+  const oculto = row.style.display === 'none' || row.style.display === '';
+  if(oculto){
+    row.style.display = 'grid';
+    if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    // Inicializamos en "0" (no vacíos) para mantener el look de la sección Cargar,
+    // donde todos los inputs de score arrancan visibles con "0" en negro.
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = '0'; });
+  } else {
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+// Auto-show del supertiebreak cuando los 2 sets ya cargados están 1-1. Es el
+// equivalente para el modal PO de checkAutoSTB() en la sección Cargar.
+function checkPoAutoSTB(){
+  const s1a = +document.getElementById('po-s1a').value, s1b = +document.getElementById('po-s1b').value;
+  const s2a = +document.getElementById('po-s2a').value, s2b = +document.getElementById('po-s2b').value;
+  if(!s1a && !s1b && !s2a && !s2b) return;
+  let w1=0, w2=0;
+  if(typeof validSet === 'function'){
+    if(validSet(s1a,s1b)){ if(s1a>s1b) w1++; else w2++; }
+    if(validSet(s2a,s2b)){ if(s2a>s2b) w1++; else w2++; }
+  } else {
+    if(s1a>s1b) w1++; else if(s1b>s1a) w2++;
+    if(s2a>s2b) w1++; else if(s2b>s2a) w2++;
+  }
+  const row = document.getElementById('po-s3-row');
+  const btn = document.getElementById('po-stb-toggle-btn');
+  if(!row) return;
+  if(w1 === 1 && w2 === 1){
+    if(row.style.display === 'none' || row.style.display === ''){
+      row.style.display = 'grid';
+      if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    }
+  } else if(w1 === 2 || w2 === 2){
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+// ========================================================================
+// MODAL PARA CARGAR RESULTADO DESDE LA TABLA DE GRUPOS (celda "+")
+// Reemplaza el flujo viejo (prefill → showSub('cargar')), que sacaba al
+// usuario de la vista de grupos. Ahora el "+" abre un popup con el mismo
+// look and feel del modal de playoffs y guarda en el mismo lugar, sin
+// perder el contexto de dónde estaba el usuario.
+// ========================================================================
+let _lmCtx = null;   // contexto del modal en curso: {gid, n1, n2, editId}
+let lmFormClub = '';
+
+function pickLmClub(name){
+  lmFormClub = name;
+  document.querySelectorAll('#lm-club-pick .club-opt').forEach(el => {
+    el.classList.toggle('club-sel', el.getAttribute('data-club') === name);
+  });
+}
+
+function toggleLmSTB(){
+  const row = document.getElementById('lm-s3-row');
+  const btn = document.getElementById('lm-stb-toggle-btn');
+  if(!row) return;
+  const oculto = row.style.display === 'none' || row.style.display === '';
+  if(oculto){
+    row.style.display = 'grid';
+    if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = '0'; });
+  } else {
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+function checkLmAutoSTB(){
+  const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
+  const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
+  if(!s1a && !s1b && !s2a && !s2b) return;
+  let w1=0, w2=0;
+  if(typeof validSet === 'function'){
+    if(validSet(s1a,s1b)){ if(s1a>s1b) w1++; else w2++; }
+    if(validSet(s2a,s2b)){ if(s2a>s2b) w1++; else w2++; }
+  } else {
+    if(s1a>s1b) w1++; else if(s1b>s1a) w2++;
+    if(s2a>s2b) w1++; else if(s2b>s2a) w2++;
+  }
+  const row = document.getElementById('lm-s3-row');
+  const btn = document.getElementById('lm-stb-toggle-btn');
+  if(!row) return;
+  if(w1 === 1 && w2 === 1){
+    if(row.style.display === 'none' || row.style.display === ''){
+      row.style.display = 'grid';
+      if(btn) btn.innerHTML = '<i class="ti ti-x"></i> ' + (t('remove_stb') || 'Quitar STB');
+    }
+  } else if(w1 === 2 || w2 === 2){
+    row.style.display = 'none';
+    if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
+    ['lm-s3a','lm-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
+  }
+}
+
+// Abre el modal para cargar un resultado de liga regular desde el "+".
+// gid, n1, n2 = grupo, jugador A, jugador B (mismos parámetros que prefill).
+function openLoadModal(gid, n1, n2){
+  // Fecha por defecto = hoy
+  const hoy = (()=>{ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+  _lmCtx = { gid, n1, n2, editId: null };
+  lmFormClub = '';
+
+  document.getElementById('modal-title').textContent = (t('load_result') || 'Cargar resultado') + ' · ' + groupName(gid);
+  document.getElementById('modal-body').innerHTML = `
+  <div class="req-wrap" style="margin-bottom:1.25rem">
+    <div class="form-row" style="margin-bottom:0">
+      <div class="form-group">
+        <label>${t('club_label')||'Club'} <span class="reqmark">${t('reqmark_label')||'obligatorio'}</span></label>
+        <div class="club-pick" id="lm-club-pick">${CLUBS.map(c=>`<div class="club-opt" data-club="${attr(c.name)}" onclick="pickLmClub('${jsq(c.name)}')" style="--cbg:${c.bg};--ctx:${autoTxt(c.bg)}">${attr(c.name)}</div>`).join('')}</div>
+      </div>
+      <div class="form-group">
+        <label>${t('date_label')||'Fecha'} <span class="reqmark">${t('reqmark_label')||'obligatorio'}</span></label>
+        <input type="date" id="lm-f-fecha" class="req" value="${hoy}">
+      </div>
+    </div>
+  </div>
+  <div class="names-box">
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px">
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(n1)}</div>
+      <div style="color:var(--border2);font-size:13px;font-weight:600;text-align:center">vs</div>
+      <div style="text-align:center;font-weight:700;font-size:14px;color:var(--pri)">${attr(n2)}</div>
+    </div>
+  </div>
+  <div class="section-lbl" style="margin-bottom:.5rem">${t('sets_section')||'Resultado por sets'}</div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="lm-s1a" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 1</span><span class="sep">–</span></div>
+    <input type="number" id="lm-s1b" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+  </div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="lm-s2a" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">SET 2</span><span class="sep">–</span></div>
+    <input type="number" id="lm-s2b" min="0" max="7" value="0" class="score-inp-lg" oninput="checkLmAutoSTB()">
+  </div>
+  <div id="lm-s3-row" style="display:none;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-bottom:6px">
+    <input type="number" id="lm-s3a" min="0" value="0" class="score-inp-lg">
+    <div style="text-align:center"><span style="display:block;font-size:10px;color:var(--text2);margin-bottom:2px">S.TB</span><span class="sep">–</span></div>
+    <input type="number" id="lm-s3b" min="0" value="0" class="score-inp-lg">
+  </div>
+  <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">${t('set_hint')||'6-0 a 6-4, 7-5 o 7-6'}</span></div>
+  <div style="text-align:center;margin-top:8px">
+    <button class="btn btn-sm" id="lm-stb-toggle-btn" onclick="toggleLmSTB()"><i class="ti ti-plus"></i> ${t('add_stb')||'Supertiebreak (1-1)'}</button>
+  </div>
+  <p class="lock-note" id="lm-alert" style="margin-top:.5rem"></p>`;
+
+  document.getElementById('modal-actions').innerHTML =
+    '<button class="btn btn-accent" onclick="submitLoadModal()"><i class="ti ti-send"></i> ' + (esAdmin(currentUser) ? (t('save_validate')||'Guardar y validar') : (t('send')||'Enviar')) + '</button>' +
+    '<button class="btn" onclick="closeM()">' + (t('close')||'Cerrar') + '</button>';
+
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+// Submit del modal: reutiliza toda la validación existente reciclando submitResult.
+// Trampa: los IDs de submitResult son 'f-reporter', 'f-rival', 's1a', etc. Como
+// el modal usa 'lm-*', "traducimos" copiando los valores a los inputs de la
+// sección Cargar antes de llamar a submitResult. Así heredamos gratis todas las
+// validaciones (sets válidos, formato de score, permisos, etc) sin duplicar código.
+function submitLoadModal(){
+  if(!_lmCtx){ toast('Sin contexto de carga'); return; }
+  const alert = document.getElementById('lm-alert');
+  const showErr = msg => { if(alert) alert.innerHTML = '<span style="color:var(--danger)">✕ ' + msg + '</span>'; };
+  if(alert) alert.innerHTML = '';
+  if(!lmFormClub){
+    showErr(t('select_club')||'Elegí el club');
+    document.getElementById('lm-club-pick').classList.add('req-empty');
+    return;
+  }
+  const fecha = document.getElementById('lm-f-fecha').value;
+  if(!fecha){
+    showErr(t('select_date')||'Elegí la fecha');
+    document.getElementById('lm-f-fecha').classList.add('req-empty');
+    return;
+  }
+  // Validar los sets ANTES de cerrar el modal. Si algo está mal (por ejemplo
+  // 6-0 · 0-6 · 3-0 que no es un STB válido) el usuario ve el error acá y puede
+  // corregir sin perder el resto del formulario. Antes se cerraba el modal y
+  // el submitResult mostraba el error afuera, con el modal ya perdido — el
+  // usuario tenía que volver a abrir el "+" y cargar todo de nuevo.
+  const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
+  const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
+  const s3Visible = document.getElementById('lm-s3-row').style.display === 'grid';
+  const sets = [[s1a, s1b], [s2a, s2b]];
+  if(s3Visible){
+    const s3a = +document.getElementById('lm-s3a').value, s3b = +document.getElementById('lm-s3b').value;
+    sets.push([s3a, s3b]);
+  }
+  if(typeof validMatch === 'function'){
+    const v = validMatch(sets);
+    if(!v.ok){ showErr(v.msg); return; }
+  }
+  // Copiar valores del modal a los inputs originales de la sección Cargar
+  const gid = _lmCtx.gid, n1 = _lmCtx.n1, n2 = _lmCtx.n2;
+  const gi = gid - 1;
+  if(esAdmin(currentUser)){
+    const r = document.getElementById('f-reporter');
+    if(r) r.value = gi + '|' + n1;
+    if(typeof filterRival === 'function') filterRival(gi + '|' + n1, n2);
+  } else {
+    const rival = currentUser.name === n1 ? n2 : n1;
+    const o = document.getElementById('f-rival');
+    if(o){
+      if(![...o.options].some(op => op.value === rival)){
+        o.add(new Option(rival, rival));
+      }
+      o.value = rival;
+    }
+  }
+  document.getElementById('s1a').value = document.getElementById('lm-s1a').value || '';
+  document.getElementById('s1b').value = document.getElementById('lm-s1b').value || '';
+  document.getElementById('s2a').value = document.getElementById('lm-s2a').value || '';
+  document.getElementById('s2b').value = document.getElementById('lm-s2b').value || '';
+  document.getElementById('s3-row').style.display = s3Visible ? 'flex' : 'none';
+  if(s3Visible){
+    document.getElementById('s3a').value = document.getElementById('lm-s3a').value || '';
+    document.getElementById('s3b').value = document.getElementById('lm-s3b').value || '';
+  }
+  if(typeof pickClub === 'function') pickClub(lmFormClub);
+  document.getElementById('f-fecha').value = fecha;
+  closeM();
+  _lmCtx = null;
+  lmFormClub = '';
+  submitResult();
+}
+// El admin hace avanzar a un jugador por WO (walkover): el rival no se presenta / no puede jugar.
+function markPoWO(advanceA){
+  if(!(esAdmin(currentUser))){toast('Solo el administrador puede marcar W.O.');return;}
+  if(!poContext)return;
+  const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
+  const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
+  const m=tr[which][ri][mi];if(!m||!m.a||!m.b){toast('Faltan jugadores en este partido.');return;}
+  const winnerName=advanceA?m.a:m.b,loser=advanceA?m.b:m.a;
+  if(!confirm(winnerName+' avanza por W.O. (walkover).\n\n'+loser+' queda eliminado por no presentarse. No se registra ningún resultado.\n\n¿Confirmás?'))return;
+  // Reemplazar cualquier resultado/partido previo de este cruce
+  matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
+  const k=(which==='main'?ti:ti+'c')+'#'+[m.a,m.b].sort().join('|');
+  playoff.results[k]={sets:[],w:winnerName,wo:true};
+  matches.push({id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,date:'',club:'',status:'confirmed',reporter:currentUser.name,winner:winnerName,locked:true});
+  rebuildTramo(ti);
+  addLog('Playoff: W.O.',{a:m.a,b:m.b,winner:winnerName,po:true,cuadro:tr.label,which});
+  closeM();
+  if(typeof showPlayoffView==='function')showPlayoffView();
+  persist(true);  // explícito: refreshAll ya no guarda
+  refreshAll();
+  toast(winnerName+' avanza por W.O.');
+  persist(true);
+}
+
+function deletePoDirect(ti,which,ri,mi){
+  if(!confirm('¿Eliminar este resultado? El partido vuelve a estar pendiente.')) return;
+  const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
+  const mRec = matches.find(x=>x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b));
+  addLog('Playoff: eliminado',{a:m.a,b:m.b,sets:mRec?mRec.sets:[],po:true,cuadro:playoff.tramos[ti]?playoff.tramos[ti].label:'',which});
+  const k = (which === 'main' ? ti : ti + 'c') + '#' + [m.a, m.b].sort().join('|');
+  delete playoff.results[k];
+  matches = matches.filter(x => !(x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a))));
+  rebuildTramo(ti); showPlayoffView(); toast('Resultado eliminado.'); persist(true);
+}
+
+function deletePo(){
+  const ti = poContext.ti, which = poContext.which, ri = poContext.ri, mi = poContext.mi;
+  deletePoDirect(ti,which,ri,mi);
+  closeM();
+}
+
+function submitPo(){
+  const s = [
+    [+document.getElementById('po-s1a').value, +document.getElementById('po-s1b').value],
+    [+document.getElementById('po-s2a').value, +document.getElementById('po-s2b').value]
+  ];
+  if(document.getElementById('po-s3-row').style.display !== 'none') {
+    s.push([+document.getElementById('po-s3a').value, +document.getElementById('po-s3b').value]);
+  }
+  
+  const v = validMatch(s);
+  if(!v.ok){
+    const a = document.getElementById('po-alert'); 
+    a.textContent = '✕ ' + v.msg; a.classList.add('err-txt'); 
+    return;
+  }
+
+  const fecha = document.getElementById('po-f-fecha').value;
+  if(!poFormClub){
+      const a = document.getElementById('po-alert'); a.textContent = '✕ Elegí el club.'; a.classList.add('err-txt');
+      document.getElementById('po-club-pick').classList.add('req-empty');
+      return;
+  }
+  if(!fecha){
+      const a = document.getElementById('po-alert'); a.textContent = '✕ Completá la fecha.'; a.classList.add('err-txt');
+      document.getElementById('po-f-fecha').classList.add('req-empty');
+      return;
+  }
+
+  const ti = poContext.ti, which = poContext.which, ri = poContext.ri, mi = poContext.mi;
+  const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
+  
+  let w1 = 0, w2 = 0; s.forEach(([a,b]) => {if(a > b) w1++; else w2++;}); 
+  const winner = w1 > w2 ? m.a : m.b;
+  
+  const exPo = matches.find(x => x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a)));
+  if(exPo && exPo.status === 'disputed' && !esAdmin(currentUser)){
+    const a=document.getElementById('po-alert'); a.textContent='Este resultado está en disputa. El administrador debe resolverlo primero.'; a.classList.add('err-txt'); return;
+  }
+  matches = matches.filter(x => !(x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a))));
+  
+  if(validaAlCargar(m.a, m.b)){
+    storePo(ti, which, m.a, m.b, s, winner);
+    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
+    rebuildTramo(ti);
+    const _rn2=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
+    addLog('Playoff: validado (admin)',{a:m.a,b:m.b,sets:s,winner,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn2});
+    closeM(); showPlayoffView(); toast(t('po_validated')); persist(true);
+  } else {
+    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
+    const _rn3=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
+    addLog('Playoff: cargado',{a:m.a,b:m.b,sets:s,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn3});
+    closeM(); renderPend(); renderCycleBar(); showPlayoffView(); toast(t('po_sent')); persist(true);
+  }
+}
+function storePo(ti,which,a,b,sets,w){const k=(which==='main'?ti:ti+'c')+'#'+[a,b].sort().join('|');playoff.results[k]={sets,w};}
+function applyPoPending(rec){storePo(rec.ti,rec.which,rec.poNames[0],rec.poNames[1],rec.sets,rec.winner);rebuildTramo(rec.ti);}
+let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');if(!t){t=document.createElement('div');t.id='_toast';t.className='toast';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';if(_toastTimer)clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.opacity='0';_toastTimer=null;},3800);}
+
+// ============================================================================
+// confirmarModal(mensaje, opts) — reemplazo estético del confirm() nativo.
+// Devuelve Promise<boolean>: true si confirma, false si cancela / cierra.
+// Uso:  if(await confirmarModal('¿Borrar?')) { ... }
+// Opts: { titulo, okTxt, cancelTxt, peligro:true (rojo), inputPlaceholder (si
+//   se necesita que el usuario escriba algo para confirmar; el resolve pasa el
+//   string en vez de boolean) }
+// ============================================================================
+function confirmarModal(mensaje, opts){
+  opts = opts || {};
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'cm-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .18s';
+    const peligro = !!opts.peligro;
+    const okBg = peligro ? 'var(--danger)' : 'var(--pri,#1e3a8a)';
+    const titulo = opts.titulo || '';
+    const okTxt = opts.okTxt || 'Confirmar';
+    const cancelTxt = opts.cancelTxt || 'Cancelar';
+    const inputPh = opts.inputPlaceholder || '';
+    const inputHtml = inputPh
+      ? '<input id="_cm-in" placeholder="'+inputPh.replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;margin:8px 0 4px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px" autocomplete="off">'
+      : '';
+    ov.innerHTML =
+      '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25);transform:translateY(8px);transition:transform .18s">'+
+        (titulo ? '<h3 style="margin:0 0 8px;font-size:16px;font-weight:600">'+titulo+'</h3>' : '')+
+        '<p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--text,#0f172a);white-space:pre-wrap">'+String(mensaje).replace(/</g,'&lt;')+'</p>'+
+        inputHtml +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">'+
+          '<button id="_cm-cancel" class="btn btn-sm" style="background:transparent;border:1px solid var(--border,#e2e8f0);color:var(--text2,#64748b);padding:8px 14px">'+cancelTxt+'</button>'+
+          '<button id="_cm-ok" class="btn btn-sm" style="background:'+okBg+';color:#fff;border:none;padding:8px 14px;font-weight:600">'+okTxt+'</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=>{ ov.style.opacity='1'; ov.firstChild.style.transform='translateY(0)'; });
+    const cerrar = (val) => {
+      ov.style.opacity='0';
+      setTimeout(()=>{ if(ov.parentNode) ov.parentNode.removeChild(ov); resolve(val); }, 180);
+    };
+    const inp = document.getElementById('_cm-in');
+    if(inp){ setTimeout(()=>inp.focus(), 60); }
+    document.getElementById('_cm-ok').onclick = () => cerrar(inp ? inp.value : true);
+    document.getElementById('_cm-cancel').onclick = () => cerrar(inp ? null : false);
+    // Click en el overlay = cancelar
+    ov.onclick = (e) => { if(e.target === ov) cerrar(inp ? null : false); };
+    // ESC = cancelar
+    const esc = (e) => { if(e.key === 'Escape'){ cerrar(inp ? null : false); document.removeEventListener('keydown', esc); } };
+    document.addEventListener('keydown', esc);
+    // Enter en el input = OK
+    if(inp){ inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') cerrar(inp.value); }); }
+  });
+}
+
+// Skeleton placeholder animado. Uso: mostrarSkeleton(container, filas)
+// Reemplaza el contenido del contenedor con N rectángulos animados que
+// simulan filas de una lista. Usar antes de un fetch, borrar al terminar.
+function mostrarSkeleton(container, filas){
+  if(!container) return;
+  filas = filas || 3;
+  let html = '';
+  for(let i = 0; i < filas; i++){
+    html += '<div class="skeleton-row" style="height:44px;background:linear-gradient(90deg,#eef2f7 25%,#e2e8f0 50%,#eef2f7 75%);background-size:200% 100%;border-radius:8px;margin-bottom:6px;animation:sk-shine 1.2s infinite linear"></div>';
+  }
+  container.innerHTML = html;
+}
+
+// ===== CONEXIÓN A SUPABASE — guardado instantáneo =====
+let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=false,_prioritySave=false,_lastSaveError='',_reintento409=false;
+// Versión del estado. La incrementa el servidor en cada guardado: si dos personas
+// tienen la app abierta, la segunda en guardar recibe 409 en vez de pisar a la primera.
+let _stateV=0;
+function _serialize(){
+  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER});
+}
+
+function _hydrate(d){try{
+  _stateV=(typeof d._v==='number')?d._v:0;
+  if(d.cycles)cycles=d.cycles;
+  if(Array.isArray(d.matches))matches=d.matches;
+  if(typeof d.matchId==='number')matchId=d.matchId;
+  if(typeof d.activeN==='number')activeN=d.activeN;
+  if(d.playoff){
+    playoff=d.playoff;
+    // Garantizar campos que pueden faltar en versiones viejas del schema
+    if(!Array.isArray(playoff.tramos))playoff.tramos=[];
+    if(typeof playoff.numTramos!=='number')playoff.numTramos=4;
+    if(typeof playoff.started!=='boolean')playoff.started=false;
+    if(typeof playoff.preview!=='boolean')playoff.preview=false;
+    if(typeof playoff.forcedSize!=='number')playoff.forcedSize=0;
+    if(!playoff.results||typeof playoff.results!=='object')playoff.results={};
+    if(!Array.isArray(playoff.qualified))playoff.qualified=[];
+    if(typeof playoff.viewT!=='number')playoff.viewT=0;
+  }
+  if(d.DESTINO)DESTINO=d.DESTINO;
+  if(d.FECHAS)FECHAS=d.FECHAS;
+  if(d.PO_FECHAS){// Migrate old string format to new object format
+  Object.keys(d.PO_FECHAS).forEach(r=>{
+    const v=d.PO_FECHAS[r];
+    if(typeof v==='string')PO_FECHAS[r]={type:'single',date:v,from:'',to:''};
+    else PO_FECHAS[r]=v;
+  });
+}
+  if(Array.isArray(d.ALLNAMES))ALLNAMES=d.ALLNAMES;
+  if(d.users){Object.keys(USERS).forEach(k=>delete USERS[k]);Object.assign(USERS,d.users);
+    // USERS se reemplaza entero, así que currentUser quedaba apuntando al objeto
+    // VIEJO: si mientras tanto le quitaron el rol de admin, su navegador seguía
+    // mostrándole los botones con el isAdmin viejo. Se lo re-apunta al fresco.
+    if(currentUser && currentUser.key && USERS[currentUser.key]){
+      const _k=currentUser.key; currentUser=USERS[_k]; currentUser.key=_k;
+    }
+  }
+  // Migración: un jugador ascendido con la versión anterior quedó con role:'admin'
+  // y desapareció de los grupos, la clasificación y su historial. Se lo devuelve
+  // a 'player' conservándole la capacidad de administrar.
+  Object.keys(USERS).forEach(k=>{
+    if(k!=='admin' && k!=='superadmin' && USERS[k] && USERS[k].role==='admin'){
+      USERS[k].role='player'; USERS[k].isAdmin=true;
+    }
+  });
+  // Migración: crear superadmin si no existe en base de datos vieja.
+  // IMPORTANTE: el criterio es "ningún usuario tiene role superadmin" — el mismo
+  // que usa el servidor para aceptar la migración. Si se chequeara solo la clave
+  // 'superadmin', un estado con el rol bajo otra clave haría que cada cliente
+  // creara un superadmin extra y el servidor rechazara TODOS los guardados con 403.
+  const _hayAlgunSuper=Object.keys(USERS).some(k=>USERS[k]&&USERS[k].role==='superadmin');
+  if(!_hayAlgunSuper)USERS['superadmin']={role:'superadmin',pass:ADMIN_PASS_HASH,name:'Super Administrador',email:'',tel:''};
+  if(d.PUNTOS)PUNTOS=d.PUNTOS;
+  if(Array.isArray(d.LOG))LOG=d.LOG;
+  if(d.LEAGUE_NAME)LEAGUE_NAME=d.LEAGUE_NAME;
+  REGLAMENTO=(typeof d.REGLAMENTO==='string')?d.REGLAMENTO:'';
+  if(d.LEAGUE_SUBTITLE)LEAGUE_SUBTITLE=d.LEAGUE_SUBTITLE;
+  if(d.LEAGUE_COLOR_PRI)LEAGUE_COLOR_PRI=d.LEAGUE_COLOR_PRI;
+  if(d.LEAGUE_COLOR_ACC)LEAGUE_COLOR_ACC=d.LEAGUE_COLOR_ACC;
+  if(d.LEAGUE_COLOR_HL)LEAGUE_COLOR_HL=d.LEAGUE_COLOR_HL;
+  if(Array.isArray(d.CLUBS)&&d.CLUBS.length){
+    const validos=d.CLUBS.filter(c=>c&&c.name&&c.bg);
+    // Solo se reemplaza si quedó al menos un club válido: si todos vinieran corruptos,
+    // se mantienen los que ya había en memoria en vez de quedar sin ningún club
+    // (lo que dejaría el formulario de carga sin opciones).
+    if(validos.length) CLUBS=validos;
+  }
+  if(typeof d.COLOR_DISPUTA==='string')COLOR_DISPUTA=d.COLOR_DISPUTA;
+  // LOGIN_HEADER: config del header editable del login (color + links).
+  // Validamos defensivamente cada campo por si viene de una versión previa
+  // sin este campo (default = azul con lista vacía).
+  if(d.LOGIN_HEADER && typeof d.LOGIN_HEADER === 'object'){
+    LOGIN_HEADER = {
+      color: (typeof d.LOGIN_HEADER.color === 'string' && d.LOGIN_HEADER.color) ? d.LOGIN_HEADER.color : '#0E3470',
+      textColor: (typeof d.LOGIN_HEADER.textColor === 'string') ? d.LOGIN_HEADER.textColor : '',
+      links: Array.isArray(d.LOGIN_HEADER.links) ? d.LOGIN_HEADER.links.filter(l => l && l.text && l.url).slice(0, 20) : []
+    };
+    // Refrescar el cache de localStorage con la versión autoritativa del server.
+    // Así el próximo visitante ve la última config aunque no se haya logueado.
+    try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
+  }
+  if(typeof d.RATING_ON==='boolean')RATING_ON=d.RATING_ON;
+  RATING_SEEDS=(d.RATING_SEEDS&&typeof d.RATING_SEEDS==='object')?d.RATING_SEEDS:{};
+  RATING_OVERRIDES=(d.RATING_OVERRIDES&&typeof d.RATING_OVERRIDES==='object')?d.RATING_OVERRIDES:{};
+  // Aplicar colores guardados al cargar
+  if(d.LEAGUE_COLOR_PRI||d.LEAGUE_COLOR_ACC||d.LEAGUE_COLOR_HL)applyLeagueColors(d.LEAGUE_COLOR_PRI||LEAGUE_COLOR_PRI,d.LEAGUE_COLOR_ACC||LEAGUE_COLOR_ACC,d.LEAGUE_COLOR_HL||LEAGUE_COLOR_HL);
+  return true;
+}catch(e){console.warn('hydrate',e);return false;}
+}
+
+// Migración automática de passwords en texto plano → v1 (SHA-256)
+// Los v1 se upgradan a v2 (PBKDF2) automáticamente en el siguiente login del usuario
+// ===== COPIA DE SEGURIDAD: backup y restore del estado COMPLETO =====
+function exportBackup(){
+  try{
+    const json=_serialize();
+    const wb=XLSX.utils.book_new();
+    const d=new Date();const pad=n=>String(n).padStart(2,'0');
+    const stamp=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+    // Hoja 1: Resumen (legible)
+    const resumen=[
+      ['Liga', LEAGUE_NAME||''],
+      ['Subtítulo', LEAGUE_SUBTITLE||''],
+      ['Fecha del backup', d.toLocaleString('es-ES')],
+      ['Jugadores', (ALLNAMES||[]).length],
+      ['Ciclos', (cycles||[]).length],
+      ['Partidos', (matches||[]).length],
+      ['', ''],
+      ['Copia de seguridad completa de la liga.', ''],
+      ['Para restaurarla, usá "Restaurar backup" en el panel de administración.', '']
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumen), 'Resumen');
+    // Hoja 2: Jugadores (legible)
+    const jug=[['Nombre','Email','Teléfono','Grupo (ciclo activo)','Estado']];
+    (ALLNAMES||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),'es')).forEach(n=>{
+      const u=USERS[n]||{};const loc=(typeof findLoc==='function')?findLoc(n,activeN):null;
+      jug.push([n, u.email||'', u.tel||'', loc?groupName(loc.g):'', u.inactive?'Inactivo':'Activo']);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(jug), 'Jugadores');
+    // Hoja 3: técnica — estado completo para restaurar (NO editar)
+    const CHUNK=30000;
+    const bk=[['LIGA_SOHAIL_BACKUP_V1']];
+    for(let i=0;i<json.length;i+=CHUNK){ bk.push([json.slice(i,i+CHUNK)]); }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bk), '_LIGA_BACKUP');
+    XLSX.writeFile(wb,'backup_liga_sohail_'+stamp+'.xlsx');
+    if(typeof addLog==='function')addLog('Backup completo exportado (Excel)','');
+    toast('Backup completo descargado en Excel. Guardalo en un lugar seguro.');
+  }catch(e){toast('Error al generar el backup: '+e.message);}
+}
+function importBackup(input){
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));input.value='';return;}
+  const nameLC=(file.name||'').toLowerCase();
+  const isXlsx=nameLC.endsWith('.xlsx')||nameLC.endsWith('.xls');
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    try{
+      let obj=null;
+      if(isXlsx){
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+        const ws=wb.Sheets['_LIGA_BACKUP'];
+        if(!ws){toast('El Excel no tiene la hoja de backup. ¿Seguro que es un backup de la liga?');input.value='';return;}
+        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(!aoa.length||String((aoa[0]||[])[0]||'')!=='LIGA_SOHAIL_BACKUP_V1'){toast('El Excel no parece un backup válido de la liga.');input.value='';return;}
+        let json='';for(let i=1;i<aoa.length;i++){json+=String((aoa[i]||[])[0]||'');}
+        obj=JSON.parse(json);
+      } else {
+        obj=JSON.parse(e.target.result);
+      }
+      if(!obj||typeof obj!=='object'||!obj.cycles||!obj.users){
+        toast('El archivo no parece un backup válido de la liga.');input.value='';return;
+      }
+      const nJug=Array.isArray(obj.ALLNAMES)?obj.ALLNAMES.length:Object.keys(obj.users||{}).length;
+      const nPart=Array.isArray(obj.matches)?obj.matches.length:0;
+      if(!confirm('RESTAURAR BACKUP\n\nEsto REEMPLAZA todo el estado actual de la liga por el del archivo:\n\n• '+nJug+' jugadores\n• '+nPart+' partidos\n• ciclos, grupos, puntos, ascensos/descensos, colores y nombre\n\n¿Continuar? Esta acción sobrescribe la base de datos.')){input.value='';return;}
+      const ok=_hydrate(obj);
+      if(!ok){toast('No se pudo aplicar el backup (formato inválido).');input.value='';return;}
+      _loadOK=true;_dbEmpty=false;_hideLoadError();
+      // CRÍTICO: el servidor rechaza con 409 si el _v del backup no coincide con el
+      // _v actual de la base. Al restaurar, tenemos que alinear la versión con la que
+      // está en el servidor AHORA, no con la que tenía cuando se hizo el backup.
+      // Leemos el _v actual y lo ponemos en _stateV para que _doPersist pase el check.
+      try{
+        const rv=await fetch(_conLiga('/api/state'),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+        const rd=await rv.json().catch(()=>({}));
+        if(rv.ok && rd.state && typeof rd.state._v==='number') _stateV=rd.state._v;
+        else _stateV=0; // si no podemos leer, forzar desde 0 (el servidor aceptará igualmente si no hay _v)
+      }catch(e){ _stateV=0; }
+      if(typeof addLog==='function')addLog('Backup completo RESTAURADO',{jugadores:nJug,partidos:nPart});
+      await _doPersist();
+      toast('Backup restaurado. Recargando…');
+      setTimeout(()=>location.reload(),700);
+    }catch(err){toast('Error al leer el backup: '+err.message);input.value='';}
+  };
+  if(isXlsx) reader.readAsArrayBuffer(file);
+  else reader.readAsText(file);
+}
+function initEmptyLeague(){
+  if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));return;}
+  if(!_dbEmpty){toast('La base ya tiene datos — no hace falta inicializar. Para reemplazar todo, usá Restaurar backup.');return;}
+  if(!confirm('INICIALIZAR LIGA\n\nLa base de datos está vacía. Esto GUARDA el estado actual (jugadores y grupos por defecto) como punto de partida.\n\nSolo hacelo en una liga NUEVA. ¿Continuar?'))return;
+  _loadOK=true;_dbEmpty=false;_hideLoadError();
+  _doPersist();
+  toast('Estado inicial guardado.');
+  setTimeout(()=>location.reload(),700);
+}
+function _showLoadError(msg){
+  try{
+    let b=document.getElementById('_loaderr');
+    if(!b){b=document.createElement('div');b.id='_loaderr';b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#791F1F;color:#fff;padding:10px 16px;font-size:13px;line-height:1.4;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.35);font-family:system-ui,-apple-system,sans-serif';document.body.appendChild(b);}
+    b.innerHTML='⚠️ '+msg+' &nbsp;<button onclick="location.reload()" style="background:#fff;color:#791F1F;border:none;padding:3px 12px;border-radius:6px;font-weight:700;cursor:pointer;margin-left:6px">Recargar</button>';
+  }catch(e){}
+}
+function _hideLoadError(){var b=document.getElementById('_loaderr');if(b)b.remove();}
+
+async function loadState(){
+  if(!_token){console.warn('⚠️ loadState sin sesión');return;}
+  console.log('🔄 Cargando estado desde el servidor...');
+  let d;
+  try{
+    const r=await fetch(_conLiga('/api/state'),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+    if(r.status===401){_token=null;_showLoadError(t('err_session_expired'));return;}
+    d=await r.json().catch(()=>({}));
+    if(r.status===403){_token=null;_showLoadError(d.error||t('err_no_access'));return;}
+    if(d.token)_token=d.token;   // sesión deslizante
+    if(!r.ok){_showLoadError(d.error||'Error al leer la base de datos. Para proteger tus datos NO se guardará nada.');return;}
+  }catch(e){
+    console.error('❌ Excepción al leer estado:',e);
+    _showLoadError('No se pudo leer la base de datos. Para proteger tus datos NO se guardará nada. Recargá en unos segundos.');
+    return;
+  }
+  if(d&&d.state){
+    const ok=_hydrate(d.state);
+    if(!ok){console.error('❌ Hydrate falló — autosave BLOQUEADO');_showLoadError('Los datos se leyeron pero no se pudieron aplicar. Para proteger tu información NO se guardará nada. Recargá.');return;}
+    _lastSaved=_serialize();
+    _loadOK=true;
+    _hideLoadError();
+    console.log('✅ Estado cargado correctamente');
+  }else{
+    // Lectura VACÍA: puede ser un fallo transitorio, NO necesariamente una liga vacía real.
+    // NUNCA sobrescribimos acá. El autosave queda bloqueado (_loadOK sigue false).
+    _dbEmpty=true;
+    console.warn('⚠️ Lectura VACÍA — NO se sobrescribe nada (protección de datos).');
+    _showLoadError('La base respondió sin datos. Para proteger tu información NO se guardó nada. Si es momentáneo, recargá. Si es una liga NUEVA, entrá como admin y usá "Copia de seguridad → Inicializar liga".');
+  }
+}
+
+// Guardado crítico para operaciones de alta importancia (playoffs, backups).
+// Bloquea el autosave, espera cualquier save en curso, y reintenta hasta 3 veces.
+// El 409 del servidor ahora incluye currentV: _doPersist sincroniza _stateV automáticamente,
+// así el segundo intento ya tiene el _v correcto sin necesitar un fetch extra.
+async function _criticalSave(){
+  _prioritySave=true;
+  _lastSaveError='';
+  console.log('🔒 _criticalSave: iniciando. _token='+!!_token+', _saving='+_saving+', _stateV='+_stateV+', _loadOK='+_loadOK);
+  try{
+    // Esperar a que termine cualquier guardado en curso (máx 3 segundos)
+    let waited=0;
+    for(let i=0;i<30&&_saving;i++){await new Promise(r=>setTimeout(r,100));waited++;}
+    if(waited)console.log('🔒 _criticalSave: esperó '+waited+'00ms por _saving');
+    _loadOK=true;
+    for(let attempt=0;attempt<3;attempt++){
+      if(attempt>0) await new Promise(r=>setTimeout(r,400));
+      console.log('🔒 _criticalSave: intento '+(attempt+1)+' con _stateV='+_stateV+', _token='+!!_token);
+      const ok=await _doPersist();
+      if(ok){console.log('✅ _criticalSave OK en intento '+(attempt+1));return true;}
+      console.warn('⚠️ _criticalSave: intento '+(attempt+1)+' fallido: '+_lastSaveError);
+      _loadOK=true;
+    }
+    console.error('❌ _criticalSave: los 3 intentos fallaron. Último error: '+_lastSaveError);
+    return false;
+  }finally{
+    _prioritySave=false;
+    setTimeout(()=>persist(true),600); // forzar un save de lo que haya quedado pendiente
+  }
+}
+async function _doPersist(){
+  if(!_token){_lastSaveError='Sin token de sesión (sesión expirada o cerrada)';console.error('❌ _doPersist: sin _token');return false;}
+  const json=_serialize();
+  try{
+    const r=await fetch('/api/save',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+      body:JSON.stringify({state:JSON.parse(json),ligaId:_ligaActual||undefined}),
+      // NOTA: keepalive:true se quitó porque tiene un límite de 64KB en el body.
+      // Con 65 jugadores + playoffs completos, el estado supera ese límite y el
+      // navegador rechaza el fetch con "Failed to fetch" sin siquiera enviarlo.
+      // El autosave cada 12s minimiza el riesgo de perder datos al cerrar la pestaña.
+    });
+    const d=await r.json().catch(()=>({}));
+    if(r.ok){
+      _stateV++;                   // el servidor acaba de incrementarla
+      _lastSaved=_serialize();
+      if(d.token)_token=d.token;   // sesión deslizante: el servidor la renovó
+      _lastSaveError='';
+      console.log('✅ Guardado OK ('+ new Date().toLocaleTimeString()+')');
+      // Invalidar el cache del rating después de CADA guardado exitoso. Sin
+      // esto, cuando el admin borra un partido (o el estado cambia por otra
+      // acción), el conteo de partidos en el tab Rating quedaba desactualizado
+      // hasta el próximo login. Ej: Víctor tenía 7 partidos de ciclos + 2 de
+      // playoff = 9. Al borrar los 2 de playoff, el perfil se actualizaba a 7,
+      // pero Rating seguía mostrando 9 porque calcularRatingGlobal solo se
+      // ejecutaba una vez al login.
+      // La llamada es fire-and-forget: no bloqueamos el retorno del save.
+      // Si el usuario está viendo el tab Rating ahora mismo, disparamos también
+      // renderRating() al terminar para que vea el cambio sin cambiar de tab.
+      if(typeof RATING_ON !== 'undefined' && RATING_ON &&
+         typeof calcularRatingGlobal === 'function'){
+        calcularRatingGlobal(true).then(function(){
+          if(typeof subView !== 'undefined' && subView === 'rating' &&
+             typeof renderRating === 'function'){
+            try { renderRating(); } catch(_){}
+          }
+        }).catch(function(){ /* si el rating falla, el save igual quedó ok */ });
+      }
+      return true;
+    }else if(r.status===409){
+      // Conflicto de versión. En vez de trabar los guardados para siempre
+      // (el bug: _loadOK=false bloqueaba todo persist posterior), adoptamos la
+      // versión del servidor y reintentamos UNA vez, conservando el cambio que el
+      // usuario acaba de hacer. Con un solo admin esto resuelve el desajuste de
+      // _stateV que aparecía tras el login sin pisar el resultado recién cargado.
+      if(typeof d.currentV==='number'){
+        _stateV=d.currentV;
+        if(!_prioritySave && !_reintento409){
+          _reintento409=true;
+          console.warn('⚠️ 409: adopto versión '+d.currentV+' del servidor y reintento guardando el cambio local.');
+          const ok=await _doPersist();      // reintenta con el _stateV corregido
+          _reintento409=false;
+          return ok;
+        }
+      }
+      // Si el reintento tampoco anduvo, ahí sí avisamos (sin trabar para siempre).
+      _showLoadError(d.error||t('err_conflict'));
+      console.warn('⚠️ 409 persistente tras reintento.');
+      return false;
+    }else{
+      _lastSaveError='HTTP '+r.status+': '+(d.error||'Error desconocido');
+      if(r.status===413&&!_prioritySave){ _showLoadError(t('err_too_big')); }
+      if(r.status===401&&!_prioritySave){_token=null;_showLoadError(t('err_session_expired_save'));}
+      if(r.status===403&&!_prioritySave){_token=null;_showLoadError(d.error||t('err_no_access'));}
+      // En modo _prioritySave (criticalSave), NO destruimos _token ni mostramos
+      // el banner — dejamos que _criticalSave reintente y muestre su propio error.
+      console.error('❌ Error al guardar:',r.status,d.error||'');
+      return false;
+    }
+  }catch(e){_lastSaveError='Excepción de red: '+e.message;console.error('❌ Excepción al guardar:',e);return false;}
+}
+
+async function persist(force){
+  if(!_token)return;
+  if(!_loadOK){console.warn('⛔ persist bloqueado: el estado no se cargó correctamente. No se guarda para no pisar datos buenos.');return;}
+  // Si hay un guardado crítico en curso (playoff, backup), este autosave espera.
+  // El guardado crítico llama persist(true) cuando termina para no perder nada.
+  if(_prioritySave){_pendingForce=true;return;}
+  const json=_serialize();
+  if(!force&&json===_lastSaved)return;
+  if(_saving){
+    _pendingForce=true;
+    return;
+  }
+  _saving=true;
+  _pendingForce=false;
+  await _doPersist();
+  _saving=false;
+  if(_pendingForce){
+    _pendingForce=false;
+    await persist(true);
+  }
+}
+
+if(typeof setInterval!=='undefined')setInterval(function(){persist(false);},12000);
+
+if(typeof window!=='undefined'&&window.addEventListener){
+  window.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='hidden')persist(true);
+  });
+  window.addEventListener('pagehide',function(){persist(true);});
+  window.addEventListener('beforeunload',function(){persist(true);});
+}
+
+// ========================================================================
+// PANEL DE NOTIFICACIONES WHATSAPP (CallMeBot)
+// Solo se llama si puedeGestionarAdmins(currentUser) es true.
+// Todo el flujo pasa por /api/notify-channels; el envío real lo hace el
+// helper del backend (_lib_whatsapp.js) usando CallMeBot como transporte.
+// ========================================================================
+
+// Estado local: cache del último fetch para poder editar sin refetch inmediato.
+let _waChannels = [];
+
+// Fetch de la lista de canales y render en el contenedor #wa-channels-list.
+async function cargarCanalesWhatsApp(){
+  const cont = document.getElementById('wa-channels-list');
+  if(!cont) return;
+  cont.innerHTML = '<div class="pm-past-load">'+t('past_loading')+'</div>';
+  try {
+    const r = await fetch('/api/notify-channels', {
+      headers: {'Authorization':'Bearer '+_token}
+    });
+    if(!r.ok){
+      cont.innerHTML = '<div class="alert alert-err" style="margin:0">'+t('wa_err_load')+'</div>';
+      return;
+    }
+    const d = await r.json();
+    _waChannels = Array.isArray(d.channels) ? d.channels : [];
+    if(d.token) _token = d.token;
+    renderCanalesWhatsApp();
+  } catch(e){
+    cont.innerHTML = '<div class="alert alert-err" style="margin:0">'+t('wa_err_load')+'</div>';
+  }
+}
+
+// Render de la lista actual (usa _waChannels, no re-fetchea).
+function renderCanalesWhatsApp(){
+  const cont = document.getElementById('wa-channels-list');
+  if(!cont) return;
+  if(!_waChannels.length){
+    cont.innerHTML = '<div class="legend-txt" style="margin:0">'+t('wa_none')+'</div>';
+    return;
+  }
+  // Tabla compacta con acciones inline. En móvil: scroll horizontal si no entra.
+  let html = '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.85rem">';
+  html += '<thead><tr style="border-bottom:1px solid var(--border2);text-align:left">';
+  html += '<th style="padding:.4rem .3rem">'+t('wa_col_name')+'</th>';
+  html += '<th style="padding:.4rem .3rem">'+t('wa_col_phone')+'</th>';
+  html += '<th style="padding:.4rem .3rem">'+t('wa_col_apikey')+'</th>';
+  html += '<th style="padding:.4rem .3rem;text-align:center">'+t('wa_col_active')+'</th>';
+  html += '<th style="padding:.4rem .3rem">'+t('wa_col_last')+'</th>';
+  html += '<th style="padding:.4rem .3rem;text-align:right">'+t('wa_col_actions')+'</th>';
+  html += '</tr></thead><tbody>';
+  for(const c of _waChannels){
+    const nombreEsc = String(c.admin_name||'').replace(/[<>&"]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[ch]));
+    const phoneEsc  = String(c.phone_number||'').replace(/[^\d]/g,'');
+    // El APIKEY nunca se muestra completo por seguridad: solo los últimos 3 dígitos.
+    // Si no tiene APIKEY propio, indica que usa el fallback del sistema.
+    let apikeyTxt;
+    if(c.apikey && String(c.apikey).length){
+      const k = String(c.apikey);
+      apikeyTxt = '••••'+k.slice(-3);
+    } else {
+      apikeyTxt = '<span class="legend-txt" style="font-size:.75rem">'+t('wa_using_fallback')+'</span>';
+    }
+    const activeChk = c.active ? 'checked' : '';
+    const lastTxt = c.last_notified_at
+      ? new Date(c.last_notified_at).toLocaleString()
+      : '<span class="legend-txt">'+t('wa_never')+'</span>';
+    html += '<tr style="border-bottom:1px solid var(--border2)">';
+    html += '<td style="padding:.5rem .3rem"><strong>'+nombreEsc+'</strong></td>';
+    html += '<td style="padding:.5rem .3rem;font-family:monospace">+'+phoneEsc+'</td>';
+    html += '<td style="padding:.5rem .3rem;font-family:monospace">'+apikeyTxt+'</td>';
+    html += '<td style="padding:.5rem .3rem;text-align:center"><label style="display:inline-flex;align-items:center;cursor:pointer"><input type="checkbox" '+activeChk+' onchange="toggleCanalWA('+c.id+', this.checked)" style="cursor:pointer"></label></td>';
+    html += '<td style="padding:.5rem .3rem;font-size:.8rem">'+lastTxt+'</td>';
+    html += '<td style="padding:.5rem .3rem;text-align:right;white-space:nowrap">';
+    html += '<button class="btn btn-sm" onclick="probarCanalWA('+c.id+')" title="'+t('wa_test_btn')+'">🧪</button> ';
+    html += '<button class="btn btn-sm" onclick="abrirModalCanalWA('+c.id+')" title="'+t('wa_edit_btn')+'"><i class="ti ti-edit"></i></button> ';
+    html += '<button class="btn btn-sm btn-danger" onclick="borrarCanalWA('+c.id+')" title="'+t('wa_delete_btn')+'"><i class="ti ti-trash"></i></button>';
+    html += '</td></tr>';
+  }
+  html += '</tbody></table></div>';
+  cont.innerHTML = html;
+}
+
+// Abre el modal de agregar (sin id) o editar (con id existente). Reutiliza
+// el modal genérico #modal-bg que ya está en el DOM.
+function abrirModalCanalWA(idOpc){
+  const editing = typeof idOpc === 'number' && idOpc > 0;
+  const c = editing ? _waChannels.find(x => x.id === idOpc) : null;
+  if(editing && !c){ toast(t('wa_err_load')); return; }
+
+  document.getElementById('modal-title').textContent = editing ? t('wa_modal_edit_title') : t('wa_modal_add_title');
+
+  // Campos del formulario. El teléfono se puede editar solo en "agregar"
+  // (cambiar el teléfono requiere APIKEY nuevo → mejor borrar y agregar de nuevo).
+  const phoneDisabled = editing ? 'readonly style="opacity:.6;cursor:not-allowed"' : '';
+  const phonePrefill  = editing ? String(c.phone_number||'') : '';
+  const namePrefill   = editing ? String(c.admin_name||'').replace(/"/g,'&quot;') : '';
+  const apikeyPrefill = editing && c.apikey ? String(c.apikey) : '';
+
+  let body = '';
+  body += '<label class="lbl">'+t('wa_field_name_lbl')+'</label>';
+  body += '<input id="wa-fld-name" class="inp" type="text" maxlength="60" placeholder="'+t('wa_field_name_ph')+'" value="'+namePrefill+'">';
+  body += '<label class="lbl" style="margin-top:.6rem">'+t('wa_field_phone_lbl')+'</label>';
+  body += '<input id="wa-fld-phone" class="inp" type="text" maxlength="20" placeholder="'+t('wa_field_phone_ph')+'" value="'+phonePrefill+'" '+phoneDisabled+'>';
+  body += '<p class="legend-txt" style="margin:.2rem 0 .6rem;font-size:.75rem">'+t('wa_field_phone_hint')+'</p>';
+  body += '<label class="lbl">'+t('wa_field_apikey_lbl')+'</label>';
+  body += '<input id="wa-fld-apikey" class="inp" type="text" maxlength="40" placeholder="'+t('wa_field_apikey_ph')+'" value="'+apikeyPrefill+'">';
+  body += '<p class="legend-txt" style="margin:.2rem 0 0;font-size:.75rem">'+t('wa_field_apikey_hint')+'</p>';
+  document.getElementById('modal-body').innerHTML = body;
+
+  const idParam = editing ? idOpc : 'null';
+  document.getElementById('modal-actions').innerHTML =
+    '<button class="btn" onclick="closeM()">'+t('wa_cancel_btn')+'</button>'+
+    '<button class="btn btn-primary" onclick="guardarCanalWA('+idParam+')">'+t('wa_save_btn')+'</button>';
+
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+// Guarda: POST si es nuevo, PATCH si es edición.
+async function guardarCanalWA(idOpc){
+  const name   = (document.getElementById('wa-fld-name').value||'').trim();
+  const phone  = (document.getElementById('wa-fld-phone').value||'').replace(/[^\d]/g,'');
+  const apikey = (document.getElementById('wa-fld-apikey').value||'').trim();
+
+  if(!name){ toast(t('wa_bad_name')); return; }
+  const editing = typeof idOpc === 'number' && idOpc > 0;
+  // Al agregar exigimos teléfono válido; al editar el teléfono está readonly.
+  if(!editing && (phone.length < 7 || phone.length > 15)){ toast(t('wa_bad_phone')); return; }
+
+  try {
+    let r;
+    if(editing){
+      r = await fetch('/api/notify-channels', {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json','Authorization':'Bearer '+_token},
+        body: JSON.stringify({ id: idOpc, admin_name: name, apikey: apikey || null })
+      });
+    } else {
+      r = await fetch('/api/notify-channels', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','Authorization':'Bearer '+_token},
+        body: JSON.stringify({ phone_number: phone, admin_name: name, apikey: apikey || null })
+      });
+    }
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){
+      toast((d && d.error) || t('wa_err_save'));
+      return;
+    }
+    if(d.token) _token = d.token;
+    closeM();
+    toast(t('wa_saved'));
+    await cargarCanalesWhatsApp();
+  } catch(e){
+    toast(t('wa_err_save'));
+  }
+}
+
+// Toggle active/inactive: PATCH inmediato, sin modal.
+async function toggleCanalWA(id, active){
+  try {
+    const r = await fetch('/api/notify-channels', {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ id, active: !!active })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){
+      toast((d && d.error) || t('wa_err_save'));
+      // Revertimos visualmente refrescando la lista.
+      await cargarCanalesWhatsApp();
+      return;
+    }
+    if(d.token) _token = d.token;
+    // Actualizamos el cache local sin refetch para respuesta instantánea.
+    const c = _waChannels.find(x => x.id === id);
+    if(c) c.active = !!active;
+    toast(t('wa_toggle_ok'));
+  } catch(e){
+    toast(t('wa_err_save'));
+    await cargarCanalesWhatsApp();
+  }
+}
+
+// Borrar con confirmación.
+async function borrarCanalWA(id){
+  const c = _waChannels.find(x => x.id === id);
+  if(!c) return;
+  if(!confirm(t('wa_delete_confirm').replace('{n}', c.admin_name || ''))) return;
+  try {
+    const r = await fetch('/api/notify-channels', {
+      method: 'DELETE',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ id })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){
+      toast((d && d.error) || t('wa_err_delete'));
+      return;
+    }
+    if(d.token) _token = d.token;
+    toast(t('wa_deleted'));
+    await cargarCanalesWhatsApp();
+  } catch(e){
+    toast(t('wa_err_delete'));
+  }
+}
+
+// Test manual: dispara un mensaje al canal para que el admin lo verifique en su
+// WhatsApp. Usa el endpoint POST /api/notify-channels con action=test (agregado
+// abajo en el backend) — si no está soportado, el usuario ve el error real de la API.
+async function probarCanalWA(id){
+  const c = _waChannels.find(x => x.id === id);
+  if(!c) return;
+  toast(t('wa_test_sending'));
+  try {
+    const r = await fetch('/api/notify-channels', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+_token},
+      body: JSON.stringify({ action: 'test', id })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok || d.error){
+      toast(t('wa_test_err') + (d && d.error ? ': ' + d.error : ''));
+      return;
+    }
+    if(d.token) _token = d.token;
+    toast(t('wa_test_ok'));
+  } catch(e){
+    toast(t('wa_test_err'));
+  }
+}
+
+// ========================================================================
+// PANEL: HEADER DEL LOGIN (color + links editables)
+// Config vive en LOGIN_HEADER = { color, links: [{text, url}] }.
+// El admin edita desde el panel Admin; el estado se guarda vía persist().
+// Renderiza en vivo la barra del login (para que el admin vea el cambio
+// aunque no haya cerrado sesión).
+// ========================================================================
+function renderLoginHeaderLinks(){
+  const cont = document.getElementById('lh-links-list');
+  if(!cont) return;
+  const links = (LOGIN_HEADER && Array.isArray(LOGIN_HEADER.links)) ? LOGIN_HEADER.links : [];
+  if(!links.length){
+    cont.innerHTML = '<div class="legend-txt" style="margin:.5rem 0">'+t('lh_no_links')+'</div>';
+    renderLoginHeaderPreview();
+    return;
+  }
+  let html = '';
+  links.forEach((l, i) => {
+    const text = String(l.text || '').replace(/"/g, '&quot;');
+    const url = String(l.url || '').replace(/"/g, '&quot;');
+    html += '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:.5rem;align-items:end;margin-bottom:.5rem;padding:.5rem;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">';
+    html +=   '<div class="form-group" style="margin:0"><label style="font-size:11px">'+t('lh_link_text')+'</label><input type="text" value="'+text+'" onchange="updateLoginHeaderLink('+i+',\'text\',this.value)" placeholder="Ej: Club" maxlength="30"></div>';
+    html +=   '<div class="form-group" style="margin:0"><label style="font-size:11px">'+t('lh_link_url')+'</label><input type="url" value="'+url+'" onchange="updateLoginHeaderLink('+i+',\'url\',this.value)" placeholder="https://..." maxlength="500"></div>';
+    html +=   '<button class="btn btn-sm btn-danger" onclick="removeLoginHeaderLink('+i+')" title="'+t('lh_link_delete')+'" style="margin-bottom:.15rem"><i class="ti ti-trash"></i></button>';
+    html += '</div>';
+  });
+  cont.innerHTML = html;
+  renderLoginHeaderPreview();
+}
+
+// Preview miniatura del header, dentro del panel Admin. Ayuda a ver cómo va a
+// quedar sin salir/entrar del login. Idéntico look al header real (renderLoginHeader),
+// pero encapsulado en el elemento #lh-preview.
+function renderLoginHeaderPreview(){
+  const el = document.getElementById('lh-preview');
+  if(!el) return;
+  const cfg = LOGIN_HEADER || { color:'#0E3470', textColor:'', links:[] };
+  const links = Array.isArray(cfg.links) ? cfg.links.filter(l => l && l.text && l.url) : [];
+  const bg = cfg.color || '#0E3470';
+  const fg = (cfg.textColor && String(cfg.textColor).trim())
+    ? cfg.textColor
+    : ((typeof autoTxt === 'function') ? autoTxt(bg) : '#fff');
+  if(!links.length){
+    el.style.cssText = 'padding:.5rem;background:'+bg+';color:'+fg+';font-size:11px;text-align:center;opacity:.7';
+    el.textContent = '(sin enlaces — la barra no se muestra)';
+    return;
+  }
+  el.style.cssText = 'display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;padding:.5rem;background:'+bg+';color:'+fg;
+  el.innerHTML = links.map(l => {
+    const txt = String(l.text).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
+    return '<span style="font-weight:600;font-size:12px;padding:.25rem .55rem;border:1px solid '+fg+';border-radius:999px">'+txt+'</span>';
+  }).join('');
+}
+
+// Vuelve al color de texto automático (basado en el fondo). Vacía el campo
+// custom y re-guarda: si textColor='', renderLoginHeader usa autoTxt().
+function resetLoginHeaderTextColor(){
+  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', links:[] };
+  LOGIN_HEADER.textColor = '';
+  try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
+  renderLoginHeaderPreview();
+  try { renderLoginHeader(); } catch(_){}
+  if(typeof persist === 'function') persist(true);
+  toast(t('lh_saved'));
+  // Re-renderear los inputs para que el color picker se resetee visualmente
+  if(typeof renderLoginHeaderLinks === 'function') renderLoginHeaderLinks();
+  // Y actualizar el input del color de texto para reflejar el reset (aunque
+  // internamente está vacío, el picker HTML muestra algo — le ponemos el auto).
+  const ti = document.getElementById('lh-textcolor');
+  if(ti && typeof autoTxt === 'function') ti.value = autoTxt(LOGIN_HEADER.color || '#0E3470');
+}
+
+function addLoginHeaderLink(){
+  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', links:[] };
+  if(!Array.isArray(LOGIN_HEADER.links)) LOGIN_HEADER.links = [];
+  LOGIN_HEADER.links.push({ text: '', url: '' });
+  renderLoginHeaderLinks();
+  // No persistimos aún: hasta que el usuario complete texto Y url, el link no
+  // se guarda ni aparece en la barra. persist() dispara con updateLoginHeaderLink.
+}
+
+function updateLoginHeaderLink(i, field, value){
+  if(!LOGIN_HEADER || !Array.isArray(LOGIN_HEADER.links)) return;
+  const link = LOGIN_HEADER.links[i];
+  if(!link) return;
+  const v = String(value || '').trim();
+  // Validación suave por campo. No bloqueamos escribir mal, pero avisamos al
+  // guardar si la URL está mal formada.
+  if(field === 'url' && v && !/^https?:\/\//i.test(v)){
+    toast(t('lh_url_bad'));
+    return;
+  }
+  if(field === 'text' && v.length > 30) return;
+  link[field] = v;
+  // Solo llamamos a persist si el link quedó completo (text Y url válidos).
+  // Un link a medio llenar no rompe nada, se filtra en el render.
+  saveLoginHeader();
+}
+
+function removeLoginHeaderLink(i){
+  if(!LOGIN_HEADER || !Array.isArray(LOGIN_HEADER.links)) return;
+  const link = LOGIN_HEADER.links[i];
+  if(!link) return;
+  const nombre = link.text || t('lh_link_delete');
+  if(!confirm(t('lh_del_confirm').replace('{n}', nombre))) return;
+  LOGIN_HEADER.links.splice(i, 1);
+  renderLoginHeaderLinks();
+  saveLoginHeader();
+}
+
+// Guarda el estado (persist) y también dispara re-render del header en vivo
+// dentro del login (por si el admin también tiene el login abierto en otra
+// pestaña, aunque no común). El preview del panel se refresca en cada acción
+// del admin, no necesita hook aquí.
+function saveLoginHeader(){
+  const colorInput = document.getElementById('lh-color');
+  const textColorInput = document.getElementById('lh-textcolor');
+  if(!LOGIN_HEADER) LOGIN_HEADER = { color:'#0E3470', textColor:'', links:[] };
+  if(colorInput) LOGIN_HEADER.color = colorInput.value || '#0E3470';
+  if(textColorInput) LOGIN_HEADER.textColor = textColorInput.value || '';
+  // Cachear en localStorage: el header debe aparecer en el PRIMER paint del
+  // login SIN esperar al backend. Sin este cache, un visitante nuevo abre la
+  // app y no ve la barra hasta que alguien se loguea (imposible: hasta login,
+  // no hay state hidratado).
+  try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
+  renderLoginHeaderPreview();
+  try { renderLoginHeader(); } catch(_){}
+  if(typeof persist === 'function') persist(true);
+  toast(t('lh_saved'));
+}
+
+// La app arranca SIN datos. Nada se pide al servidor hasta que alguien entre.
+// El nombre y el subtítulo de la liga los aplica el script del <head> desde
+// localStorage, así la pantalla de login no necesita leer la base.
+(function(){
+  initLogin();
+  updateLangUI();
+})();
+  async function abrirVincularJugador(nombreActual) {
+    document.getElementById('modal-title').textContent = 'Conectar jugador: ' + attr(nombreActual);
+    document.getElementById('modal-body').innerHTML = '<div class="pm-past-load">Cargando catálogo global...</div>';
+    document.getElementById('modal-actions').innerHTML = '<button class="btn" onclick="closeM()">Cancelar</button>';
+    document.getElementById('modal-bg').classList.add('open');
+
+    try {
+        const r = await fetch('/api/liga', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json', Authorization: 'Bearer '+_token},
+            body: JSON.stringify({accion: 'catalogo'})
+        });
+        const d = await r.json();
+        const cat = d.jugadores || [];
+
+        let html = '<p class="legend-txt">Elegí un jugador de la base de datos (ligas anteriores) para conectarlo. Esto arrastrará su historial unificado y contraseña.</p>';
+        html += '<select id="vincular-sel" class="cl-inp" style="margin-top:10px;"><option value="">-- Seleccionar jugador global --</option>';
+        cat.forEach(j => {
+            html += `<option value="${j.jugadorId}|${attr(j.nombre)}">${attr(j.nombre)} ${j.email ? `(${j.email})` : ''}</option>`;
+        });
+        html += '</select>';
+
+        document.getElementById('modal-body').innerHTML = html;
+        document.getElementById('modal-actions').innerHTML = `
+            <button class="btn" onclick="closeM()">Cancelar</button>
+            <button class="btn btn-primary" onclick="confirmarVinculacion('${jsq(nombreActual)}')"><i class="ti ti-link"></i> Conectar</button>
+        `;
+    } catch (e) {
+        document.getElementById('modal-body').innerHTML = '<div class="alert alert-err">Error cargando catálogo</div>';
+    }
+}
+
+function confirmarVinculacion(nombreActual) {
+    const val = document.getElementById('vincular-sel').value;
+    if (!val) { alert('Seleccioná un jugador del catálogo.'); return; }
+    
+    const parts = val.split('|');
+    const jugadorId = parts[0];
+    const nuevoNombre = parts[1];
+
+    if (!confirm(`¿Estás seguro de conectar a "${nombreActual}" con el perfil global de "${nuevoNombre}"?`)) return;
+
+    // Si los nombres son diferentes, renombramos al jugador en la liga actual para que coincida.
+    if (nombreActual !== nuevoNombre) {
+        if (USERS[nuevoNombre]) {
+            alert(`Ya existe un jugador llamado "${nuevoNombre}" en esta liga. No se puede vincular.`);
+            return;
+        }
+        renombrarJugadorEnLiga(nombreActual, nuevoNombre);
+    }
+
+    // Le asignamos el ID del catálogo y guardamos.
+    const nameToUse = (nombreActual !== nuevoNombre) ? nuevoNombre : nombreActual;
+    USERS[nameToUse].jugadorId = jugadorId;
+
+    persist(true);
+    closeM();
+    toast('✅ Jugador conectado exitosamente.');
+    refreshAll();
+}
+
+// Función súper robusta que actualiza todo el historial del jugador si su nombre tuvo que cambiar
+function renombrarJugadorEnLiga(oldName, newName) {
+    // 1. Modificar objeto USERS
+    USERS[newName] = USERS[oldName];
+    USERS[newName].name = newName;
+    delete USERS[oldName];
+
+    // 2. Modificar listado global ALLNAMES
+    const idx = ALLNAMES.indexOf(oldName);
+    if (idx >= 0) ALLNAMES[idx] = newName;
+
+    // 3. Modificar Grupos en los Ciclos
+    cycles.forEach(c => {
+        if (c.groups) {
+            c.groups.forEach(g => {
+                const gi = g.players.indexOf(oldName);
+                if (gi >= 0) g.players[gi] = newName;
+            });
+        }
+    });
+
+    // 4. Modificar Historial de Partidos
+    matches.forEach(m => {
+        if (m.aName === oldName) m.aName = newName;
+        if (m.bName === oldName) m.bName = newName;
+        if (m.reporter === oldName) m.reporter = newName;
+        if (m.vBy === oldName) m.vBy = newName;
+        if (m.winner === oldName) m.winner = newName;
+        if (m.po && Array.isArray(m.poNames)) {
+            const pi = m.poNames.indexOf(oldName);
+            if (pi >= 0) m.poNames[pi] = newName;
+        }
+    });
+
+    // 5. Modificar clasificados y seeds de Play Offs
+    if (playoff && playoff.qualified) {
+        const qi = playoff.qualified.indexOf(oldName);
+        if (qi >= 0) playoff.qualified[qi] = newName;
+        playoff.tramos.forEach(tr => {
+            const si = tr.seeds.indexOf(oldName);
+            if (si >= 0) tr.seeds[si] = newName;
+
+            ['main', 'cons'].forEach(which => {
+                if (tr[which]) {
+                    tr[which].forEach(round => {
+                        round.forEach(m => {
+                            if (m.a === oldName) m.a = newName;
+                            if (m.b === oldName) m.b = newName;
+                            if (m.w === oldName) m.w = newName;
+                        });
+                    });
+                }
+            });
+        });
+    }
+}
+</script><script src="rating.js"></script></body></html>
