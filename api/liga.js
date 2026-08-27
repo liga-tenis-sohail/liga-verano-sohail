@@ -232,6 +232,84 @@ module.exports = async function handler(req, res){
     return res.status(200).json({ ok: true, id: nuevoId, jugadores: estado.ALLNAMES.length });
   }
 
+  // ================= AGREGAR JUGADORES A UNA LIGA YA CREADA =================
+  // Permite al admin/superadmin sumar jugadores del catálogo (de ligas pasadas
+  // o de otras ligas) a una liga ya existente, eligiendo a qué grupo del ciclo
+  // activo va cada uno. { accion:'agregarJugadores', id, jugadores:[{jugadorId?|nombre?,email?,grupo}] }
+  if(accion === 'agregarJugadores'){
+    const jugadoresIn = Array.isArray(body.jugadores) ? body.jugadores : [];
+    if(!jugadoresIn.length) return res.status(400).json({ error: 'No se especificaron jugadores para agregar.' });
+
+    let estado;
+    try { estado = await readState(id); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga.' }); }
+    if(!estado) return res.status(404).json({ error: 'Esa liga no tiene datos.' });
+
+    const cicloActivo = (estado.cycles || []).find(c => c && c.n === estado.activeN) || (estado.cycles || [])[(estado.activeN || 1) - 1];
+    if(!cicloActivo || !Array.isArray(cicloActivo.groups) || !cicloActivo.groups.length){
+      return res.status(400).json({ error: 'La liga no tiene un ciclo activo con grupos para agregar jugadores.' });
+    }
+    const numGrupos = cicloActivo.groups.length;
+
+    let catalogo = {}; try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
+    if(!estado.ALLNAMES) estado.ALLNAMES = [];
+    if(!estado.users) estado.users = {};
+
+    const agregados = [];
+    for(const j of jugadoresIn){
+      if(!j) continue;
+      let perfil = null;
+
+      if(j.jugadorId && catalogo[j.jugadorId]){
+        perfil = catalogo[j.jugadorId];
+      } else if(j.email){
+        try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
+        if(!perfil && j.nombre){
+          perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
+          try { await upsertJugador(perfil); } catch(e){}
+        }
+      } else if(j.nombre){
+        perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: null, pass: null };
+        try { await upsertJugador(perfil); } catch(e){}
+      }
+
+      if(!perfil || !perfil.nombre) continue;
+      const nomNorm = perfil.nombre.trim().toLowerCase();
+      if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
+
+      // Ya está jugando el ciclo activo de esta liga: no duplicar.
+      const yaEnCicloActivo = cicloActivo.groups.some(g => (g.players || []).includes(perfil.nombre));
+      if(yaEnCicloActivo) continue;
+
+      let targetIndex = (parseInt(j.grupo, 10) || 1) - 1;
+      if(targetIndex < 0 || targetIndex >= numGrupos) targetIndex = 0;
+      cicloActivo.groups[targetIndex].players.push(perfil.nombre);
+
+      if(!estado.ALLNAMES.includes(perfil.nombre)) estado.ALLNAMES.push(perfil.nombre);
+
+      if(estado.users[perfil.nombre]){
+        estado.users[perfil.nombre].jugadorId = perfil.id;
+        estado.users[perfil.nombre].name = perfil.nombre;
+        if(perfil.email) estado.users[perfil.nombre].email = perfil.email;
+        if(estado.users[perfil.nombre].inactive) delete estado.users[perfil.nombre].inactive;
+      } else {
+        estado.users[perfil.nombre] = {
+          role: 'player', name: perfil.nombre, email: perfil.email || null, jugadorId: perfil.id
+        };
+      }
+      agregados.push({ nombre: perfil.nombre, grupo: targetIndex + 1 });
+    }
+
+    if(!agregados.length){
+      return res.status(400).json({ error: 'No se agregó ningún jugador (ya estaban en el ciclo activo o los datos no eran válidos).' });
+    }
+
+    try { await writeState(id, estado); }
+    catch(e){ return res.status(503).json({ error: 'No se pudo guardar la liga: ' + e.message }); }
+
+    logAudit(session.u, 'liga.agregarJugadores', id, { jugadores: agregados.map(a => a.nombre) }, clientIP(req));
+    return res.status(200).json({ ok: true, id, agregados });
+  }
+
   // ================= CERRAR, REABRIR, ELIMINAR =================
   if(accion === 'cerrar'){
     try { await setEstadoLiga(id, 'finalizada'); } catch(e){ return res.status(503).json({ error: 'No se pudo cerrar: ' + e.message }); }
