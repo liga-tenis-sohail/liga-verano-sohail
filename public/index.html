@@ -43,7 +43,7 @@
 --danger:#c0392b;--dangerBg:#FCEBEB;--dangerT:#791F1F;
 --success:#16a34a;--successBg:#dcfce7;--successT:#166534;
 --warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
---hover:rgba(0,0,0,.04);--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
+--hover:rgba(0,0,0,.04);--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0, 0,0,.15);
 --ring:0 0 0 3px rgba(27,79,156,.15);
 /* Tokens agregados post-tanda 3 para arreglar el dark mode:
    - reqBg/reqBorder: fondo cream + borde negro del bloque "Reportar resultado" cuando falta info
@@ -1369,6 +1369,34 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .pend-item{gap:5px}
   .seed-list{gap:4px}
   .seed-chip{font-size:11px;padding:3px 7px}
+
+  /* ==== FIX DEFINITIVO DE LEGIBILIDAD EN FILA DESTACADA ME-ROW ==== */
+html[data-theme="dark"] .me-row,
+html[data-theme="dark"] .me-row td,
+html[data-theme="dark"] .me-row td *,
+html[data-theme="dark"] .me-row th,
+html[data-theme="dark"] .me-row th *,
+html[data-theme="dark"] .me-mtx,
+html[data-theme="dark"] .me-mtx * {
+  background-color: #FFF8DC !important;
+  color: #0E3470 !important;
+  text-decoration-color: #0E3470 !important;
+  opacity: 1 !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) .me-row,
+  html:not([data-theme]) .me-row td,
+  html:not([data-theme]) .me-row td *,
+  html:not([data-theme]) .me-row th,
+  html:not([data-theme]) .me-row th *,
+  html:not([data-theme]) .me-mtx,
+  html:not([data-theme]) .me-mtx * {
+    background-color: #FFF8DC !important;
+    color: #0E3470 !important;
+    text-decoration-color: #0E3470 !important;
+    opacity: 1 !important;
+  }
 }
 </style></head><body>
 <div id="login-screen">
@@ -5838,8 +5866,8 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   // Nota: cuando meA/meB, el fondo cream #FFF8DC + clase .po-me-slot fuerzan
   // texto oscuro en dark mode (regla en CSS). El seed number y el chip "yo"
   // heredan la clase para no quedar en blanco sobre cream.
-  const sA=aw?'background:var(--winrow);font-weight:700;color:var(--priD);':meA?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_A?'background:var(--surface2);':'';
-  const sB=bw?'background:var(--winrow);font-weight:700;color:var(--priD);':meB?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_B?'background:var(--surface2);':'';
+  const sA=aw?'background:#FFF8DC;font-weight:700;color:#0E3470;':meA?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_A?'background:var(--surface2);':'';
+  const sB=bw?'background:#FFF8DC;font-weight:700;color:#0E3470;':meB?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_B?'background:var(--surface2);':'';
   const iA=!m.a?'color:var(--text2);font-style:italic;':'';
   const iB=!m.b&&m.a?'color:var(--text2);font-style:italic;':'';
   const nmA=m.a||emptyTxt;const nmB=m.b||(m.a?'BYE':emptyTxt);
