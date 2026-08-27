@@ -241,10 +241,13 @@ module.exports = async function handler(req, res){
     }
 
     // --- Armar el plantel: jugadores del catálogo + nuevos ---
-    // body.jugadores = [{ jugadorId } | { nombre, email }]
     const jugadores = Array.isArray(body.jugadores) ? body.jugadores : [];
     let catalogo = {};
     try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
+
+    // CORRECCIÓN: Contadores para repartir automáticamente los jugadores en los grupos.
+    let currentGroupIndex = 0;
+    const numGroups = estado.cycles[0].groups.length;
 
     for(const j of jugadores){
       if(!j) continue;
@@ -268,14 +271,19 @@ module.exports = async function handler(req, res){
       }
 
       if(perfil && perfil.nombre){
-        // Protección: los nombres 'admin' y 'superadmin' son cuentas de sistema
-        // y se acaban de heredar arriba. Un perfil del catálogo con esos nombres
-        // NO puede pisarlas (dejaría a la liga sin admin real, con clave del jugador).
         const nomNorm = perfil.nombre.trim().toLowerCase();
         if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
-        // Agregar a la liga apuntando a su perfil global.
+        
         estado.users[perfil.nombre] = { role: 'player', jugadorId: perfil.id };
-        if(!estado.ALLNAMES.includes(perfil.nombre)) estado.ALLNAMES.push(perfil.nombre);
+        if(!estado.ALLNAMES.includes(perfil.nombre)) {
+          estado.ALLNAMES.push(perfil.nombre);
+          
+          // LA MAGIA ESTÁ ACÁ: Asignamos el jugador al grupo y avanzamos al siguiente
+          if (numGroups > 0) {
+            estado.cycles[0].groups[currentGroupIndex].players.push(perfil.nombre);
+            currentGroupIndex = (currentGroupIndex + 1) % numGroups;
+          }
+        }
       }
     }
 
