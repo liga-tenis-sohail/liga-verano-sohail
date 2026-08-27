@@ -115,8 +115,10 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   // Nota: cuando meA/meB, el fondo cream #FFF8DC + clase .po-me-slot fuerzan
   // texto oscuro en dark mode (regla en CSS). El seed number y el chip "yo"
   // heredan la clase para no quedar en blanco sobre cream.
-  const sA=aw?'background:#FFF8DC;font-weight:700;color:#0E3470;':meA?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_A?'background:var(--surface2);':'';
-  const sB=bw?'background:#FFF8DC;font-weight:700;color:#0E3470;':meB?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_B?'background:var(--surface2);':'';
+  // El GANADOR (aw/bw) NO lleva fondo: se distingue solo por la negrita.
+  // Antes tenía fondo cream, pero era ruido visual innecesario.
+  const sA=meA?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_A?'background:var(--surface2);':'';
+  const sB=meB?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_B?'background:var(--surface2);':'';
   const iA=!m.a?'color:var(--text2);font-style:italic;':'';
   const iB=!m.b&&m.a?'color:var(--text2);font-style:italic;':'';
   const nmA=m.a||emptyTxt;const nmB=m.b||(m.a?'BYE':emptyTxt);
