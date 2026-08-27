@@ -37,7 +37,6 @@ function estadoInicial(nombreLiga, numGrupos, numCiclos){
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
     DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: {}, LOG: [],
     LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '',
-    // Se agregan los colores y clubes por defecto para evitar diferencias cosméticas
     LEAGUE_COLOR_PRI: '#1B4F9C',
     LEAGUE_COLOR_ACC: '#F5C518',
     LEAGUE_COLOR_HL: '#FFEDD5',
@@ -161,7 +160,7 @@ module.exports = async function handler(req, res){
 
     const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
 
-    // HEREDAR ADMINS CORRECTAMENTE: incluyendo a los administradores delegados (isAdmin === true)
+    // HEREDAR ADMINS CORRECTAMENTE
     if(sesionState && sesionState.users){
       for(const k of Object.keys(sesionState.users)){
         const su = sesionState.users[k];
@@ -207,11 +206,18 @@ module.exports = async function handler(req, res){
           }
         }
         
-        // NO SOBREESCRIBIR PERMISOS si el jugador ya había sido heredado como admin
+        // GUARDADO EXPLÍCITO DE NAME Y EMAIL
         if(estado.users[perfil.nombre]) {
             estado.users[perfil.nombre].jugadorId = perfil.id;
+            estado.users[perfil.nombre].name = perfil.nombre;
+            if (perfil.email) estado.users[perfil.nombre].email = perfil.email;
         } else {
-            estado.users[perfil.nombre] = { role: 'player', jugadorId: perfil.id };
+            estado.users[perfil.nombre] = { 
+                role: 'player', 
+                name: perfil.nombre, 
+                email: perfil.email || null, 
+                jugadorId: perfil.id 
+            };
         }
       }
     }
