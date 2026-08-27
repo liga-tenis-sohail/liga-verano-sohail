@@ -2873,20 +2873,14 @@ async function cargarStatsTotales(name, actualSt){
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
-    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
-    for(const l of otras){
+    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
+    for(const l of pasadas){
       try{
-        let est=null;
         const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-        if(rv.ok){ const dv=await rv.json().catch(()=>({})); est=dv.estado; }
-        else if(_token){
-          const r2=await fetch('/api/state?liga='+encodeURIComponent(l.id),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-          if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
-        }
-        if(est){
-          const st=statsJugadorEnEstado(name, est);
-          tot.pj+=st.pj; tot.pg+=st.pg; tot.pp+=st.pp;
-        }
+        if(!rv.ok)continue;
+        const dv=await rv.json().catch(()=>({}));
+        const st=statsJugadorEnEstado(name, dv.estado||{});
+        tot.pj+=st.pj; tot.pg+=st.pg; tot.pp+=st.pp;
       }catch(_){}
     }
   }catch(_){}
@@ -6499,6 +6493,7 @@ function showPlayerHistory(name){
   document.getElementById('modal-bg').classList.add('open');
 }
 // Despliega/oculta las ligas pasadas donde jugó esa persona, dentro de la ficha.
+let _pmPastOpen=null;
 async function togglePlayerPast(name){
   const wrap=document.getElementById('pm-past-wrap');
   if(!wrap) return;
@@ -6508,13 +6503,14 @@ async function togglePlayerPast(name){
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
-    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
-    if(!otras.length){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>'; return; }
+    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
+    if(!pasadas.length){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>'; return; }
+    // Botones de cada temporada pasada.
     wrap.innerHTML='<div class="pm-past-box"><div class="pm-past-lbl">'+t('past_player_lbl')+'</div>'
       +'<div class="pm-past-seasons" id="pm-past-seasons">'
-      + otras.map((l,i)=>'<button class="pm-season-btn'+(i===0?' on':'')+'" onclick="verJugadorEnLiga(\''+String(name).replace(/'/g,"\\'")+'\',\''+String(l.id).replace(/'/g,"\\'")+'\',this)">'+escPast(l.nombre)+'</button>').join('')
+      + pasadas.map((l,i)=>'<button class="pm-season-btn'+(i===0?' on':'')+'" onclick="verJugadorEnLiga(\''+String(name).replace(/'/g,"\\'")+'\',\''+String(l.id).replace(/'/g,"\\'")+'\',this)">'+escPast(l.nombre)+'</button>').join('')
       +'</div><div class="pm-season-results" id="pm-season-results"></div></div>';
-    verJugadorEnLiga(name, otras[0].id, null);
+    verJugadorEnLiga(name, pasadas[0].id, null);
   }catch(_){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
 // Trae los resultados de esa persona en una liga pasada específica.
@@ -6530,21 +6526,21 @@ async function verJugadorEnLiga(name, ligaId, btn){
   }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
 // Arma la lista de partidos de un jugador dado el estado de una liga.
-async function verJugadorEnLiga(name, ligaId, btn){
-  if(btn){ document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
-  const box=document.getElementById('pm-season-results');
-  if(box) box.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
-  try{
-    let est=null;
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
-    if(r.ok){ const d=await r.json().catch(()=>({})); est=d.estado; }
-    else if(_token){
-      const r2=await fetch('/api/state?liga='+encodeURIComponent(ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-      if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
-    }
-    if(!est){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; return; }
-    if(box) box.innerHTML=resultadosJugadorEnEstado(name, est);
-  }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+function resultadosJugadorEnEstado(name, estado){
+  const matches=(estado.matches||[]).filter(m=>m&&(m.aName===name||m.bName===name)&&m.status==='confirmed');
+  if(!matches.length) return '<div class="pm-past-empty">'+t('past_player_nomatch')+'</div>';
+  let g=0,p=0, rows='';
+  matches.forEach(m=>{
+    const yoA=m.aName===name; const rival=yoA?m.bName:m.aName;
+    const sets=(m.sets||[]).map(s=>Array.isArray(s)?(yoA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join(' ');
+    // ganador: quien tiene más sets ganados
+    let sgA=0,sgB=0; (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
+    const gane = yoA? sgA>sgB : sgB>sgA;
+    if(gane)g++;else p++;
+    rows+='<div class="pm-res-row"><span class="pm-wl '+(gane?'w':'l')+'">'+(gane?t('win_short'):t('loss_short'))+'</span>'
+      +'<span class="pm-res-rival">'+escPast(rival)+'</span><span class="pm-res-sc">'+escPast(sets)+'</span></div>';
+  });
+  return '<div class="pm-res-stats">'+g+' '+t('won_lc')+' · '+p+' '+t('lost_lc')+'</div>'+rows;
 }
 
 // ==================== H2H · CARA A CARA / HEAD 2 HEAD ====================
@@ -6578,54 +6574,6 @@ async function abrirH2H(a, b){
   document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
   document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
   document.getElementById('modal-bg').classList.add('open');
-  let gA=0,gB=0; let filasHTML='';
-  const todasLasFilas=[];
-  const actual=partidosEntre(a,b,{matches:matches}, LEAGUE_NAME||t('past_current'));
-  gA+=actual.gA; gB+=actual.gB;
-  actual.filas.forEach(f=>todasLasFilas.push(f));
-  
-  try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-    const d=await r.json().catch(()=>({}));
-    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
-    for(const l of otras){
-      try{
-        let est=null;
-        const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-        if(rv.ok){ const dv=await rv.json().catch(()=>({})); est=dv.estado; }
-        else if(_token){
-          const r2=await fetch('/api/state?liga='+encodeURIComponent(l.id),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-          if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
-        }
-        if(est){
-          const res=partidosEntre(a,b,est, l.nombre);
-          if(res.filas.length){ gA+=res.gA; gB+=res.gB; res.filas.forEach(f=>todasLasFilas.push(f)); }
-        }
-      }catch(_){}
-    }
-    todasLasFilas.sort((x,y)=>{
-      const fx=x.fecha||'', fy=y.fecha||'';
-      if(fx!==fy) return fy.localeCompare(fx);
-      return (y.mid||0)-(x.mid||0);
-    });
-    filasHTML='<div class="h2h-list">'+todasLasFilas.map(f=>
-      '<div class="h2h-row"><span class="h2h-wl '+(f.ganoA?'w':'l')+'">'+(f.ganoA?t('win_short'):t('loss_short'))+'</span>'
-      +'<span class="h2h-sc">'+escPast(f.sc)+'</span>'
-      +(f.ligaNombre?'<span class="h2h-liga-tag">'+escPast(f.ligaNombre)+'</span>':'')
-      +'</div>').join('')+'</div>';
-  }catch(_){}
-  
-  const body=document.getElementById('modal-body');
-  if(gA+gB===0){ body.innerHTML='<div class="pm-past-empty">'+t('h2h_none').replace('{a}',escPast(a)).replace('{b}',escPast(b))+'</div>'; return; }
-  let h='<div class="h2h-head">';
-  h+='<div class="h2h-side"><span class="avatar h2h-av">'+getInitials(a)+'</span><b>'+escPast(a)+'</b></div>';
-  h+='<div class="h2h-score"><span class="'+(gA>gB?'h2h-win':'')+'">'+gA+'</span><i>–</i><span class="'+(gB>gA?'h2h-win':'')+'">'+gB+'</span></div>';
-  h+='<div class="h2h-side"><span class="avatar h2h-av">'+getInitials(b)+'</span><b>'+escPast(b)+'</b></div>';
-  h+='</div>';
-  h+='<div class="h2h-caption">'+t('h2h_balance').replace('{a}',escPast(a)).replace('{b}',escPast(b)).replace('{ga}',gA).replace('{gb}',gB)+'</div>';
-  h+=filasHTML;
-  body.innerHTML=h;
-}
   // Liga actual (lo que ya está en memoria)
   let gA=0,gB=0; let filasHTML='';
   const todasLasFilas=[];
