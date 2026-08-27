@@ -1897,7 +1897,6 @@ function ptsForPos(gid, pos) {
     return Math.max(1, 5 - pos); // Nunca rompe la tabla
   }
 }
-
 function computeStats(cycN,gid){
   const c=cycles[cycN-1];if(!c||!c.groups||!c.groups[gid-1])return[];
   const g=c.groups[gid-1];const players=(g.players||[]).filter(Boolean);
