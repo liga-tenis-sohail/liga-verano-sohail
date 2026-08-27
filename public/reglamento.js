@@ -1,11 +1,9 @@
 // ============================================================================
 // public/reglamento.js — editor rich-text y render del reglamento
-// Extraído del index.html original (líneas del script: 1496..1732).
+// Extraído del index.html original (líneas del script: 1497..1732).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-
 // ==================== CATÁLOGO DE JUGADORES fin ====================
 
 // ==================== REGLAMENTO ====================

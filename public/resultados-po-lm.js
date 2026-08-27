@@ -1,13 +1,9 @@
 // ============================================================================
 // public/resultados-po-lm.js — modales de carga de playoff y load modal unificado
-// Extraído del index.html original (líneas del script: 5851..6320).
+// Extraído del index.html original (líneas del script: 5854..6363).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-  ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id).value='');
-}
-
 let poFormClub = '';
 function pickPoClub(c) {
     poFormClub = c;
@@ -475,3 +471,46 @@ let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');i
 // ============================================================================
 function confirmarModal(mensaje, opts){
   opts = opts || {};
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'cm-ov';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .18s';
+    const peligro = !!opts.peligro;
+    const okBg = peligro ? 'var(--danger)' : 'var(--pri,#1e3a8a)';
+    const titulo = opts.titulo || '';
+    const okTxt = opts.okTxt || 'Confirmar';
+    const cancelTxt = opts.cancelTxt || 'Cancelar';
+    const inputPh = opts.inputPlaceholder || '';
+    const inputHtml = inputPh
+      ? '<input id="_cm-in" placeholder="'+inputPh.replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;margin:8px 0 4px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px" autocomplete="off">'
+      : '';
+    ov.innerHTML =
+      '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25);transform:translateY(8px);transition:transform .18s">'+
+        (titulo ? '<h3 style="margin:0 0 8px;font-size:16px;font-weight:600">'+titulo+'</h3>' : '')+
+        '<p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--text,#0f172a);white-space:pre-wrap">'+String(mensaje).replace(/</g,'&lt;')+'</p>'+
+        inputHtml +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">'+
+          '<button id="_cm-cancel" class="btn btn-sm" style="background:transparent;border:1px solid var(--border,#e2e8f0);color:var(--text2,#64748b);padding:8px 14px">'+cancelTxt+'</button>'+
+          '<button id="_cm-ok" class="btn btn-sm" style="background:'+okBg+';color:#fff;border:none;padding:8px 14px;font-weight:600">'+okTxt+'</button>'+
+        '</div>'+
+      '</div>';
+    document.body.appendChild(ov);
+    requestAnimationFrame(()=>{ ov.style.opacity='1'; ov.firstChild.style.transform='translateY(0)'; });
+    const cerrar = (val) => {
+      ov.style.opacity='0';
+      setTimeout(()=>{ if(ov.parentNode) ov.parentNode.removeChild(ov); resolve(val); }, 180);
+    };
+    const inp = document.getElementById('_cm-in');
+    if(inp){ setTimeout(()=>inp.focus(), 60); }
+    document.getElementById('_cm-ok').onclick = () => cerrar(inp ? inp.value : true);
+    document.getElementById('_cm-cancel').onclick = () => cerrar(inp ? null : false);
+    // Click en el overlay = cancelar
+    ov.onclick = (e) => { if(e.target === ov) cerrar(inp ? null : false); };
+    // ESC = cancelar
+    const esc = (e) => { if(e.key === 'Escape'){ cerrar(inp ? null : false); document.removeEventListener('keydown', esc); } };
+    document.addEventListener('keydown', esc);
+    // Enter en el input = OK
+    if(inp){ inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') cerrar(inp.value); }); }
+  });
+}
+

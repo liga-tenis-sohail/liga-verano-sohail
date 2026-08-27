@@ -2,8 +2,7 @@
 // public/login-auth.js — pantalla de login, selector de ligas, gestión de ligas
 // Extraído del index.html original (líneas del script: 656..1369).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 function pintarLogin(d){
   const s=document.getElementById('login-user');if(!s)return;

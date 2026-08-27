@@ -1,11 +1,9 @@
 // ============================================================================
 // public/bootstrap.js — IIFE de arranque de la app y helpers finales
-// Extraído del index.html original (líneas del script: 7109..7234).
+// Extraído del index.html original (líneas del script: 7110..7234).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-
 // La app arranca SIN datos. Nada se pide al servidor hasta que alguien entre.
 // El nombre y el subtítulo de la liga los aplica el script del <head> desde
 // localStorage, así la pantalla de login no necesita leer la base.

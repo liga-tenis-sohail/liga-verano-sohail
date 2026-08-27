@@ -2,8 +2,7 @@
 // public/login-auth-p2.js — passkeys, theme, doLogin y montaje post-login
 // Extraído del index.html original (líneas del script: 1733..2350).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 function _conLiga2(url,ligaId){ return url+(url.includes('?')?'&':'?')+'liga='+encodeURIComponent(ligaId); }
 function applyLeagueNameToDOM(){

@@ -2,8 +2,7 @@
 // public/core-estado.js — estado global, helpers puros (traducciones, fechas, permisos, cálculos)
 // Extraído del index.html original (líneas del script: 1..655).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 // ===== La app ya NO habla directo con Supabase =====
 // Las claves viven como variables de entorno en Vercel y solo las ve el servidor.

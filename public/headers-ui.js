@@ -1,9 +1,8 @@
 // ============================================================================
 // public/headers-ui.js — panel de canales WhatsApp y header editable del login
-// Extraído del index.html original (líneas del script: 6755..7108).
+// Extraído del index.html original (líneas del script: 6755..7109).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 let _waChannels = [];
 
@@ -359,3 +358,4 @@ function saveLoginHeader(){
   if(typeof persist === 'function') persist(true);
   toast(t('lh_saved'));
 }
+

@@ -1,24 +1,9 @@
 // ============================================================================
 // public/jugadores-perfiles.js — perfiles, H2H, altas/bajas/renombrados/roles/passwords
-// Extraído del index.html original (líneas del script: 4781..5850).
+// Extraído del index.html original (líneas del script: 4795..5853).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-  // Mostrar al usuario que el proceso está en curso antes de hacer el fetch
-  toast('⏳ Iniciando Play Offs…');
-  const ok=await _criticalSave();
-  if(ok){
-    renderCycleBar();showPlayoffView();renderSubTabs();
-    toast(t('po_confirmed_toast'));
-  }else{
-    // Revertir el estado en memoria ya que no se pudo guardar
-    playoff.started=false;playoff.preview=true;
-    renderCycleBar();showPlayoffView();renderSubTabs();
-    // Usar alert para que el usuario no lo pierda (no desaparece solo)
-    alert('⚠️ No se pudo guardar el inicio de los Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecargá la página y volvé a intentarlo.\nSi el problema persiste, contactá al desarrollador.');
-  }
-}
 function renderCargarDisputas(){ }
 
 function resolveD(mid){
@@ -1075,3 +1060,6 @@ async function changePw(){
     if(!r.ok){al(d.error||t('pass_wrong'),'err');return;}
   }catch(e){al('No se pudo conectar con el servidor.','err');return;}
   al(t('pass_ok'),'ok');
+  ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id).value='');
+}
+

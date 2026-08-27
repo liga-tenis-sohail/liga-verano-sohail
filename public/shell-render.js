@@ -1,9 +1,8 @@
 // ============================================================================
 // public/shell-render.js — shell principal, tabs, cabecera
-// Extraído del index.html original (líneas del script: 2351..2482).
+// Extraído del index.html original (líneas del script: 2351..2487).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
 function renderCycleBar(){const bar=document.getElementById('cycle-bar');let html='';cycles.forEach(c=>{const playable=!!c.groups;const isView=viewCycle===c.n;const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;});const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;bar.innerHTML=html;}
@@ -137,3 +136,8 @@ function groupCardHTML(gid){
 // marcar no jugado, resolver una disputa. Un admin que además juega no debe
 // arbitrar sus propios partidos: lo hace su rival o cualquier otro admin.
 function esMiPartido(m){
+  if(!m || !currentUser) return false;
+  const yo = currentUser.name;
+  if(m.po) return !!(m.poNames && m.poNames.includes(yo));
+  return m.aName === yo || m.bName === yo;
+}

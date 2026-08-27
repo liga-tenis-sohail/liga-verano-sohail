@@ -1,31 +1,9 @@
 // ============================================================================
 // public/admin-ligas-clubes.js — gestión de ciclos, grupos y clubes desde admin
-// Extraído del index.html original (líneas del script: 3101..3475).
+// Extraído del index.html original (líneas del script: 3122..3522).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-    toast('No podés reducir a menos ciclos de los que ya están en juego.');
-    renderAdmin(); 
-    return;
-  }
-  if(newTotal === cycles.length) return;
-
-  if(newTotal > cycles.length) {
-    for(let i = cycles.length; i < newTotal; i++) {
-      cycles.push({n: i+1, status: 'locked', groups: null});
-      FECHAS.push('');
-    }
-  } else {
-    cycles.splice(newTotal);
-    FECHAS.splice(newTotal);
-  }
-  persist(true);
-  renderCycleBar();
-  renderAdmin();
-  toast('Cantidad de ciclos actualizada a ' + newTotal + '.');
-}
-
 function setNumGroups(val){
   const newNum = parseInt(val);
   if(!newNum || newNum < 1 || newNum > 50) return;
@@ -380,3 +358,50 @@ function saveLeagueName(){
   const acc=document.getElementById('sa-color-acc');
   const hl=document.getElementById('sa-color-hl');
   const al=document.getElementById('sa-league-alert');
+  if(!inp||!inp.value.trim()){if(al)al.innerHTML='<span style="color:#e55">El nombre no puede estar vacío.</span>';return;}
+  LEAGUE_NAME=inp.value.trim();
+  if(sub)LEAGUE_SUBTITLE=sub.value.trim();
+  if(pri)LEAGUE_COLOR_PRI=pri.value;
+  if(acc)LEAGUE_COLOR_ACC=acc.value;
+  if(hl)LEAGUE_COLOR_HL=hl.value;
+  const disp=document.getElementById('sa-color-disp');
+  if(disp)COLOR_DISPUTA=disp.value;
+  // Clubes: ya se modificaron en vivo sobre CLUBS. Validar antes de persistir:
+  // sin nombre vacío y sin nombres repetidos (romperían clubByName).
+  const nombres=CLUBS.map(c=>(c.name||'').trim());
+  if(nombres.some(n=>!n)){if(al)al.innerHTML='<span style="color:#e55">'+t('club_err_empty')+'</span>';return;}
+  if(new Set(nombres.map(n=>n.toLowerCase())).size!==nombres.length){if(al)al.innerHTML='<span style="color:#e55">'+t('club_err_dup')+'</span>';return;}
+  CLUBS.forEach(c=>{c.name=c.name.trim();});
+  // Migrar los partidos al nuevo nombre de club. Se hace en DOS pasos con un id
+  // temporal para evitar pisadas cuando dos clubes intercambian nombre:
+  // si Sohail→Haza y Haza→Sohail se hicieran secuencialmente por nombre, el primer
+  // paso mandaría todo a Haza y el segundo lo traería todo de vuelta a Sohail.
+  // Marcando primero con el id (único) y resolviendo después, cada partido llega
+  // a su destino correcto.
+  // Se calcula el nuevo club de cada partido en un array paralelo y recién al final
+  // se asigna. Así no hay pisadas en intercambios (Sohail↔Haza) ni dependencia de
+  // ningún carácter mágico: el mapeo viejo→id→nuevo se resuelve de una vez.
+  const idToNewName = {};
+  CLUBS.forEach(c=>{ idToNewName[c.id] = c.name; });
+  const nameToId = {};  // nombre viejo → id (del snapshot al abrir el editor)
+  Object.keys(_clubNamesAtOpen).forEach(id=>{ nameToId[_clubNamesAtOpen[id]] = id; });
+  const nuevos = matches.map(m=>{
+    const id = nameToId[m.club];
+    return (id && idToNewName[id] !== undefined) ? idToNewName[id] : m.club;
+  });
+  matches.forEach((m,i)=>{ m.club = nuevos[i]; });
+  // Aplicar colores
+  applyLeagueColors(LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL);
+  // Actualizar textos
+  const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME;
+  const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME;
+  const lsb=document.getElementById('login-sub');if(lsb)lsb.textContent=LEAGUE_SUBTITLE;
+  document.title=LEAGUE_NAME;
+  addLog('Config: nombre y colores actualizados',{po:null,a:LEAGUE_NAME,b:LEAGUE_SUBTITLE});
+  // Guardar en localStorage para recuperación inmediata sin flash
+  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE}));}catch(e){}
+  persist(true);
+  if(al)al.innerHTML='<span style="color:#22c55e">✓ Configuración guardada.</span>';
+  setTimeout(()=>{if(al)al.innerHTML='';},3000);
+}
+

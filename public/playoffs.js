@@ -1,12 +1,9 @@
 // ============================================================================
 // public/playoffs.js — brackets, seeds, propagación y modales de playoff
-// Extraído del index.html original (líneas del script: 4279..4780).
+// Extraído del index.html original (líneas del script: 4281..4794).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-  input.value='';
-}
 function setViewT(i){playoff.viewT=i;showPlayoffView();}
 
 function moveSeedUI(toTi){
@@ -507,3 +504,17 @@ async function previewPlayoffUI(){
 }
 async function confirmPlayoffUI(){
   if(!confirmPlayoff())return;
+  // Mostrar al usuario que el proceso está en curso antes de hacer el fetch
+  toast('⏳ Iniciando Play Offs…');
+  const ok=await _criticalSave();
+  if(ok){
+    renderCycleBar();showPlayoffView();renderSubTabs();
+    toast(t('po_confirmed_toast'));
+  }else{
+    // Revertir el estado en memoria ya que no se pudo guardar
+    playoff.started=false;playoff.preview=true;
+    renderCycleBar();showPlayoffView();renderSubTabs();
+    // Usar alert para que el usuario no lo pierda (no desaparece solo)
+    alert('⚠️ No se pudo guardar el inicio de los Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecargá la página y volvé a intentarlo.\nSi el problema persiste, contactá al desarrollador.');
+  }
+}

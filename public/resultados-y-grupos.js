@@ -1,15 +1,9 @@
 // ============================================================================
 // public/resultados-y-grupos.js — grupos, general, carga de resultados y pendientes
-// Extraído del index.html original (líneas del script: 2483..3100).
+// Extraído del index.html original (líneas del script: 2488..3121).
 // Este archivo comparte scope global con los otros public/*.js.
-// NO REORDENAR el orden de carga en index.html: hay dependencias por
-// hoisting y bloques de arranque (setInterval, IIFE) que dependen del orden.
+// NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-  if(!m || !currentUser) return false;
-  const yo = currentUser.name;
-  if(m.po) return !!(m.poNames && m.poNames.includes(yo));
-  return m.aName === yo || m.bName === yo;
-}
 function validaAlCargar(a, b){
   // Un administrador valida al cargar, incluido su propio partido.
   // Antes se le bloqueaba para que no arbitrara lo suyo. Ahora el control es la
@@ -623,3 +617,24 @@ function adminEdit(mid){const m=matches.find(x=>x.id===mid);closeM();showSub('ca
 function setTotalCycles(val){
   const newTotal = parseInt(val);
   if(newTotal < activeN) {
+    toast('No podés reducir a menos ciclos de los que ya están en juego.');
+    renderAdmin(); 
+    return;
+  }
+  if(newTotal === cycles.length) return;
+
+  if(newTotal > cycles.length) {
+    for(let i = cycles.length; i < newTotal; i++) {
+      cycles.push({n: i+1, status: 'locked', groups: null});
+      FECHAS.push('');
+    }
+  } else {
+    cycles.splice(newTotal);
+    FECHAS.splice(newTotal);
+  }
+  persist(true);
+  renderCycleBar();
+  renderAdmin();
+  toast('Cantidad de ciclos actualizada a ' + newTotal + '.');
+}
+
