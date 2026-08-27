@@ -3989,13 +3989,14 @@ function attr(s){
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;');
 }
+
 function renderGrupos(){
   try {
-      const c=cycles[viewCycle-1];
-      let html='';
-      if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
-      
-     if(LAYOUT==='selector'){
+    const c=cycles[viewCycle-1];
+    let html='';
+    if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
+    
+    if(LAYOUT==='selector'){
       const btnRecalc = esAdmin(currentUser) ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular Puntos</button>` : '';
       html+=`<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem"><div class="section-lbl" style="margin:0">${t('choose_group')}</div>${btnRecalc}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
         const gid=i+1;
@@ -4005,7 +4006,19 @@ function renderGrupos(){
       }).join('')+`</div></div>`;
       if(selGroup>c.groups.length)selGroup=1;
       html+=groupCardHTML(selGroup);
+    }else{
+      c.groups.forEach((g,gi)=>{html+=groupCardHTML(gi+1);if(gi<c.groups.length-1)html+='<div class="grp-sep"></div>';});
     }
+    
+    const clubsLeg = CLUBS.map(c=>
+      `<span><span class="dot" style="background:${c.bg}"></span> ${attr(c.name)}</span>`
+    ).join('');
+    html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
+    document.getElementById('view-grupos').innerHTML=html;
+  } catch(e) {
+    console.error("Error crítico en renderGrupos:", e);
+    document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
+  }
         c.groups.forEach((g,gi)=>{html+=groupCardHTML(gi+1);if(gi<c.groups.length-1)html+='<div class="grp-sep"></div>';});
       }
       
