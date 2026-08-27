@@ -2873,14 +2873,20 @@ async function cargarStatsTotales(name, actualSt){
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
-    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
-    for(const l of pasadas){
+    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
+    for(const l of otras){
       try{
+        let est=null;
         const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-        if(!rv.ok)continue;
-        const dv=await rv.json().catch(()=>({}));
-        const st=statsJugadorEnEstado(name, dv.estado||{});
-        tot.pj+=st.pj; tot.pg+=st.pg; tot.pp+=st.pp;
+        if(rv.ok){ const dv=await rv.json().catch(()=>({})); est=dv.estado; }
+        else if(_token){
+          const r2=await fetch('/api/state?liga='+encodeURIComponent(l.id),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+          if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
+        }
+        if(est){
+          const st=statsJugadorEnEstado(name, est);
+          tot.pj+=st.pj; tot.pg+=st.pg; tot.pp+=st.pp;
+        }
       }catch(_){}
     }
   }catch(_){}
@@ -6503,15 +6509,31 @@ async function togglePlayerPast(name){
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
-    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
-    if(!pasadas.length){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>'; return; }
-    // Botones de cada temporada pasada.
+    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
+    if(!otras.length){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>'; return; }
     wrap.innerHTML='<div class="pm-past-box"><div class="pm-past-lbl">'+t('past_player_lbl')+'</div>'
       +'<div class="pm-past-seasons" id="pm-past-seasons">'
-      + pasadas.map((l,i)=>'<button class="pm-season-btn'+(i===0?' on':'')+'" onclick="verJugadorEnLiga(\''+String(name).replace(/'/g,"\\'")+'\',\''+String(l.id).replace(/'/g,"\\'")+'\',this)">'+escPast(l.nombre)+'</button>').join('')
+      + otras.map((l,i)=>'<button class="pm-season-btn'+(i===0?' on':'')+'" onclick="verJugadorEnLiga(\''+String(name).replace(/'/g,"\\'")+'\',\''+String(l.id).replace(/'/g,"\\'")+'\',this)">'+escPast(l.nombre)+'</button>').join('')
       +'</div><div class="pm-season-results" id="pm-season-results"></div></div>';
-    verJugadorEnLiga(name, pasadas[0].id, null);
+    verJugadorEnLiga(name, otras[0].id, null);
   }catch(_){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+}
+
+async function verJugadorEnLiga(name, ligaId, btn){
+  if(btn){ document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
+  const box=document.getElementById('pm-season-results');
+  if(box) box.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  try{
+    let est=null;
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
+    if(r.ok){ const d=await r.json().catch(()=>({})); est=d.estado; }
+    else if(_token){
+      const r2=await fetch('/api/state?liga='+encodeURIComponent(ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+      if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
+    }
+    if(!est){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; return; }
+    if(box) box.innerHTML=resultadosJugadorEnEstado(name, est);
+  }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
 // Trae los resultados de esa persona en una liga pasada específica.
 async function verJugadorEnLiga(name, ligaId, btn){
@@ -6574,32 +6596,35 @@ async function abrirH2H(a, b){
   document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
   document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
   document.getElementById('modal-bg').classList.add('open');
-  // Liga actual (lo que ya está en memoria)
   let gA=0,gB=0; let filasHTML='';
   const todasLasFilas=[];
   const actual=partidosEntre(a,b,{matches:matches}, LEAGUE_NAME||t('past_current'));
   gA+=actual.gA; gB+=actual.gB;
   actual.filas.forEach(f=>todasLasFilas.push(f));
-  // Ligas pasadas: se suman a la MISMA lista (H2H histórico total, no por liga)
+  
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
-    const pasadas=(d.ligas||[]).filter(l=>l.estado==='finalizada');
-    for(const l of pasadas){
+    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
+    for(const l of otras){
       try{
+        let est=null;
         const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-        if(!rv.ok)continue;
-        const dv=await rv.json().catch(()=>({}));
-        const res=partidosEntre(a,b,dv.estado||{}, l.nombre);
-        if(res.filas.length){ gA+=res.gA; gB+=res.gB; res.filas.forEach(f=>todasLasFilas.push(f)); }
+        if(rv.ok){ const dv=await rv.json().catch(()=>({})); est=dv.estado; }
+        else if(_token){
+          const r2=await fetch('/api/state?liga='+encodeURIComponent(l.id),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+          if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
+        }
+        if(est){
+          const res=partidosEntre(a,b,est, l.nombre);
+          if(res.filas.length){ gA+=res.gA; gB+=res.gB; res.filas.forEach(f=>todasLasFilas.push(f)); }
+        }
       }catch(_){}
     }
-    // Una sola lista corrida con todos los enfrentamientos, ordenados del más
-    // reciente al más antiguo (por fecha; si empatan, por id de partido).
     todasLasFilas.sort((x,y)=>{
       const fx=x.fecha||'', fy=y.fecha||'';
-      if(fx!==fy) return fy.localeCompare(fx);   // fecha desc (más nuevo arriba)
-      return (y.mid||0)-(x.mid||0);              // desempate: id desc
+      if(fx!==fy) return fy.localeCompare(fx);
+      return (y.mid||0)-(x.mid||0);
     });
     filasHTML='<div class="h2h-list">'+todasLasFilas.map(f=>
       '<div class="h2h-row"><span class="h2h-wl '+(f.ganoA?'w':'l')+'">'+(f.ganoA?t('win_short'):t('loss_short'))+'</span>'
@@ -6607,7 +6632,7 @@ async function abrirH2H(a, b){
       +(f.ligaNombre?'<span class="h2h-liga-tag">'+escPast(f.ligaNombre)+'</span>':'')
       +'</div>').join('')+'</div>';
   }catch(_){}
-  // Armar el modal: A vs B + balance + partidos
+  
   const body=document.getElementById('modal-body');
   if(gA+gB===0){ body.innerHTML='<div class="pm-past-empty">'+t('h2h_none').replace('{a}',escPast(a)).replace('{b}',escPast(b))+'</div>'; return; }
   let h='<div class="h2h-head">';
