@@ -607,11 +607,32 @@ function buildRounds(seeds){
   rounds[0].forEach(m=>{if(m.a&&!m.b)m.w=m.a;if(m.b&&!m.a)m.w=m.b;});
   return rounds;
 }
-function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].forEach((m,mi)=>{const sl=nx[Math.floor(mi/2)];if(mi%2===0)sl.a=m.w;else sl.b=m.w;});}}
+function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].forEach((m,mi)=>{const sl=nx[Math.floor(mi/2)];
+  // Propagar también el número de seed del ganador para que lo acompañe por todo el bracket.
+  // Antes se propagaba solo el nombre (m.w) y el sid quedaba vacío ('') en rondas siguientes.
+  const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
+  if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
+});}}
 function applyStored(key,r){for(let p=0;p<r.length+1;p++){r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));propagate(r);}}
 function loserOf(m){return m.w&&m.a&&m.b?(m.w===m.a?m.b:m.a):null;}
 function label(i){return String.fromCharCode(65+i);}
-function rebuildTramo(t){const tr=playoff.tramos[t];if(!tr)return;tr.main=buildRounds(tr.seeds);applyStored(t,tr.main);const losers=tr.main[0].map(loserOf).filter(Boolean);tr.cons=losers.length>=2?buildRounds(losers):null;if(tr.cons)applyStored(t+'c',tr.cons);}
+function rebuildTramo(t){
+  const tr=playoff.tramos[t];if(!tr)return;
+  tr.main=buildRounds(tr.seeds);applyStored(t,tr.main);
+  const losers=tr.main[0].map(loserOf).filter(Boolean);
+  tr.cons=losers.length>=2?buildRounds(losers):null;
+  if(tr.cons){
+    // Al armar la consolación, buildRounds() calculó sids en base al orden
+    // del array `losers`. Los sobrescribimos con el seed ORIGINAL de cada
+    // jugador dentro del tramo (tr.seeds), así el número acompaña al jugador
+    // desde el cuadro principal a la consolación y por todas sus rondas.
+    tr.cons[0].forEach(m=>{
+      if(m.a) m.sid[0] = tr.seeds.indexOf(m.a)+1 || '';
+      if(m.b) m.sid[1] = tr.seeds.indexOf(m.b)+1 || '';
+    });
+    applyStored(t+'c',tr.cons);
+  }
+}
 function rebuildAll(){playoff.tramos.forEach((_,t)=>rebuildTramo(t));}
 function buildTramosFromGeneral(T){const gen=computeGeneral().map(x=>x.name);const slices=splitTramos(gen,T);return{numTramos:T,results:{},viewT:0,qualified:gen,tramos:slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null}))};}
 function previewPlayoff(){if(!allCyclesDone())return false;const T=playoff.numTramos||4;playoff=Object.assign({started:false,preview:true,forcedSize:playoff.forcedSize||0},buildTramosFromGeneral(T));rebuildAll();return true;}
