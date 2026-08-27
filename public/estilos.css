@@ -43,11 +43,11 @@ html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="
 /* Cuando el usuario elige "oscuro" explícito */
 /* Cuando el usuario elige "oscuro" explícito */
 html[data-theme="dark"]{
-  --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+  --bg:#111111;--surface:#1a1a1a;--surface2:#242424;
   --text:#ffffff;--text2:#cbd5e1;
-  --border:#2d3a52;--border2:#475569;
+  --border:#2a2a2a;--border2:#3a3a3a;
   --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
-  --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+  --soft:#1e3a5f;--winrow:#3d2f14;--hl:#3d2a14;
   --dangerBg:#4a1d1d;--dangerT:#fca5a5;
   --successBg:#14361f;--successT:#86efac;
   --warnBg:#3d2a10;--warnT:#fcd34d;
@@ -420,11 +420,11 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
    ============================================================================ */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]){
-    --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+    --bg:#111111;--surface:#1a1a1a;--surface2:#242424;
     --text:#ffffff;--text2:#cbd5e1;
-    --border:#2d3a52;--border2:#475569;
+    --border:#2a2a2a;--border2:#3a3a3a;
     --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
-    --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+    --soft:#1e3a5f;--winrow:#3d2f14;--hl:#3d2a14;
     --dangerBg:#4a1d1d;--dangerT:#fca5a5;
     --successBg:#14361f;--successT:#86efac;
     --warnBg:#3d2a10;--warnT:#fcd34d;
