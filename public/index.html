@@ -3996,11 +3996,16 @@ function renderGrupos(){
       if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
       
      if(LAYOUT==='selector'){
-  const btnRecalc = esAdmin(currentUser) ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular Puntos</button>` : '';
-  html+=`<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem"><div class="section-lbl" style="margin:0">${t('choose_group')}</div>${btnRecalc}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
-        if(selGroup>c.groups.length)selGroup=1;
-        html+=groupCardHTML(selGroup);
-      }else{
+      const btnRecalc = esAdmin(currentUser) ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular Puntos</button>` : '';
+      html+=`<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem"><div class="section-lbl" style="margin:0">${t('choose_group')}</div>${btnRecalc}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
+        const gid=i+1;
+        const loc=currentUser?findLoc(currentUser.name,viewCycle):null;
+        const mine=currentUser&&currentUser.role==='player'&&loc&&loc.g===gid;
+        return `<button class="grp-btn ${selGroup===gid?'active':''}" onclick="setSelGroup(${gid})">${groupName(gid)}${mine?`<span class="mine">${t('mine_label')}</span>`:''}</button>`;
+      }).join('')+`</div></div>`;
+      if(selGroup>c.groups.length)selGroup=1;
+      html+=groupCardHTML(selGroup);
+    }
         c.groups.forEach((g,gi)=>{html+=groupCardHTML(gi+1);if(gi<c.groups.length-1)html+='<div class="grp-sep"></div>';});
       }
       
