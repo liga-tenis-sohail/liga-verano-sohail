@@ -286,6 +286,8 @@ function renderRating(){
   let filas = Object.keys(info).map(name=>({ name, ...info[name] }))
     .filter(f => f.partidos > 0 || seeds[f.name] != null || overs[f.name] != null)
     .filter(f => !esCuentaSistema(f.name))
+    // ESTA ES LA MAGIA: Solo mostramos a los jugadores que pertenecen a la liga actual
+    .filter(f => typeof ALLNAMES !== 'undefined' && ALLNAMES.includes(f.name))
     .filter(f => {
       try{
         if(typeof USERS !== 'undefined' && USERS[f.name] && USERS[f.name].inactive) return false;
