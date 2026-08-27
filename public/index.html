@@ -1866,20 +1866,9 @@ function findLoc(name,cycN){const c=cycles[cycN-1];if(!c||!c.groups)return null;
 function getActive(){return cycles[activeN-1];}
 function getInitials(n){if(!n)return'?';return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
 function ptsForPos(gid,pos){
-  if(!PUNTOS)PUNTOS={};
-  let pb=PUNTOS[gid];
-  if(!pb||!Array.isArray(pb)||pb.length===0){
-    // Fallback: grupo sin escala definida (ej. liga ampliada más allá de 12 grupos).
-    // Extrapola usando la última escala conocida menos 3 puntos por cada grupo de diferencia.
-    const knownKeys=Object.keys(PUNTOS).map(Number).filter(k=>Array.isArray(PUNTOS[k])&&PUNTOS[k].length);
-    if(knownKeys.length){
-      const maxK=Math.max(...knownKeys);
-      const base=PUNTOS[maxK];
-      const diff=(gid-maxK)*3;
-      pb=base.map(v=>Math.max(1,v-diff));
-    } else pb=[5,4,3,2,1];
-  }
-  return pos<pb.length?pb[pos]:Math.max(0,pb[pb.length-1]-(pos-pb.length+1));
+  const c = (typeof cycles!=='undefined' && cycles) ? (cycles[viewCycle-1] || cycles[activeN-1]) : null;
+  if (!c || !c.groups || !c.groups.length) return 0;
+  return obtenerPuntosPosicionEscalonado(gid - 1, pos + 1, c.groups);
 }
 
 function computeStats(cycN,gid){
@@ -3941,7 +3930,7 @@ function groupCardHTML(gid){
         return`<tr><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
       }).join('');
       
-      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> ${t('edit')}</button>` : '');
+      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular</button>` : '');
       const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th>${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th>${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
       
       return `<div class="card grp-card"><div class="grp-title">${t('group')} ${gid}</div><div class="overflow-x"><table class="cls-table"><thead><tr class="clg-head"><th colspan="9"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div><p class="legend-txt">${t('legend_pts')}</p><div class="section-lbl">${t('players_col')} ${groupName(gid)}</div><div class="overflow-x"><table class="res-table"><thead><tr><th>${t('players_col')}</th>${head}</tr></thead><tbody>${mrows}</tbody></table></div><p class="legend-txt">${t('legend_matrix')}</p></div>`;
@@ -4007,7 +3996,8 @@ function renderGrupos(){
       if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
       
       if(LAYOUT==='selector'){
-        html+=`<div class="card"><div class="section-lbl">${t('choose_group')}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
+        const btnRecalc = esAdmin(currentUser) ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular Puntos</button>` : '';
+        html+=`<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem"><div class="section-lbl" style="margin:0">${t('choose_group')}</div>${btnRecalc}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
             const gid=i+1;
             const loc=currentUser?findLoc(currentUser.name,viewCycle):null;
             const mine=currentUser&&currentUser.role==='player'&&loc&&loc.g===gid;
@@ -4019,9 +4009,6 @@ function renderGrupos(){
         c.groups.forEach((g,gi)=>{html+=groupCardHTML(gi+1);if(gi<c.groups.length-1)html+='<div class="grp-sep"></div>';});
       }
       
-      // Leyenda dinámica: un cuadradito por club (con su color real), más el resto
-      // de estados. Se arma desde CLUBS y COLOR_DISPUTA, así refleja lo que el admin
-      // configuró en vez de tener Sohail/Haza fijos.
       const clubsLeg = CLUBS.map(c=>
         `<span><span class="dot" style="background:${c.bg}"></span> ${attr(c.name)}</span>`
       ).join('');
@@ -4032,7 +4019,6 @@ function renderGrupos(){
       document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
   }
 }
-function setSelGroup(g){selGroup=g;renderGrupos();}
 function canCreate(gid,n1,n2){if(viewCycle!==activeN)return false;if(esAdmin(currentUser))return true;const rival=currentUser.name===n1?n2:n1;if(USERS[rival]&&USERS[rival].inactive)return false;const loc=findLoc(currentUser.name,activeN);return loc&&loc.g===gid&&(currentUser.name===n1||currentUser.name===n2);}
 function renderGeneral(){
 const all=computeGeneral();const pc=['p1','p2','p3'];
