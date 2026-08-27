@@ -1,0 +1,1362 @@
+
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
+--pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
+--sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B;
+/* Estados semánticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
+--danger:#c0392b;--dangerBg:#FCEBEB;--dangerT:#791F1F;
+--success:#16a34a;--successBg:#dcfce7;--successT:#166534;
+--warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
+--hover:rgba(0,0,0,.04);--shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0, 0,0,.15);
+--ring:0 0 0 3px rgba(27,79,156,.15);
+/* Tokens agregados post-tanda 3 para arreglar el dark mode:
+   - reqBg/reqBorder: fondo cream + borde negro del bloque "Reportar resultado" cuando falta info
+   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo está vacío
+   - meRowText: color del texto en la fila destacada del usuario logueado (era priD hardcoded, invisible en dark)
+   - btnLightBg: fondo claro para botoncitos "sobre-blanco" (borrar en playoff bracket, recargar en errores) */
+--reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--reqEmptyBorder:var(--danger);
+--meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+/* Fila destacada del usuario logueado en Rating/Clasificación/Grupos.
+   Es DISTINTA de --winrow (que es color del ganador en tabla de grupo y se
+   customiza por liga desde localStorage). Al ser variable independiente,
+   ninguna configuración de liga la pisa y el dark mode la controla puro. */
+--meRowBg:#FAEEDA}
+
+/* ==== Toggle manual de tema (data-theme) — sobreescribe prefers-color-scheme.
+   El script en <head> lee localStorage al inicio y setea data-theme en <html>
+   ANTES del primer paint, así no hay flash. */
+
+/* Cuando el usuario elige explícitamente "claro", forzamos light aunque el OS
+   esté en oscuro. */
+html[data-theme="light"]{
+  --bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;
+  --border:#e2e7ef;--border2:#c8d0dc;--soft:#E6F1FB;--winrow:#FAEEDA;--hl:#FFEDD5;
+  --dangerBg:#FCEBEB;--dangerT:#791F1F;--successBg:#dcfce7;--successT:#166534;
+  --warnBg:#fef3c7;--warnT:#92400e;--hover:rgba(0,0,0,.04);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);--shadow-md:0 4px 12px rgba(0,0,0,.08);--shadow-lg:0 18px 50px rgba(0,0,0,.15);
+  --ring:0 0 0 3px rgba(27,79,156,.15);
+  --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--meRowText:var(--priD);
+  --cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
+  --meRowBg:#FAEEDA;
+}
+html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+
+/* Cuando el usuario elige "oscuro" explícito */
+/* Cuando el usuario elige "oscuro" explícito */
+html[data-theme="dark"]{
+  --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+  --text:#ffffff;--text2:#cbd5e1;
+  --border:#2d3a52;--border2:#475569;
+  --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
+  --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+  --dangerBg:#4a1d1d;--dangerT:#fca5a5;
+  --successBg:#14361f;--successT:#86efac;
+  --warnBg:#3d2a10;--warnT:#fcd34d;
+  --hover:rgba(255,255,255,.06);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+  --shadow-md:0 4px 12px rgba(0,0,0,.5);
+  --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+  --ring:0 0 0 3px rgba(96,165,250,.35);
+  --reqBg:#2a2415;--reqBorder:var(--acc);
+  --reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+  --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
+  --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
+}
+
+/* ============================================================================
+   DARK MODE — REGLA MADRE: TODO texto es BLANCO por defecto.
+   
+   Filosofía: en vez de pelear con 63+ elementos que usan color:var(--pri),
+   forzamos que TODO texto en dark sea blanco. Después, excepciones controladas
+   para los elementos que necesitan color propio (badges, links, headers).
+   ============================================================================ */
+
+/* MADRE: todo elemento en dark tiene texto blanco. Alta especificidad para
+   pisar cualquier color:var(--pri) o color:#111 hardcodeado del CSS legacy. */
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] div,
+html[data-theme="dark"] p,
+html[data-theme="dark"] span,
+html[data-theme="dark"] table,
+html[data-theme="dark"] tr,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
+html[data-theme="dark"] label,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+html[data-theme="dark"] li,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] em,
+html[data-theme="dark"] b,
+html[data-theme="dark"] small{color:#ffffff!important}
+
+/* Excepciones a la mother rule para paneles con FONDO CLARO en dark mode.
+   No modificamos la mother rule (aumentar su especificidad rompe muchas otras
+   reglas como .avatar, .badge, .dest, .edit-pts-btn). En su lugar agregamos
+   selectores MÁS específicos para los pocos casos donde queremos texto oscuro
+   sobre fondo claro. Usamos `.modal-score p` (0,2,2 > mother rule 0,1,2) y una
+   clase específica `.pe-danger-box` para el panel "Estado en la liga". */
+html[data-theme="dark"] .modal-score{color:#0f172a!important}
+html[data-theme="dark"] .modal-score p,
+html[data-theme="dark"] .modal-score strong,
+html[data-theme="dark"] .modal-score span,
+html[data-theme="dark"] .modal-score em,
+html[data-theme="dark"] .modal-score b{color:inherit!important}
+
+html[data-theme="dark"] .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
+html[data-theme="dark"] .pe-danger-box .pe-danger-title{color:#b91c1c!important}
+html[data-theme="dark"] .pe-danger-box p,
+html[data-theme="dark"] .pe-danger-box span,
+html[data-theme="dark"] .pe-danger-box strong,
+html[data-theme="dark"] .pe-danger-box em,
+html[data-theme="dark"] .pe-danger-box b,
+html[data-theme="dark"] .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
+
+/* Celdas con colores configurados por el admin (club, pending, disputed):
+   respetan el inline style con background y color propios. Los colores del
+   admin son intencionales — si él quiere celeste con azul oscuro, eso queda. */
+html[data-theme="dark"] .cell-pending{background:#FAEEDA;color:#6b5800}
+
+/* Texto secundario (hints, legends): gris claro pero legible */
+html[data-theme="dark"] .legend-txt,
+html[data-theme="dark"] .hint{color:#cbd5e1!important}
+
+/* Links: azul claro brillante (sobre fondos oscuros) */
+html[data-theme="dark"] a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
+html[data-theme="dark"] .nm-link,
+html[data-theme="dark"] .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+
+/* Backgrounds y borders */
+html[data-theme="dark"] body{background:var(--bg)}
+html[data-theme="dark"] .card{background:var(--surface);border-color:var(--border)}
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+
+/* ==== HEADER SUPERIOR AZUL (.hdr) — mantiene azul oscuro con texto blanco ==== */
+html[data-theme="dark"] .hdr{background:#0E3470!important}
+html[data-theme="dark"] .hdr *{color:#ffffff!important}
+html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
+
+/* ==== HEADER DEL LOGIN (.login-head) — igual ==== */
+html[data-theme="dark"] .login-head{background:#0E3470!important}
+html[data-theme="dark"] .login-head *{color:#ffffff!important}
+html[data-theme="dark"] .login-head p,html[data-theme="dark"] .login-head p *{color:#dce7f6!important}
+
+/* ==== HEADERS DE TABLAS — fondo --soft (azul oscuro), texto blanco ==== */
+html[data-theme="dark"] .cls-table th,
+html[data-theme="dark"] .gen-table th,
+html[data-theme="dark"] .rt-table th,
+html[data-theme="dark"] .rt-table thead th,
+html[data-theme="dark"] .gen-table thead th,
+html[data-theme="dark"] .clg-head th,
+html[data-theme="dark"] .clg-head th *,
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+
+/* ==== FILA DESTACADA DEL USUARIO (me-row) — TODAS las tablas ==== */
+/* Unificamos el estilo para que coincida con el sombreado crema del bracket de playoffs.
+   Agregamos selectores para los hijos (span, a, strong, b) para vencer la regla madre del dark mode */
+html[data-theme="dark"] .gen-table .me-row td,
+html[data-theme="dark"] .gen-table .me-row td span,
+html[data-theme="dark"] .gen-table .me-row td a,
+html[data-theme="dark"] .gen-table .me-row td strong,
+html[data-theme="dark"] .gen-table .me-row td b,
+html[data-theme="dark"] .cls-table .me-row td,
+html[data-theme="dark"] .cls-table .me-row td span,
+html[data-theme="dark"] .cls-table .me-row td a,
+html[data-theme="dark"] .cls-table .me-row td strong,
+html[data-theme="dark"] .cls-table .me-row td b,
+html[data-theme="dark"] .rt-table tr.me-row td,
+html[data-theme="dark"] .rt-table tr.me-row td span,
+html[data-theme="dark"] .rt-table tr.me-row td a,
+html[data-theme="dark"] .rt-table tr.me-row td strong,
+html[data-theme="dark"] .rt-table tr.me-row td b,
+html[data-theme="dark"] .res-table .me-mtx,
+html[data-theme="dark"] .res-table .me-mtx span,
+html[data-theme="dark"] .res-table .me-mtx a,
+html[data-theme="dark"] .res-table .me-mtx strong,
+html[data-theme="dark"] .res-table .me-mtx b {
+  background-color:#FFF8DC!important;
+  color:#0E3470!important;
+  text-decoration-color:#0E3470!important;
+}
+
+/* Y lo mismo para el prefers-color-scheme: dark automático (más abajo en el archivo) */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .gen-table .me-row td,
+  html:not([data-theme]) .gen-table .me-row td span,
+  html:not([data-theme]) .gen-table .me-row td a,
+  html:not([data-theme]) .gen-table .me-row td strong,
+  html:not([data-theme]) .gen-table .me-row td b,
+  html:not([data-theme]) .cls-table .me-row td,
+  html:not([data-theme]) .cls-table .me-row td span,
+  html:not([data-theme]) .cls-table .me-row td a,
+  html:not([data-theme]) .cls-table .me-row td strong,
+  html:not([data-theme]) .cls-table .me-row td b,
+  html:not([data-theme]) .rt-table tr.me-row td,
+  html:not([data-theme]) .rt-table tr.me-row td span,
+  html:not([data-theme]) .rt-table tr.me-row td a,
+  html:not([data-theme]) .rt-table tr.me-row td strong,
+  html:not([data-theme]) .rt-table tr.me-row td b,
+  html:not([data-theme]) .res-table .me-mtx,
+  html:not([data-theme]) .res-table .me-mtx span,
+  html:not([data-theme]) .res-table .me-mtx a,
+  html:not([data-theme]) .res-table .me-mtx strong,
+  html:not([data-theme]) .res-table .me-mtx b {
+    background-color:#FFF8DC!important;
+    color:#0E3470!important;
+    text-decoration-color:#0E3470!important;
+  }
+}
+
+/* ==== BOTONES ==== */
+html[data-theme="dark"] .login-btn:not(.login-btn-pk),
+html[data-theme="dark"] .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+html[data-theme="dark"] .login-btn:not(.login-btn-pk) *,
+html[data-theme="dark"] .btn-primary *{color:#ffffff!important}
+html[data-theme="dark"] .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+html[data-theme="dark"] .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
+html[data-theme="dark"] .login-btn-pk *{color:#79aeff!important}
+html[data-theme="dark"] .sub-tab.active,
+html[data-theme="dark"] .cycle-btn.active,
+html[data-theme="dark"] .sub-tab.active *,
+html[data-theme="dark"] .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+/* btn-danger en dark: fondo rojo oscuro con texto claro (antes quedaba fondo rosa claro con texto blanco = ilegible) */
+html[data-theme="dark"] .btn-danger,
+html[data-theme="dark"] label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html[data-theme="dark"] .btn-danger *,
+html[data-theme="dark"] label.btn-danger *{color:#fecaca!important}
+html[data-theme="dark"] .btn-danger:hover:not(:disabled),
+html[data-theme="dark"] label.btn-danger:hover{background:#991b1b!important}
+/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color más oscuro) contra la regla madre del dark */
+html[data-theme="dark"] .club-opt.club-sel,
+html[data-theme="dark"] .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila esté sombreada como usuario */
+html[data-theme="dark"] .me-row .pos.p1,
+html[data-theme="dark"] .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
+html[data-theme="dark"] .me-row .pos.p2,
+html[data-theme="dark"] .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
+html[data-theme="dark"] .me-row .pos.p3,
+html[data-theme="dark"] .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
+
+/* ==== PLAYOFFS — contraste garantizado en dark + fila del usuario logueado ==== */
+/* Botones Editar/Eliminar del admin dentro del box de un partido de playoff.
+   Antes usaban var(--soft)+var(--pri) o rosa+rojo hardcodeados: en dark la
+   regla madre pintaba el texto blanco sobre fondo claro (ilegible). */
+.po-slot-btn{flex:1;padding:4px 0;font-size:11px;border-radius:6px;cursor:pointer;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:4px;line-height:1}
+.po-slot-btn.po-slot-edit{background:#E6F1FB;color:#0E3470;border:1px solid #93c5fd}
+.po-slot-btn.po-slot-edit:hover{background:#d1e5fb}
+.po-slot-btn.po-slot-del{background:#fff5f5;color:#dc2626;border:1px solid #fca5a5}
+.po-slot-btn.po-slot-del:hover{background:#ffe0e0}
+html[data-theme="dark"] .po-slot-btn.po-slot-edit,
+html[data-theme="dark"] .po-slot-btn.po-slot-edit *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-slot-btn.po-slot-edit:hover{background:#2a4a75!important}
+html[data-theme="dark"] .po-slot-btn.po-slot-del,
+html[data-theme="dark"] .po-slot-btn.po-slot-del *{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html[data-theme="dark"] .po-slot-btn.po-slot-del:hover{background:#991b1b!important}
+
+/* Slot destacado del jugador logueado en el cuadro del playoff (bg cream #FFF8DC).
+   Sobre ese cream, tanto el nombre como el seed number y el chip "yo" deben ir
+   en oscuro incluso en dark mode. Se aplica al div de la línea y a todos sus hijos. */
+.po-me-slot,
+.po-me-slot *{color:#0E3470!important}
+.po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
+html[data-theme="dark"] .po-me-slot,
+html[data-theme="dark"] .po-me-slot *{color:#0E3470!important;background-color:transparent!important}
+html[data-theme="dark"] .po-me-slot{background-color:#FFF8DC!important}
+html[data-theme="dark"] .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
+/* El chip "yo" dentro del slot destacado mantiene su fondo dorado sobre cream. */
+.po-me-slot .po-me-chip{background:var(--acc)!important;color:#0E3470!important;border-radius:4px;padding:1px 4px;font-weight:700;font-size:9px}
+html[data-theme="dark"] .po-me-slot .po-me-chip,
+html[data-theme="dark"] .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
+
+/* Botón "Mover acá" del panel del admin — colores fijos para no depender de tokens. */
+.po-move-btn{background:#E6F1FB!important;color:#0E3470!important;border:1px solid #93c5fd!important}
+.po-move-btn:hover{background:#d1e5fb!important}
+html[data-theme="dark"] .po-move-btn,
+html[data-theme="dark"] .po-move-btn *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-move-btn:hover{background:#2a4a75!important}
+
+/* Chips de seed en el panel del admin: fondo claro con texto SIEMPRE oscuro
+   (activos e inactivos, en cualquier modo). El botón ✕ mantiene su rojo. */
+html[data-theme="dark"] .seed-chip,
+html[data-theme="dark"] .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
+html[data-theme="dark"] .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
+html[data-theme="dark"] .seed-chip .rm:hover{background:#f3c0c0!important}
+
+/* Chip "Cuadro X" en la Clasificación General: en la fila destacada del usuario
+   logueado, texto oscuro sobre fondo claro (mantiene el sombreado del chip).
+   Nota: se prefija con la tabla concreta (.gen-table/.cls-table/.rt-table) para
+   ganarle en specificity a la "mother rule" del dark mode que pinta bg y color
+   de TODOS los hijos del td destacado con var(--meRowBg) + white. Sin eso, el
+   chip se camuflaba con la fila y se veía como texto blanco sobre el mismo fondo. */
+.me-row .po-chip{color:#0E3470!important;background:#dbeafe!important}
+html[data-theme="dark"] .gen-table .me-row .po-chip,
+html[data-theme="dark"] .gen-table .me-row .po-chip *,
+html[data-theme="dark"] .cls-table .me-row .po-chip,
+html[data-theme="dark"] .cls-table .me-row .po-chip *,
+html[data-theme="dark"] .rt-table tr.me-row .po-chip,
+html[data-theme="dark"] .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+/* Avatar (círculo de iniciales) dentro de la fila destacada del usuario logueado:
+   mismo problema — la mother rule pintaba el círculo con el mismo bg de la fila y
+   quedaba invisible. Restauramos su look característico (fondo azul claro + texto
+   azul oscuro) con specificity aumentada. */
+html[data-theme="dark"] .gen-table .me-row .avatar,
+html[data-theme="dark"] .gen-table .me-row .avatar *,
+html[data-theme="dark"] .cls-table .me-row .avatar,
+html[data-theme="dark"] .cls-table .me-row .avatar *,
+html[data-theme="dark"] .rt-table tr.me-row .avatar,
+html[data-theme="dark"] .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+/* En dark mode, TODOS los chips "Cuadro X" (no sólo el del usuario) llevan texto
+   oscuro sobre fondo claro para mantener contraste sin depender de --pri/--soft
+   customizados por la liga. */
+html[data-theme="dark"] .po-chip,
+html[data-theme="dark"] .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+
+/* Banner de previsualización de Play Offs (admin): antes usaba var(--soft) + var(--priD)
+   con estilos inline; podía quedar fondo claro + texto claro si la liga customizaba
+   --priD. Ahora clase con colores fijos, safe en light y dark. */
+.po-preview-banner{background:#E6F1FB!important;border-color:#93c5fd!important;border-width:1.5px!important}
+.po-preview-banner .pp-title{color:#0E3470!important;font-weight:600;margin-bottom:.4rem}
+.po-preview-banner .pp-title i{color:#0E3470!important}
+.po-preview-banner .legend-txt{color:#334155!important}
+html[data-theme="dark"] .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
+html[data-theme="dark"] .po-preview-banner .pp-title,
+html[data-theme="dark"] .po-preview-banner .pp-title *{color:#dbeafe!important}
+html[data-theme="dark"] .po-preview-banner .legend-txt,
+html[data-theme="dark"] .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+
+/* Botón "Editar" del puntaje por posición (dentro del header .clg-head).
+   Antes usaba .btn con colores heredados; el color inherited de
+   .clg-head th:last-child (var(--priD)) más --priD customizado por la liga
+   podía dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
+.edit-pts-btn{background:#0E3470!important;color:#ffffff!important;border:1px solid #0E3470!important;padding:2px 8px!important;font-size:10px!important;font-weight:600!important;margin-left:5px}
+.edit-pts-btn *{color:#ffffff!important}
+.edit-pts-btn:hover{background:#1B4F9C!important}
+html[data-theme="dark"] .edit-pts-btn,
+html[data-theme="dark"] .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
+
+/* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
+.seed-chip .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
+.seed-chip .mv:hover{background:rgba(0,0,0,.08)}
+.seed-chip .mv:disabled{opacity:.3;cursor:not-allowed}
+html[data-theme="dark"] .seed-chip .mv,
+html[data-theme="dark"] .seed-chip .mv *{color:#0E3470!important;background:transparent!important}
+html[data-theme="dark"] .seed-chip .mv:hover{background:rgba(14,52,112,.15)!important}
+
+/* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
+html[data-theme="dark"] .badge-inact,
+html[data-theme="dark"] .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+html[data-theme="dark"] .badge-pend,html[data-theme="dark"] .badge-warn,html[data-theme="dark"] .alert-warn,html[data-theme="dark"] .rt-prov,
+html[data-theme="dark"] .badge-pend *,html[data-theme="dark"] .badge-warn *,html[data-theme="dark"] .alert-warn *,html[data-theme="dark"] .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .badge-ok,html[data-theme="dark"] .alert-ok,html[data-theme="dark"] .dest-up,
+html[data-theme="dark"] .badge-ok *,html[data-theme="dark"] .alert-ok *,html[data-theme="dark"] .dest-up *{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .badge-err,html[data-theme="dark"] .badge-disp,html[data-theme="dark"] .alert-err,html[data-theme="dark"] .dest-down,
+html[data-theme="dark"] .badge-err *,html[data-theme="dark"] .badge-disp *,html[data-theme="dark"] .alert-err *,html[data-theme="dark"] .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .alert-info,html[data-theme="dark"] .badge-tag,
+html[data-theme="dark"] .alert-info *,html[data-theme="dark"] .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+html[data-theme="dark"] .rt-manual,html[data-theme="dark"] .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+
+/* ==== TOAST — fondo azul oscuro, texto blanco ==== */
+html[data-theme="dark"] .toast,html[data-theme="dark"] .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+
+/* ==== METRIC TILES ==== */
+html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
+
+/* ==== SKELETON LOADER ==== */
+html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+
+/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores × Jugadores) ==== */
+/* Header (Jugadores, Juan, Adrián, ...) — fondo azul oscuro, texto blanco */
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table thead th,
+html[data-theme="dark"] .res-table th *{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
+html[data-theme="dark"] .res-table th:first-child{background:var(--soft)!important;color:#ffffff!important}
+/* Nota: la primera columna del tbody (nombres de jugadores en las filas) se
+   estiliza más abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
+   sin sombreado y texto blanco bold, como pidió Marcos. */
+/* Celdas de resultados: bordes claros para que se vean */
+html[data-theme="dark"] .res-table td{border-color:var(--border2)!important}
+
+/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) — versiones oscuras que mantienen identidad ==== */
+/* En light: --sohail celeste #D6ECFB. En dark: celeste oscuro coherente. */
+html[data-theme="dark"]{
+  --sohail:#1e4568;--sohailT:#a5d0f0;
+  --haza:#4a2f18;--hazaT:#f5c896;
+}
+/* Aplicar los colores oscuros a las celdas que los usan por variable */
+html[data-theme="dark"] [style*="background:var(--sohail)"],
+html[data-theme="dark"] [style*="background: var(--sohail)"]{background:#1e4568!important;color:#a5d0f0!important}
+html[data-theme="dark"] [style*="background:var(--haza)"],
+html[data-theme="dark"] [style*="background: var(--haza)"]{background:#4a2f18!important;color:#f5c896!important}
+
+/* ==== BADGES DE INICIALES (MG, LR, NY, etc.) ==== */
+/* Círculos con las 2 letras del jugador — fondos claros con letras oscuras.
+   En dark: fondo azul oscuro con letras blancas. */
+html[data-theme="dark"] .name-badge,
+html[data-theme="dark"] .initial-badge,
+html[data-theme="dark"] [class*="badge-"][style*="background:#"]{background:var(--soft)!important;color:#ffffff!important}
+/* Los badges de iniciales que se generan con estilos inline "background:#XXXX" con color oscuro derivado */
+html[data-theme="dark"] span[style*="background:#"][style*="border-radius:50%"],
+html[data-theme="dark"] span[style*="background:#"][style*="border-radius: 50%"]{background:var(--soft)!important;color:#ffffff!important}
+
+/* IMPORTANTE: Las celdas de partidos con inline styles (background y color de
+   club, configurados por el admin) NO se sobreescriben. El admin eligió los
+   colores; la función autoTxt() ya calcula el mejor color de texto según el
+   fondo. Se leen bien tal cual. */
+
+/* Los inputs de login con clases específicas también */
+html[data-theme="dark"] .login-body input,
+html[data-theme="dark"] .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+
+/* ============================================================================
+   MISMO DARK MODE cuando el usuario está en "system" y su OS está en oscuro.
+   ============================================================================ */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]){
+    --bg:#0a1120;--surface:#131c2e;--surface2:#1c2740;
+    --text:#ffffff;--text2:#cbd5e1;
+    --border:#2d3a52;--border2:#475569;
+    --pri:#60a5fa;--priD:#93c5fd;--accT:#ffffff;
+    --soft:#1a2f4d;--winrow:#3d2f14;--hl:#3d2a14;
+    --dangerBg:#4a1d1d;--dangerT:#fca5a5;
+    --successBg:#14361f;--successT:#86efac;
+    --warnBg:#3d2a10;--warnT:#fcd34d;
+    --hover:rgba(255,255,255,.06);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+    --shadow-md:0 4px 12px rgba(0,0,0,.5);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
+    --ring:0 0 0 3px rgba(96,165,250,.35);
+    --reqBg:#2a2415;--reqBorder:var(--acc);
+    --reqEmptyBg:#3a1a1a;--reqEmptyBorder:var(--danger);
+    --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
+    --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
+  }
+  html:not([data-theme]),
+  html:not([data-theme]) body,
+  html:not([data-theme]) div,
+  html:not([data-theme]) p,
+  html:not([data-theme]) span,
+  html:not([data-theme]) table,
+  html:not([data-theme]) tr,
+  html:not([data-theme]) th,
+  html:not([data-theme]) td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
+  html:not([data-theme]) label,
+  html:not([data-theme]) h1,
+  html:not([data-theme]) h2,
+  html:not([data-theme]) h3,
+  html:not([data-theme]) h4,
+  html:not([data-theme]) h5,
+  html:not([data-theme]) h6,
+  html:not([data-theme]) li,
+  html:not([data-theme]) strong,
+  html:not([data-theme]) em,
+  html:not([data-theme]) b,
+  html:not([data-theme]) small{color:#ffffff!important}
+
+  /* Igual que en modo manual dark: excepciones puntuales con selectores más
+     específicos que la mother rule, para paneles con fondo claro. */
+  html:not([data-theme]) .modal-score{color:#0f172a!important}
+  html:not([data-theme]) .modal-score p,
+  html:not([data-theme]) .modal-score strong,
+  html:not([data-theme]) .modal-score span,
+  html:not([data-theme]) .modal-score em,
+  html:not([data-theme]) .modal-score b{color:inherit!important}
+
+  html:not([data-theme]) .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
+  html:not([data-theme]) .pe-danger-box .pe-danger-title{color:#b91c1c!important}
+  html:not([data-theme]) .pe-danger-box p,
+  html:not([data-theme]) .pe-danger-box span,
+  html:not([data-theme]) .pe-danger-box strong,
+  html:not([data-theme]) .pe-danger-box em,
+  html:not([data-theme]) .pe-danger-box b,
+  html:not([data-theme]) .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
+  html:not([data-theme]) .legend-txt,
+  html:not([data-theme]) .hint{color:#cbd5e1!important}
+  html:not([data-theme]) a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
+  html:not([data-theme]) .nm-link,
+  html:not([data-theme]) .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+  html:not([data-theme]) body{background:var(--bg)}
+  html:not([data-theme]) .card{background:var(--surface);border-color:var(--border)}
+  html:not([data-theme]) input,
+  html:not([data-theme]) select,
+  html:not([data-theme]) textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+  html:not([data-theme]) .hdr{background:#0E3470!important}
+  html:not([data-theme]) .hdr *{color:#ffffff!important}
+  html:not([data-theme]) .hdr p,html:not([data-theme]) .hdr p *{color:#dce7f6!important}
+  html:not([data-theme]) .login-head{background:#0E3470!important}
+  html:not([data-theme]) .login-head *{color:#ffffff!important}
+  html:not([data-theme]) .login-head p,html:not([data-theme]) .login-head p *{color:#dce7f6!important}
+  html:not([data-theme]) .cls-table th,
+  html:not([data-theme]) .gen-table th,
+  html:not([data-theme]) .rt-table th,
+  html:not([data-theme]) .rt-table thead th,
+  html:not([data-theme]) .gen-table thead th,
+  html:not([data-theme]) .clg-head th,
+  html:not([data-theme]) .clg-head th *,
+  html:not([data-theme]) .res-table th,
+  html:not([data-theme]) .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+  html:not([data-theme]) .gen-table .me-row td,
+  html:not([data-theme]) .gen-table .me-row td *,
+  html:not([data-theme]) .cls-table .me-row td,
+  html:not([data-theme]) .cls-table .me-row td *,
+  html:not([data-theme]) .rt-table tr.me-row td,
+  html:not([data-theme]) .rt-table tr.me-row td *,
+  html:not([data-theme]) .res-table .me-mtx,
+  html:not([data-theme]) .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
+  html:not([data-theme]) .login-btn:not(.login-btn-pk),
+  html:not([data-theme]) .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+  html:not([data-theme]) .login-btn:not(.login-btn-pk) *,
+  html:not([data-theme]) .btn-primary *{color:#ffffff!important}
+  html:not([data-theme]) .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
+  html:not([data-theme]) .btn-danger,
+  html:not([data-theme]) label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+  html:not([data-theme]) .btn-danger *,
+  html:not([data-theme]) label.btn-danger *{color:#fecaca!important}
+  html:not([data-theme]) .btn-danger:hover:not(:disabled),
+  html:not([data-theme]) label.btn-danger:hover{background:#991b1b!important}
+  html:not([data-theme]) .club-opt.club-sel,
+  html:not([data-theme]) .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+  html:not([data-theme]) .me-row .pos.p1,
+  html:not([data-theme]) .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
+  html:not([data-theme]) .me-row .pos.p2,
+  html:not([data-theme]) .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
+  html:not([data-theme]) .me-row .pos.p3,
+  html:not([data-theme]) .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
+  /* PLAYOFFS contraste (auto dark) */
+  html:not([data-theme]) .po-slot-btn.po-slot-edit,
+  html:not([data-theme]) .po-slot-btn.po-slot-edit *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-slot-btn.po-slot-edit:hover{background:#2a4a75!important}
+  html:not([data-theme]) .po-slot-btn.po-slot-del,
+  html:not([data-theme]) .po-slot-btn.po-slot-del *{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+  html:not([data-theme]) .po-slot-btn.po-slot-del:hover{background:#991b1b!important}
+  html:not([data-theme]) .po-me-slot,
+  html:not([data-theme]) .po-me-slot *{color:#0E3470!important;background-color:transparent!important}
+  html:not([data-theme]) .po-me-slot{background-color:#FFF8DC!important}
+  html:not([data-theme]) .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
+  html:not([data-theme]) .po-me-slot .po-me-chip,
+  html:not([data-theme]) .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
+  html:not([data-theme]) .po-move-btn,
+  html:not([data-theme]) .po-move-btn *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-move-btn:hover{background:#2a4a75!important}
+  html:not([data-theme]) .seed-chip,
+  html:not([data-theme]) .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
+  html:not([data-theme]) .seed-chip .rm:hover{background:#f3c0c0!important}
+  html:not([data-theme]) .me-row .po-chip,
+  html:not([data-theme]) .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .gen-table .me-row .po-chip,
+  html:not([data-theme]) .gen-table .me-row .po-chip *,
+  html:not([data-theme]) .cls-table .me-row .po-chip,
+  html:not([data-theme]) .cls-table .me-row .po-chip *,
+  html:not([data-theme]) .rt-table tr.me-row .po-chip,
+  html:not([data-theme]) .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .gen-table .me-row .avatar,
+  html:not([data-theme]) .gen-table .me-row .avatar *,
+  html:not([data-theme]) .cls-table .me-row .avatar,
+  html:not([data-theme]) .cls-table .me-row .avatar *,
+  html:not([data-theme]) .rt-table tr.me-row .avatar,
+  html:not([data-theme]) .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+  html:not([data-theme]) .po-chip,
+  html:not([data-theme]) .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+  html:not([data-theme]) .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
+  html:not([data-theme]) .po-preview-banner .pp-title,
+  html:not([data-theme]) .po-preview-banner .pp-title *{color:#dbeafe!important}
+  html:not([data-theme]) .po-preview-banner .legend-txt,
+  html:not([data-theme]) .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+  html:not([data-theme]) .edit-pts-btn,
+  html:not([data-theme]) .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+  html:not([data-theme]) .edit-pts-btn:hover{background:#bfdbfe!important}
+  html:not([data-theme]) .seed-chip .mv,
+  html:not([data-theme]) .seed-chip .mv *{color:#0E3470!important;background:transparent!important}
+  html:not([data-theme]) .seed-chip .mv:hover{background:rgba(14,52,112,.15)!important}
+  html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
+  html:not([data-theme]) .login-btn-pk *{color:#79aeff!important}
+  html:not([data-theme]) .sub-tab.active,
+  html:not([data-theme]) .cycle-btn.active,
+  html:not([data-theme]) .sub-tab.active *,
+  html:not([data-theme]) .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-inact,html:not([data-theme]) .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-pend,html:not([data-theme]) .badge-warn,html:not([data-theme]) .alert-warn,html:not([data-theme]) .rt-prov,
+  html:not([data-theme]) .badge-pend *,html:not([data-theme]) .badge-warn *,html:not([data-theme]) .alert-warn *,html:not([data-theme]) .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .badge-ok,html:not([data-theme]) .alert-ok,html:not([data-theme]) .dest-up,
+  html:not([data-theme]) .badge-ok *,html:not([data-theme]) .alert-ok *,html:not([data-theme]) .dest-up *{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .badge-err,html:not([data-theme]) .badge-disp,html:not([data-theme]) .alert-err,html:not([data-theme]) .dest-down,
+  html:not([data-theme]) .badge-err *,html:not([data-theme]) .badge-disp *,html:not([data-theme]) .alert-err *,html:not([data-theme]) .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .alert-info,html:not([data-theme]) .badge-tag,
+  html:not([data-theme]) .alert-info *,html:not([data-theme]) .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+  html:not([data-theme]) .rt-manual,html:not([data-theme]) .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) .toast,html:not([data-theme]) .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+  html:not([data-theme]) .metric-tile .metric-n{color:#79aeff!important}
+  html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
+  html:not([data-theme]) .login-body input,
+  html:not([data-theme]) .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+}
+
+/* ==== HEADERS Y CELDAS DE .res-table (matriz de partidos por grupo) ====
+   El CSS legacy usa var(--pri) y var(--priD) como background — en dark esos
+   son azul claro y quedan casi blancos. Forzamos oscuro con máxima especificidad. */
+html[data-theme="dark"] .res-table th,
+html[data-theme="dark"] .res-table th:first-child,
+html[data-theme="dark"] .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== HEADER "Puntos para la Clasificación General" (.clg-head) ==== */
+html[data-theme="dark"] .clg-head th,
+html[data-theme="dark"] .clg-head th:first-child,
+html[data-theme="dark"] .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* ==== CELDAS DE ESTADOS (matriz) ====
+   NO tocamos .cell-club: los colores del club son configurados por el admin
+   y deben respetarse en dark también (el texto se calcula automáticamente
+   con autoTxt() para garantizar contraste sobre el fondo del club).
+   Solo estilizamos los ESTADOS (pending, empty, locked, res-black). */
+html[data-theme="dark"] .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
+html[data-theme="dark"] .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
+html[data-theme="dark"] .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
+html[data-theme="dark"] .res-black{background:var(--bg)!important}
+
+/* ==== FONDOS CLAROS DE ADMIN, HISTORIAL, H2H, BRACKET DE PLAYOFF ====
+   Elementos legacy con fondos pastel + texto oscuro hardcoded que en dark
+   quedaban con texto blanco (por la regla madre) sobre fondo claro → invisibles.
+   Se invierten a fondos oscuros semánticos con texto claro coherente. */
+html[data-theme="dark"] .pm-wl.w,
+html[data-theme="dark"] .h2h-wl.w,
+html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .pm-wl.l,
+html[data-theme="dark"] .h2h-wl.l,
+html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
+html[data-theme="dark"] .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
+html[data-theme="dark"] .bracket-main .match-box *,
+html[data-theme="dark"] .bracket-cons .match-box *{color:#ffffff!important}
+html[data-theme="dark"] .btn-past:hover{background:var(--soft)!important}
+/* .lm-badge (badges en el panel admin de ligas) — el .lm-cur (liga actual)
+   tiene fondo primary + color acc (amarillo) — se ve bien en dark. Otros badges: */
+html[data-theme="dark"] .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
+html[data-theme="dark"] .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
+html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+/* .rt-manual (rating manual admin) — violeta */
+html[data-theme="dark"] .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
+
+/* Barrido general: cualquier inline style con hex claro conocido → invertir.
+   Cubre elementos que se generan por JS con inline styles hardcoded. */
+html[data-theme="dark"] [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] [style*="background:#fee2e2"],
+html[data-theme="dark"] [style*="background:#f7d3d3"],
+html[data-theme="dark"] [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] [style*="background:#fef3c7"],
+html[data-theme="dark"] [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
+html[data-theme="dark"] [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
+/* NOTA: #dbeafe ya lo tenemos cubierto para .avatar y .dest-same (colores azul claro
+   intencionales con texto azul oscuro). No lo pisamos globalmente. */
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .pm-wl.w,
+  html:not([data-theme]) .h2h-wl.w,
+  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .pm-wl.l,
+  html:not([data-theme]) .h2h-wl.l,
+  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
+  html:not([data-theme]) .bracket-main .match-box *,
+  html:not([data-theme]) .bracket-cons .match-box *{color:#ffffff!important}
+  html:not([data-theme]) .btn-past:hover{background:var(--soft)!important}
+  html:not([data-theme]) .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
+  html:not([data-theme]) .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
+  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) [style*="background:#fee2e2"],
+  html:not([data-theme]) [style*="background:#f7d3d3"],
+  html:not([data-theme]) [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) [style*="background:#fef3c7"],
+  html:not([data-theme]) [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
+}
+
+/* ==== HEADER superior de tabla clasificación ("CLASIFICACIÓN GENERAL ACUMULADA") ==== */
+html[data-theme="dark"] .cls-table thead tr:first-child th,
+html[data-theme="dark"] .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+
+/* ==== Header con las columnas ("# Jugador Grupo Rating PJ Seed") de rating/clasif ==== */
+html[data-theme="dark"] .cls-table thead tr th,
+html[data-theme="dark"] .gen-table thead tr th,
+html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+
+/* Mismo tratamiento para dark mode automático */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .res-table th,
+  html:not([data-theme]) .res-table th:first-child,
+  html:not([data-theme]) .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+  html:not([data-theme]) .clg-head th,
+  html:not([data-theme]) .clg-head th:first-child,
+  html:not([data-theme]) .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+  html:not([data-theme]) .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
+  html:not([data-theme]) .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
+  html:not([data-theme]) .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
+  html:not([data-theme]) .res-black{background:var(--bg)!important}
+  html:not([data-theme]) .cls-table thead tr:first-child th,
+  html:not([data-theme]) .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+  html:not([data-theme]) .cls-table thead tr th,
+  html:not([data-theme]) .gen-table thead tr th,
+  html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+}
+
+/* ==== CÍRCULOS DE INICIALES (.avatar) ==== */
+/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidió
+   este contraste específicamente: fondo claro con letras azules. */
+html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+
+/* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
+/* Marcos pidió: sin sombreado en la primera columna, y texto igual a los headers
+   de columna (blanco bold, sin subrayado). Así los "row labels" y los "column
+   labels" se ven unificados como cabeceras del mismo estilo.
+   IMPORTANTE: aplicar bg:transparent también a los hijos (spans internos del
+   nombre) porque el span dentro del td hereda del CSS legacy. */
+html[data-theme="dark"] .res-table tbody tr td:first-child,
+html[data-theme="dark"] .res-table tbody tr td:first-child *{background:transparent!important}
+html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child,
+  html:not([data-theme]) .res-table tbody tr td:first-child *{background:transparent!important}
+  html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
+}
+
+/* ==== TAB DEL GRUPO ACTIVO (Grupo N) ==== */
+/* .grp-title es el "tab" arriba de la tabla de posiciones. En dark, azul intenso
+   con letras blancas — como pidió Marcos. */
+html[data-theme="dark"] .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
+
+/* ==== BADGE "=Grupo N" (destino igual, se mantiene en el mismo grupo) ==== */
+/* Los ↑Grupo N (dest-up) y ↓Grupo N (dest-down) ya se ven bien (verde/rojo).
+   El =Grupo N (dest-same) tiene fondo claro por diseño; en dark le forzamos
+   letras azul oscuro para que contraste bien sobre el fondo claro. */
+html[data-theme="dark"] .dest-same,
+html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
+  html:not([data-theme]) .dest-same,
+  html:not([data-theme]) .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+}
+
+/* ==== DEMOS DE COLOR EN EL PERFIL ADMIN ====
+   Los "demos" de "No jugado" y "Disputa" tienen background del color que el
+   admin eligió (típicamente claro) + texto var(--priD) que en dark es azul
+   claro → ilegibles. Forzamos texto azul OSCURO para contrastar con el
+   fondo claro del admin. */
+html[data-theme="dark"] #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
+
+/* Badges del admin ("Organización", nombres de admins) con background var(--hl)
+   o inline claro — asegurar contraste texto oscuro sobre fondo claro. */
+html[data-theme="dark"] .badge[style*="background:var(--hl)"],
+html[data-theme="dark"] .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+
+/* Spans con background hardcoded claro (colores custom del admin) — 
+   texto azul oscuro para leer bien sobre esos fondos claros. Excluimos
+   círculos (avatars) que ya están cubiertos por otra regla. */
+html[data-theme="dark"] span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+html[data-theme="dark"] span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
+  html:not([data-theme]) .badge[style*="background:var(--hl)"],
+  html:not([data-theme]) .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+  html:not([data-theme]) span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
+  html:not([data-theme]) span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+}
+
+/* Respeto por accesibilidad: usuarios con preferencia de menos animación
+   ven la app sin transitions ni movimientos. */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+.app{max-width:1040px;margin:0 auto;padding:.75rem}
+.login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+/* Header editable del login (arriba del recuadro azul). Ancho completo,
+   siempre visible arriba de todo. Los pills usan negrita y borde más
+   marcado, y en pantallas chicas achican padding/tamaño para caber sin
+   overflow. z-index:10 asegura que quede por encima de cualquier animación
+   o elemento posicionado del fondo. */
+.login-header-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem;width:100%;box-sizing:border-box;position:relative;z-index:10;border-bottom:1px solid rgba(0,0,0,.08)}
+.login-header-bar a{text-decoration:none;font-weight:700;font-size:13px;padding:.4rem .85rem;border-width:2px;border-style:solid;border-radius:999px;transition:opacity .15s,transform .15s;opacity:.94;line-height:1;white-space:nowrap}
+.login-header-bar a:hover{opacity:1;transform:translateY(-1px)}
+@media(max-width:640px){
+  .login-header-bar{padding:.6rem .5rem;gap:.35rem}
+  .login-header-bar a{font-size:12px;padding:.35rem .7rem;border-width:1.5px}
+}
+.login-head{background:var(--pri);padding:1.5rem;text-align:center;border-top:4px solid var(--acc);}
+.login-head .ball{width:48px;height:48px;background:var(--acc);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:var(--priD);font-size:24px;margin-bottom:.4rem}
+.login-head h1{color:#fff;font-size:17px;font-weight:600}.login-head p{color:#dce7f6;font-size:12px}
+.login-body{padding:1.25rem}
+.login-body label{display:block;font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:600}
+.login-body select,.login-body input{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:.75rem}
+.login-btn-pk{background:var(--surface2,#eef2f7)!important;color:var(--pri)!important;border:1.5px solid var(--pri)!important;margin-top:8px}.login-btn-pk i{margin-right:4px}
+@keyframes sk-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.cm-ov button:hover{opacity:.9}
+
+/* ================= Micro-animaciones (Tanda 3) ================= */
+/* Todas usan cubic-bezier suave y < 200ms para no molestar. Se anulan
+   con prefers-reduced-motion (declarado arriba). */
+html{scroll-behavior:smooth}
+.btn,.btn-sm,.btn-primary,.btn-accent,.btn-warn,.btn-danger,.login-btn,.login-forgot,.pk-device-edit-btn{transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .12s ease,box-shadow .15s ease}
+.btn:hover:not(:disabled),.btn-sm:hover:not(:disabled),.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn:active:not(:disabled),.btn-sm:active:not(:disabled){transform:translateY(0)}
+.card{transition:box-shadow .18s ease,border-color .18s ease}
+.metric-tile{transition:background-color .15s ease,transform .12s ease}
+.metric-tile:hover{background:var(--hover)}
+/* Fade sutil al cambiar de sub-tab (activado desde JS con .view-fade) */
+.view-fade{animation:vf .22s ease}
+@keyframes vf{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+/* Focus ring accesible y coherente en todos los inputs/selects/botones */
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,.login-forgot:focus-visible{outline:none;box-shadow:var(--ring)}
+/* Details (usado en el panel admin de passkeys): abrir suave */
+details>summary{transition:background-color .12s ease}
+details>summary:hover{background:var(--hover)}
+details[open]>summary{border-bottom:1px solid var(--border)}
+/* Toast: entrada + salida más suave */
+.toast{transition:opacity .28s ease,transform .28s ease}
+/* Skeleton hereda animation del keyframe; el shine ya funciona */
+
+.login-forgot{display:block;text-align:center;margin-top:12px;font-size:12.5px;color:var(--pri,#1e3a8a);text-decoration:none;cursor:pointer;background:none;border:none;padding:4px;width:100%}
+.login-forgot:hover{text-decoration:underline}
+.pk-device-edit-btn{background:transparent;color:var(--text2,#64748b);border:none;padding:4px;cursor:pointer;font-size:13px;margin-right:4px}
+.pk-device-edit-btn:hover{color:var(--pri,#1e3a8a)}
+.metric-tile{padding:14px 16px;background:var(--surface2,#f8fafc);border-radius:10px;text-align:center;flex:1;min-width:110px}
+.metric-tile .metric-n{font-size:26px;font-weight:700;color:var(--pri,#1e3a8a);line-height:1;display:block}
+.metric-tile .metric-lbl{font-size:11px;color:var(--text2,#64748b);text-transform:uppercase;letter-spacing:.5px;margin-top:6px;display:block}
+  .login-btn{width:100%;padding:10px;background:var(--pri);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}.login-btn:hover{background:var(--priD)}
+.login-btn:disabled{opacity:0.6;cursor:not-allowed}
+  .past-leagues{max-width:380px;margin:0 auto 2rem;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .past-toggle{display:flex;align-items:center;gap:11px;padding:13px 15px;cursor:pointer;user-select:none}
+  .past-toggle:hover{background:var(--surface2)}
+  .past-ic{width:32px;height:32px;border-radius:8px;background:var(--soft);color:var(--pri);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .past-tx{flex:1;min-width:0}
+  .past-tx b{font-size:13px;font-weight:700;color:var(--text);display:block}
+  .past-tx span{font-size:11px;color:var(--text2)}
+  .past-chev{color:var(--text2);transition:transform .22s;flex-shrink:0}
+  .past-leagues.open .past-chev{transform:rotate(180deg)}
+  .past-list{max-height:0;overflow:hidden;transition:max-height .28s ease}
+  .past-leagues.open .past-list{max-height:340px;overflow-y:auto}
+  .past-item{display:flex;align-items:center;gap:11px;padding:11px 15px;border-top:1px solid var(--border);cursor:pointer}
+  .past-item:hover{background:var(--soft)}
+  .past-item-ic{width:34px;height:34px;border-radius:8px;background:var(--soft);color:var(--pri);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .past-item-tx{flex:1;min-width:0}
+  .past-item-tx b{font-size:12.5px;font-weight:700;color:var(--text);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .past-item-tx span{font-size:11px;color:var(--text2)}
+  .past-empty{padding:14px 15px;font-size:12px;color:var(--text2);text-align:center}
+  .liga-selector{max-width:380px;margin:0 auto 14px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .liga-sel-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;text-align:center}
+  .liga-sel-btns{display:flex;flex-direction:column;gap:7px}
+  .liga-sel-btn{display:flex;align-items:center;gap:9px;padding:11px 13px;border-radius:9px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;text-align:left}
+  .liga-sel-btn:hover{border-color:var(--pri)}
+  .liga-sel-btn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+  .liga-sel-btn i{font-size:16px}
+  .admin-access{max-width:380px;margin:0 auto 14px;background:var(--surface);border:1.5px solid var(--acc);border-radius:14px;padding:12px 15px;display:flex;align-items:center;gap:11px;box-shadow:0 8px 30px rgba(0,0,0,.06)}
+  .aa-ic{width:34px;height:34px;border-radius:9px;background:var(--hl);color:#8a5a00;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+  .aa-tx{flex:1;min-width:0}
+  .aa-tx b{display:block;font-size:12.5px;font-weight:700;color:var(--text)}
+  .aa-tx span{font-size:11px;color:var(--text2)}
+  .readonly-banner{display:flex;align-items:center;gap:11px;background:var(--hl);border:1px solid #f0c675;border-radius:11px;padding:11px 15px;margin:12px auto;max-width:960px;font-size:13px;color:#8a5a00}
+  .readonly-banner i.ti-eye{font-size:17px;flex-shrink:0}
+  .readonly-banner span{flex:1;min-width:0}
+  .readonly-banner button{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .readonly-banner button:hover{background:var(--priD)}
+  /* En modo consulta, se ocultan los controles de edición. Solo se ve/navega. */
+  body.readonly-mode .user-chip,
+  body.readonly-mode #btn-cargar-tab,
+  body.readonly-mode [data-edit-only],
+  body.readonly-mode .admin-only{display:none !important}
+  .btn-past{background:var(--soft);color:var(--pri);border:1px solid var(--border2)}
+  .btn-past:hover{background:#d8e8f7}
+  .pm-past-box{margin-top:14px;border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
+  .pm-past-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;margin-bottom:9px}
+  .pm-past-seasons{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
+  .pm-season-btn{font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text2);cursor:pointer;font-family:inherit}
+  .pm-season-btn:hover{border-color:var(--pri);color:var(--pri)}
+  .pm-season-btn.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+  .pm-res-stats{font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px}
+  .pm-res-row{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--border)}
+  .pm-res-row:last-child{border-bottom:none}
+  .pm-wl{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .pm-wl.w{background:#dcfce7;color:#166534}
+  .pm-wl.l{background:#fee2e2;color:#991b1b}
+  .pm-res-rival{flex:1;font-size:12.5px;color:var(--text)}
+  .pm-res-sc{font-size:12.5px;font-weight:700;color:var(--text2)}
+  .pm-past-load,.pm-past-empty{padding:10px;font-size:12px;color:var(--text2);text-align:center}
+  /* Gestión de ligas (admin) */
+  .lm-list{display:flex;flex-direction:column;gap:8px}
+  .lm-item{border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:var(--surface)}
+  .lm-item-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
+  .lm-item-h b{font-size:13.5px;color:var(--text)}
+  .lm-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em}
+  .lm-badge.lm-on{background:#dcfce7;color:#166534}
+  .lm-badge.lm-off{background:var(--surface2);color:var(--text2)}
+  .lm-badge.lm-cur{background:var(--soft);color:var(--pri)}
+  .lm-item-actions{display:flex;gap:6px;flex-wrap:wrap}
+  /* Modal crear liga */
+  .cl-form{display:flex;flex-direction:column}
+  .cl-lbl{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
+  .cl-inp{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:9px;font-family:inherit;box-sizing:border-box}
+  .cl-inp-sm{margin-bottom:0}
+  .cl-hint{font-size:11px;color:var(--text2);margin:-4px 0 4px}
+  .cl-search{display:flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;margin-bottom:8px;background:var(--surface)}
+  .cl-search i{color:var(--text2);font-size:14px}
+  .cl-search input{flex:1;border:none;background:none;padding:9px 0;font-size:13px;color:var(--text);outline:none;font-family:inherit}
+  .cl-cat{max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:5px}
+  .cl-cat-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text)}
+  .cl-cat-item:hover{background:var(--surface2)}
+  .cl-cat-item.on{background:var(--soft)}
+  .cl-cat-item span{flex:1}
+  .cl-chk{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;color:var(--pri)}
+  .cl-cat-item.on .cl-chk{border-color:var(--pri);background:var(--pri);color:#fff}
+  .cl-grp-sel{flex-shrink:0;font-size:12px;padding:4px 7px;border-radius:6px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);font-family:inherit}
+  .cl-nuevo-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;align-items:center}
+  .cl-nuevo-row .cl-inp-sm{flex:1;min-width:110px}
+  .cl-del{background:none;border:1px solid var(--border2);border-radius:7px;color:var(--danger,#e55);cursor:pointer;padding:8px 9px;display:flex;align-items:center}
+  .cl-del:hover{background:#fee2e2;border-color:#f0a0a0}
+  .cl-count{font-size:12px;font-weight:700;color:var(--pri);margin-top:9px;text-align:right}
+  .cl-gc{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cl-gc-item{display:flex;flex-direction:column}
+  .rg-content{font-size:14px;line-height:1.7;color:var(--text);white-space:normal;overflow-wrap:break-word;word-break:break-word}
+  .rg-content h1{font-size:22px;font-weight:800;margin:16px 0 8px;line-height:1.25}
+  .rg-content h2{font-size:18px;font-weight:800;margin:14px 0 7px;line-height:1.3}
+  .rg-content h3{font-size:16px;font-weight:700;margin:12px 0 6px}
+  .rg-content h4{font-size:14px;font-weight:700;margin:10px 0 5px}
+  .rg-content p{margin:0 0 10px}
+  .rg-content ul,.rg-content ol{margin:8px 0 12px;padding-left:26px}
+  .rg-content li{margin:3px 0}
+  .rg-content b,.rg-content strong{font-weight:700}
+  .rg-content img{max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block}
+  .rg-content font[size="6"]{font-size:22px}
+  .rg-content font[size="5"]{font-size:18px}
+  .rg-content font[size="2"]{font-size:12px}
+  /* El editor comparte el mismo formato para que se vea igual mientras editás */
+  .rg-editor h1{font-size:22px;font-weight:800;margin:16px 0 8px;line-height:1.25}
+  .rg-editor h2{font-size:18px;font-weight:800;margin:14px 0 7px}
+  .rg-editor h3{font-size:16px;font-weight:700;margin:12px 0 6px}
+  .rg-editor p{margin:0 0 10px}
+  .rg-editor ul,.rg-editor ol{margin:8px 0 12px;padding-left:26px}
+  .rg-editor img{max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block}
+  .rg-editor{overflow-wrap:break-word;word-break:break-word}
+  .rg-toolbar{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:7px;border:1px solid var(--border2);border-bottom:none;border-radius:10px 10px 0 0;background:var(--surface2)}
+  .rg-tb{min-width:30px;height:30px;padding:0 7px;border:1px solid transparent;border-radius:6px;background:none;color:var(--text);cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;font-family:inherit}
+  .rg-tb:hover{background:var(--surface);border-color:var(--border2)}
+  .rg-sep{width:1px;height:20px;background:var(--border);margin:0 3px}
+  .rg-size{height:30px;border:1px solid var(--border2);border-radius:6px;background:var(--surface);color:var(--text);font-size:12px;padding:0 6px;cursor:pointer;font-family:inherit}
+  .rg-editor{width:100%;min-height:300px;padding:12px 14px;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--surface);color:var(--text);font-size:14px;line-height:1.7;box-sizing:border-box;outline:none;overflow-y:auto}
+  .rg-editor:empty:before{content:attr(data-ph);color:var(--text2);opacity:.6}
+  .rg-editor img{max-width:100%;border-radius:8px;margin:6px 0}
+  .rg-editor ul,.rg-editor ol{margin:8px 0;padding-left:26px}
+  .rg-content ul,.rg-content ol{margin:8px 0;padding-left:26px}
+  .rg-content img{max-width:100%;border-radius:8px;margin:6px 0}
+  .rg-content h1,.rg-content h2,.rg-content h3{margin:12px 0 6px}
+  .rg-src-btn{justify-content:flex-start;width:100%;text-align:left}
+  /* Estadísticas del perfil */
+  .stat-blocks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:560px){.stat-blocks{grid-template-columns:1fr}}
+  .stat-block{border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
+  .stat-block-t{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .stat-cell{text-align:center}
+  .stat-cell b{display:block;font-size:20px;font-weight:800;color:var(--text);line-height:1.1}
+  .stat-cell span{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.02em}
+  .stat-cell b.stat-w{color:#166534}
+  .stat-cell b.stat-l{color:#991b1b}
+  .stat-cell b.stat-pct{color:var(--pri)}
+  .stat-load{color:var(--text2);opacity:.5}
+  .rt-cell{font-weight:800;color:var(--pri);text-align:center}
+  .rt-none{color:var(--text2);opacity:.4;font-weight:400}
+  /* Rating UTR */
+  .rt-prov{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
+  .rt-manual{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#5b21b6;background:#ede9fe;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
+  .rt-big{font-weight:800;color:var(--pri);font-variant-numeric:tabular-nums}
+  .rt-table th,.rt-table td{vertical-align:middle}
+  .rt-pj{text-align:center}
+  .rt-actions{text-align:right}
+  .rt-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .rt-sub{font-size:12px;color:var(--text2);margin:0 0 .5rem;max-width:680px;line-height:1.55}
+  .rt-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:var(--text2)}
+  .rt-adj-calc{background:var(--hover,#f1f5f9);border-radius:8px;padding:9px 12px;font-size:13px;color:var(--text);margin-bottom:14px}
+  .rt-adj-lbl{display:block;font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:3px}
+  .rt-adj-hint{font-size:11px;color:var(--text2);margin-bottom:6px;line-height:1.5}
+  .rt-d{text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .rt-detail-help{font-size:11px;color:var(--text2);background:var(--hover,#f1f5f9);border-radius:8px;padding:9px 12px;margin-top:10px;line-height:1.6}
+  .rt-gg{color:#166534;font-weight:600}
+  .rt-gp{color:#991b1b;font-weight:600}
+  .rt-grp{white-space:nowrap;color:var(--pri);font-weight:600}
+  .rt-table tr.me-row td{background:var(--meRowBg);color:var(--meRowText)}
+  .rt-table tr.me-row td:nth-child(2){font-weight:700}
+  .rt-howto{background:var(--hover,#f1f5f9);border-radius:10px;padding:12px 14px;margin-top:12px}
+  .rt-howto-t{font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;margin-bottom:5px}
+  .rt-howto-b{font-size:11.5px;color:var(--text2);line-height:1.65}
+  .rt-cols-leg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:10px;font-size:11px;color:var(--text2)}
+  .rt-cols-leg b{color:var(--text);font-weight:700}
+  /* Header fijo (sticky) para rating y clasificación — mismo estilo azul.
+     Funciona en desktop Y móvil: el contenedor scrollea (x e y) con una
+     altura máxima, y el thead se pega al tope de ESE contenedor. */
+  #view-rating .overflow-x, #view-general .overflow-x{
+    max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch;
+  }
+  .rt-table thead th, .gen-table thead th{
+    position:-webkit-sticky; position:sticky; top:0; z-index:5;
+    background:var(--soft); color:var(--pri); font-weight:700;
+  }
+  /* Línea inferior del header que no desaparece al scrollear */
+  .rt-table thead th, .gen-table thead th{ border-bottom:2px solid var(--soft); }
+  /* El rating hereda TODO de gen-table para ser idéntico */
+  .rt-ficha{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--pri),var(--pri-dark,#1e3a8a));color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .rt-ficha-num{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+  .rt-ficha-side{flex:1}
+  .rt-ficha-lbl{font-size:13px;font-weight:700;opacity:.95}
+  .rt-ficha-sub{font-size:11px;opacity:.8;margin-top:2px}
+  .rt-ficha .rt-prov,.rt-ficha .rt-manual{background:rgba(255,255,255,.25);color:#fff}
+  /* H2H · Cara a Cara */
+  .h2h-link{cursor:pointer;color:var(--pri);border-bottom:1px dashed var(--border2)}
+  .h2h-link:hover{border-bottom-color:var(--pri)}
+  .h2h-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 14px}
+  .h2h-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;min-width:0}
+  .h2h-av{width:44px;height:44px;font-size:15px}
+  .h2h-side b{font-size:13px;text-align:center;color:var(--text);word-break:break-word}
+  .h2h-score{display:flex;align-items:center;gap:8px;font-size:30px;font-weight:800;color:var(--text2)}
+  .h2h-score i{font-size:20px;font-style:normal;opacity:.5}
+  .h2h-score .h2h-win{color:var(--pri)}
+  .h2h-caption{text-align:center;font-size:12px;color:var(--text2);margin-bottom:14px}
+  .h2h-liga{margin-bottom:12px}
+  .h2h-liga-t{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px}
+  .h2h-row{display:flex;align-items:center;gap:9px;padding:5px 0;border-bottom:1px solid var(--border)}
+  .h2h-row:last-child{border-bottom:none}
+  .h2h-wl{width:18px;height:18px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+  .h2h-wl.w{background:#dcfce7;color:#166534}
+  .h2h-wl.l{background:#fee2e2;color:#991b1b}
+  .h2h-sc{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+  .h2h-list{margin-top:4px}
+  .h2h-liga-tag{margin-left:auto;font-size:10px;color:var(--text2);background:var(--hover,#f1f5f9);padding:2px 7px;border-radius:5px;white-space:nowrap}
+  /* Catálogo de jugadores (superadmin) */
+  .cj-search{display:flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;margin-bottom:10px;background:var(--surface)}
+  .cj-search i{color:var(--text2);font-size:14px}
+  .cj-search input{flex:1;border:none;background:none;padding:9px 0;font-size:13px;color:var(--text);outline:none;font-family:inherit}
+  .cj-count{font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:600}
+  .cj-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px;background:var(--surface)}
+  .cj-item-tx{flex:1;min-width:0}
+  .cj-item-tx b{display:block;font-size:13px;color:var(--text)}
+  .cj-meta{font-size:11px;color:var(--text2);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+  .cj-meta i{font-size:12px}
+  .cj-del{background:none;border:1px solid var(--border2);border-radius:7px;padding:7px 9px;cursor:pointer;color:var(--text2);flex-shrink:0}
+  .cj-del-on{color:var(--danger,#e55)}
+  .cj-del-on:hover{background:#fee2e2;border-color:#f0a0a0}
+  .cj-del:disabled{opacity:.4;cursor:not-allowed}
+.login-hint{margin-top:.875rem;padding:.7rem;background:var(--soft);border-radius:8px;font-size:11px;color:var(--priD);line-height:1.5}
+.login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
+.hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);}
+.hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
+.hdr h1{font-size:15px;font-weight:600;color:#fff}.hdr p{font-size:12px;color:#dce7f6}
+.user-chip{margin-left:auto;display:flex;align-items:center;gap:8px}
+.user-info{text-align:right}.user-info .name{font-size:13px;color:#fff;font-weight:600}.user-info .role{font-size:11px;color:var(--acc)}
+.logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer}.logout-btn:hover{background:rgba(255,255,255,.28)}
+
+.lang-btn { background: rgba(255,255,255,.15);
+color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: 600;
+}
+.lang-btn:hover { background: rgba(255,255,255,.28); }
+.lang-btn.active { background: var(--priD); border-color: var(--acc); color: var(--acc);
+}
+
+.role-badge{background:var(--acc);color:var(--priD);font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.cycle-bar{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
+.cycle-tab{flex:1;min-width:90px;padding:10px 8px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;align-items:center;justify-content:center;gap:5px}
+.cycle-tab:hover:not(.locked){border-color:var(--pri);background:var(--soft)}
+.cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.cycle-tab.locked{opacity:.45;cursor:not-allowed;background:var(--surface2)}.cycle-tab .st{font-size:11px}
+.tabs{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:.75rem;flex-wrap:wrap;align-items:stretch}
+/* Sin min-width fijo: así vale el min-width:auto de flex, que impide que la caja
+   se encoja por debajo de su texto. Y sin nowrap, el texto usa 2 renglones en vez
+   de desbordarse sobre la pestaña de al lado. */
+.tab{flex:1 1 auto;padding:8px 6px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text2);white-space:normal;overflow-wrap:break-word;line-height:1.25;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
+.tab>i,.tab>.tab-n{flex:0 0 auto}
+.tab.active{background:var(--pri);color:#fff;font-weight:600}.tab:hover:not(.active){background:var(--surface)}
+.tab-sm{flex:0 0 auto!important;padding:8px 8px!important;font-size:11px!important;color:var(--text2);opacity:.75}
+.tab-n{background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;transition:.3s;margin-left:3px;display:inline-block;min-width:16px;text-align:center;line-height:16px;vertical-align:middle;}
+
+.tabs::-webkit-scrollbar, .cycle-bar::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none;
+}
+.tabs, .cycle-bar, .grp-pick, .overflow-x { -ms-overflow-style: none; scrollbar-width: none; }
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.875rem 1rem;margin-bottom:.625rem}
+.grp-sep{height:0;border-top:3px solid #111;margin:0 0 .625rem;border-radius:2px}
+.grp-pick{display:flex;gap:6px;flex-wrap:wrap}
+.grp-btn{padding:7px 11px;border:1px solid var(--border2);background:var(--surface);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);line-height:1.15;text-align:center}
+.grp-btn:hover{background:var(--soft);border-color:var(--pri)}
+.grp-btn.active{background:var(--pri);color:#fff;border-color:var(--pri)}
+.grp-btn .mine{font-size:9px;color:var(--accD);display:block}.grp-btn.active .mine{color:var(--acc)}
+.grp-title{display:inline-block;background:var(--soft);color:var(--priD);font-size:13px;font-weight:600;padding:5px 14px;border-radius:8px 8px 0 0;border:1px solid var(--pri);border-bottom:none}
+.section-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.05em;margin:.875rem 0 .4rem}
+.cls-table,.gen-table{width:100%;border-collapse:collapse;font-size:12px}
+.cls-table th,.gen-table th{font-size:10px;color:var(--pri);padding:5px 4px;border-bottom:2px solid var(--soft);font-weight:700;text-align:center;background:var(--soft)}
+.cls-table th:nth-child(2),.gen-table th:nth-child(2){text-align:left}
+.clg-head th{background:var(--soft);border-bottom:1px solid var(--border2);text-align:center}.clg-head th:first-child{border-right:1px solid var(--border2)}.clg-head th:last-child{border-right:1px solid var(--border2);color:var(--priD)}
+.cls-table td:nth-child(9),.cls-table thead tr:nth-child(2) th:nth-child(9){border-right:1px solid var(--border2)}
+.cls-table td,.gen-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
+.cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
+.cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
+.gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
+.gen-cyc{font-size:11px;color:var(--text2)}
+.gen-po{white-space:nowrap}
+.gen-dash{color:#c8d0dc}
+.po-chip{display:inline-block;font-size:10px;font-weight:700;background:var(--soft);color:var(--pri);padding:2px 8px;border-radius:10px;white-space:nowrap}
+.badge-inact{font-size:9px;background:#e55;color:#fff;border-radius:3px;padding:1px 5px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;margin-left:4px}
+.legend-txt{font-size:11px;color:var(--text2);line-height:1.6;margin-top:.6rem}.legend-txt b{color:var(--text);font-weight:700}
+.pos{width:19px;height:19px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
+.p1{background:#F5C518;color:#0E3470}.p2{background:#D3D1C7;color:#2C2C2A}.p3{background:#F0997B;color:#4A1B0C}.pn{background:var(--surface2);color:var(--text2)}
+.dest{display:inline-flex;align-items:center;gap:2px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.dest-up{background:#E1F5EE;color:#085041}.dest-same{background:var(--soft);color:var(--pri)}.dest-down{background:#FCEBEB;color:#791F1F}
+.res-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:.3rem;table-layout:fixed}
+.res-table th,.res-table td{border:1px solid var(--border2);padding:5px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-table td:first-child{text-align:left;font-weight:600;width:150px;background:var(--soft);color:var(--pri)}
+.res-table th{background:var(--pri);color:#fff;font-weight:600;border:1px solid var(--border2)}.res-table th:first-child{text-align:left;width:150px;background:var(--priD);color:#fff}
+.res-black{background:#16243d}
+.cell-club{font-weight:600;cursor:pointer}
+.cell-pending{background:#FAEEDA;color:#6b5800;cursor:pointer}.cell-disputed{cursor:pointer}
+.cell-empty{background:var(--surface);cursor:pointer;color:var(--text2)}.cell-empty:hover{background:var(--soft);color:var(--pri)}
+.cell-locked{background:var(--surface2);color:var(--border2)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:4px}.dot{width:11px;height:11px;border-radius:3px;display:inline-block}.dot-pend{background:#FAEEDA}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+.form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
+.form-group select,.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
+.req{border:2px solid var(--reqBorder)!important;background:var(--reqBg)!important}.req-empty,.req-empty input,.req-empty select{border:2px solid var(--reqEmptyBorder)!important;background:var(--reqEmptyBg)!important}
+.reqmark{display:inline-block;color:#fff;background:var(--danger);font-size:9px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:5px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
+.req-wrap{border:2px dashed var(--reqBorder);border-radius:10px;padding:.6rem .7rem;background:var(--reqBg)}
+.set-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.set-row label{font-size:12px;color:var(--text2);width:64px;flex-shrink:0;font-weight:600}
+.set-row input,.po-in{width:52px;padding:6px;text-align:center;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px}
+.sep{color:var(--text2);font-size:15px}.set-hint{font-size:11px;color:var(--text2);margin-left:6px}
+/* Nombre bloqueado (propio) — solo texto centrado */
+.score-sel-locked{border:none;background:transparent;color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:6px 4px;cursor:default;width:100%;outline:none;-webkit-appearance:none;-moz-appearance:none;appearance:none;pointer-events:none;}
+/* Campo seleccionable (rival/reporter activo) — inner box con sombra */
+.score-sel-pick{border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2,#f8f9fb);box-shadow:0 1px 5px rgba(0,0,0,.08);color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:8px 10px;cursor:pointer;width:100%;outline:none;}
+.score-sel-pick:hover{border-color:var(--pri);box-shadow:0 2px 8px rgba(0,0,0,.12);}
+/* Recuadro sólido para la sección de jugadores */
+.names-box{border:1.5px solid var(--border2);border-radius:12px;padding:.875rem .75rem;background:var(--surface);margin-bottom:.75rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+/* Fila de filtro: sin recuadro, solo fondo sutil */
+.filter-row{background:var(--surface2,#f8f9fb);border-radius:10px;padding:.5rem .75rem;margin-bottom:.75rem;display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;}
+/* Compat: mantener score-name-sel como alias */
+.score-name-sel{border:none;background:transparent;color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;padding:6px 4px;cursor:pointer;width:100%;outline:none;}
+.score-name-sel:disabled{-webkit-appearance:none;appearance:none;cursor:default;pointer-events:none;}
+.score-inp-lg{width:100%;text-align:center;font-size:28px;font-weight:700;border:1.5px solid var(--border2);border-radius:10px;padding:10px 4px;background:var(--surface);color:var(--text);}
+.club-pick{display:flex;gap:8px;border-radius:9px;padding:2px}.club-pick.req-empty{outline:1.5px solid #c0392b;outline-offset:2px;border-radius:9px}
+.club-opt{flex:1;padding:9px;border-radius:8px;border:2px solid #111;text-align:center;cursor:pointer;font-size:13px;font-weight:600}
+.club-opt.club-sel{background:var(--cbg);color:var(--ctx);border-color:var(--ctx)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:8px 13px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:13px;color:var(--text)}.btn:hover{background:var(--surface2)}
+.btn-primary{background:var(--pri);border-color:var(--pri);color:#fff}.btn-primary:hover{background:var(--priD)}
+.btn-accent{background:var(--acc);border-color:var(--accD);color:var(--accT);font-weight:600}
+.btn-warn{background:#F59E0B;border-color:#B45309;color:#fff;font-weight:600}.btn-accent:hover{filter:brightness(.95)}
+.btn-success{background:#E1F5EE;border-color:#0F6E56;color:#085041}.btn-success:hover{background:#c7ecdd}
+.btn-danger{background:#FCEBEB;border-color:var(--danger);color:#791F1F}.btn-danger:hover{background:#f7d3d3}
+.btn-sm{padding:5px 10px;font-size:12px}.btn:disabled{opacity:.45;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-pend{background:#FAEEDA;color:#6b5800}.badge-ok{background:#E1F5EE;color:#085041}.badge-disp{background:#FCEBEB;color:#791F1F}
+.badge-tag{background:var(--soft);color:var(--pri)}
+.alert{padding:.6rem .875rem;border-radius:8px;font-size:13px;margin-bottom:.625rem}.alert-ok{background:#E1F5EE;color:#085041}
+.alert-warn{background:#FEF3C7;color:#854D0E}.alert-err{background:#FCEBEB;color:#791F1F}.alert-info{background:var(--soft);color:var(--pri)}
+.empty{text-align:center;padding:1.25rem;color:var(--text2);font-size:13px}
+.overflow-x{overflow-x:auto}.mt-sm{margin-top:.5rem}.gap-sm{display:flex;gap:6px;flex-wrap:wrap}
+.lock-note{font-size:11px;color:var(--text2);font-style:italic}
+.pos-badge{display:inline-flex;width:26px;height:26px;align-items:center;justify-content:center;border-radius:50%;font-size:12px;font-weight:800;background:var(--soft);color:var(--pri)}
+.pos-1{background:var(--acc);color:var(--priD)}
+.pos-2{background:#d4d9e0;color:#333}
+.pos-3{background:#e8c9a0;color:#6b4423}
+.rt-table th{white-space:nowrap;cursor:help}
+.rt-table td{white-space:nowrap}
+.rt-name{text-align:left!important}
+.rt-big{font-weight:800;color:var(--pri)}.err-txt{color:var(--danger)!important;font-style:normal}
+.nm-link{cursor:pointer;border-bottom:1px dotted currentColor}.nm-link:hover{opacity:.6}
+.hist-row .avatar{margin-right:6px}
+.avatar{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;margin-right:5px;background:var(--soft);color:var(--pri)}
+.pend-item{padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pend-nm{font-weight:600}.pend-sc{font-size:14px;font-weight:700;color:var(--pri)}.pend-act{margin-left:auto}
+.disp-item{padding:.5rem 0;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-wrap:wrap}.disp-act{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.grpedit{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.6rem}
+.ge-group{border:1px solid var(--border);border-radius:10px;padding:.5rem .6rem}.ge-gtitle{font-size:12px;font-weight:700;color:var(--pri);margin-bottom:.4rem}
+.ge-row{display:flex;align-items:center;gap:5px;margin-bottom:5px}.ge-nm{flex:1;font-size:12px}.ge-sel{font-size:11px;padding:3px;border-radius:6px;border:1px solid var(--border2);background:var(--surface);color:var(--text);max-width:90px}
+.prof-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}.prof-row span:first-child{color:var(--text2)}
+.modal-bg{position:fixed;inset:0;background:rgba(10,18,32,.66);display:none;align-items:center;justify-content:center;z-index:100;padding:1rem}.modal-bg.open{display:flex}
+.modal{background:var(--surface);border-radius:14px;padding:1.25rem;width:400px;max-width:100%;border-top:4px solid var(--acc);max-height:88vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.45)}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:1rem;color:var(--pri)}
+.modal-rep{font-size:13px;color:var(--text2);margin-bottom:.5rem}.modal-rep .vs{color:var(--text2)}
+.modal-score{border-radius:8px;padding:.7rem;text-align:center;margin-bottom:.5rem}.modal-score p{font-size:15px;font-weight:600}
+
+.modal-meta{font-size:12px;color:var(--text2)}
+.po-tramos{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
+.po-tab{flex:1;min-width:110px;padding:9px;border:1px solid var(--border);background:var(--surface);border-radius:10px;cursor:pointer;font-size:12px;font-weight:600;text-align:center;color:var(--text)}
+.po-tab:hover{background:var(--soft)}.po-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}.po-rng{font-size:10px;opacity:.8}
+.bracket{display:flex;gap:0;overflow-x:auto;padding:.75rem .25rem;align-items:flex-start}
+.round{display:flex;flex-direction:column;position:relative}
+.round-name{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.06em;text-align:center;padding:0 12px;margin-bottom:.6rem;flex-shrink:0}
+.round-slots{display:flex;flex-direction:column;position:relative}
+/* match-wrap: each pair of players + connector lines */
+.match-wrap{display:flex;align-items:center;position:relative}
+.match-group{display:flex;flex-direction:column;position:relative;margin-bottom:0}
+/* The bracket box itself */
+.match-box{width:190px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface);flex-shrink:0}
+/* Vertical line on right side connecting to next round */
+.connector-right{width:24px;flex-shrink:0;position:relative;align-self:stretch;display:flex;align-items:center}
+.connector-right::before{content:'';position:absolute;left:0;top:50%;width:24px;height:1px;background:var(--border2);}
+/* Vertical bracket lines between pairs */
+.bracket-pair{display:flex;flex-direction:column;position:relative}
+.bracket-pair>.match-group{flex:1}
+.bracket-pair::after{content:'';position:absolute;right:-24px;top:25%;height:50%;width:1px;background:var(--border2);}
+/* Round column spacing */
+.round+.round{margin-left:24px}
+.slot{display:flex;align-items:center;gap:5px;padding:6px 9px;font-size:12px;border-bottom:1px solid var(--border)}
+.slot:last-child{border-bottom:none}.slot.winner{background:var(--winrow);font-weight:700;color:var(--meRowText)}
+.slot.empty-slot{color:var(--text2);font-style:italic}.slot .nm{flex:1}
+.slot-foot{justify-content:space-between;background:var(--surface2)}.slot-center{justify-content:center}.slot-win{font-size:10px;color:#085041;font-weight:700}
+.seed{font-size:10px;color:var(--text2);min-width:16px}
+.slot-score{font-size:11px;color:var(--text2);font-variant-numeric:tabular-nums}
+.po-load{font-size:10px;border:1px solid var(--border2);background:var(--surface);border-radius:5px;padding:2px 6px;cursor:pointer;color:var(--pri)}.po-load:hover{background:var(--soft)}
+.champ-card{background:var(--winrow);border:1px solid var(--acc);border-radius:10px;padding:.6rem 1rem;text-align:center;margin-top:.5rem}
+.champ-card .lbl{font-size:11px;color:var(--priD);text-transform:uppercase;font-weight:700}.champ-card .who{font-size:15px;font-weight:700;color:var(--priD);margin-top:2px}
+.champ-cons{background:var(--haza);border-color:var(--hazaT)}.champ-cons .lbl,.champ-cons .who{color:var(--hazaT)}
+.po-section-title{font-size:13px;font-weight:600;color:#fff;background:var(--pri);padding:7px 12px;border-radius:8px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px}.po-cons-title{background:#854F0B}
+.seed-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
+.seed-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:20px;background:var(--soft);color:var(--pri);font-size:12px}
+.seed-chip .rm{border:none;background:#FCEBEB;color:var(--danger);cursor:pointer;font-size:13px;padding:1px 6px;border-radius:20px;line-height:1;display:inline-flex;align-items:center}.seed-chip .rm:hover{background:#f3c0c0}
+.toast{position:fixed;bottom:16px;right:16px;background:var(--pri);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;z-index:999;transition:.3s;max-width:300px;border-bottom:3px solid var(--acc);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.bracket-main .match-box{background:#EAF3FC}.bracket-cons .match-box{background:#FDF1E6}
+.bracket-main .slot,.bracket-cons .slot{background:transparent}.bracket-main .slot.winner,.bracket-cons .slot.winner{background:var(--winrow)}.bracket-main .slot-foot,.bracket-cons .slot-foot{background:rgba(0,0,0,.04)}
+
+/* --- REGLAS DE IMPRESIÓN PDF --- */
+#print-area { display: none; }
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 1rem; }
+  .grp-card, .po-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 2rem; border: 1px solid #ccc; box-shadow: none; padding: 1rem; border-radius: 8px; }
+  .hdr, .tabs, .cycle-bar, .toast, .modal-bg, .btn, .legend-card { display: none !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+}
+
+@media(max-width:640px){
+  body{font-size:13px}
+  .app{padding:.4rem .35rem}
+  .hdr{padding:.5rem .6rem;border-radius:10px;gap:8px}
+  .hdr-logo{width:30px;height:30px;font-size:15px;flex-shrink:0}
+  .hdr h1{font-size:13px;font-weight:600}.hdr p{font-size:10px}
+  .user-info .name{font-size:12px}.user-info .role{font-size:10px}
+  .logout-btn{padding:5px 7px;font-size:11px}
+  
+  .cycle-bar, .tabs, .grp-pick {
+    flex-wrap: nowrap !important; overflow-x: auto !important;
+    justify-content: flex-start !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; 
+    padding-bottom: 4px;
+  }
+  .cycle-bar::-webkit-scrollbar, .tabs::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none; }
+  
+  .overflow-x { 
+    overflow-x: auto !important; -webkit-overflow-scrolling: touch; 
+    margin-bottom: 5px; 
+    padding-bottom: 5px; 
+  }
+  
+  .cls-table, .gen-table, .res-table { min-width: max-content !important; width: 100% !important; table-layout: auto !important; }
+  .cls-table th, .gen-table th, .cls-table td, .gen-table td, .res-table th, .res-table td { white-space: nowrap !important; }
+
+  .cycle-tab, .tab, .grp-btn { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
+  .cycle-tab { padding: 8px 14px; font-size: 13px; border-radius: 9px; }
+  .tab { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+  .grp-btn { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+  .cycle-tab .st{font-size:10px}
+
+  .card{padding:.6rem .6rem;margin-bottom:.45rem;border-radius:10px}
+  .form-row{grid-template-columns:1fr}
+  
+  .cls-table,.gen-table{font-size:11px}
+  .cls-table th,.gen-table th{font-size:9px;padding:4px 6px}
+  .cls-table td,.gen-table td{padding:5px 6px;font-size:11px}
+  .res-table{font-size:10px}
+  .res-table th,.res-table td{padding:4px 6px;}
+  .res-table th:first-child,.res-table td:first-child{min-width:90px;}
+
+  .section-lbl{font-size:10px;margin:.6rem 0 .3rem}
+  .btn{padding:7px 10px;font-size:12px}
+  .btn-sm{padding:4px 8px;font-size:11px}
+  .club-pick{gap:6px}
+  .club-opt{padding:8px 6px;font-size:12px}
+  .req-wrap{padding:.5rem .5rem}
+  .modal{width:calc(100vw - 1.5rem);padding:1rem}
+  .bracket{gap:8px}
+  .round{min-width:140px}
+  .slot{padding:5px 6px;font-size:11px}
+  .set-row label{width:54px;font-size:11px}
+  .set-row input,.po-in{width:44px;font-size:13px}
+  .po-tramos{gap:4px}
+  .po-tab{min-width:0;flex:1;padding:7px 4px;font-size:11px}
+  .clg-head th:last-child{font-size:9px}
+  .grpedit{grid-template-columns:1fr}
+  .ge-group{padding:.4rem .5rem}
+  .ge-row{flex-wrap:wrap;gap:3px}
+  .ge-sel{max-width:100%}
+  .avatar{width:18px;height:18px;font-size:8px;margin-right:3px}
+  .pos{width:16px;height:16px;font-size:9px}
+  .dest{padding:1px 5px;font-size:9px}
+  .badge{padding:1px 6px;font-size:10px}
+  .legend-txt{font-size:10px}
+  .tab-n{font-size:9px;padding:1px 5px}
+  .pend-item{gap:5px}
+  .seed-list{gap:4px}
+  .seed-chip{font-size:11px;padding:3px 7px}
+
+/* ==== FIX DEFINITIVO DE CONTRASTE Y LEGIBILIDAD EN DARK MODE ==== */
+html[data-theme="dark"] .me-row,
+html[data-theme="dark"] .me-row td,
+html[data-theme="dark"] .me-row th,
+html[data-theme="dark"] .me-row *,
+html[data-theme="dark"] .me-mtx,
+html[data-theme="dark"] .me-mtx *,
+html[data-theme="dark"] table.res-table tr.me-row th,
+html[data-theme="dark"] table.res-table tr.me-row th:first-child,
+html[data-theme="dark"] table.res-table tr.me-row td,
+html:not([data-theme]) .me-row,
+html:not([data-theme]) .me-row td,
+html:not([data-theme]) .me-row th,
+html:not([data-theme]) .me-row *,
+html:not([data-theme]) .me-mtx,
+html:not([data-theme]) .me-mtx *,
+html:not([data-theme]) table.res-table tr.me-row th,
+html:not([data-theme]) table.res-table tr.me-row th:first-child,
+html:not([data-theme]) table.res-table tr.me-row td {
+  --text: #0E3470 !important;
+  --text2: #0E3470 !important;
+  background-color: #FFF8DC !important;
+  color: #0E3470 !important;
+  text-decoration-color: #0E3470 !important;
+  opacity: 1 !important;
+}
