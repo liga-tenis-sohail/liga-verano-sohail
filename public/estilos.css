@@ -1,4 +1,3 @@
-
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
@@ -1360,3 +1359,193 @@ html:not([data-theme]) table.res-table tr.me-row td {
   text-decoration-color: #0E3470 !important;
   opacity: 1 !important;
 }
+
+/* ============================================================================
+   TANDA 4 — FIXES DE DARK MODE (Ago 2026)
+   
+   Problemas atacados:
+   1. .me-row: textos "libres" dentro del td (sin wrapper) quedaban blancos
+      sobre fondo cream por la mother rule.
+   2. .me-mtx: se destacaba solo la CELDA del cabezal, no la FILA del jugador
+      en la matriz de resultados. Ahora se agrega .me-mtx-row al <tr>.
+   3. Links del .login-header-bar: la regla genérica de <a> en dark mode los
+      pintaba #79aeff (azul claro), pisando el color inline calculado por
+      autoTxt() que sí garantiza contraste sobre el fondo del header.
+   4. .edit-pts-btn dentro de .clg-head: aseguramos color oscuro del texto
+      sobre el fondo claro del botón.
+   
+   Filosofía: no tocar la mother rule. Cada fix usa selectores MÁS específicos
+   (más clases concatenadas) para ganar por especificidad sin globalizar.
+   ============================================================================ */
+
+/* ---- Fix #1: textos internos de .me-row (fila del usuario logueado) ---- 
+   Ampliamos el selector para cubrir CUALQUIER descendiente del td, no solo
+   span/a/strong/b. Esto captura texto suelto e hijos anidados profundos. */
+html[data-theme="dark"] .cls-table tr.me-row td,
+html[data-theme="dark"] .cls-table tr.me-row td *,
+html[data-theme="dark"] .gen-table tr.me-row td,
+html[data-theme="dark"] .gen-table tr.me-row td *,
+html[data-theme="dark"] .rt-table tr.me-row td,
+html[data-theme="dark"] .rt-table tr.me-row td *{
+  color:#0E3470!important;
+  text-decoration-color:#0E3470!important;
+}
+/* Excepción: dentro de una me-row, elementos que tienen su propio color
+   semántico (badges, chips de destino, avatares) NO se pueden pintar
+   uniformemente en azul oscuro porque perderían su semántica. Los volvemos
+   a sus colores de origen. */
+html[data-theme="dark"] .cls-table tr.me-row td .avatar,
+html[data-theme="dark"] .cls-table tr.me-row td .avatar *,
+html[data-theme="dark"] .gen-table tr.me-row td .avatar,
+html[data-theme="dark"] .gen-table tr.me-row td .avatar *,
+html[data-theme="dark"] .rt-table tr.me-row td .avatar,
+html[data-theme="dark"] .rt-table tr.me-row td .avatar *{
+  color:var(--priD)!important;
+}
+html[data-theme="dark"] .cls-table tr.me-row td .dest,
+html[data-theme="dark"] .cls-table tr.me-row td .dest *,
+html[data-theme="dark"] .gen-table tr.me-row td .dest,
+html[data-theme="dark"] .gen-table tr.me-row td .dest *{
+  color:inherit!important;   /* .dest tiene su color propio (up/down/eq) */
+}
+html[data-theme="dark"] .cls-table tr.me-row td .badge,
+html[data-theme="dark"] .cls-table tr.me-row td .badge *,
+html[data-theme="dark"] .gen-table tr.me-row td .badge,
+html[data-theme="dark"] .gen-table tr.me-row td .badge *,
+html[data-theme="dark"] .rt-table tr.me-row td .badge,
+html[data-theme="dark"] .rt-table tr.me-row td .badge *{
+  color:inherit!important;   /* badges tienen su propio color de fondo/texto */
+}
+
+/* Y el equivalente para prefers-color-scheme: dark automático */
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .cls-table tr.me-row td,
+  html:not([data-theme]) .cls-table tr.me-row td *,
+  html:not([data-theme]) .gen-table tr.me-row td,
+  html:not([data-theme]) .gen-table tr.me-row td *,
+  html:not([data-theme]) .rt-table tr.me-row td,
+  html:not([data-theme]) .rt-table tr.me-row td *{
+    color:#0E3470!important;
+    text-decoration-color:#0E3470!important;
+  }
+  html:not([data-theme]) .cls-table tr.me-row td .avatar,
+  html:not([data-theme]) .cls-table tr.me-row td .avatar *,
+  html:not([data-theme]) .gen-table tr.me-row td .avatar,
+  html:not([data-theme]) .gen-table tr.me-row td .avatar *,
+  html:not([data-theme]) .rt-table tr.me-row td .avatar,
+  html:not([data-theme]) .rt-table tr.me-row td .avatar *{
+    color:var(--priD)!important;
+  }
+  html:not([data-theme]) .cls-table tr.me-row td .dest,
+  html:not([data-theme]) .cls-table tr.me-row td .dest *,
+  html:not([data-theme]) .gen-table tr.me-row td .dest,
+  html:not([data-theme]) .gen-table tr.me-row td .dest *{
+    color:inherit!important;
+  }
+  html:not([data-theme]) .cls-table tr.me-row td .badge,
+  html:not([data-theme]) .cls-table tr.me-row td .badge *,
+  html:not([data-theme]) .gen-table tr.me-row td .badge,
+  html:not([data-theme]) .gen-table tr.me-row td .badge *,
+  html:not([data-theme]) .rt-table tr.me-row td .badge,
+  html:not([data-theme]) .rt-table tr.me-row td .badge *{
+    color:inherit!important;
+  }
+}
+
+/* ---- Fix #2: fila completa del jugador en la matriz de resultados ----
+   Ahora el <tr> lleva class="me-mtx-row" cuando la fila es del usuario
+   logueado (cambio hecho en shell-render.js). Pintamos toda la fila con el
+   mismo fondo cream y texto oscuro. Excepciones: celdas de club (mantienen
+   su color propio), celdas pending/disputed (mantienen su estado visual). */
+html[data-theme="dark"] .res-table tr.me-mtx-row td,
+html[data-theme="dark"] .res-table tr.me-mtx-row td *{
+  background-color:#FFF8DC!important;
+  color:#0E3470!important;
+  text-decoration-color:#0E3470!important;
+}
+/* Celdas de club: dejar su color de club (ya calcula contraste solo con autoTxt) */
+html[data-theme="dark"] .res-table tr.me-mtx-row td.cell-club,
+html[data-theme="dark"] .res-table tr.me-mtx-row td.cell-club *{
+  background-color:unset!important;
+  color:unset!important;
+}
+/* Celdas pending/disputed: dejar su estado visual */
+html[data-theme="dark"] .res-table tr.me-mtx-row td.cell-pending{
+  background-color:#3d2a10!important;color:#fcd34d!important;
+}
+html[data-theme="dark"] .res-table tr.me-mtx-row td.cell-disputed{
+  background-color:unset!important;color:unset!important;
+}
+/* Celdas res-black (diagonal, mismo jugador): fondo oscuro */
+html[data-theme="dark"] .res-table tr.me-mtx-row td.res-black{
+  background-color:var(--bg)!important;
+}
+
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .res-table tr.me-mtx-row td,
+  html:not([data-theme]) .res-table tr.me-mtx-row td *{
+    background-color:#FFF8DC!important;
+    color:#0E3470!important;
+    text-decoration-color:#0E3470!important;
+  }
+  html:not([data-theme]) .res-table tr.me-mtx-row td.cell-club,
+  html:not([data-theme]) .res-table tr.me-mtx-row td.cell-club *{
+    background-color:unset!important;color:unset!important;
+  }
+  html:not([data-theme]) .res-table tr.me-mtx-row td.cell-pending{
+    background-color:#3d2a10!important;color:#fcd34d!important;
+  }
+  html:not([data-theme]) .res-table tr.me-mtx-row td.cell-disputed{
+    background-color:unset!important;color:unset!important;
+  }
+  html:not([data-theme]) .res-table tr.me-mtx-row td.res-black{
+    background-color:var(--bg)!important;
+  }
+}
+
+/* ---- Fix #3: links del login-header respetan el color inline ----
+   El header del login puede tener color de fondo custom (verde, rojo, etc.).
+   El JS calcula el color de texto con autoTxt() para garantizar contraste
+   y lo aplica inline. La regla genérica de <a> en dark mode lo pisaba con
+   #79aeff (azul claro), que sobre fondo verde queda ilegible.
+   
+   Usamos selector más específico + `color:inherit` para hacer que herede
+   el color inline del style="color:..." del propio <a>. El inline gana
+   porque especificidad de inline > selector, PERO como la regla previa
+   tiene !important, necesitamos !important también acá. Solución: usar
+   `revert` no funciona por !important; usamos `unset` para que caiga a
+   la regla inline. */
+html[data-theme="dark"] .login-header-bar a,
+html[data-theme="dark"] .login-header-bar a:hover,
+html[data-theme="dark"] .login-header-bar a:visited{
+  color:unset!important;
+  text-decoration-color:unset!important;
+}
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .login-header-bar a,
+  html:not([data-theme]) .login-header-bar a:hover,
+  html:not([data-theme]) .login-header-bar a:visited{
+    color:unset!important;
+    text-decoration-color:unset!important;
+  }
+}
+
+/* ---- Fix #4: botón "Recalcular" dentro del header .clg-head ----
+   El botón .edit-pts-btn tiene fondo azul claro y texto oscuro. En dark
+   mode la regla actual pisa correctamente el fondo, pero el TEXTO del span
+   interno del botón ("Recalcular") queda blanco por la mother rule dentro
+   del <th>. Reforzamos con mayor especificidad. */
+html[data-theme="dark"] .clg-head th .edit-pts-btn,
+html[data-theme="dark"] .clg-head th .edit-pts-btn *,
+html[data-theme="dark"] .clg-head th .edit-pts-btn i{
+  color:#0E3470!important;
+}
+@media (prefers-color-scheme: dark){
+  html:not([data-theme]) .clg-head th .edit-pts-btn,
+  html:not([data-theme]) .clg-head th .edit-pts-btn *,
+  html:not([data-theme]) .clg-head th .edit-pts-btn i{
+    color:#0E3470!important;
+  }
+}
+
+/* FIN Tanda 4 =============================================================== */
