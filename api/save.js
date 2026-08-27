@@ -6,6 +6,18 @@
 const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex } = require('./_lib');
 const { notifyAdmins, fmtFecha, fmtSets } = require('./_lib_whatsapp');
 
+// Función auxiliar para comparar configuraciones de seguridad.
+// Trata undefined, null, {} y [] como si fueran exactamente lo mismo.
+function sonIguales(valA, valB) {
+  const norm = (v) => {
+    if (v == null) return null;
+    if (typeof v === 'object' && Object.keys(v).length === 0) return null;
+    if (Array.isArray(v) && v.length === 0) return null;
+    return JSON.stringify(v);
+  };
+  return norm(valA) === norm(valB);
+}
+
 module.exports = async function handler(req, res){
   try {
     return await _handlerSave(req, res);
@@ -153,12 +165,13 @@ async function _handlerSave(req, res){
     return res.status(403).json({ error: 'Tiene que quedar al menos un administrador.' });
   }
 
+  // --- ACÁ ES DONDE SE APLICA LA SOLUCIÓN UTILIZANDO sonIguales() ---
   if(!admin){
     const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LEAGUE_COLOR_PRI',
                        'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON',
-                         'RATING_SEEDS','RATING_OVERRIDES'];
+                         'RATING_SEEDS','RATING_OVERRIDES', 'LOGIN_HEADER'];
     for(const k of COSMETICO){
-      if(JSON.stringify(incoming[k]) !== JSON.stringify(current[k])){
+      if(!sonIguales(incoming[k], current[k])){
         return res.status(403).json({ error: 'Solo un administrador puede cambiar la apariencia de la liga.' });
       }
     }
@@ -168,7 +181,7 @@ async function _handlerSave(req, res){
     const CONFIG = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
                     'ALLNAMES','PUNTOS'];
     for(const k of CONFIG){
-      if(JSON.stringify(incoming[k]) !== JSON.stringify(current[k])){
+      if(!sonIguales(incoming[k], current[k])){
         return res.status(403).json({ error: 'La configuración estructural (puntos, grupos, ciclos, playoff) solo la cambia el administrador original o el super admin.' });
       }
     }
@@ -190,7 +203,7 @@ async function _handlerSave(req, res){
 
     const CONGELADO = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
                        'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE',
-                       'LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL'];
+                       'LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL', 'LOGIN_HEADER'];
     for(const k of CONGELADO){
       if(k in current) incoming[k] = current[k]; else delete incoming[k];
     }
@@ -249,18 +262,14 @@ async function _handlerSave(req, res){
     }
   }
 
-  // 1. PRIMERO guardamos en la base de datos para asegurar el partido
   try { 
     await writeState(ligaId, incoming); 
   } catch(e) { 
     return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); 
   }
 
-  // 2. SEGUNDO disparamos las notificaciones CON AWAIT.
-  // Así evitamos que Vercel "congele" la función antes de que salga el mensaje.
   await _dispararNotificaciones(current, incoming, session).catch(() => {});
 
-  // 3. FINALMENTE devolvemos la respuesta al cliente
   return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
 };
 
@@ -279,34 +288,16 @@ async function _dispararNotificaciones(current, incoming, session){
     const club = _clubDeMatch(m, incoming) || '-';
     const fecha = fmtFecha(m.date || m.playedAt || m.d || m.fecha || Date.now());
 
-    // Nombres extraídos considerando la estructura de Play Offs
     const jugA = String((m.poNames && m.poNames[0]) || m.aName || '(?)').slice(0, 60);
     const jugB = String((m.poNames && m.poNames[1]) || m.bName || '(?)').slice(0, 60);
 
-    // ===== Evento 1: match nuevo con status pending =====
     if(!antes && m.status === 'pending'){
-      await notifyAdmins('resultado_cargado', [
-        ligaNombre,
-        actor,
-        club,
-        fecha,
-        jugA,
-        jugB,
-        fmtSets(m)
-      ]);
+      await notifyAdmins('resultado_cargado', [ligaNombre, actor, club, fecha, jugA, jugB, fmtSets(m)]);
       continue;
     }
 
-    // ===== Evento 2: match existente que pasa a disputed =====
     if(antes && antes.status !== 'disputed' && m.status === 'disputed'){
-      await notifyAdmins('partido_disputado', [
-        ligaNombre,
-        actor,
-        club,
-        fecha,
-        jugA,
-        jugB
-      ]);
+      await notifyAdmins('partido_disputado', [ligaNombre, actor, club, fecha, jugA, jugB]);
     }
   }
 }
