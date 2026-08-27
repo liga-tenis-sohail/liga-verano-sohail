@@ -195,7 +195,8 @@ html[data-theme="dark"] .clg-head th *,
 html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
 
-/* ==== FILA DESTACADA DEL USUARIO (me-row) — TODAS las tablas, todo blanco ==== */
+/* ==== FILA DESTACADA DEL USUARIO (me-row) — TODAS las tablas ==== */
+/* Unificamos el estilo para que coincida con el sombreado crema del bracket de playoffs */
 html[data-theme="dark"] .gen-table .me-row td,
 html[data-theme="dark"] .gen-table .me-row td *,
 html[data-theme="dark"] .cls-table .me-row td,
@@ -203,7 +204,25 @@ html[data-theme="dark"] .cls-table .me-row td *,
 html[data-theme="dark"] .rt-table tr.me-row td,
 html[data-theme="dark"] .rt-table tr.me-row td *,
 html[data-theme="dark"] .res-table .me-mtx,
-html[data-theme="dark"] .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
+html[data-theme="dark"] .res-table .me-mtx *{
+  background-color:#FFF8DC!important;
+  color:#0E3470!important;
+  text-decoration-color:#0E3470!important;
+}
+
+/* Asegurar el mismo estilo en el modo por defecto (claro o automático) */
+.gen-table .me-row td,
+.gen-table .me-row td *,
+.cls-table .me-row td,
+.cls-table .me-row td *,
+.rt-table tr.me-row td,
+.rt-table tr.me-row td *,
+.res-table .me-mtx,
+.res-table .me-mtx * {
+  background-color:#FFF8DC!important;
+  color:#0E3470!important;
+  text-decoration-color:#0E3470!important;
+}
 
 /* ==== BOTONES ==== */
 html[data-theme="dark"] .login-btn:not(.login-btn-pk),
