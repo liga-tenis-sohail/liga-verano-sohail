@@ -4015,6 +4015,15 @@ function attr(s){
     .replace(/"/g,'&quot;')
     .replace(/'/g,'&#39;');
 }
+// Cambia el grupo seleccionado en la vista "Grupos" (layout tipo selector,
+// con botones Grupo 1 / Grupo 2 / etc). Faltaba esta función: los botones
+// llamaban a setSelGroup(gid) por onclick pero nunca estaba definida, por lo
+// que al tocar un grupo distinto no pasaba nada (ni jugador ni admin podían
+// cambiar de grupo).
+function setSelGroup(gid){
+  selGroup=gid;
+  renderGrupos();
+}
 function renderGrupos(){
   try {
       const c=cycles[viewCycle-1];
