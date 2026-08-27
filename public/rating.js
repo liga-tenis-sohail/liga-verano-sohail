@@ -1,19 +1,8 @@
 // ============================================================
 // rating.js — Sistema de rating estilo UTR (SEPARADO de la app)
-// Se carga DESPUÉS del script principal. Usa las globales de la app
-// (USERS, matches, cycles, t, getInitials, esCuentaSistema, jsq, attr,
-//  persist, toast, showSub, subView, RATING_ON, RATING_SEEDS, RATING_OVERRIDES).
-// Si este archivo falla, la liga sigue funcionando (la app tiene guardas).
 // ============================================================
 (function(){
 'use strict';
-// ==================== MOTOR DE RATING UTR ====================
-// ============================================================
-// MOTOR DE RATING ESTILO UTR — Liga de Tenis
-// Escala 1-16 · semilla = punto de partida · recencia · provisional@10 · STB=mini-set
-// Calcula sobre TODAS las ligas (actual + pasadas).
-// ============================================================
-// Constantes del rating (ajustables desde un solo lugar)
 const UTR_MIN = 1, UTR_MAX = 16;
 const UTR_ESCALA = 4;          
 const UTR_PROV = 15;           
@@ -195,8 +184,6 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
   return info;
 }
 
-// ==================== FIN MOTOR UTR ====================
-
 let _ratingCache = null;      
 let _ratingCalculando = false;
 
@@ -211,7 +198,6 @@ async function calcularRatingGlobal(force){
     let todos = [];
     const vistos = new Set(); 
     
-    // Función para evitar duplicar el mismo partido si la liga actual también viene del backend
     const agregarPartido = (x) => {
       const id = `${x.fecha}_${x.a}_${x.b}_${x.gamesA}_${x.gamesB}`;
       if(!vistos.has(id)){
@@ -220,37 +206,42 @@ async function calcularRatingGlobal(force){
       }
     };
 
-    // 1) Partidos de la liga actual (en memoria)
+    // 1) Partidos de la liga actual
     utrPartidosDeEstado({ matches: matches }).forEach(agregarPartido);
 
-    // 2) Partidos de TODO el historial en base de datos
+    // 2) Partidos de TODO el historial en base de datos (incluso ligas activas)
     try{
       const r = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
       const d = await r.json().catch(()=>({}));
       
-      // Tomamos CUALQUIER liga que no esté cancelada (cubrimos 'activa', 'finalizada', etc.)
-      const pasadas = (d.ligas||[]).filter(l => l.estado !== 'cancelada');
+      const otrasLigas = (d.ligas||[]).filter(l => l.id !== (_ligaActual||'liga-actual'));
       
-      for(const l of pasadas){
+      for(const l of otrasLigas){
         try{
+          let estadoObj = null;
           const rv = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-          if(!rv.ok) continue;
-          const dv = await rv.json().catch(()=>({}));
-          utrPartidosDeEstado(dv.estado||{}).forEach(agregarPartido);
+          if(rv.ok){
+             const dv = await rv.json().catch(()=>({}));
+             estadoObj = dv.estado;
+          } else if(typeof _token !== 'undefined' && _token) {
+             const r2 = await fetch('/api/state?liga='+encodeURIComponent(l.id), {headers:{Authorization:'Bearer '+_token}});
+             if(r2.ok){
+                const d2 = await r2.json().catch(()=>({}));
+                estadoObj = d2.state;
+             }
+          }
+          if(estadoObj) utrPartidosDeEstado({matches: estadoObj.matches}).forEach(agregarPartido);
         }catch(_){}
       }
     }catch(_){}
     
-    // 3) Ordenar todos los partidos por fecha ASC 
     todos.sort((a,b)=>{ const fa=a.fecha||'', fb=b.fecha||''; return fa.localeCompare(fb); });
     
-    // 4) Lista de jugadores
     const setJ = {};
     todos.forEach(p=>{ setJ[p.a]=1; setJ[p.b]=1; });
     Object.keys(USERS||{}).forEach(n=>{ if(!esCuentaSistema(n)) setJ[n]=1; });
     const jugadores = Object.keys(setJ);
     
-    // 4b) Mapa de grupos
     const grupos = {};
     try{
       const cyc = (typeof cycles!=='undefined' && cycles) ? cycles[activeN-1] : null;
@@ -295,8 +286,6 @@ function renderRating(){
   let filas = Object.keys(info).map(name=>({ name, ...info[name] }))
     .filter(f => f.partidos > 0 || seeds[f.name] != null || overs[f.name] != null)
     .filter(f => !esCuentaSistema(f.name))
-    // Hemos ELIMINADO el filtro de 'ALLNAMES' aquí. Ahora mostrará a cualquier
-    // jugador que tenga historia o partidos, esté o no en la liga activa actual.
     .filter(f => {
       try{
         if(typeof USERS !== 'undefined' && USERS[f.name] && USERS[f.name].inactive) return false;
