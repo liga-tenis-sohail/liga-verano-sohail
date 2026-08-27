@@ -1866,20 +1866,9 @@ function findLoc(name,cycN){const c=cycles[cycN-1];if(!c||!c.groups)return null;
 function getActive(){return cycles[activeN-1];}
 function getInitials(n){if(!n)return'?';return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
 function ptsForPos(gid,pos){
-  if(!PUNTOS)PUNTOS={};
-  let pb=PUNTOS[gid];
-  if(!pb||!Array.isArray(pb)||pb.length===0){
-    // Fallback: grupo sin escala definida (ej. liga ampliada más allá de 12 grupos).
-    // Extrapola usando la última escala conocida menos 3 puntos por cada grupo de diferencia.
-    const knownKeys=Object.keys(PUNTOS).map(Number).filter(k=>Array.isArray(PUNTOS[k])&&PUNTOS[k].length);
-    if(knownKeys.length){
-      const maxK=Math.max(...knownKeys);
-      const base=PUNTOS[maxK];
-      const diff=(gid-maxK)*3;
-      pb=base.map(v=>Math.max(1,v-diff));
-    } else pb=[5,4,3,2,1];
-  }
-  return pos<pb.length?pb[pos]:Math.max(0,pb[pb.length-1]-(pos-pb.length+1));
+  const c = (typeof cycles!=='undefined' && cycles) ? (cycles[viewCycle-1] || cycles[activeN-1]) : null;
+  if (!c || !c.groups || !c.groups.length) return 0;
+  return obtenerPuntosPosicionEscalonado(gid - 1, pos + 1, c.groups);
 }
 
 function computeStats(cycN,gid){
@@ -4006,13 +3995,9 @@ function renderGrupos(){
       let html='';
       if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
       
-      if(LAYOUT==='selector'){
-        html+=`<div class="card"><div class="section-lbl">${t('choose_group')}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
-            const gid=i+1;
-            const loc=currentUser?findLoc(currentUser.name,viewCycle):null;
-            const mine=currentUser&&currentUser.role==='player'&&loc&&loc.g===gid;
-            return `<button class="grp-btn ${selGroup===gid?'active':''}" onclick="setSelGroup(${gid})">${groupName(gid)}${mine?`<span class="mine">${t('mine_label')}</span>`:''}</button>`;
-        }).join('')+`</div></div>`;
+     if(LAYOUT==='selector'){
+  const btnRecalc = esAdmin(currentUser) ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular Puntos</button>` : '';
+  html+=`<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem"><div class="section-lbl" style="margin:0">${t('choose_group')}</div>${btnRecalc}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
         if(selGroup>c.groups.length)selGroup=1;
         html+=groupCardHTML(selGroup);
       }else{
@@ -8705,5 +8690,41 @@ function renombrarJugadorEnLiga(oldName, newName) {
             });
         });
     }
+}
+  // ==== CÁLCULO DE PUNTAJE ESCALONADO CONTINUO ====
+function obtenerPuntosPosicionEscalonado(iGrupo, posEnGrupo, todosLosGrupos) {
+  let jugadoresInferiores = 0;
+  for (let k = iGrupo + 1; k < todosLosGrupos.length; k++) {
+    jugadoresInferiores += (todosLosGrupos[k].players || []).length;
+  }
+  const cantEnMiGrupo = (todosLosGrupos[iGrupo].players || []).length;
+  return jugadoresInferiores + (cantEnMiGrupo - posEnGrupo + 1);
+}
+
+async function recalcularPuntajesGrupos() {
+  if (!esAdmin(currentUser)) { toast('Solo administradores'); return; }
+  const cyc = (typeof cycles !== 'undefined' && cycles) ? cycles[activeN - 1] : null;
+  if (!cyc || !cyc.groups) { toast('No hay grupos en este ciclo'); return; }
+
+  if (!confirm('¿Recalcular los puntos por puesto de todos los grupos según la nueva escala continua?')) return;
+
+  cyc.groups.forEach((g, gIdx) => {
+    // Calcular la tabla ordenada del grupo
+    const standings = (typeof calcularTablaGrupo === 'function') 
+      ? calcularTablaGrupo(g) 
+      : (g.players || []).map((p, idx) => ({ name: p }));
+      
+    if (!g.puntosPuesto) g.puntosPuesto = {};
+    
+    standings.forEach((st, idxZero) => {
+      const pos = idxZero + 1;
+      const pts = obtenerPuntosPosicionEscalonado(gIdx, pos, cyc.groups);
+      g.puntosPuesto[st.name] = pts;
+    });
+  });
+
+  if (typeof persist === 'function') await persist(true);
+  if (typeof refreshAll === 'function') refreshAll();
+  toast('¡Puntajes recalculados con éxito!');
 }
 </script><script src="rating.js"></script></body></html>
