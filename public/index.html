@@ -1370,39 +1370,27 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .seed-list{gap:4px}
   .seed-chip{font-size:11px;padding:3px 7px}
 
-/* ==== FIX DE MÁXIMA ESPECIFICIDAD PARA ME-ROW Y MATRIZ DE RESULTADOS ==== */
-html[data-theme="dark"] table.gen-table tr.me-row,
-html[data-theme="dark"] table.gen-table tr.me-row td,
-html[data-theme="dark"] table.gen-table tr.me-row td *,
-html[data-theme="dark"] table.cls-table tr.me-row,
-html[data-theme="dark"] table.cls-table tr.me-row td,
-html[data-theme="dark"] table.cls-table tr.me-row td *,
-html[data-theme="dark"] table.rt-table tr.me-row,
-html[data-theme="dark"] table.rt-table tr.me-row td,
-html[data-theme="dark"] table.rt-table tr.me-row td *,
-html[data-theme="dark"] table.res-table tr.me-row,
-html[data-theme="dark"] table.res-table tr.me-row td,
-html[data-theme="dark"] table.res-table tr.me-row td *,
+/* ==== FIX DEFINITIVO DE CONTRASTE Y LEGIBILIDAD EN DARK MODE ==== */
+html[data-theme="dark"] .me-row,
+html[data-theme="dark"] .me-row td,
+html[data-theme="dark"] .me-row th,
+html[data-theme="dark"] .me-row *,
+html[data-theme="dark"] .me-mtx,
+html[data-theme="dark"] .me-mtx *,
 html[data-theme="dark"] table.res-table tr.me-row th,
-html[data-theme="dark"] table.res-table tr.me-row th *,
-html[data-theme="dark"] .res-table .me-mtx,
-html[data-theme="dark"] .res-table .me-mtx *,
-html:not([data-theme]) table.gen-table tr.me-row,
-html:not([data-theme]) table.gen-table tr.me-row td,
-html:not([data-theme]) table.gen-table tr.me-row td *,
-html:not([data-theme]) table.cls-table tr.me-row,
-html:not([data-theme]) table.cls-table tr.me-row td,
-html:not([data-theme]) table.cls-table tr.me-row td *,
-html:not([data-theme]) table.rt-table tr.me-row,
-html:not([data-theme]) table.rt-table tr.me-row td,
-html:not([data-theme]) table.rt-table tr.me-row td *,
-html:not([data-theme]) table.res-table tr.me-row,
-html:not([data-theme]) table.res-table tr.me-row td,
-html:not([data-theme]) table.res-table tr.me-row td *,
+html[data-theme="dark"] table.res-table tr.me-row th:first-child,
+html[data-theme="dark"] table.res-table tr.me-row td,
+html:not([data-theme]) .me-row,
+html:not([data-theme]) .me-row td,
+html:not([data-theme]) .me-row th,
+html:not([data-theme]) .me-row *,
+html:not([data-theme]) .me-mtx,
+html:not([data-theme]) .me-mtx *,
 html:not([data-theme]) table.res-table tr.me-row th,
-html:not([data-theme]) table.res-table tr.me-row th *,
-html:not([data-theme]) .res-table .me-mtx,
-html:not([data-theme]) .res-table .me-mtx * {
+html:not([data-theme]) table.res-table tr.me-row th:first-child,
+html:not([data-theme]) table.res-table tr.me-row td {
+  --text: #0E3470 !important;
+  --text2: #0E3470 !important;
   background-color: #FFF8DC !important;
   color: #0E3470 !important;
   text-decoration-color: #0E3470 !important;
