@@ -20,6 +20,7 @@ function idDeJugador(nombre){
   return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
 }
 
+// ESTADO INICIAL SINCRONIZADO CON EL FRONTEND
 function estadoInicial(nombreLiga, numGrupos, numCiclos){
   const nG = Math.max(1, Math.min(30, parseInt(numGrupos, 10) || 1));
   const nC = Math.max(1, Math.min(12, parseInt(numCiclos, 10) || 1));
@@ -36,7 +37,16 @@ function estadoInicial(nombreLiga, numGrupos, numCiclos){
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
     DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: {}, LOG: [],
     LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '',
-    CLUBS: [{ id: 'sohail', name: 'Sohail', bg: '#D6ECFB' }], COLOR_DISPUTA: '#FAEEDA', RATING_ON: false, REGLAMENTO: ''
+    // Se agregan los colores y clubes por defecto para evitar diferencias cosméticas
+    LEAGUE_COLOR_PRI: '#1B4F9C',
+    LEAGUE_COLOR_ACC: '#F5C518',
+    LEAGUE_COLOR_HL: '#FFEDD5',
+    CLUBS: [
+      { id: 'sohail', name: 'Sohail', bg: '#D6ECFB' },
+      { id: 'haza', name: 'Haza', bg: '#FCE6CF' }
+    ], 
+    COLOR_DISPUTA: '#FDE68A', 
+    RATING_ON: false, REGLAMENTO: ''
   };
 }
 
@@ -151,11 +161,13 @@ module.exports = async function handler(req, res){
 
     const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
 
-    // Heredamos Admins
+    // HEREDAR ADMINS CORRECTAMENTE: incluyendo a los administradores delegados (isAdmin === true)
     if(sesionState && sesionState.users){
       for(const k of Object.keys(sesionState.users)){
         const su = sesionState.users[k];
-        if(su && (su.role === 'superadmin' || su.role === 'admin')){ estado.users[k] = { ...su }; }
+        if(su && (su.role === 'superadmin' || su.role === 'admin' || su.isAdmin === true)){ 
+            estado.users[k] = { ...su }; 
+        }
       }
     }
 
@@ -183,11 +195,9 @@ module.exports = async function handler(req, res){
         const nomNorm = perfil.nombre.trim().toLowerCase();
         if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
         
-        estado.users[perfil.nombre] = { role: 'player', jugadorId: perfil.id };
         if(!estado.ALLNAMES.includes(perfil.nombre)) {
           estado.ALLNAMES.push(perfil.nombre);
           
-          // ASIGNACIÓN AL GRUPO SELECCIONADO (o G1 por defecto)
           const numGroups = estado.cycles[0].groups.length;
           let targetIndex = (parseInt(j.grupo, 10) || 1) - 1;
           if (targetIndex < 0 || targetIndex >= numGroups) targetIndex = 0; 
@@ -195,6 +205,13 @@ module.exports = async function handler(req, res){
           if (numGroups > 0) {
             estado.cycles[0].groups[targetIndex].players.push(perfil.nombre);
           }
+        }
+        
+        // NO SOBREESCRIBIR PERMISOS si el jugador ya había sido heredado como admin
+        if(estado.users[perfil.nombre]) {
+            estado.users[perfil.nombre].jugadorId = perfil.id;
+        } else {
+            estado.users[perfil.nombre] = { role: 'player', jugadorId: perfil.id };
         }
       }
     }
