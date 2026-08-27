@@ -15,23 +15,18 @@
 // ============================================================
 // Constantes del rating (ajustables desde un solo lugar)
 const UTR_MIN = 1, UTR_MAX = 16;
-const UTR_ESCALA = 4;          // puntos UTR por "década" de la curva logística
-const UTR_PROV = 15;           // partidos para dejar de ser provisional
-const UTR_DECAY = 0.97;        // recencia: peso = DECAY^(antigüedad en partidos)
-const UTR_STB_PESO = 0.4;      // un supertiebreak pesa como 0.4 de un set normal
-const UTR_VENTANA = 50;        // solo los últimos N partidos de cada jugador (sin límite de tiempo)
-const UTR_GRUPO_PESO = 5;      // cuánto tira el grupo con 0 partidos (se diluye a 0 hacia UTR_PROV)
+const UTR_ESCALA = 4;          
+const UTR_PROV = 15;           
+const UTR_DECAY = 0.97;        
+const UTR_STB_PESO = 0.4;      
+const UTR_VENTANA = 50;        
+const UTR_GRUPO_PESO = 5;      
 const UTR_ITER = 60, UTR_K = 0.35;
 
-// Marca, para cada partido, si entra en la ventana de últimos UTR_VENTANA de
-// CADA uno de sus dos jugadores. Devuelve un mapa i -> {ventanaA, ventanaB}
-// que dice si ese partido cuenta para el rating de A y/o de B.
-// Así el rating de cada jugador usa solo SUS 50 más recientes, aunque el rival
-// tenga más o menos historia. (Recibe partidos ordenados por fecha ASC.)
 function utrMarcarVentana(partidos, jugadores){
   const cuenta = {}; jugadores.forEach(j => cuenta[j] = 0);
   const marca = partidos.map(() => ({ ventanaA: false, ventanaB: false }));
-  for(let i = partidos.length - 1; i >= 0; i--){   // del más nuevo al más viejo
+  for(let i = partidos.length - 1; i >= 0; i--){   
     const p = partidos[i];
     if(cuenta[p.a] !== undefined && cuenta[p.a] < UTR_VENTANA){ marca[i].ventanaA = true; cuenta[p.a]++; }
     if(cuenta[p.b] !== undefined && cuenta[p.b] < UTR_VENTANA){ marca[i].ventanaB = true; cuenta[p.b]++; }
@@ -39,29 +34,21 @@ function utrMarcarVentana(partidos, jugadores){
   return marca;
 }
 
-// % de games esperado para A según la diferencia de rating con B (logística)
 function utrExpected(rA, rB){ return 1 / (1 + Math.pow(10, -(rA - rB) / UTR_ESCALA)); }
 
-// Rating "esperado" para un grupo. Grupos van de 1 (mejor) a totalGrupos (peor).
-// Grupo 1 arranca alto, el último grupo arranca bajo. Sirve de seed automático
-// para que un jugador nuevo de grupo alto no quede por debajo de uno de grupo bajo.
 function grupoASeed(grupo, totalGrupos){
   if(!grupo || grupo < 1 || !totalGrupos) return null;
   if(totalGrupos <= 1) return (UTR_MIN + UTR_MAX) / 2;
-  const techo = UTR_MAX - 2;   // el grupo 1 arranca acá (~14)
-  const piso  = UTR_MIN + 2;   // el último grupo arranca acá (~3)
-  const t = Math.min(1, (grupo - 1) / (totalGrupos - 1));  // 0 (grupo1) .. 1 (último)
+  const techo = UTR_MAX - 2;   
+  const piso  = UTR_MIN + 2;   
+  const t = Math.min(1, (grupo - 1) / (totalGrupos - 1));  
   return techo - t * (techo - piso);
 }
-// Cuánto pesa el seed de grupo según los partidos jugados: fuerte al principio,
-// se diluye a 0 hacia UTR_PROV (15) partidos, para que después mande el juego real.
+
 function pesoGrupoSeed(nPartidos){
   return Math.max(0, UTR_GRUPO_PESO - nPartidos * (UTR_GRUPO_PESO / UTR_PROV));
 }
 
-// Extrae de un partido los games de cada lado y si tuvo supertiebreak.
-// sets = [[6,4],[3,6],[1,0]] → los 2 primeros son sets, el 3ro (si está) es STB.
-// Devuelve {gamesA, gamesB, esSTB} contando el STB como mini-set con menos peso.
 function utrGamesDePartido(sets){
   if(!Array.isArray(sets)) return null;
   let gA = 0, gB = 0, esSTB = false;
@@ -69,7 +56,7 @@ function utrGamesDePartido(sets){
     if(!Array.isArray(s) || s.length < 2) return;
     const x = +s[0], y = +s[1];
     if(!isFinite(x) || !isFinite(y)) return;
-    if(i === 2){ // 3er "set" = supertiebreak: cuenta como mini-set (1 game al ganador)
+    if(i === 2){ 
       esSTB = true;
       gA += x > y ? 1 : 0;
       gB += y > x ? 1 : 0;
@@ -80,20 +67,16 @@ function utrGamesDePartido(sets){
   return { gamesA: gA, gamesB: gB, esSTB };
 }
 
-// Recolecta todos los partidos "rateables" de un estado de liga (matches).
-// Cada uno: {a, b, gamesA, gamesB, fecha, esSTB}. Orienta A=aName, B=bName.
 function utrPartidosDeEstado(estado){
   const out = [];
   const ms = (estado && estado.matches) || [];
   ms.forEach(m => {
     if(!m || m.status !== 'confirmed' || m.np) return;
-    // Nombres: partido normal usa aName/bName; playoff usa poNames
     let a, b;
     if(m.po && m.poNames){ a = m.poNames[0]; b = m.poNames[1]; }
     else { a = m.aName; b = m.bName; }
     if(!a || !b) return;
-    // W.O.: sin games reales, se puede contar como victoria mínima o saltar.
-    if(m.wo){ return; }  // los W.O. no aportan info de nivel: se saltan
+    if(m.wo){ return; }  
     const g = utrGamesDePartido(m.sets);
     if(!g || (g.gamesA + g.gamesB) === 0) return;
     out.push({ a, b, gamesA: g.gamesA, gamesB: g.gamesB, fecha: m.date || '', esSTB: g.esSTB });
@@ -101,19 +84,11 @@ function utrPartidosDeEstado(estado){
   return out;
 }
 
-// Núcleo iterativo: dado el set de jugadores, partidos (ordenados por fecha ASC)
-// y las semillas del admin, devuelve {jugador: {rating, partidos, provisional, fiab}}.
-// Núcleo iterativo. Parámetros:
-//   jugadores: lista de nombres
-//   partidos: todos, ordenados por fecha ASC
-//   semillas: {jugador: valor} punto de partida que da el admin (opcional)
-//   overrides: {jugador: valor} rating FIJO puesto a mano por el admin (opcional).
-//     Si un jugador tiene override, ese valor manda y reemplaza el calculado.
 function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
   overrides = overrides || {};
   grupos = grupos || {};
   const R = {};
-  // Inicializar: si hay seed manual usa eso; si no, si hay grupo usa el seed de grupo; si no, 8.
+  
   jugadores.forEach(j => {
     if(semillas && semillas[j] != null){ R[j] = semillas[j]; return; }
     const gi = grupos[j];
@@ -121,11 +96,7 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
     R[j] = (sg != null) ? sg : 8;
   });
 
-  // Marca qué partidos entran en la ventana de últimos 50 de cada jugador.
   const marca = utrMarcarVentana(partidos, jugadores);
-
-  // Antigüedad por jugador (0 = su último partido dentro de la ventana) y
-  // conteo de partidos usados por jugador (para provisional/fiabilidad).
   const idxPorJugador = {}; jugadores.forEach(j => idxPorJugador[j] = []);
   partidos.forEach((p, i) => {
     if(idxPorJugador[p.a] && marca[i].ventanaA) idxPorJugador[p.a].push(i);
@@ -150,7 +121,7 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
       const objA = R[p.a] + errorA * UTR_ESCALA;
       const objB = R[p.b] - errorA * UTR_ESCALA;
       const tipo = p.esSTB ? UTR_STB_PESO : 1;
-      // Solo aporta al jugador si el partido está en SU ventana de 50.
+      
       if(marca[i].ventanaA && antig[i][p.a] !== undefined){
         const wA = Math.pow(UTR_DECAY, antig[i][p.a]) * tipo;
         acc[p.a] += objA * wA; pes[p.a] += wA;
@@ -164,13 +135,10 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
       const nP = idxPorJugador[j].length;
       if(pes[j] > 0){
         let target = acc[j] / pes[j];
-        // La semilla manual actúa como un "partido virtual" que se diluye con más partidos.
         if(semillas && semillas[j] != null){
-          const pesoSemilla = Math.max(0, 3 - nP * 0.3); // ~3 al inicio → 0 tras 10 partidos
+          const pesoSemilla = Math.max(0, 3 - nP * 0.3); 
           if(pesoSemilla > 0) target = (target * pes[j] + semillas[j] * pesoSemilla) / (pes[j] + pesoSemilla);
         } else {
-          // Si NO hay seed manual, el GRUPO actúa como seed automático:
-          // ubica al jugador según su grupo y se diluye con los partidos.
           const gi = grupos[j];
           const sg = gi ? grupoASeed(gi.grupo, gi.totalGrupos) : null;
           if(sg != null){
@@ -184,7 +152,6 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
     });
   }
 
-  // Estadísticas explicativas (para mostrar y entender el cálculo).
   const stats = {};
   jugadores.forEach(j => stats[j] = { gGanados: 0, gTotal: 0, vict: 0, der: 0, sumRival: 0, nRival: 0 });
   partidos.forEach((p, i) => {
@@ -204,25 +171,25 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
 
   const info = {};
   jugadores.forEach(j => {
-    const nP = idxPorJugador[j].length;   // partidos realmente usados (máx 50)
-    const calc = R[j];                    // rating calculado por resultados
+    const nP = idxPorJugador[j].length;   
+    const calc = R[j];                    
     const ov = overrides[j];
     const tieneOverride = (ov != null && isFinite(ov));
     const st = stats[j] || { gGanados: 0, gTotal: 0, vict: 0, der: 0, sumRival: 0, nRival: 0 };
     info[j] = {
       rating: tieneOverride ? Math.max(UTR_MIN === 1 ? 0.01 : UTR_MIN, Math.min(UTR_MAX, +ov)) : calc,
-      ratingCalculado: calc,              // el que salió del cálculo (para que el admin compare)
-      manual: tieneOverride,              // true si el admin lo fijó a mano
-      seed: (semillas && semillas[j] != null) ? +semillas[j] : null,   // punto de partida del admin
+      ratingCalculado: calc,              
+      manual: tieneOverride,              
+      seed: (semillas && semillas[j] != null) ? +semillas[j] : null,   
       partidos: nP,
-      provisional: !tieneOverride && nP < UTR_PROV,   // un valor manual no es provisional
-      fiab: Math.min(100, Math.round(100 * nP / UTR_VENTANA)),   // sobre los 50 ideales, no sobre 10
-      vict: st.vict,                      // victorias en la ventana
-      der: st.der,                        // derrotas en la ventana
-      gGanados: st.gGanados,              // games ganados en total
-      gPerdidos: st.gTotal - st.gGanados, // games perdidos en total
-      pctGames: st.gTotal > 0 ? (st.gGanados / st.gTotal) : null,      // % de games ganados
-      nivelRivales: st.nRival > 0 ? (st.sumRival / st.nRival) : null   // rating medio de los rivales
+      provisional: !tieneOverride && nP < UTR_PROV,   
+      fiab: Math.min(100, Math.round(100 * nP / UTR_VENTANA)),   
+      vict: st.vict,                      
+      der: st.der,                        
+      gGanados: st.gGanados,              
+      gPerdidos: st.gTotal - st.gGanados, 
+      pctGames: st.gTotal > 0 ? (st.gGanados / st.gTotal) : null,      
+      nivelRivales: st.nRival > 0 ? (st.sumRival / st.nRival) : null   
     };
   });
   return info;
@@ -230,56 +197,60 @@ function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
 
 // ==================== FIN MOTOR UTR ====================
 
-// ---- Orquestador del rating: junta todas las ligas, calcula y cachea ----
-let _ratingCache = null;      // { info:{jugador:{rating,...}}, ts:Date }
+let _ratingCache = null;      
 let _ratingCalculando = false;
 
-// Devuelve los seeds y overrides guardados en el estado actual.
 function _ratingSeeds(){ return (typeof RATING_SEEDS !== 'undefined' && RATING_SEEDS) ? RATING_SEEDS : {}; }
 function _ratingOverrides(){ return (typeof RATING_OVERRIDES !== 'undefined' && RATING_OVERRIDES) ? RATING_OVERRIDES : {}; }
 
-// Calcula el rating de todos, cargando la liga actual + las pasadas.
-// Guarda el resultado en _ratingCache. force=true recalcula aunque haya caché.
 async function calcularRatingGlobal(force){
   if(_ratingCalculando) return _ratingCache;
   if(_ratingCache && !force) return _ratingCache;
   _ratingCalculando = true;
   try{
+    let todos = [];
+    const vistos = new Set(); 
+    
+    // Función para evitar duplicar el mismo partido si la liga actual también viene del backend
+    const agregarPartido = (x) => {
+      const id = `${x.fecha}_${x.a}_${x.b}_${x.gamesA}_${x.gamesB}`;
+      if(!vistos.has(id)){
+        vistos.add(id);
+        todos.push(x);
+      }
+    };
+
     // 1) Partidos de la liga actual (en memoria)
-    let todos = utrPartidosDeEstado({ matches: matches });
-    // 2) Partidos de las ligas pasadas/activas (fetch)
+    utrPartidosDeEstado({ matches: matches }).forEach(agregarPartido);
+
+    // 2) Partidos de TODO el historial en base de datos
     try{
       const r = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
       const d = await r.json().catch(()=>({}));
       
-      // CAMBIO AQUÍ: Ahora toma tanto las ligas finalizadas como las activas
-      const pasadas = (d.ligas||[]).filter(l => l.estado === 'finalizada' || l.estado === 'activa');
+      // Tomamos CUALQUIER liga que no esté cancelada (cubrimos 'activa', 'finalizada', etc.)
+      const pasadas = (d.ligas||[]).filter(l => l.estado !== 'cancelada');
       
       for(const l of pasadas){
         try{
           const rv = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
           if(!rv.ok) continue;
           const dv = await rv.json().catch(()=>({}));
-          const ps = utrPartidosDeEstado(dv.estado||{});
-          ps.forEach(x=>todos.push(x));
+          utrPartidosDeEstado(dv.estado||{}).forEach(agregarPartido);
         }catch(_){}
       }
     }catch(_){}
     
-    // 3) Ordenar todos los partidos por fecha ASC (para recencia y ventana)
-    // En caso de que se duplique un partido (por ej. si la liga actual también viene del backend), 
-    // lo ideal sería filtrar IDs únicos, pero los partidos de las ligas se asumen acumulativos.
+    // 3) Ordenar todos los partidos por fecha ASC 
     todos.sort((a,b)=>{ const fa=a.fecha||'', fb=b.fecha||''; return fa.localeCompare(fb); });
     
-    // 4) Lista de jugadores: todos los que aparecen en algún partido + los del estado
+    // 4) Lista de jugadores
     const setJ = {};
     todos.forEach(p=>{ setJ[p.a]=1; setJ[p.b]=1; });
     Object.keys(USERS||{}).forEach(n=>{ if(!esCuentaSistema(n)) setJ[n]=1; });
     const jugadores = Object.keys(setJ);
     
-    // 4b) Mapa de grupos: grupo actual de cada jugador en el ciclo activo de la
-    //     liga en memoria. Sirve para que el grupo influya en el rating (un grupo
-    //     alto no queda por debajo de uno bajo, sobre todo con pocos partidos).
+    // 4b) Mapa de grupos
     const grupos = {};
     try{
       const cyc = (typeof cycles!=='undefined' && cycles) ? cycles[activeN-1] : null;
@@ -291,7 +262,7 @@ async function calcularRatingGlobal(force){
         });
       }
     }catch(_){}
-    // 5) Calcular con seeds, overrides del admin y el grupo de cada jugador
+    
     const info = utrCalcular(jugadores, todos, _ratingSeeds(), _ratingOverrides(), grupos);
     _ratingCache = { info, ts: new Date() };
     return _ratingCache;
@@ -300,82 +271,13 @@ async function calcularRatingGlobal(force){
   }
 }
 
-// Rating de un jugador desde el caché (para la columna de grupos y la ficha).
-// Devuelve el objeto {rating, provisional, manual, partidos, ...} o null.
 function ratingUTRDe(name){
   if(!_ratingCache || !_ratingCache.info) return null;
   return _ratingCache.info[name] || null;
 }
-// Rating formateado a 2 decimales, o '' si no hay.
 function ratingUTRfmt(name){
   const r = ratingUTRDe(name);
   return (r && typeof r.rating === 'number') ? r.rating.toFixed(2) : '';
-}
-
-function ratingCompleto(ciclos){
-  const N = ciclos.map((c) => c.v + c.d);
-  const fm = N.map(_factorMuestra);
-  const ef = ciclos.map((c) => _eficienciaCiclo(c.v, c.d));
-  const aj = ciclos.map((c) => _ajusteCiclo(c.v, c.d));
-  const no = ciclos.map((c) => _notaCiclo(c.grupo, c.v, c.d));
-  const sum = (a) => a.reduce((x, y) => x + y, 0);
-  const partidos = sum(N);
-  const ganados = sum(ciclos.map((c) => c.v));
-  const perdidos = sum(ciclos.map((c) => c.d));
-  const sumFm = sum(fm);
-  const nivelMedio = sum(no.map((x, i) => x * fm[i])) / sumFm;
-  const eficMedia = sum(ef.map((x, i) => x * fm[i])) / sumFm;
-  const grupoMedio = sum(ciclos.map((c, i) => c.grupo * N[i])) / partidos;
-  const valorBaseMedio = 9.6 - 0.35 * (grupoMedio - 1);
-  const ajusteEficMedio = sum(aj) / aj.length;
-  const w = ciclos.map((c, i) => N[i] * _valorBase(c.grupo));
-  const eficPonderada = 1 + 9 * sum(ef.map((e, i) => e * w[i])) / sum(w);
-  const fiabilidad = 10 * (1 - Math.exp(-partidos / 11.2));
-  const rating = 0.85 * nivelMedio + 0.10 * eficPonderada + 0.05 * fiabilidad;
-  return { rating, nivelMedioCiclo: nivelMedio, fiabilidad, grupoMedio,
-    valorBaseMedio, ajusteEficMedio, eficienciaMedia: eficMedia,
-    eficienciaPonderada: eficPonderada,
-    puntosPorPartido: (3 * ganados + perdidos) / partidos,
-    partidos, ganados, perdidos, porcentajeVictorias: 100 * ganados / partidos };
-}
-
-function ciclosDeJugador(name){
-  const out = [];
-  for(let cy = 1; cy <= cycles.length; cy++){
-    const c = cycles[cy-1];
-    if(!c || !c.groups) continue;
-    const loc = findLoc(name, cy);
-    if(!loc) continue;  // no jugó ese ciclo / no está en ningún grupo
-    const st = computeStats(cy, loc.g).find(s => s.name === name);
-    if(!st) continue;
-    const v = st.g, d = st.p;  // g = ganados, p = perdidos
-    if(v + d < 1) continue;    // ciclo sin partidos jugados: se excluye
-    out.push({ grupo: loc.g, v, d });
-  }
-  return out;
-}
-
-function tablaRating(){
-  const filas = [];
-  Object.keys(USERS).forEach(name => {
-    if(esCuentaSistema(name)) return;         // 'admin'/'superadmin' no son jugadores
-    if(USERS[name] && USERS[name].inactive) return;
-    const ciclos = ciclosDeJugador(name);
-    if(!ciclos.length) return;                // sin partidos: no aparece
-    const r = ratingCompleto(ciclos);
-    filas.push({ name, ...r, nCiclos: ciclos.length });
-  });
-  filas.sort((a, b) => b.rating - a.rating);
-  return filas;
-}
-
-function ratingDe(name){
-  try{
-    const ciclos = ciclosDeJugador(name);
-    if(!ciclos.length) return '';
-    const r = ratingCompleto(ciclos);
-    return (r && typeof r.rating === 'number') ? r.rating.toFixed(1) : '';
-  }catch(_){ return ''; }
 }
 
 function renderRating(){
@@ -389,33 +291,31 @@ function renderRating(){
   }
   const info = _ratingCache.info || {};
   const seeds = _ratingSeeds(), overs = _ratingOverrides();
+  
   let filas = Object.keys(info).map(name=>({ name, ...info[name] }))
     .filter(f => f.partidos > 0 || seeds[f.name] != null || overs[f.name] != null)
     .filter(f => !esCuentaSistema(f.name))
-    // Solo jugadores activos DE ESTA LIGA: tiene que estar en el roster actual
-    // (ALLNAMES) y no estar marcado como inactivo. Antes se mostraban también
-    // jugadores de ligas pasadas o inactivos de la liga actual.
+    // Hemos ELIMINADO el filtro de 'ALLNAMES' aquí. Ahora mostrará a cualquier
+    // jugador que tenga historia o partidos, esté o no en la liga activa actual.
     .filter(f => {
-      try{
-        if(typeof ALLNAMES !== 'undefined' && Array.isArray(ALLNAMES) && !ALLNAMES.includes(f.name)) return false;
-      }catch(_){}
       try{
         if(typeof USERS !== 'undefined' && USERS[f.name] && USERS[f.name].inactive) return false;
       }catch(_){}
       return true;
     });
+    
   filas.sort((a,b)=> b.rating - a.rating);
+  
   if(!filas.length){
     box.innerHTML = `<div class="card"><div class="lock-note" style="padding:1rem 0;text-align:center">${t('rating_empty')}</div></div>`;
     return;
   }
+  
   const yo = currentUser ? currentUser.name : null;
   const pc=['p1','p2','p3'];
   const rows = filas.map((f,i)=>{
     const pos = i+1;
     const posCls = pc[i]||'pn';
-    // Grupo dinámico: ubicación del jugador en el ciclo ACTUALMENTE activo.
-    // Si el ciclo cambia (se cierra el 2 y se abre el 3), esto se actualiza solo.
     let grpTxt = '<span class="gen-dash">—</span>';
     try{
       const loc = (typeof findLoc==='function') ? findLoc(f.name, activeN) : null;
@@ -442,6 +342,7 @@ function renderRating(){
       + accion
       + `</tr>`;
   }).join('');
+  
   const thAcc = admin ? `<th>${t('rt_adjust')}</th>` : '';
   box.innerHTML = `
     <div class="card">
@@ -509,15 +410,14 @@ function abrirAjusteRating(name){
 async function guardarAjusteRating(name){
   const sv = (document.getElementById('rt-seed').value||'').trim();
   const ov = (document.getElementById('rt-over').value||'').trim();
-  // Validar rangos
   if(sv!==''){ const n=+sv; if(!isFinite(n)||n<1||n>16){ alert(t('rt_seed_bad')); return; } RATING_SEEDS[name]=Math.round(n*100)/100; }
   else { delete RATING_SEEDS[name]; }
   if(ov!==''){ const n=+ov; if(!isFinite(n)||n<0.01||n>16){ alert(t('rt_over_bad')); return; } RATING_OVERRIDES[name]=Math.round(n*100)/100; }
   else { delete RATING_OVERRIDES[name]; }
   closeM();
   toast(t('rt_saved'));
-  await persist(true);                 // guardar en la base
-  await calcularRatingGlobal(true);    // recalcular con los nuevos valores
+  await persist(true);                 
+  await calcularRatingGlobal(true);    
   if(subView==='rating') renderRating();
   else if(subView==='grupos') showSub('grupos');
 }
@@ -535,15 +435,9 @@ function ratingFichaHTML(name){
   </div>`;
 }
 
-
-// Exponer al scope global para que el index.html llame a estas funciones.
 window.calcularRatingGlobal = calcularRatingGlobal;
 window.ratingUTRDe = ratingUTRDe;
 window.ratingUTRfmt = ratingUTRfmt;
-window.ratingCompleto = ratingCompleto;
-window.ciclosDeJugador = ciclosDeJugador;
-window.tablaRating = tablaRating;
-window.ratingDe = ratingDe;
 window.renderRating = renderRating;
 window.abrirAjusteRating = abrirAjusteRating;
 window.guardarAjusteRating = guardarAjusteRating;
