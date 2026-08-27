@@ -113,7 +113,7 @@ function groupCardHTML(gid){
           if(isActive&&canCreate(gid,p,q))return`<td class="cell-empty" onclick="openLoadModal(${gid},'${jsq(p)}','${jsq(q)}')">+</td>`;
           return`<td class="cell-locked">·</td>`;
         }).join('');
-        return`<tr><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
+        return`<tr class="${currentUser&&p===currentUser.name?'me-mtx-row':''}"><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
       }).join('');
       
       const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular</button>` : '');
