@@ -1606,19 +1606,16 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
    ============================================================================ */
 .liga-tabs{
   display:flex;flex-wrap:wrap;gap:8px;
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:12px;padding:8px;
 }
 .liga-tab{
-  display:inline-flex;align-items:center;gap:7px;
-  padding:9px 14px;border-radius:10px;
-  font-size:13px;font-weight:700;color:var(--text);
-  background:var(--surface);border:1.5px solid var(--border2);
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  flex:1 1 150px;
+  padding:10px 12px;border-radius:8px;
+  font-size:13px;font-weight:600;color:var(--text);
+  background:var(--surface2);border:1.5px solid var(--border);
   cursor:default;font-family:inherit;white-space:nowrap;line-height:1.2;
-  box-shadow:0 1px 2px rgba(0,0,0,.04);
 }
-button.liga-tab{cursor:pointer;transition:transform .1s}
-button.liga-tab:hover{transform:translateY(-1px)}
+button.liga-tab{cursor:pointer}
 /* Liga donde está parado ahora: azul sólido, igual que .tab.active */
 .liga-tab-here{background:var(--pri);color:#fff;border-color:var(--pri)}
 /* Ya participa en otra liga: relleno VERDE sólido para que salte a la vista
