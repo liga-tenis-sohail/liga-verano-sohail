@@ -33,7 +33,8 @@ let _msgPollTimer = null;
 let _msgLastId = { admin: 0, grupo: 0, playoff: 0 };
 let _msgGrupoCtx = null;           // {ciclo, grupo} resuelto para el hilo de grupo actual (null si está bloqueado por playoffs)
 let _msgTramoCtx = null;           // {tramo, label} resuelto para el hilo de playoff actual
-let _msgExplorarCtx = null;        // {ciclo, grupo} elegido a mano por el admin en "Todos los grupos"
+let _msgExplorarNivel1 = null;     // número de ciclo, o 'po' — qué fila de arriba está elegida en "Todos los grupos"
+let _msgExplorarCtx = null;        // {tipo:'grupo',ciclo,grupo} o {tipo:'playoff',tramo} — hilo puntual elegido
 
 // ---------------------------------------------------------------------------
 // Marcado de "leído": guardado en localStorage, por liga + usuario.
@@ -151,27 +152,56 @@ function _msgResolverTramoCtx(){
 }
 
 // Picker de ciclo/grupo para el explorador de admin. Mismo criterio ya usado
-// en "Reparar jugador en un ciclo": ciclos con grupos armados, cantidad de
-// grupos tomada del primero de esa lista (simplificación ya aceptada en
-// otras partes de la app).
-function _msgExplorarPickerHTML(){
+// en "Reparar jugador en un ciclo": ciclos con grupos armados. La fila de
+// arriba (nivel 1) son botones tipo pestaña, uno por ciclo + "Play Offs" si
+// ya arrancaron; la fila de abajo (nivel 2) son los grupos de ese ciclo (o
+// los cuadros de Play Offs), también como pestañas — mismo lenguaje visual
+// que el resto de la app, nada de selects sueltos.
+function _msgExplorarNivel1HTML(){
   const cyclesConGrupos = (typeof cycles !== 'undefined' ? cycles : []).filter(c=>c && c.groups);
-  const cicloOpts = cyclesConGrupos.map(c=>`<option value="${c.n}" ${_msgExplorarCtx&&_msgExplorarCtx.ciclo===c.n?'selected':''}>${t('cycle')} ${c.n}</option>`).join('');
-  const maxGrupos = (cyclesConGrupos[0] && cyclesConGrupos[0].groups) ? cyclesConGrupos[0].groups.length : 12;
-  const grupoOpts = Array.from({length:maxGrupos},(_,i)=>i+1)
-    .map(n=>`<option value="${n}" ${_msgExplorarCtx&&_msgExplorarCtx.grupo===n?'selected':''}>${attr(groupName(n))}</option>`).join('');
-  return `<div class="form-row" style="grid-template-columns:1fr 1fr auto;align-items:end;gap:.5rem;margin-bottom:.75rem">
-    <div class="form-group"><label>${t('cycle')}</label><select id="msg-exp-ciclo">${cicloOpts}</select></div>
-    <div class="form-group"><label>${t('tab_grupos')}</label><select id="msg-exp-grupo">${grupoOpts}</select></div>
-    <button class="btn btn-primary" onclick="verGrupoExplorarUI()"><i class="ti ti-eye"></i> ${t('msg_explorar_ver')}</button>
-  </div>`;
+  const hayPlayoffs = !!(playoff && playoff.started && Array.isArray(playoff.tramos) && playoff.tramos.length);
+  let html = cyclesConGrupos.map(c=>{
+    const activo = _msgExplorarNivel1 === c.n;
+    return `<button class="tab ${activo?'active':''}" onclick="elegirExplorarNivel1(${c.n})"><i class="ti ti-calendar" aria-hidden="true"></i> ${t('cycle')} ${c.n}</button>`;
+  }).join('');
+  if(hayPlayoffs){
+    const activo = _msgExplorarNivel1 === 'po';
+    html += `<button class="tab ${activo?'active':''}" onclick="elegirExplorarNivel1('po')"><i class="ti ti-tournament" aria-hidden="true"></i> ${t('playoffs')}</button>`;
+  }
+  return `<div class="tabs" style="margin-bottom:.6rem">${html}</div>`;
 }
 
-function verGrupoExplorarUI(){
-  const ciclo = parseInt(document.getElementById('msg-exp-ciclo').value, 10);
-  const grupo = parseInt(document.getElementById('msg-exp-grupo').value, 10);
-  if(!ciclo || !grupo) return;
-  _msgExplorarCtx = { ciclo, grupo };
+function _msgExplorarNivel2HTML(){
+  if(_msgExplorarNivel1 == null) return '';
+  if(_msgExplorarNivel1 === 'po'){
+    const tramos = (playoff && Array.isArray(playoff.tramos)) ? playoff.tramos : [];
+    const html = tramos.map((tr,i)=>{
+      const activo = _msgExplorarCtx && _msgExplorarCtx.tipo==='playoff' && _msgExplorarCtx.tramo===i;
+      const label = t('po_match').replace('{l}', tr && tr.label!=null ? tr.label : String(i+1));
+      return `<button class="tab ${activo?'active':''}" onclick='elegirExplorarNivel2("playoff",${i})'><i class="ti ti-swords" aria-hidden="true"></i> ${attr(label)}</button>`;
+    }).join('');
+    return `<div class="tabs" style="margin-bottom:.75rem">${html}</div>`;
+  }
+  const c = (typeof cycles !== 'undefined' ? cycles : []).find(cc=>cc && cc.n === _msgExplorarNivel1);
+  const grupos = (c && Array.isArray(c.groups)) ? c.groups : [];
+  const html = grupos.map((g,i)=>{
+    const gid = i+1;
+    const activo = _msgExplorarCtx && _msgExplorarCtx.tipo==='grupo' && _msgExplorarCtx.ciclo===_msgExplorarNivel1 && _msgExplorarCtx.grupo===gid;
+    return `<button class="tab ${activo?'active':''}" onclick='elegirExplorarNivel2("grupo",${gid})'><i class="ti ti-users" aria-hidden="true"></i> ${attr(groupName(gid))}</button>`;
+  }).join('');
+  return `<div class="tabs" style="margin-bottom:.75rem">${html}</div>`;
+}
+
+function elegirExplorarNivel1(valor){
+  _msgExplorarNivel1 = valor;
+  _msgExplorarCtx = null; // al cambiar de ciclo/playoffs, se resetea el grupo/cuadro elegido
+  cargarMsgHilo('explorar', true);
+}
+
+function elegirExplorarNivel2(tipo, valor){
+  _msgExplorarCtx = (tipo === 'grupo')
+    ? { tipo:'grupo', ciclo:_msgExplorarNivel1, grupo:valor }
+    : { tipo:'playoff', tramo:valor };
   cargarMsgHilo('explorar', true);
 }
 
@@ -190,20 +220,25 @@ async function cargarMsgHilo(tab, esCargaInicial){
   }
 
   if(tab === 'explorar'){
-    // El picker se repinta siempre (para poder cambiar de grupo sin salir
-    // de la pestaña); la lista solo aparece una vez elegido ciclo+grupo.
-    const picker = _msgExplorarPickerHTML();
+    // Por default, al entrar por primera vez, arrancamos mostrando el ciclo
+    // actual (así el admin ve algo útil sin tener que elegir nada primero).
+    if(_msgExplorarNivel1 == null) _msgExplorarNivel1 = activeN;
+    const nivel1 = _msgExplorarNivel1HTML();
+    const nivel2 = _msgExplorarNivel2HTML();
     if(!_msgExplorarCtx){
-      body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${picker}`;
+      body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${nivel1}${nivel2}`;
       return;
     }
-    body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${picker}
+    body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${nivel1}${nivel2}
       <div class="msg-box"><div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div></div>`;
     try{
+      const payload = _msgExplorarCtx.tipo === 'playoff'
+        ? { accion:'listarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo }
+        : { accion:'listarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo };
       const r = await fetch('/api/liga', {
         method:'POST',
         headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
-        body: JSON.stringify({ accion:'listarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo })
+        body: JSON.stringify(payload)
       });
       const d = await r.json().catch(()=>({}));
       const list = document.getElementById('msg-list');
