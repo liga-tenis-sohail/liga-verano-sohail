@@ -722,3 +722,62 @@ function updateBadge() {
 // Pinta el desplegable a partir de una estructura ya conocida. No toca la red:
 // es puro DOM, tarda milisegundos. Mismo patrón que ya usan los colores ('lsc')
 // y el nombre de la liga ('lsn'): dibujar de la caché primero, refrescar después.
+//
+// ============================================================================
+// Selector de ligas en el header (dropdown junto al nombre de la liga).
+// Muestra las ligas donde el usuario actual YA participa, para cambiar entre
+// ellas sin pasar por el perfil. Se cachea por sesión (_hdrLigasCache): no se
+// vuelve a pedir al servidor en cada cambio de pestaña, solo la primera vez
+// que se llama después del login (updateHdr() la dispara).
+// ============================================================================
+let _hdrLigasCache = null;   // null = todavía no se pidió; [] = se pidió y no hay otras
+let _hdrLigasCargando = false;
+
+function pintarHdrLigaSwitch(){
+  const sel = document.getElementById('hdr-liga-switch');
+  if(!sel) return;
+  const ligas = _hdrLigasCache || [];
+  if(ligas.length < 2){
+    // Nada para elegir: solo participa acá (o todavía no cargó). Ocultar.
+    sel.style.display = 'none';
+    sel.innerHTML = '';
+    return;
+  }
+  sel.innerHTML = ligas.map(l =>
+    '<option value="'+attr(l.id)+'"'+(l.esLigaActual?' selected':'')+'>'+attr(l.nombre)+(l.esLigaActual?' (acá)':'')+'</option>'
+  ).join('');
+  sel.style.display = '';
+}
+
+// Dispara el fetch UNA vez por sesión (cache null = todavía no se pidió).
+// Se llama desde updateHdr(), que ya se ejecuta en cada cambio de pestaña, así
+// que no hace falta un hook nuevo en ningún otro lado.
+function refreshHdrLigaSwitch(){
+  if(!_token || !_ligaActual || !currentUser || !currentUser.key) return;
+  if(_hdrLigasCache !== null){ pintarHdrLigaSwitch(); return; }
+  if(_hdrLigasCargando) return;
+  _hdrLigasCargando = true;
+  fetch('/api/liga', {
+    method:'POST',
+    headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
+    body: JSON.stringify({ accion:'misLigas', ligaId:_ligaActual })
+  }).then(r=>r.ok?r.json():null).then(d=>{
+    _hdrLigasCargando = false;
+    if(!d || !Array.isArray(d.ligas)) return;
+    _hdrLigasCache = d.ligas.filter(l=>l.participo);
+    pintarHdrLigaSwitch();
+  }).catch(()=>{ _hdrLigasCargando = false; });
+}
+
+// El usuario eligió otra liga en el dropdown: mismo flujo que "entrarAOtraLiga"
+// desde el perfil (logout + reingresar con el selector apuntando a esa liga).
+function cambiarLigaDesdeDropdown(selectEl){
+  const ligaId = selectEl.value;
+  if(!ligaId || ligaId === _ligaActual) return;
+  const liga = (_hdrLigasCache||[]).find(l=>l.id===ligaId);
+  const nombre = liga ? liga.nombre : ligaId;
+  // Revertir la selección visual hasta confirmar (evita que quede "trabada"
+  // en la nueva opción si el usuario cancela el confirm).
+  selectEl.value = _ligaActual;
+  if(typeof entrarAOtraLiga === 'function') entrarAOtraLiga(ligaId, nombre);
+}

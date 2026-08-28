@@ -621,4 +621,4 @@ function entrarConToken(d){
   }
   montarAppTrasLogin();
 }
-function doLogout(){closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='block';document.getElementById('login-pass').value='';initLogin();}
+function doLogout(){closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;_hdrLigasCache=null;document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='block';document.getElementById('login-pass').value='';initLogin();}

@@ -1589,33 +1589,57 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 /* FIN Tanda 5 =============================================================== */
 
 /* ============================================================================
-   "Mis Ligas" — chips del header en el perfil de jugador (ligas activas de
-   la plataforma, con su estado: acá / participando / pendiente / solicitar)
+   Dropdown de cambio de liga en el header (junto al nombre de la liga).
    ============================================================================ */
-.ml-chips{display:flex;flex-wrap:wrap;gap:8px}
-.ml-chip{
+.hdr-liga-switch{
+  margin-top:3px;font-size:11px;font-weight:600;color:var(--priD);
+  background:rgba(255,255,255,.9);border:none;border-radius:6px;
+  padding:3px 6px;cursor:pointer;max-width:220px;
+}
+.hdr-liga-switch:hover{background:#fff}
+
+/* ============================================================================
+   "Mis Ligas" — selector tipo pestañas en el perfil de jugador (ligas activas
+   de la plataforma, con su estado: acá / participando / pendiente / solicitar).
+   Reutiliza el lenguaje visual de .tabs/.tab (mismo look que "Elegí el Grupo"
+   y los tabs de Ciclo), para que se sienta parte de la misma app y no un
+   agregado suelto.
+   ============================================================================ */
+.liga-tabs{
+  display:flex;flex-wrap:wrap;gap:6px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;padding:6px;
+}
+.liga-tab{
   display:inline-flex;align-items:center;gap:6px;
-  padding:7px 12px;border-radius:20px;font-size:13px;font-weight:600;
-  border:1.5px solid var(--border2);background:var(--surface);color:var(--text);
-  cursor:default;
+  padding:8px 12px;border-radius:9px;
+  font-size:13px;font-weight:600;color:var(--text2);
+  background:transparent;border:1.5px solid transparent;
+  cursor:default;font-family:inherit;white-space:nowrap;line-height:1.2;
 }
-button.ml-chip{cursor:pointer;font-family:inherit}
-button.ml-chip:hover{background:var(--surface2)}
-.ml-chip .ml-tag{
+button.liga-tab{cursor:pointer}
+/* Liga donde está parado ahora: mismo tratamiento que .tab.active */
+.liga-tab-here{background:var(--pri);color:#fff;font-weight:700}
+/* Ya participa en otra liga: click para ir a loguearse ahí */
+.liga-tab-ok{background:var(--surface);color:var(--text);border-color:#22c55e}
+.liga-tab-ok:hover{background:#dcfce7;border-color:#16a34a}
+html[data-theme="dark"] .liga-tab-ok:hover{background:#14361f}
+/* Solicitud pendiente de aprobación: no clickeable */
+.liga-tab-pending{background:var(--surface);color:var(--text2);border-color:#f59e0b;opacity:.9}
+/* Sin relación todavía (o rechazada, puede reintentar): pedir acceso */
+.liga-tab-ask{background:var(--surface);color:var(--text);border:1.5px dashed var(--border2)}
+.liga-tab-ask:hover{background:var(--soft);border-color:var(--pri);color:var(--priD)}
+.liga-tab .liga-tab-cta{
   font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
-  padding:2px 7px;border-radius:20px;background:var(--surface2);color:var(--text2);
+  padding:2px 8px;border-radius:20px;
 }
-.ml-chip-here{border-color:var(--pri);background:var(--soft);color:var(--priD)}
-.ml-chip-here .ml-tag{background:var(--pri);color:#fff}
-.ml-chip-ok{border-color:#22c55e}
-.ml-chip-ok .ml-tag{background:#dcfce7;color:#15803d}
-html[data-theme="dark"] .ml-chip-ok .ml-tag{background:#14361f;color:#86efac}
-.ml-chip-pending{border-color:#f59e0b;opacity:.85}
-.ml-chip-pending .ml-tag{background:#fef3c7;color:#92400e}
-html[data-theme="dark"] .ml-chip-pending .ml-tag{background:#3d2a10;color:#fcd34d}
-.ml-chip-ask{border-style:dashed}
-.ml-chip-ask .ml-tag{background:var(--pri);color:#fff}
+.liga-tab-here .liga-tab-cta{background:rgba(255,255,255,.25);color:#fff}
+.liga-tab-ok .liga-tab-cta{background:#dcfce7;color:#15803d}
+html[data-theme="dark"] .liga-tab-ok .liga-tab-cta{background:#14361f;color:#86efac}
+.liga-tab-pending .liga-tab-cta{background:#fef3c7;color:#92400e}
+html[data-theme="dark"] .liga-tab-pending .liga-tab-cta{background:#3d2a10;color:#fcd34d}
+.liga-tab-ask .liga-tab-cta{background:var(--pri);color:#fff}
 @media (prefers-color-scheme: dark){
-  html:not([data-theme]) .ml-chip-ok .ml-tag{background:#14361f;color:#86efac}
-  html:not([data-theme]) .ml-chip-pending .ml-tag{background:#3d2a10;color:#fcd34d}
+  html:not([data-theme]) .liga-tab-ok .liga-tab-cta{background:#14361f;color:#86efac}
+  html:not([data-theme]) .liga-tab-pending .liga-tab-cta{background:#3d2a10;color:#fcd34d}
 }

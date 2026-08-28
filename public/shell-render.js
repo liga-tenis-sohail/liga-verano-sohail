@@ -48,7 +48,9 @@ function viewCyc(n){
 function showSub(name){if(viewCycle==='po')viewCycle=activeN;subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
 function updateHdr(){const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+fmtRange(FECHAS[viewCycle-1]||'')+' · '+(cycles[viewCycle-1]?cycles[viewCycle-1].status:'');const sub=document.getElementById('hdr-sub');if(sub)sub.textContent=hs;
 const lsub=document.getElementById('login-sub');if(lsub)lsub.textContent=LEAGUE_SUBTITLE||'';const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME||t('app_title');
-const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME||t('app_title');const eb=document.getElementById('exit-btn');if(eb)eb.textContent=t('exit');}
+const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME||t('app_title');const eb=document.getElementById('exit-btn');if(eb)eb.textContent=t('exit');
+try{ refreshHdrLigaSwitch(); }catch(_){}
+}
 
 function groupCardHTML(gid){
   try {

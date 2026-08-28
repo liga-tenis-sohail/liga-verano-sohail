@@ -1080,7 +1080,7 @@ function misLigasHeaderHTML(){
   return `<div class="card" id="mis-ligas-card">
     <div class="section-lbl"><i class="ti ti-trophy"></i> Mis Ligas</div>
     <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.6rem">Estas son las ligas activas de la plataforma. Podés pedir acceso a otra sin perder tu lugar acá.</p>
-    <div id="mis-ligas-body" class="ml-chips"><div class="legend-txt">Cargando ligas activas…</div></div>
+    <div id="mis-ligas-body" class="liga-tabs"><div class="legend-txt">Cargando ligas activas…</div></div>
   </div>`;
 }
 
@@ -1105,17 +1105,17 @@ async function cargarMisLigasHeader(){
       const nombreSafe = attr(l.nombre || '');
       const nombreJs = String(l.nombre || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       if(l.esLigaActual){
-        return '<div class="ml-chip ml-chip-here"><i class="ti ti-map-pin"></i> '+nombreSafe+' <span class="ml-tag">estás acá</span></div>';
+        return '<div class="liga-tab liga-tab-here"><i class="ti ti-map-pin"></i> '+nombreSafe+' <span class="liga-tab-cta">estás acá</span></div>';
       }
       if(l.participo){
-        return '<button class="ml-chip ml-chip-ok" onclick="entrarAOtraLiga(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-login-2"></i> '+nombreSafe+' <span class="ml-tag">participando</span></button>';
+        return '<button class="liga-tab liga-tab-ok" onclick="entrarAOtraLiga(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-login-2"></i> '+nombreSafe+' <span class="liga-tab-cta">participando</span></button>';
       }
       if(l.solicitudEstado === 'pending'){
-        return '<div class="ml-chip ml-chip-pending"><i class="ti ti-clock"></i> '+nombreSafe+' <span class="ml-tag">pendiente</span></div>';
+        return '<div class="liga-tab liga-tab-pending"><i class="ti ti-clock"></i> '+nombreSafe+' <span class="liga-tab-cta">pendiente</span></div>';
       }
       // Sin relación todavía, o una solicitud previa fue rechazada (puede reintentar).
       const label = l.solicitudEstado === 'rejected' ? 'Reintentar' : 'Solicitar acceso';
-      return '<button class="ml-chip ml-chip-ask" onclick="solicitarAccesoUI(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-send"></i> '+nombreSafe+' <span class="ml-tag">'+label+'</span></button>';
+      return '<button class="liga-tab liga-tab-ask" onclick="solicitarAccesoUI(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-send"></i> '+nombreSafe+' <span class="liga-tab-cta">'+label+'</span></button>';
     }).join('');
   } catch(e){
     body.innerHTML = '<div class="legend-txt">No se pudo conectar con el servidor.</div>';
