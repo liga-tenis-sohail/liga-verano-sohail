@@ -371,6 +371,70 @@ function clientIP(req){
   return (req && req.headers && req.headers['x-real-ip']) || 'desconocida';
 }
 
+// ============================================================================
+// MENSAJERÍA — tabla `mensajes` en Supabase. Guardada APARTE del bloque
+// grande de estado de la liga (liga_state) a propósito: si viviera adentro
+// del JSON gigante como todo lo demás, dos jugadores escribiendo casi al
+// mismo tiempo se pisarían el guardado uno al otro (el guardado de la liga
+// reescribe TODO el documento entero cada vez). Acá cada mensaje es una fila
+// insertada de forma independiente: no hay forma de que un mensaje pise a otro.
+//
+// Columnas: id, liga_id, tipo ('admin'|'grupo'), ciclo (solo para 'grupo'),
+// grupo (solo para 'grupo'), autor, texto, fecha.
+// ============================================================================
+
+// Inserta un mensaje nuevo. Devuelve la fila creada (con id y fecha reales).
+async function insertarMensaje({ ligaId, tipo, ciclo, grupo, autor, texto }){
+  const row = {
+    liga_id: ligaId,
+    tipo,
+    ciclo: (tipo === 'grupo') ? ciclo : null,
+    grupo: (tipo === 'grupo') ? grupo : null,
+    autor: String(autor || '').slice(0, 80),
+    texto: String(texto || '').slice(0, 2000)
+  };
+  const r = await fetch(SUPA_URL + '/rest/v1/mensajes', {
+    method: 'POST',
+    headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
+    body: JSON.stringify(row)
+  });
+  if(!r.ok) throw new Error('Supabase insert mensaje ' + r.status + ' ' + (await r.text()));
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows[0] : rows;
+}
+
+// Lee los últimos N mensajes de un hilo (admin de una liga, o grupo de un
+// ciclo). Devuelve en orden cronológico (más viejo primero, como un chat).
+async function leerMensajes({ ligaId, tipo, ciclo, grupo, limite }){
+  let url = SUPA_URL + '/rest/v1/mensajes?liga_id=eq.' + encodeURIComponent(ligaId)
+          + '&tipo=eq.' + encodeURIComponent(tipo);
+  if(tipo === 'grupo'){
+    url += '&ciclo=eq.' + encodeURIComponent(ciclo) + '&grupo=eq.' + encodeURIComponent(grupo);
+  }
+  url += '&order=id.desc&limit=' + (limite || 200);
+  const r = await fetch(url, { headers: supaHeaders({ select: undefined }) });
+  if(!r.ok) throw new Error('Supabase read mensajes ' + r.status);
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows.reverse() : [];
+}
+
+// Lee solo los mensajes NUEVOS (id mayor al último que el cliente ya tiene).
+// Usado para el polling liviano: evita re-bajar todo el hilo cada pocos
+// segundos, solo lo que cambió desde la última vez.
+async function leerMensajesDesde({ ligaId, tipo, ciclo, grupo, desdeId }){
+  let url = SUPA_URL + '/rest/v1/mensajes?liga_id=eq.' + encodeURIComponent(ligaId)
+          + '&tipo=eq.' + encodeURIComponent(tipo)
+          + '&id=gt.' + encodeURIComponent(desdeId || 0);
+  if(tipo === 'grupo'){
+    url += '&ciclo=eq.' + encodeURIComponent(ciclo) + '&grupo=eq.' + encodeURIComponent(grupo);
+  }
+  url += '&order=id.asc&limit=200';
+  const r = await fetch(url, { headers: supaHeaders() });
+  if(!r.ok) throw new Error('Supabase read mensajes ' + r.status);
+  const rows = await r.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
 
 // ============================================================================
 // BLOCKED USER CON CACHÉ — evita leer los 125 KB del estado en cada request
@@ -494,5 +558,7 @@ module.exports = {
   // Sistema unificado (Fase 1):
   LIGA_DEFAULT, ligaIdOK,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
-  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga
+  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga,
+  // Mensajería (tabla aparte, ver comentario arriba de insertarMensaje):
+  insertarMensaje, leerMensajes, leerMensajesDesde
 };
