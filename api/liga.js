@@ -377,6 +377,46 @@ module.exports = async function handler(req, res){
     } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
   }
 
+  // ---- Conteo de no leídos para la burbuja de la pestaña "Mensajes" ----
+  // Un solo pedido en vez de 3 (uno por hilo): el cliente manda la lista de
+  // hilos a los que tiene acceso, junto con el último id que ya leyó de cada
+  // uno, y acá se resuelve todo junto. Cada hilo se valida con el MISMO
+  // criterio de pertenencia que listarGrupo/listarPlayoff — si el cliente
+  // pide un hilo al que no pertenece, simplemente se lo salteamos (no error,
+  // para no interrumpir el conteo de los demás hilos válidos).
+  if(accion === 'contarNoLeidos'){
+    const hilos = Array.isArray(body.hilos) ? body.hilos : [];
+    const resultado = [];
+    for(const h of hilos.slice(0, 5)){ // tope defensivo: nunca son más de 3 hilos reales
+      if(!h || !h.tipo) continue;
+      try {
+        if(h.tipo === 'admin'){
+          const msgs = await leerMensajesDesde({ ligaId: ligaIdMsg, tipo: 'admin', desdeId: h.desdeId || 0 });
+          resultado.push({ tipo: 'admin', count: msgs.length, ultimoId: msgs.length ? msgs[msgs.length - 1].id : (h.desdeId || 0) });
+        } else if(h.tipo === 'grupo'){
+          const ciclo = parseInt(h.ciclo, 10), grupo = parseInt(h.grupo, 10);
+          if(!ciclo || !grupo) continue;
+          const c = Array.isArray(stateMsg.cycles) ? stateMsg.cycles[ciclo - 1] : null;
+          const g = c && Array.isArray(c.groups) ? c.groups[grupo - 1] : null;
+          const soyMiembro = !!(g && Array.isArray(g.players) && g.players.indexOf(session.u) >= 0);
+          if(!soyMiembro && !esAdminMsg) continue;
+          const msgs = await leerMensajesDesde({ ligaId: ligaIdMsg, tipo: 'grupo', ciclo, grupo, desdeId: h.desdeId || 0 });
+          resultado.push({ tipo: 'grupo', count: msgs.length, ultimoId: msgs.length ? msgs[msgs.length - 1].id : (h.desdeId || 0) });
+        } else if(h.tipo === 'playoff'){
+          const tramo = parseInt(h.tramo, 10);
+          if(isNaN(tramo)) continue;
+          const tr = stateMsg.playoff && Array.isArray(stateMsg.playoff.tramos) ? stateMsg.playoff.tramos[tramo] : null;
+          const soyMiembro = !!(tr && Array.isArray(tr.seeds) && tr.seeds.indexOf(session.u) >= 0);
+          if(!soyMiembro && !esAdminMsg) continue;
+          const msgs = await leerMensajesDesde({ ligaId: ligaIdMsg, tipo: 'playoff', ciclo: null, grupo: tramo, desdeId: h.desdeId || 0 });
+          resultado.push({ tipo: 'playoff', count: msgs.length, ultimoId: msgs.length ? msgs[msgs.length - 1].id : (h.desdeId || 0) });
+        }
+      } catch(e){ /* si falla un hilo puntual, seguimos con los demás */ }
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ hilos: resultado });
+  }
+
   // ================= A PARTIR DE ACÁ: solo administradores =================
   let sesionState, sesionStateErr = null;
   try { sesionState = await readState(body.ligaId || session.ligaId || undefined); }
