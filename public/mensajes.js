@@ -140,8 +140,10 @@ async function cargarMsgHilo(tab, esCargaInicial){
   if(esCargaInicial){
     const desc = tab==='admin' ? t('msg_admin_desc') : (tab==='grupo' ? t('msg_group_desc') : t('msg_playoff_desc'));
     body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${desc}</p>
-      <div id="msg-compose"></div>
-      <div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div>`;
+      <div class="msg-box">
+        <div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div>
+        <div id="msg-compose"></div>
+      </div>`;
   }
 
   try{
@@ -188,12 +190,15 @@ function _msgFmtFecha(iso){
   }catch(_){ return ''; }
 }
 
-// Pinta la lista completa (reset=true) o agrega mensajes nuevos ARRIBA DE
-// TODO (reset=false, usado por el polling) — el orden pedido es "más nuevo
-// arriba, más viejo abajo", así que un mensaje nuevo siempre entra primero.
+// Pinta la lista completa (reset=true) o agrega mensajes nuevos AL FINAL
+// (reset=false, usado por el polling) — estilo iMessage/WhatsApp estándar:
+// el más viejo arriba, el más nuevo abajo, la vista se mantiene pegada al
+// final salvo que el usuario haya scrolleado para arriba a leer historial
+// (en ese caso no le movemos la vista de abajo del scroll a la fuerza).
 function _msgPintarLista(tab, msgs, reset){
   const list = document.getElementById('msg-list');
   if(!list) return;
+  const estabaAbajo = (list.scrollHeight - list.scrollTop - list.clientHeight) < 60;
 
   if(reset){
     if(!msgs.length){
@@ -201,21 +206,19 @@ function _msgPintarLista(tab, msgs, reset){
       list.innerHTML = `<div class="msg-empty">${vacio}</div>`;
       return;
     }
-    // msgs viene del servidor en orden cronológico (viejo→nuevo); acá se
-    // invierte para pintar nuevo arriba, viejo abajo.
-    list.innerHTML = msgs.slice().reverse().map(m=>_msgBubbleHTML(m)).join('');
+    // msgs viene del servidor en orden cronológico (viejo→nuevo) — se pinta
+    // tal cual, sin invertir, y se arranca pegado al final (el mensaje más
+    // reciente), como cualquier chat.
+    list.innerHTML = msgs.map(m=>_msgBubbleHTML(m)).join('');
+    list.scrollTop = list.scrollHeight;
     return;
   }
 
   if(!msgs.length) return;
   if(list.querySelector('.msg-empty')) list.innerHTML = '';
-  // Los mensajes nuevos vienen viejo→nuevo del servidor; se invierten para
-  // que, leyendo el BLOQUE de arriba hacia abajo, quede nuevo→viejo, y se
-  // inserta como UN SOLO bloque (no de a un mensaje por vez: insertar uno
-  // por uno con "afterbegin" los deja en el orden invertido otra vez, cada
-  // inserción nueva empuja a la anterior hacia abajo).
-  const bloque = msgs.slice().reverse().map(m=>_msgBubbleHTML(m)).join('');
-  list.insertAdjacentHTML('afterbegin', bloque);
+  const bloque = msgs.map(m=>_msgBubbleHTML(m)).join('');
+  list.insertAdjacentHTML('beforeend', bloque);
+  if(estabaAbajo) list.scrollTop = list.scrollHeight;
 }
 
 function _msgBubbleHTML(m){
