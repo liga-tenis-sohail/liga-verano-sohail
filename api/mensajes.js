@@ -21,6 +21,9 @@
 //   enviarGrupo   { ligaId, ciclo, grupo, texto }  → miembro del grupo
 //   nuevosAdmin   { ligaId, desdeId }              → polling liviano (solo lo nuevo)
 //   nuevosGrupo   { ligaId, ciclo, grupo, desdeId } → polling liviano (solo lo nuevo)
+//   listarPlayoff { ligaId, tramo }                → miembro del cuadro (tramo), o admin
+//   enviarPlayoff { ligaId, tramo, texto }         → miembro del cuadro
+//   nuevosPlayoff { ligaId, tramo, desdeId }       → polling liviano (solo lo nuevo)
 // =====================================================================
 const { auth, readState, envOK, sesionEsAdmin, ligaIdOK, LIGA_DEFAULT,
         insertarMensaje, leerMensajes, leerMensajesDesde,
@@ -135,6 +138,57 @@ module.exports = async function handler(req, res){
 
     try {
       const fila = await insertarMensaje({ ligaId, tipo: 'grupo', ciclo, grupo, autor: session.u, texto });
+      return res.status(200).json({ ok: true, mensaje: fila });
+    } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
+  }
+
+  // ---- Hilo de Play Offs: uno por CUADRO (tramo), no por ciclo/grupo. ----
+  // Reutilizamos la misma columna `grupo` de la tabla para guardar el índice
+  // del tramo (0, 1, 2...) — evita agregar una columna nueva, y como el tipo
+  // es distinto ('playoff' en vez de 'grupo'), no hay ambigüedad posible al
+  // leer: nunca se mezclan mensajes de un cuadro con los de un grupo de liga.
+  // Miembro = su nombre está en playoff.tramos[tramo].seeds (el roster
+  // completo del cuadro, sea que esté jugando el cuadro principal o
+  // consolación — es la misma gente, solo cambia el camino).
+  if(accion === 'listarPlayoff' || accion === 'nuevosPlayoff'){
+    const tramo = parseInt(body.tramo, 10);
+    if(isNaN(tramo) || tramo < 0) return res.status(400).json({ error: 'Falta indicar el cuadro.' });
+
+    const tr = state.playoff && Array.isArray(state.playoff.tramos) ? state.playoff.tramos[tramo] : null;
+    const soyMiembro = !!(tr && Array.isArray(tr.seeds) && tr.seeds.indexOf(session.u) >= 0);
+    if(!soyMiembro && !esAdmin){
+      return res.status(403).json({ error: 'No pertenecés a ese cuadro de Play Offs.' });
+    }
+
+    try {
+      if(accion === 'listarPlayoff'){
+        const msgs = await leerMensajes({ ligaId, tipo: 'playoff', ciclo: null, grupo: tramo, limite: 200 });
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ mensajes: msgs });
+      } else {
+        const desdeId = parseInt(body.desdeId, 10) || 0;
+        const msgs = await leerMensajesDesde({ ligaId, tipo: 'playoff', ciclo: null, grupo: tramo, desdeId });
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ mensajes: msgs });
+      }
+    } catch(e){ return res.status(503).json({ error: 'No se pudieron leer los mensajes.' }); }
+  }
+
+  if(accion === 'enviarPlayoff'){
+    const tramo = parseInt(body.tramo, 10);
+    const texto = String(body.texto || '').trim();
+    if(isNaN(tramo) || tramo < 0) return res.status(400).json({ error: 'Falta indicar el cuadro.' });
+    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
+    if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
+
+    const tr = state.playoff && Array.isArray(state.playoff.tramos) ? state.playoff.tramos[tramo] : null;
+    const soyMiembro = !!(tr && Array.isArray(tr.seeds) && tr.seeds.indexOf(session.u) >= 0);
+    if(!soyMiembro){
+      return res.status(403).json({ error: 'No pertenecés a ese cuadro de Play Offs.' });
+    }
+
+    try {
+      const fila = await insertarMensaje({ ligaId, tipo: 'playoff', ciclo: null, grupo: tramo, autor: session.u, texto });
       return res.status(200).json({ ok: true, mensaje: fila });
     } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
   }
