@@ -1,3 +1,4 @@
+
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
@@ -1636,3 +1637,55 @@ button.liga-tab{cursor:pointer}
 .liga-tab-ok .liga-tab-cta{background:rgba(255,255,255,.28);color:#fff}
 .liga-tab-pending .liga-tab-cta{background:rgba(255,255,255,.28);color:#fff}
 .liga-tab-ask .liga-tab-cta{background:var(--pri);color:#fff}
+
+/* ============================================================================
+   MENSAJERÍA — pestaña "Mensajes" con dos hilos (Administración / Mi Grupo)
+   ============================================================================ */
+.msg-card{ padding-bottom: .75rem; }
+.msg-tabs{
+  display:flex;gap:6px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:12px;padding:6px;margin-bottom:.85rem;
+}
+.msg-tab{
+  flex:1 1 150px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 12px;border-radius:8px;font-size:13px;font-weight:600;
+  color:var(--text2);background:transparent;border:none;cursor:pointer;font-family:inherit;
+}
+.msg-tab:hover{background:var(--surface)}
+.msg-tab.active{background:var(--pri);color:#fff}
+
+.msg-list{
+  display:flex;flex-direction:column;gap:6px;
+  max-height:420px;overflow-y:auto;
+  padding:.5rem;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  margin-bottom:.65rem;
+}
+.msg-empty{padding:1.5rem 1rem;text-align:center;color:var(--text2);font-size:13px}
+
+.msg-bubble-row{display:flex;justify-content:flex-start}
+.msg-bubble-row.me{justify-content:flex-end}
+.msg-bubble{
+  max-width:78%;padding:8px 12px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--border);
+}
+.msg-bubble-row.me .msg-bubble{
+  background:var(--pri);color:#fff;border-color:var(--pri);
+}
+.msg-bubble-author{font-size:11px;font-weight:700;color:var(--priD);margin-bottom:2px}
+.msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.msg-bubble-time{font-size:10px;color:var(--text2);margin-top:3px;text-align:right}
+.msg-bubble-row.me .msg-bubble-time{color:rgba(255,255,255,.75)}
+
+.msg-compose-row{display:flex;gap:8px;align-items:flex-end}
+.msg-input{
+  flex:1;resize:none;min-height:40px;max-height:120px;
+  padding:9px 12px;border-radius:10px;border:1.5px solid var(--border2);
+  background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;
+  line-height:1.35;
+}
+.msg-input:focus{outline:none;border-color:var(--pri)}
+
+@media (max-width: 640px){
+  .msg-list{max-height:340px}
+  .msg-bubble{max-width:88%}
+}
