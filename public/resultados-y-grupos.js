@@ -225,7 +225,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
   // NO le mostramos el formulario de liga. La liga regular ya terminó — no debe
   // poder cargar resultados de partidos del ciclo cerrado que nunca se jugaron.
   if((playoff.started||playoff.preview) && !myPo){
-    note.innerHTML='<span style="color:var(--text2)"><i class="ti ti-trophy"></i> Estamos en Play Offs. No tenés ningún partido pendiente por cargar en este momento.</span>';
+    note.innerHTML='<span style="color:var(--text2)"><i class="ti ti-trophy"></i> Estamos en Play Offs. No tienes ningún partido pendiente por cargar en este momento.</span>';
     r.disabled=true;o.disabled=true;r.className='score-sel-locked';o.className='score-sel-locked';
     return;
   }
@@ -272,7 +272,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
   }
 
   function fillReporterByPoSection(ti,which){
-    r.innerHTML='<option value="">— Seleccioná jugador —</option>';
+    r.innerHTML='<option value="">— Selecciona jugador —</option>';
     const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
     const rounds=tr[which];
     const added=new Set();
@@ -530,7 +530,7 @@ function markNotPlayed(){
   if(repName===rivName){fAlert(t('select_two'),'err');return;}
   const ex=findMatch(activeN,gid,repName,rivName);
   if(ex&&ex.status==='disputed'){fAlert('Este partido está en disputa; resolvelo antes de marcarlo como no jugado.','err');return;}
-  if(!confirm('¿Marcar como NO JUGADO el partido '+repName+' vs '+rivName+'?\n\nAmbos jugadores suman 1 en la columna NJ y 0 puntos por este partido. Podés deshacerlo borrando el partido desde la tabla del grupo.'))return;
+  if(!confirm('¿Marcar como NO JUGADO el partido '+repName+' vs '+rivName+'?\n\nAmbos jugadores suman 1 en la columna NJ y 0 puntos por este partido. Puedes deshacerlo borrando el partido desde la tabla del grupo.'))return;
   matches=matches.filter(m=>!(m.cycle===activeN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
   matches.push({id:matchId++,cycle:activeN,g:gid,aName:repName,bName:rivName,sets:[],np:true,date:'',status:'confirmed',reporter:currentUser.name,club:'',locked:true});
   addLog('Liga: marcado no jugado',{a:repName,b:rivName,grupo:gid,po:false});
@@ -616,7 +616,7 @@ function adminEdit(mid){const m=matches.find(x=>x.id===mid);closeM();showSub('ca
 function setTotalCycles(val){
   const newTotal = parseInt(val);
   if(newTotal < activeN) {
-    toast('No podés reducir a menos ciclos de los que ya están en juego.');
+    toast('No puedes reducir a menos ciclos de los que ya están en juego.');
     renderAdmin(); 
     return;
   }

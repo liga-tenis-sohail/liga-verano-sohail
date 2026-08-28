@@ -110,7 +110,7 @@ function descargarPlantillaImport(){
   ws['!cols']=[{wch:16},{wch:16},{wch:28},{wch:14},{wch:8}];
   XLSX.utils.book_append_sheet(wb,ws,'Jugadores');
   XLSX.writeFile(wb,'plantilla_importar_jugadores.xlsx');
-  toast('Plantilla descargada. Completala y volvé a importarla.');
+  toast('Plantilla descargada. Complétala y vuelve a importarla.');
 }
 
 // 2. Importar jugadores desde Excel

@@ -6,9 +6,9 @@
 // ============================================================================
 function limpiarJugadoresUI(){
   // Primera confirmación
-  if(!confirm('⚠️ Limpiar jugadores\n\nEsto eliminará TODOS los jugadores y sus resultados del ciclo activo.\nLa estructura de grupos se mantiene vacía.\n\n¿Querés continuar?')) return;
+  if(!confirm('⚠️ Limpiar jugadores\n\nEsto eliminará TODOS los jugadores y sus resultados del ciclo activo.\nLa estructura de grupos se mantiene vacía.\n\n¿Quieres continuar?')) return;
   // Segunda confirmación
-  if(!confirm('⛔ Segunda confirmación\n\n¿Estás seguro que querés borrar todos los jugadores y resultados?\nEsta acción no se puede deshacer.')) return;
+  if(!confirm('⛔ Segunda confirmación\n\n¿Estás seguro de que quieres borrar todos los jugadores y resultados?\nEsta acción no se puede deshacer.')) return;
   // Ejecutar limpieza solo de jugadores
   const c=cycles[activeN-1];
   const numGrupos=c&&c.groups?c.groups.length:12;
@@ -20,7 +20,7 @@ function limpiarJugadoresUI(){
     if(cy.groups)cy.groups.forEach(g=>{g.players=[];});
   });
   persist(true);renderPerfil();
-  toast('✅ '+numGrupos+' grupos vaciados. Podés importar nuevos jugadores.');
+  toast('✅ '+numGrupos+' grupos vaciados. Puedes importar nuevos jugadores.');
 }
 
 function mostrarModalReiniciar(){
@@ -41,9 +41,9 @@ function mostrarModalReiniciar(){
         <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">PASO 2 DE 2</div>
         <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">⛔ Confirmar reinicio</div>
         <p style="font-size:13px;margin-bottom:.75rem">${estado}</p>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:.35rem">Para confirmar, escribí exactamente:</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:.35rem">Para confirmar, escribe exactamente:</p>
         <p style="font-family:monospace;font-size:14px;font-weight:700;color:var(--pri);background:var(--surface2,#f5f5f5);padding:6px 12px;border-radius:8px;margin-bottom:.75rem;display:inline-block">reiniciar liga</p>
-        <input id="reiniciar-input" type="text" placeholder="Escribí aquí..." autocomplete="off"
+        <input id="reiniciar-input" type="text" placeholder="Escribe aquí..." autocomplete="off"
           style="width:100%;padding:10px 14px;border:1.5px solid var(--border2);border-radius:10px;font-size:15px;margin-bottom:1rem;box-sizing:border-box;outline:none"
           oninput="document.getElementById('btn-confirm-reiniciar').disabled=this.value!=='reiniciar liga'">
         <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -61,7 +61,7 @@ function mostrarModalReiniciar(){
       <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">PASO 1 DE 2</div>
       <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">⛔ Reiniciar Liga</div>
       <p style="color:var(--text);font-size:14px;margin-bottom:1.25rem">Esta acción eliminará <strong>todos los jugadores, partidos y resultados</strong>. No se puede deshacer.<br><br>
-      ¿Querés descargar un respaldo en Excel antes de continuar?</p>
+      ¿Quieres descargar un respaldo en Excel antes de continuar?</p>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button id="btn-excel-reiniciar" class="btn btn-success" style="justify-content:center;font-size:15px;padding:10px">
           <i class="ti ti-file-spreadsheet"></i> Descargar Excel y continuar
@@ -111,7 +111,7 @@ async function ejecutarReiniciar(){
   playoff={started:false,numTramos:playoff.numTramos||4,tramos:[],results:{},viewT:0,qualified:[],preview:false,forcedSize:0};
   PO_FECHAS={};
   persist(true);renderShell();showSub('admin');
-  toast('✅ Liga reiniciada. '+numGrupos+' grupos vacíos listos. Importá jugadores con el botón "Importar jugadores (Excel)".');
+  toast('✅ Liga reiniciada. '+numGrupos+' grupos vacíos listos. Importa jugadores con el botón "Importar jugadores (Excel)".');
 }
 
 // Alias para el botón
@@ -135,7 +135,7 @@ async function nuevaLigaUI(){
     const a=document.createElement('a');
     a.href=url;a.download='index.txt';a.click();
     URL.revokeObjectURL(url);
-    toast('✅ Archivo descargado. Subilo con la carpeta /api a un repo nuevo y cargá las variables de entorno en Vercel. La base de esta liga queda intacta.');
+    toast('✅ Archivo descargado. Súbelo con la carpeta /api a un repo nuevo y carga las variables de entorno en Vercel. La base de esta liga queda intacta.');
   }catch(err){
     toast('Error al generar el archivo: '+err.message);
   }
@@ -265,14 +265,14 @@ function renderAdmin(){
     const cicloEditMode = cycles.find(c2=>c2.editMode);
     
     let h=`<div class="card"><div class="section-lbl">${t('admin_cycle_status')}</div><div class="alert ${ready?'alert-ok':(puedeCerrar?'alert-warn':'alert-info')}">${t('cycle')} ${activeN}: ${tf('validated_count',{done,need})}${notC>0?` · ${notC} ${t('unvalidated_short')}`:''}. ${ready?t('ready_close'):(notC>0?t('missing_results'):tf('close_can_incomplete',{n:faltanJugar}))}</div>`+
-    (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ¡Todos los partidos validados! Presioná "Finalizar último ciclo" para habilitar los Play Offs.</div>`:'')+
+    (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ¡Todos los partidos validados! Presiona "Finalizar último ciclo" para habilitar los Play Offs.</div>`:'')+
     // Banner de ciclo con editMode activo
     (cicloEditMode?`<div class="alert alert-warn" style="margin-top:.4rem"><i class="ti ti-pencil"></i> <strong>Carga habilitada en Ciclo ${cicloEditMode.n}</strong> — jugadores y admins pueden cargar resultados en ese ciclo aunque esté cerrado. Deshabilitalo cuando termines.</div>`:'')+
     `<div class="gap-sm mt-sm">${activeN<cycles.length?`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar)?'disabled':''} onclick="startNextCycle()"><i class="ti ti-arrow-right-circle"></i> ${t('close_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`:`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar||(c&&c.status==='finished'))?'disabled':''} onclick="finishLastCycle()"><i class="ti ti-flag-check"></i> ${t('finish_last_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`}<button class="btn" onclick="demoFillUI()"><i class="ti ti-wand"></i> ${t('simulate')}</button><button class="btn btn-danger" onclick="undoDemoUI()"><i class="ti ti-eraser"></i> ${t('undo_demo')}</button></div>` +
     // Sección de rehabilitar carga (solo si hay ciclos cerrados)
     (cycles.some(c2=>c2.status==='finished')?`<div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.75rem">
       <div style="font-weight:700;font-size:.85rem;margin-bottom:.25rem"><i class="ti ti-pencil"></i> Habilitar carga de partidos en un ciclo cerrado</div>
-      <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.5rem">Si necesitás agregar resultados en un ciclo ya cerrado (sin borrar los existentes), habilitá ese ciclo temporalmente. Jugadores y admins van a poder cargar partidos en él desde la pestaña Cargar. Deshabilitalo cuando termines.</p>
+      <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.5rem">Si necesitas agregar resultados en un ciclo ya cerrado (sin borrar los existentes), habilita ese ciclo temporalmente. Jugadores y admins van a poder cargar partidos en él desde la pestaña Cargar. Deshabilítalo cuando termines.</p>
       <div class="gap-sm" style="flex-wrap:wrap">
         ${cycles.filter(c2=>c2.status==='finished').map(c2=>`<button class="btn btn-sm ${c2.editMode?'btn-warn':''}" onclick="toggleEditMode(${c2.n})"><i class="ti ti-${c2.editMode?'lock-open':'lock'}"></i> Ciclo ${c2.n} ${c2.editMode?'(carga activa — click para cerrar)':'(cerrado)'}</button>`).join('')}
       </div>
@@ -287,27 +287,27 @@ function renderAdmin(){
     // "Aceptar" se oculta para otros admins, con una nota explicando por qué.
     const solicitudesPendientes = (JOIN_REQUESTS||[]).filter(r=>r&&r.status==='pending');
     const puedeAceptarJugadores = (currentUser.key==='admin' || currentUser.role==='superadmin');
-    h += `<div class="card"><div class="section-lbl"><i class="ti ti-user-plus"></i> Solicitudes de acceso</div>`;
-    h += `<p class="legend-txt" style="margin-top:.15rem;margin-bottom:.65rem">Jugadores de otras ligas de la plataforma que pidieron sumarse a esta.</p>`;
+    h += `<div class="card"><div class="section-lbl"><i class="ti ti-user-plus"></i> ${t('solicitudes_title')}</div>`;
+    h += `<p class="legend-txt" style="margin-top:.15rem;margin-bottom:.65rem">${t('solicitudes_desc')}</p>`;
     if(!solicitudesPendientes.length){
-      h += `<div class="legend-txt">No hay solicitudes pendientes.</div>`;
+      h += `<div class="legend-txt">${t('solicitudes_none')}</div>`;
     } else {
       h += solicitudesPendientes.map(r=>{
-        const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+        const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
         const contacto = [r.email, r.tel].filter(Boolean).join(' · ');
         return `<div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border)">
           <div style="min-width:0">
             <div style="font-weight:700">${attr(r.nombre)}</div>
-            <div class="legend-txt" style="margin:0">Desde: ${attr(r.origenLigaNombre||'—')}${fecha?' · '+fecha:''}${contacto?' · '+attr(contacto):''}</div>
+            <div class="legend-txt" style="margin:0">${t('solicitudes_from')}: ${attr(r.origenLigaNombre||'—')}${fecha?' · '+fecha:''}${contacto?' · '+attr(contacto):''}</div>
           </div>
           <div style="display:flex;gap:.4rem;flex-shrink:0">
-            ${puedeAceptarJugadores?`<button class="btn btn-accent btn-sm" onclick="aceptarSolicitudUI('${r.id}')"><i class="ti ti-check"></i> Aceptar</button>`:''}
-            <button class="btn btn-danger btn-sm" onclick="rechazarSolicitudUI('${r.id}')"><i class="ti ti-x"></i> Rechazar</button>
+            ${puedeAceptarJugadores?`<button class="btn btn-accent btn-sm" onclick="aceptarSolicitudUI('${r.id}')"><i class="ti ti-check"></i> ${t('solicitudes_accept')}</button>`:''}
+            <button class="btn btn-danger btn-sm" onclick="rechazarSolicitudUI('${r.id}')"><i class="ti ti-x"></i> ${t('solicitudes_reject')}</button>
           </div>
         </div>`;
       }).join('');
       if(!puedeAceptarJugadores){
-        h += `<p class="legend-txt" style="margin-top:.5rem">Solo el administrador original o el super admin pueden aceptar jugadores nuevos. Vos podés rechazar solicitudes.</p>`;
+        h += `<p class="legend-txt" style="margin-top:.5rem">${t('solicitudes_only_owner')}</p>`;
       }
     }
     h += `</div>`;
@@ -392,7 +392,7 @@ function renderAdmin(){
                    <input type="date" value="${d2}" onchange="updateCycleDate(${i}, 'end', this.value)" style="padding:6px 8px">
                  </div></div>`;
        }).join('')+
-       `</div><p class="legend-txt" style="margin-top:.4rem">Seleccioná inicio y fin de cada ciclo.</p></div>`;
+       `</div><p class="legend-txt" style="margin-top:.4rem">Selecciona inicio y fin de cada ciclo.</p></div>`;
 
     h+=`<div class="card" style="margin:0"><div class="section-lbl">${t('playoffs_title')}</div>`;
     h+=(cyclesDone?`<div class="alert alert-ok" style="margin-bottom:.5rem">${t('playoffs_ready')}</div>`:`<div class="alert alert-info" style="margin-bottom:.5rem">${t('playoffs_not_ready')}</div>`);
@@ -406,7 +406,7 @@ function renderAdmin(){
     h+=`<div class="card"><div class="section-lbl">Exportar / Importar</div>
       <div style="margin-top:.35rem">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Exportar</div>
-      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Descargá los resultados completos o los Play Offs para compartir o imprimir.</p>
+      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Descarga los resultados completos o los Play Offs para compartir o imprimir.</p>
       <div class="gap-sm" style="flex-wrap:wrap">`;
     cycles.forEach(cy => {
         h += `<button class="btn btn-sm" onclick="printCycle(${cy.n})"><i class="ti ti-printer"></i> PDF Ciclo ${cy.n}</button>`;
@@ -418,7 +418,7 @@ function renderAdmin(){
       <div style="height:1px;background:var(--border);margin:1.1rem 0"></div>
       <div>
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Importar</div>
-      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Cargá resultados de liga desde un Excel con el mismo formato de la plantilla.</p>
+      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Carga resultados de liga desde un Excel con el mismo formato de la plantilla.</p>
       <div class="gap-sm" style="flex-wrap:wrap">
         <button class="btn btn-sm" onclick="descargarPlantillaResultados()"><i class="ti ti-file-download"></i> Plantilla de resultados</button>
         <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> Importar resultados (Excel)
@@ -430,7 +430,7 @@ function renderAdmin(){
     </div>`;
 
     h+=`<div class="card" style="border:1.5px solid var(--pri)"><div class="section-lbl"><i class="ti ti-shield-check"></i> Copia de seguridad (backup completo)</div>
-      <p class="legend-txt" style="margin-top:.35rem;margin-bottom:.85rem">Descargá un backup en Excel con TODA la liga (jugadores, grupos, ciclos, resultados, ascensos/descensos, puntos, colores y nombre). Si algún día se pierde la data, con este archivo restaurás todo en un clic. <b>Recomendado: bajá un backup cada semana.</b></p>
+      <p class="legend-txt" style="margin-top:.35rem;margin-bottom:.85rem">Descarga un backup en Excel con TODA la liga (jugadores, grupos, ciclos, resultados, ascensos/descensos, puntos, colores y nombre). Si algún día se pierde la data, con este archivo restauras todo en un clic. <b>Recomendado: descarga un backup cada semana.</b></p>
       <div class="gap-sm" style="flex-wrap:wrap">
         <button class="btn btn-success btn-sm" onclick="exportBackup()"><i class="ti ti-download"></i> Descargar backup (Excel)</button>
         <label class="btn btn-danger btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> Restaurar backup
@@ -481,7 +481,7 @@ function renderAdmin(){
     if(currentUser.role==='superadmin'){
     h+='<div class="card" style="border:1.5px solid var(--danger,#e55);border-radius:12px">';
     h+='<div class="section-lbl" style="color:var(--danger,#e55)">Nueva temporada</div>';
-    h+='<p class="legend-txt" style="margin-top:0">Reiniciá la liga para una nueva temporada. Los partidos actuales se borran.</p>';
+    h+='<p class="legend-txt" style="margin-top:0">Reinicia la liga para una nueva temporada. Los partidos actuales se borran.</p>';
     h+='<div class="gap-sm" style="flex-wrap:wrap">';
     h+='<button class="btn btn-danger" onclick="limpiarParticipantesUI()"><i class="ti ti-refresh"></i> Reiniciar liga</button>';
     h+='</div></div>';
@@ -560,7 +560,7 @@ function renderAdmin(){
     if(puedeGestionarAdmins(currentUser) && typeof renderLoginHeaderLinks==='function') renderLoginHeaderLinks();
   } catch (err) {
     console.error("Error en renderAdmin:", err);
-    document.getElementById('view-admin').innerHTML = `<div class="card"><div class="alert alert-err" style="margin-bottom:0"><b>Error cargando el panel Admin:</b> ${err.message}<br>Por favor recargá la página o contactá a soporte técnico.</div></div>`;
+    document.getElementById('view-admin').innerHTML = `<div class="card"><div class="alert alert-err" style="margin-bottom:0"><b>Error cargando el panel Admin:</b> ${err.message}<br>Por favor recarga la página o contacta a soporte técnico.</div></div>`;
   }
 }
 
@@ -847,7 +847,7 @@ function repararJugadorCicloUI(){
   const nombreInput = document.getElementById('rep-jugador');
   const name = (nombreInput?.value || '').trim();
   if(!cycN || !gid || !name){
-    toast('Completá ciclo, grupo y nombre del jugador.');
+    toast('Completa ciclo, grupo y nombre del jugador.');
     return;
   }
   const r = repairPlayerInCycleGroup(cycN, gid, name);
@@ -873,13 +873,13 @@ function repararJugadorCicloUI(){
 // ciclo" si hiciera falta anotarlo en un ciclo ya cerrado).
 function aceptarSolicitudUI(reqId){
   const req = (JOIN_REQUESTS||[]).find(r=>r&&r.id===reqId);
-  if(!req){ toast('Esa solicitud ya no existe.'); return; }
+  if(!req){ toast(t('solicitudes_no_exists')); return; }
   if(!(currentUser.key==='admin' || currentUser.role==='superadmin')){
-    toast('Solo el administrador original o el super admin pueden aceptar jugadores nuevos.');
+    toast(t('solicitudes_no_perm'));
     return;
   }
   if(USERS[req.nombre]){
-    if(!confirm('Ya existe un jugador llamado "'+req.nombre+'" en esta liga. ¿Marcar la solicitud como aceptada de todas formas? (no se crea una cuenta nueva, ya existe)')) return;
+    if(!confirm(t('solicitudes_dup_confirm').replace('{n}', req.nombre))) return;
   } else {
     if(ALLNAMES.indexOf(req.nombre)<0) ALLNAMES.push(req.nombre);
     USERS[req.nombre] = { role:'player', pass:DEFAULT_PASS_HASH, name:req.nombre, email:req.email||'', tel:req.tel||'' };
@@ -887,7 +887,7 @@ function aceptarSolicitudUI(reqId){
   req.status = 'accepted';
   persist(true);
   renderAdmin();
-  toast(req.nombre+' fue aceptado con contraseña por defecto. Ahora hay que ubicarlo en un grupo.');
+  toast(t('solicitudes_accepted').replace('{n}', req.nombre));
 }
 
 // Rechaza una solicitud. No borra el registro (queda como 'rejected' para que
@@ -895,10 +895,10 @@ function aceptarSolicitudUI(reqId){
 // si quiere — el backend no bloquea un reintento después de un rechazo.
 function rechazarSolicitudUI(reqId){
   const req = (JOIN_REQUESTS||[]).find(r=>r&&r.id===reqId);
-  if(!req){ toast('Esa solicitud ya no existe.'); return; }
-  if(!confirm('¿Rechazar la solicitud de "'+req.nombre+'"?')) return;
+  if(!req){ toast(t('solicitudes_no_exists')); return; }
+  if(!confirm(t('solicitudes_reject_confirm').replace('{n}', req.nombre))) return;
   req.status = 'rejected';
   persist(true);
   renderAdmin();
-  toast('Solicitud rechazada.');
+  toast(t('solicitudes_rejected'));
 }

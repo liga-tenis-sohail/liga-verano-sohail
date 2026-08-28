@@ -335,7 +335,7 @@ function resetCycleUI(n){
   // Mismo criterio que retroceder: con playoffs activos, cambiar resultados de un
   // ciclo altera la general con la que se armaron los cuadros.
   if(playoff.started||playoff.preview){
-    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nBorrar los partidos de un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reiniciá los Play Offs (Admin → Reiniciar Play Offs) y después reiniciá el ciclo.');
+    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nBorrar los partidos de un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reinicia los Play Offs (Admin → Reiniciar Play Offs) y después reinicia el ciclo.');
     return;
   }
   if(!confirm(tf('reset_confirm_cycle',{n})))return;
@@ -370,7 +370,7 @@ function toggleEditMode(n){
   }else{
     cycles.forEach(cx=>delete cx.editMode);
     c2.editMode=true;
-    toast('Carga habilitada en Ciclo '+n+'. Podés cargar resultados desde Grupos o Cargar.');
+    toast('Carga habilitada en Ciclo '+n+'. Puedes cargar resultados desde Grupos o Cargar.');
   }
   persist(true);
   // Navegar al ciclo habilitado para que se vean los "+" en la matriz
@@ -392,7 +392,7 @@ function retrocederCicloUI(){
   // Con playoffs activos, retroceder deja los cuadros inconsistentes (se armaron
   // con la clasificación general completa). Hay que reiniciarlos primero.
   if(playoff.started||playoff.preview){
-    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nRetroceder un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reiniciá los Play Offs (Admin → Reiniciar Play Offs) y después retrocedé el ciclo.');
+    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nRetroceder un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reinicia los Play Offs (Admin → Reiniciar Play Offs) y después retrocede el ciclo.');
     return;
   }
   const cycAnterior=activeN-1;
@@ -401,7 +401,7 @@ function retrocederCicloUI(){
   if(!confirm('RETROCEDER AL CICLO '+cycAnterior+'\n\n'
     +'Esto reabre el Ciclo '+cycAnterior+' como activo y descarta la estructura del Ciclo '+activeN+'.\n\n'
     +'Los PARTIDOS del Ciclo '+cycAnterior+' se conservan. Los del Ciclo '+activeN+' también se borran '
-    +'(si querés conservarlos, primero exportá un backup).\n\n'
+    +'(si quieres conservarlos, primero exporta un backup).\n\n'
     +'¿Continuar?'))return;
   // Borrar partidos del ciclo actual (el que se está "deshaciendo")
   matches=matches.filter(m=>m.cycle!==activeN);
@@ -416,7 +416,7 @@ function retrocederCicloUI(){
   activeN=cycAnterior;
   viewCycle=cycAnterior;
   persist(true);renderShell();showSub('admin');
-  toast('Ciclo '+cycAnterior+' reabierto. Podés seguir cargando resultados.');
+  toast('Ciclo '+cycAnterior+' reabierto. Puedes seguir cargando resultados.');
 }
 function resetPlayoffUI(){if(!confirm(t('reset_confirm_po')))return;playoff={started:false,numTramos:4,tramos:[],results:{},viewT:0,qualified:[],preview:false,forcedSize:0};matches=matches.filter(m=>!m.po);Object.keys(PO_FECHAS).forEach(k=>{PO_FECHAS[k]={type:'single',date:'',from:'',to:''};});if(viewCycle==='po')viewCycle=activeN;persist(true);renderShell();showSub('admin');toast(t('reset_done'));}
 function setPoNum(v){
@@ -491,7 +491,7 @@ function setFecha(i,v){FECHAS[i]=v;updateHdr();renderCycleBar();toast('Fecha del
 async function previewPlayoffUI(){
   if(!previewPlayoff()){toast(t('po_need_3cycles'));return;}
   const gen=computeGeneral();
-  if(!gen||gen.length<2){toast('No hay suficientes jugadores activos para armar los Play Offs. Verificá que haya al menos 2 jugadores activos.');return;}
+  if(!gen||gen.length<2){toast('No hay suficientes jugadores activos para armar los Play Offs. Verifica que haya al menos 2 jugadores activos.');return;}
   viewCycle='po';renderCycleBar();showPlayoffView();renderSubTabs();
   toast('⏳ Guardando previsualización…');
   const ok=await _criticalSave();
@@ -501,7 +501,7 @@ async function previewPlayoffUI(){
     // Revertir si no se pudo guardar
     playoff.preview=false;
     renderCycleBar();
-    alert('⚠️ No se pudo guardar la previsualización de Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecargá la página y volvé a intentarlo.');
+    alert('⚠️ No se pudo guardar la previsualización de Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecarga la página y vuelve a intentarlo.');
   }
 }
 async function confirmPlayoffUI(){
@@ -517,6 +517,6 @@ async function confirmPlayoffUI(){
     playoff.started=false;playoff.preview=true;
     renderCycleBar();showPlayoffView();renderSubTabs();
     // Usar alert para que el usuario no lo pierda (no desaparece solo)
-    alert('⚠️ No se pudo guardar el inicio de los Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecargá la página y volvé a intentarlo.\nSi el problema persiste, contactá al desarrollador.');
+    alert('⚠️ No se pudo guardar el inicio de los Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecarga la página y vuelve a intentarlo.\nSi el problema persiste, contacta al desarrollador.');
   }
 }

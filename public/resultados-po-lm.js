@@ -297,13 +297,13 @@ function submitLoadModal(){
   const showErr = msg => { if(alert) alert.innerHTML = '<span style="color:var(--danger)">✕ ' + msg + '</span>'; };
   if(alert) alert.innerHTML = '';
   if(!lmFormClub){
-    showErr(t('select_club')||'Elegí el club');
+    showErr(t('select_club')||'Elige el club');
     document.getElementById('lm-club-pick').classList.add('req-empty');
     return;
   }
   const fecha = document.getElementById('lm-f-fecha').value;
   if(!fecha){
-    showErr(t('select_date')||'Elegí la fecha');
+    showErr(t('select_date')||'Elige la fecha');
     document.getElementById('lm-f-fecha').classList.add('req-empty');
     return;
   }
@@ -421,12 +421,12 @@ function submitPo(){
 
   const fecha = document.getElementById('po-f-fecha').value;
   if(!poFormClub){
-      const a = document.getElementById('po-alert'); a.textContent = '✕ Elegí el club.'; a.classList.add('err-txt');
+      const a = document.getElementById('po-alert'); a.textContent = '✕ Elige el club.'; a.classList.add('err-txt');
       document.getElementById('po-club-pick').classList.add('req-empty');
       return;
   }
   if(!fecha){
-      const a = document.getElementById('po-alert'); a.textContent = '✕ Completá la fecha.'; a.classList.add('err-txt');
+      const a = document.getElementById('po-alert'); a.textContent = '✕ Completa la fecha.'; a.classList.add('err-txt');
       document.getElementById('po-f-fecha').classList.add('req-empty');
       return;
   }

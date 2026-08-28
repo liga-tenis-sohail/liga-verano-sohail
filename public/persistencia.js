@@ -257,12 +257,12 @@ async function loadState(){
     if(!r.ok){_showLoadError(d.error||'Error al leer la base de datos. Para proteger tus datos NO se guardará nada.');return;}
   }catch(e){
     console.error('❌ Excepción al leer estado:',e);
-    _showLoadError('No se pudo leer la base de datos. Para proteger tus datos NO se guardará nada. Recargá en unos segundos.');
+    _showLoadError('No se pudo leer la base de datos. Para proteger tus datos NO se guardará nada. Recarga en unos segundos.');
     return;
   }
   if(d&&d.state){
     const ok=_hydrate(d.state);
-    if(!ok){console.error('❌ Hydrate falló — autosave BLOQUEADO');_showLoadError('Los datos se leyeron pero no se pudieron aplicar. Para proteger tu información NO se guardará nada. Recargá.');return;}
+    if(!ok){console.error('❌ Hydrate falló — autosave BLOQUEADO');_showLoadError('Los datos se leyeron pero no se pudieron aplicar. Para proteger tu información NO se guardará nada. Recarga.');return;}
     _lastSaved=_serialize();
     _loadOK=true;
     _hideLoadError();
@@ -272,7 +272,7 @@ async function loadState(){
     // NUNCA sobrescribimos acá. El autosave queda bloqueado (_loadOK sigue false).
     _dbEmpty=true;
     console.warn('⚠️ Lectura VACÍA — NO se sobrescribe nada (protección de datos).');
-    _showLoadError('La base respondió sin datos. Para proteger tu información NO se guardó nada. Si es momentáneo, recargá. Si es una liga NUEVA, entrá como admin y usá "Copia de seguridad → Inicializar liga".');
+    _showLoadError('La base respondió sin datos. Para proteger tu información NO se guardó nada. Si es momentáneo, recarga. Si es una liga NUEVA, entra como admin y usa "Copia de seguridad → Inicializar liga".');
   }
 }
 

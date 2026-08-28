@@ -26,7 +26,7 @@
         const d = await r.json();
         const cat = d.jugadores || [];
 
-        let html = '<p class="legend-txt">Elegí un jugador de la base de datos (ligas anteriores) para conectarlo. Esto arrastrará su historial unificado y contraseña.</p>';
+        let html = '<p class="legend-txt">Elige un jugador de la base de datos (ligas anteriores) para conectarlo. Esto arrastrará su historial unificado y contraseña.</p>';
         html += '<select id="vincular-sel" class="cl-inp" style="margin-top:10px;"><option value="">-- Seleccionar jugador global --</option>';
         cat.forEach(j => {
             html += `<option value="${j.jugadorId}|${attr(j.nombre)}">${attr(j.nombre)} ${j.email ? `(${j.email})` : ''}</option>`;
@@ -45,7 +45,7 @@
 
 function confirmarVinculacion(nombreActual) {
     const val = document.getElementById('vincular-sel').value;
-    if (!val) { alert('Seleccioná un jugador del catálogo.'); return; }
+    if (!val) { alert('Selecciona un jugador del catálogo.'); return; }
     
     const parts = val.split('|');
     const jugadorId = parts[0];

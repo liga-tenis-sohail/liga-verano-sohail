@@ -137,7 +137,7 @@ function editPuntosUI(gid){
   const grp=c.groups[gid-1];
   const len=Math.max(1,(grp.players||[]).length);
   if(!PUNTOS[gid])PUNTOS[gid]=[];
-  let h=`<p class="legend-txt" style="margin-top:0;margin-bottom:.8rem">Ajustá los puntos que otorga cada posición en este grupo (0 a 100).</p>`;
+  let h=`<p class="legend-txt" style="margin-top:0;margin-bottom:.8rem">Ajusta los puntos que otorga cada posición en este grupo (0 a 100).</p>`;
   h+=`<div class="form-row" style="grid-template-columns: 1fr;">`;
   for(let i=0;i<len;i++){
     let v=PUNTOS[gid][i]!==undefined?PUNTOS[gid][i]:0;
@@ -824,7 +824,7 @@ function savePlayerAdmin(oldName){
   else if(!loc&&!isNaN(newGrp)){addPlayerToCycle(oldName,newGrp);}
   u.email=email;u.tel=tel;u.nombre=nombre;u.apellido=apellido;
   if(newName!==oldName){
-    if(USERS[newName]){toast('Ya existe un jugador llamado "'+newName+'". Elegí otro nombre.');renderPerfil();return;}
+    if(USERS[newName]){toast('Ya existe un jugador llamado "'+newName+'". Elige otro nombre.');renderPerfil();return;}
     renamePlayerEverywhere(oldName,newName);
   }
   persist(true);renderPerfil();toast(tf('save_done',{name:newName}));
@@ -832,7 +832,7 @@ function savePlayerAdmin(oldName){
 
 function deletePlayerAdmin(name){
   if(esCuentaSistema(name)){toast('No se puede eliminar al administrador.');return;}
-  if(!confirm(`¿Seguro que querés eliminar a ${name} de la liga? Se borrará de los grupos actuales.`))return;
+  if(!confirm(`¿Seguro que quieres eliminar a ${name} de la liga? Se borrará de los grupos actuales.`))return;
   delete USERS[name];
   const idx=ALLNAMES.indexOf(name);
   if(idx>=0)ALLNAMES.splice(idx,1);
@@ -936,7 +936,7 @@ function toggleInactive(name){
   if(u.inactive){
     toast(name+(sacado?' marcado como inactivo y quitado del ciclo actual.':' marcado como inactivo. (Ya jugó este ciclo, así que sigue en su grupo para no alterar los puntos; queda oculto en las vistas.)'));
   }else{
-    toast(name+' activado. Si querés que vuelva a competir, agregalo a un grupo del ciclo.');
+    toast(name+' activado. Si quieres que vuelva a competir, añádelo a un grupo del ciclo.');
   }
 }
 // Quita a un jugador del grupo que ocupe en el ciclo activo, PERO solo si todavía no
@@ -1078,9 +1078,9 @@ async function changePw(){
 // asincrónicas de este archivo, como el catálogo de superadmin).
 function misLigasHeaderHTML(){
   return `<div class="card" id="mis-ligas-card">
-    <div class="section-lbl"><i class="ti ti-trophy"></i> Mis Ligas</div>
-    <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.6rem">Estas son las ligas activas de la plataforma. Podés pedir acceso a otra sin perder tu lugar acá.</p>
-    <div id="mis-ligas-body" class="liga-tabs"><div class="legend-txt">Cargando ligas activas…</div></div>
+    <div class="section-lbl"><i class="ti ti-trophy"></i> ${t('ml_title')}</div>
+    <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.6rem">${t('ml_desc')}</p>
+    <div id="mis-ligas-body" class="liga-tabs"><div class="legend-txt">${t('past_loading')}</div></div>
   </div>`;
 }
 
@@ -1088,7 +1088,7 @@ async function cargarMisLigasHeader(){
   const body = document.getElementById('mis-ligas-body');
   if(!body) return;
   if(!_token || !_ligaActual){
-    body.innerHTML = '<div class="legend-txt">No se pudo determinar tu liga actual.</div>';
+    body.innerHTML = '<div class="legend-txt">'+attr(t('ml_no_league_id'))+'</div>';
     return;
   }
   try{
@@ -1098,34 +1098,34 @@ async function cargarMisLigasHeader(){
       body: JSON.stringify({ accion:'misLigas', ligaId:_ligaActual })
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok){ body.innerHTML = '<div class="legend-txt">'+attr(d.error||'No se pudo cargar.')+'</div>'; return; }
+    if(!r.ok){ body.innerHTML = '<div class="legend-txt">'+attr(d.error||t('ml_load_err'))+'</div>'; return; }
     const ligas = Array.isArray(d.ligas) ? d.ligas : [];
-    if(!ligas.length){ body.innerHTML = '<div class="legend-txt">No hay ligas activas por el momento.</div>'; return; }
+    if(!ligas.length){ body.innerHTML = '<div class="legend-txt">'+attr(t('ml_no_leagues'))+'</div>'; return; }
     body.innerHTML = ligas.map(l => {
       const nombreSafe = attr(l.nombre || '');
       const nombreJs = String(l.nombre || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
       if(l.esLigaActual){
-        return '<div class="liga-tab liga-tab-here"><i class="ti ti-map-pin"></i> '+nombreSafe+' <span class="liga-tab-cta">estás acá</span></div>';
+        return '<div class="liga-tab liga-tab-here"><i class="ti ti-map-pin"></i> '+nombreSafe+' <span class="liga-tab-cta">'+attr(t('ml_here'))+'</span></div>';
       }
       if(l.participo){
-        return '<button class="liga-tab liga-tab-ok" onclick="entrarAOtraLiga(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-login-2"></i> '+nombreSafe+' <span class="liga-tab-cta">participando</span></button>';
+        return '<button class="liga-tab liga-tab-ok" onclick="entrarAOtraLiga(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-login-2"></i> '+nombreSafe+' <span class="liga-tab-cta">'+attr(t('ml_ok'))+'</span></button>';
       }
       if(l.solicitudEstado === 'pending'){
-        return '<div class="liga-tab liga-tab-pending"><i class="ti ti-clock"></i> '+nombreSafe+' <span class="liga-tab-cta">pendiente</span></div>';
+        return '<div class="liga-tab liga-tab-pending"><i class="ti ti-clock"></i> '+nombreSafe+' <span class="liga-tab-cta">'+attr(t('ml_pending'))+'</span></div>';
       }
       // Sin relación todavía, o una solicitud previa fue rechazada (puede reintentar).
-      const label = l.solicitudEstado === 'rejected' ? 'Reintentar' : 'Solicitar acceso';
-      return '<button class="liga-tab liga-tab-ask" onclick="solicitarAccesoUI(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-send"></i> '+nombreSafe+' <span class="liga-tab-cta">'+label+'</span></button>';
+      const label = l.solicitudEstado === 'rejected' ? t('ml_retry') : t('ml_ask');
+      return '<button class="liga-tab liga-tab-ask" onclick="solicitarAccesoUI(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-send"></i> '+nombreSafe+' <span class="liga-tab-cta">'+attr(label)+'</span></button>';
     }).join('');
   } catch(e){
-    body.innerHTML = '<div class="legend-txt">No se pudo conectar con el servidor.</div>';
+    body.innerHTML = '<div class="legend-txt">'+attr(t('ml_conn_err'))+'</div>';
   }
 }
 
 // Pide acceso a otra liga. El backend valida que no esté ya participando ahí
 // y que no tenga otra solicitud pendiente para esa misma liga.
 async function solicitarAccesoUI(ligaId, nombre){
-  if(!confirm('¿Solicitar acceso a "'+nombre+'"? El administrador de esa liga va a tener que aprobarlo antes de que puedas entrar.')) return;
+  if(!confirm(t('ml_ask_confirm').replace('{n}', nombre))) return;
   try{
     const r = await fetch('/api/liga', {
       method:'POST',
@@ -1133,17 +1133,17 @@ async function solicitarAccesoUI(ligaId, nombre){
       body: JSON.stringify({ accion:'solicitarAcceso', ligaId:_ligaActual, ligaDestino:ligaId })
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok){ toast(d.error || 'No se pudo enviar la solicitud.'); return; }
-    toast('Solicitud enviada. El administrador de "'+nombre+'" la va a revisar.');
+    if(!r.ok){ toast(d.error || t('ml_ask_err')); return; }
+    toast(t('ml_ask_sent').replace('{n}', nombre));
     cargarMisLigasHeader();
-  }catch(e){ toast('No se pudo conectar con el servidor.'); }
+  }catch(e){ toast(t('ml_conn_err')); }
 }
 
 // El jugador ya participa en la otra liga (fue aceptado en algún momento):
 // lo mandamos al selector de login de esa liga para que entre con su usuario
 // y contraseña de ahí (cada liga tiene sus propias credenciales).
 async function entrarAOtraLiga(ligaId, nombre){
-  if(!confirm('Vas a salir de esta sesión para entrar a "'+nombre+'". ¿Continuar?')) return;
+  if(!confirm(t('ml_switch_confirm').replace('{n}', nombre))) return;
   doLogout();
   // Pequeño delay para dejar terminar el detectarLigaActiva() que dispara
   // initLogin() (llamado dentro de doLogout), y recién ahí forzar la liga

@@ -68,7 +68,7 @@ async function activarPasskey(){
   // Si no ves ni este aviso, el problema es que la librería rompió el onclick.
   try{
     if(typeof window.SimpleWebAuthnBrowser==='undefined'){
-      alert('La librería de Face ID no cargó. Puede estar bloqueada por la configuración de seguridad (CSP). Avisá al administrador.');
+      alert('La librería de Face ID no cargó. Puede estar bloqueada por la configuración de seguridad (CSP). Avisa al administrador.');
       return;
     }
     if(!window.PublicKeyCredential){
@@ -105,7 +105,7 @@ async function activarPasskey(){
     if(!r2.ok) throw new Error((d&&d.error)||('Error al guardar la passkey (código '+r2.status+').'));
     toast(t('pk_activated'));
     try{ localStorage.setItem('pk_hint','1'); }catch(_){}
-    // Refrescá la vista del perfil si está abierta: pasamos de "activar" a mostrar el dispositivo nuevo.
+    // Refresca la vista del perfil si está abierta: pasamos de "activar" a mostrar el dispositivo nuevo.
     try{ if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys(); }catch(_){}
   }catch(err){
     const msg=(err&&err.name==='NotAllowedError')?t('pk_cancelled'):(err.message||t('pk_reg_err'));
