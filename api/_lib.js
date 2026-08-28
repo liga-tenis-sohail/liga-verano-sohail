@@ -127,6 +127,14 @@ function filterForSession(state, session){
     }
     // El admin sí recibe los hashes: los necesita para el panel de contraseñas.
   }
+  // JOIN_REQUESTS trae nombre + email/tel de gente que pidió entrar a ESTA
+  // liga desde otra. Es información sensible de contacto: solo el admin de
+  // la liga la necesita para gestionar la solicitud. Un jugador común la ve
+  // vacía (su propio estado de solicitud lo consulta por separado, vía la
+  // acción 'misLigas', que no expone la lista completa de otros).
+  if(!admin && Array.isArray(state.JOIN_REQUESTS)){
+    state.JOIN_REQUESTS = [];
+  }
   return state;
 }
 

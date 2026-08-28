@@ -20,27 +20,33 @@ function idDeJugador(nombre){
   return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
 }
 
-// Valida y limpia la lista de clubes que manda el frontend al crear una liga.
-// Devuelve un array de {id,name,bg} o null si no hay ninguno válido (en ese
-// caso el llamador conserva los clubes por defecto de estadoInicial).
-function sanitizarClubs(clubsIn){
-  if(!Array.isArray(clubsIn)) return null;
-  const limpios = [];
-  const vistos = new Set();
-  for(const c of clubsIn){
-    if(!c) continue;
-    const nombre = String(c.name || '').trim().slice(0, 24);
-    if(!nombre) continue;
-    const key = nombre.toLowerCase();
-    if(vistos.has(key)) continue;
-    vistos.add(key);
-    let bg = String(c.bg || '').trim();
-    if(!/^#[0-9a-fA-F]{6}$/.test(bg)) bg = '#E5E7EB';
-    const idOK = c.id && /^[a-z0-9_-]{1,40}$/i.test(String(c.id));
-    limpios.push({ id: idOK ? String(c.id) : ('c' + crypto.randomBytes(4).toString('hex')), name: nombre, bg });
-    if(limpios.length >= 30) break;
+// Genera la escala de puntos por posición con la fórmula estándar de la liga:
+// el último grupo SIEMPRE ancla el último puesto en 1 punto, subiendo de a 1
+// por posición hacia el 1er puesto. Cada grupo hacia arriba (número menor)
+// suma STEP puntos al 1er puesto. Así, sin importar cuántos grupos tenga la
+// liga, la base (el último puesto del último grupo) siempre es 1.
+//
+// ppg (posiciones por grupo) se fija en 5 al crear la liga porque los grupos
+// arrancan sin jugadores cargados (no se sabe su tamaño real todavía). Una vez
+// que se cargan jugadores, el admin puede correr "Recalcular puntos" desde el
+// panel para regenerar la escala ajustada al tamaño real de cada grupo.
+function generarEscalaPuntos(numGrupos, ppg){
+  const STEP = 3;
+  const BASE = 5;
+  const N = Math.max(1, numGrupos);
+  const posiciones = Math.max(BASE, ppg || BASE);
+  const PUNTOS = {};
+  for(let gid = 1; gid <= N; gid++){
+    const distanciaDesdeAbajo = N - gid;
+    const ganador = BASE + distanciaDesdeAbajo * STEP;
+    const arr = [];
+    for(let pos = 0; pos < posiciones; pos++){
+      const escalon = Math.min(pos, BASE - 1);
+      arr.push(Math.max(1, ganador - escalon));
+    }
+    PUNTOS[gid] = arr;
   }
-  return limpios.length ? limpios : null;
+  return PUNTOS;
 }
 
 // ESTADO INICIAL SINCRONIZADO CON EL FRONTEND
@@ -58,7 +64,7 @@ function estadoInicial(nombreLiga, numGrupos, numCiclos){
   return {
     _v: 1, users: {}, matches: [], matchId: 1, activeN: 1, cycles: cycles,
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
-    DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: {}, LOG: [],
+    DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: generarEscalaPuntos(nG, 5), LOG: [],
     LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '',
     LEAGUE_COLOR_PRI: '#1B4F9C',
     LEAGUE_COLOR_ACC: '#F5C518',
@@ -114,6 +120,109 @@ module.exports = async function handler(req, res){
   const session = auth(req);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
+  // ================= ACCIONES DE JUGADOR (no requieren ser admin) =================
+  // Un jugador logueado en SU liga puede: ver el estado de todas las ligas
+  // activas respecto de sí mismo (misLigas), y pedir entrar a otra (solicitarAcceso).
+  // Ambas necesitan `body.ligaId` = la liga donde está logueado AHORA (para
+  // verificar identidad: session.u tiene que existir como user real ahí).
+
+  if(accion === 'misLigas'){
+    const ligaOrigen = String(body.ligaId || '');
+    if(!ligaIdOK(ligaOrigen)) return res.status(400).json({ error: 'Falta indicar tu liga actual.' });
+    let origenState;
+    try { origenState = await readState(ligaOrigen); } catch(e){ return res.status(503).json({ error: 'No se pudo leer tu liga.' }); }
+    if(!origenState || !origenState.users || !origenState.users[session.u]){
+      return res.status(403).json({ error: 'Tu sesión no corresponde a esa liga.' });
+    }
+    let idx;
+    try { idx = await readLigaIndex(); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
+    const activas = idx.filter(l => l.estado === 'activa').sort((a,b)=>(b.orden||0)-(a.orden||0));
+    // Nota de performance: esto lee el estado de CADA liga activa. Para el
+    // tamaño esperado de esta plataforma (un club, pocas decenas de ligas
+    // como mucho) es perfectamente aceptable. Si algún día hay cientos de
+    // ligas activas simultáneas, esto se puede optimizar con un índice aparte.
+    const resultado = [];
+    for(const l of activas){
+      let est;
+      try { est = await readState(l.id); } catch(e){ continue; }
+      if(!est) continue;
+      const participo = !!(est.users && est.users[session.u]);
+      let solicitudEstado = null;
+      if(Array.isArray(est.JOIN_REQUESTS)){
+        const propia = est.JOIN_REQUESTS
+          .filter(r => r && r.nombre === session.u)
+          .sort((a,b)=> String(b.fecha||'').localeCompare(String(a.fecha||'')))[0];
+        if(propia) solicitudEstado = propia.status;
+      }
+      resultado.push({ id: l.id, nombre: l.nombre, esLigaActual: l.id === ligaOrigen, participo, solicitudEstado });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ ligas: resultado });
+  }
+
+  if(accion === 'solicitarAcceso'){
+    const ligaOrigen = String(body.ligaId || '');
+    const ligaDestino = String(body.ligaDestino || '');
+    if(!ligaIdOK(ligaOrigen) || !ligaIdOK(ligaDestino)){
+      return res.status(400).json({ error: 'Falta indicar la liga de origen o destino.' });
+    }
+    if(ligaOrigen === ligaDestino){
+      return res.status(400).json({ error: 'Ya estás en esa liga.' });
+    }
+    let origenState;
+    try { origenState = await readState(ligaOrigen); } catch(e){ return res.status(503).json({ error: 'No se pudo leer tu liga.' }); }
+    const yo = origenState && origenState.users && origenState.users[session.u];
+    if(!yo){
+      return res.status(403).json({ error: 'Tu sesión no corresponde a esa liga.' });
+    }
+
+    let idx;
+    try { idx = await readLigaIndex(); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
+    const entryDestino = idx.find(l => l.id === ligaDestino);
+    if(!entryDestino) return res.status(404).json({ error: 'Esa liga no existe.' });
+    if(entryDestino.estado !== 'activa') return res.status(400).json({ error: 'Esa liga no está activa.' });
+
+    let destinoState;
+    try { destinoState = await readState(ligaDestino); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga destino.' }); }
+    if(!destinoState) return res.status(404).json({ error: 'Esa liga no tiene datos.' });
+
+    if(destinoState.users && destinoState.users[session.u]){
+      return res.status(400).json({ error: 'Ya participás en esa liga.' });
+    }
+    if(!Array.isArray(destinoState.JOIN_REQUESTS)) destinoState.JOIN_REQUESTS = [];
+    const yaPendiente = destinoState.JOIN_REQUESTS.some(r => r && r.nombre === session.u && r.status === 'pending');
+    if(yaPendiente){
+      return res.status(400).json({ error: 'Ya tenés una solicitud pendiente para esa liga.' });
+    }
+
+    // Mismos caracteres que rechaza el resto del sistema (ver PELIGRO en save.js).
+    // Esto viaja hacia el panel de OTRA liga, así que se sanea acá también.
+    const PELIGRO = /[<>"`\\]/;
+    const email = (yo.email && !PELIGRO.test(String(yo.email))) ? String(yo.email).slice(0, 120) : '';
+    const tel   = (yo.tel   && !PELIGRO.test(String(yo.tel)))   ? String(yo.tel).slice(0, 40)   : '';
+
+    destinoState.JOIN_REQUESTS.push({
+      id: crypto.randomBytes(8).toString('hex'),
+      nombre: session.u,
+      email, tel,
+      origenLigaId: ligaOrigen,
+      origenLigaNombre: origenState.LEAGUE_NAME || '',
+      fecha: new Date().toISOString(),
+      status: 'pending'
+    });
+    // Límite defensivo: que la lista no crezca sin fin ante uso abusivo.
+    if(destinoState.JOIN_REQUESTS.length > 500){
+      destinoState.JOIN_REQUESTS = destinoState.JOIN_REQUESTS.slice(-500);
+    }
+
+    try { await writeState(ligaDestino, destinoState); }
+    catch(e){ return res.status(503).json({ error: 'No se pudo guardar la solicitud: ' + e.message }); }
+
+    logAudit(session.u, 'liga.solicitarAcceso', ligaDestino, { origenLigaId: ligaOrigen }, clientIP(req));
+    return res.status(200).json({ ok: true });
+  }
+
+  // ================= A PARTIR DE ACÁ: solo administradores =================
   let sesionState, sesionStateErr = null;
   try { sesionState = await readState(body.ligaId || session.ligaId || undefined); }
   catch(e){ sesionState = null; sesionStateErr = e; }
@@ -182,20 +291,6 @@ module.exports = async function handler(req, res){
     if(!sesionState || !sesionState.users) return res.status(503).json({ error: 'No se pudo leer la liga actual para heredar administradores.' });
 
     const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
-
-    // Mantener el diseño (colores) de la liga desde la que se está creando,
-    // para que las ligas nuevas no vuelvan al azul/amarillo por defecto.
-    if(sesionState){
-      if(sesionState.LEAGUE_COLOR_PRI) estado.LEAGUE_COLOR_PRI = sesionState.LEAGUE_COLOR_PRI;
-      if(sesionState.LEAGUE_COLOR_ACC) estado.LEAGUE_COLOR_ACC = sesionState.LEAGUE_COLOR_ACC;
-      if(sesionState.LEAGUE_COLOR_HL)  estado.LEAGUE_COLOR_HL  = sesionState.LEAGUE_COLOR_HL;
-      if(sesionState.COLOR_DISPUTA)    estado.COLOR_DISPUTA    = sesionState.COLOR_DISPUTA;
-    }
-
-    // Clubes elegidos por el admin al crear la liga (nombre + color hex).
-    // Si no manda ninguno válido, se quedan los clubes por defecto de estadoInicial.
-    const clubsElegidos = sanitizarClubs(body.clubs);
-    if(clubsElegidos) estado.CLUBS = clubsElegidos;
 
     // HEREDAR ADMINS CORRECTAMENTE
     if(sesionState && sesionState.users){
@@ -267,84 +362,6 @@ module.exports = async function handler(req, res){
 
     logAudit(session.u, 'liga.crear', nuevoId, { nombre, jugadores: estado.ALLNAMES.length }, clientIP(req));
     return res.status(200).json({ ok: true, id: nuevoId, jugadores: estado.ALLNAMES.length });
-  }
-
-  // ================= AGREGAR JUGADORES A UNA LIGA YA CREADA =================
-  // Permite al admin/superadmin sumar jugadores del catálogo (de ligas pasadas
-  // o de otras ligas) a una liga ya existente, eligiendo a qué grupo del ciclo
-  // activo va cada uno. { accion:'agregarJugadores', id, jugadores:[{jugadorId?|nombre?,email?,grupo}] }
-  if(accion === 'agregarJugadores'){
-    const jugadoresIn = Array.isArray(body.jugadores) ? body.jugadores : [];
-    if(!jugadoresIn.length) return res.status(400).json({ error: 'No se especificaron jugadores para agregar.' });
-
-    let estado;
-    try { estado = await readState(id); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga.' }); }
-    if(!estado) return res.status(404).json({ error: 'Esa liga no tiene datos.' });
-
-    const cicloActivo = (estado.cycles || []).find(c => c && c.n === estado.activeN) || (estado.cycles || [])[(estado.activeN || 1) - 1];
-    if(!cicloActivo || !Array.isArray(cicloActivo.groups) || !cicloActivo.groups.length){
-      return res.status(400).json({ error: 'La liga no tiene un ciclo activo con grupos para agregar jugadores.' });
-    }
-    const numGrupos = cicloActivo.groups.length;
-
-    let catalogo = {}; try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
-    if(!estado.ALLNAMES) estado.ALLNAMES = [];
-    if(!estado.users) estado.users = {};
-
-    const agregados = [];
-    for(const j of jugadoresIn){
-      if(!j) continue;
-      let perfil = null;
-
-      if(j.jugadorId && catalogo[j.jugadorId]){
-        perfil = catalogo[j.jugadorId];
-      } else if(j.email){
-        try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
-        if(!perfil && j.nombre){
-          perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
-          try { await upsertJugador(perfil); } catch(e){}
-        }
-      } else if(j.nombre){
-        perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: null, pass: null };
-        try { await upsertJugador(perfil); } catch(e){}
-      }
-
-      if(!perfil || !perfil.nombre) continue;
-      const nomNorm = perfil.nombre.trim().toLowerCase();
-      if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
-
-      // Ya está jugando el ciclo activo de esta liga: no duplicar.
-      const yaEnCicloActivo = cicloActivo.groups.some(g => (g.players || []).includes(perfil.nombre));
-      if(yaEnCicloActivo) continue;
-
-      let targetIndex = (parseInt(j.grupo, 10) || 1) - 1;
-      if(targetIndex < 0 || targetIndex >= numGrupos) targetIndex = 0;
-      cicloActivo.groups[targetIndex].players.push(perfil.nombre);
-
-      if(!estado.ALLNAMES.includes(perfil.nombre)) estado.ALLNAMES.push(perfil.nombre);
-
-      if(estado.users[perfil.nombre]){
-        estado.users[perfil.nombre].jugadorId = perfil.id;
-        estado.users[perfil.nombre].name = perfil.nombre;
-        if(perfil.email) estado.users[perfil.nombre].email = perfil.email;
-        if(estado.users[perfil.nombre].inactive) delete estado.users[perfil.nombre].inactive;
-      } else {
-        estado.users[perfil.nombre] = {
-          role: 'player', name: perfil.nombre, email: perfil.email || null, jugadorId: perfil.id
-        };
-      }
-      agregados.push({ nombre: perfil.nombre, grupo: targetIndex + 1 });
-    }
-
-    if(!agregados.length){
-      return res.status(400).json({ error: 'No se agregó ningún jugador (ya estaban en el ciclo activo o los datos no eran válidos).' });
-    }
-
-    try { await writeState(id, estado); }
-    catch(e){ return res.status(503).json({ error: 'No se pudo guardar la liga: ' + e.message }); }
-
-    logAudit(session.u, 'liga.agregarJugadores', id, { jugadores: agregados.map(a => a.nombre) }, clientIP(req));
-    return res.status(200).json({ ok: true, id, agregados });
   }
 
   // ================= CERRAR, REABRIR, ELIMINAR =================
