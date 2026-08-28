@@ -23,7 +23,7 @@ let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=fal
 // tienen la app abierta, la segunda en guardar recibe 409 en vez de pisar a la primera.
 let _stateV=0;
 function _serialize(){
-  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER});
+  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER,JOIN_REQUESTS});
 }
 
 function _hydrate(d){try{
@@ -108,6 +108,9 @@ function _hydrate(d){try{
     // Así el próximo visitante ve la última config aunque no se haya logueado.
     try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
   }
+  // JOIN_REQUESTS: solicitudes de acceso de jugadores de OTRAS ligas. Se
+  // sanitiza cada entrada por si viene de un formato viejo o corrupto.
+  JOIN_REQUESTS = Array.isArray(d.JOIN_REQUESTS) ? d.JOIN_REQUESTS.filter(r=>r&&r.id&&r.nombre) : [];
   if(typeof d.RATING_ON==='boolean')RATING_ON=d.RATING_ON;
   RATING_SEEDS=(d.RATING_SEEDS&&typeof d.RATING_SEEDS==='object')?d.RATING_SEEDS:{};
   RATING_OVERRIDES=(d.RATING_OVERRIDES&&typeof d.RATING_OVERRIDES==='object')?d.RATING_OVERRIDES:{};

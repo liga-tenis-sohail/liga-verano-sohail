@@ -244,6 +244,13 @@ let LEAGUE_NAME='Liga de Tenis Sohail'; // nombre editable de la liga
 // app ve la barra con lo último que el admin configuró.
 let LOGIN_HEADER = { color: '#0E3470', textColor: '', links: [] };
 let REGLAMENTO=''; // reglamento de la liga (texto), editable por admin, visible para todos
+// Solicitudes de acceso QUE RECIBE esta liga desde jugadores logueados en OTRAS
+// ligas. Cada entrada: {id, nombre, email, tel, origenLigaId, origenLigaNombre,
+// fecha, status:'pending'|'accepted'|'rejected'}. Se escriben desde el backend
+// (accion 'solicitarAcceso' en api/liga.js, porque el jugador solicitante NO
+// está autenticado en ESTA liga). Se leen/gestionan (aceptar/rechazar) igual
+// que cualquier otro dato del state: viajan con el hydrate/persist normal.
+let JOIN_REQUESTS = [];
 let LEAGUE_SUBTITLE='Verano 2026'; // subtítulo editable
 let LEAGUE_COLOR_PRI='#1B4F9C';   // color primario (azul)
 let LEAGUE_COLOR_ACC='#F5C518';   // color acento (amarillo)

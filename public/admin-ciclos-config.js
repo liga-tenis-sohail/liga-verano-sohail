@@ -278,7 +278,40 @@ function renderAdmin(){
       </div>
     </div>`:'') +
     `</div>`;
-    
+
+    // ==== Solicitudes de acceso (jugadores de OTRAS ligas que piden entrar) ====
+    // Visible para cualquier admin de la liga (no solo superadmin), porque
+    // rechazar una solicitud no toca nada estructural. Aceptar SÍ crea un
+    // jugador nuevo (cambia ALLNAMES), y esa operación el backend la reserva
+    // al admin original ('admin') o al superadmin — por eso el botón
+    // "Aceptar" se oculta para otros admins, con una nota explicando por qué.
+    const solicitudesPendientes = (JOIN_REQUESTS||[]).filter(r=>r&&r.status==='pending');
+    const puedeAceptarJugadores = (currentUser.key==='admin' || currentUser.role==='superadmin');
+    h += `<div class="card"><div class="section-lbl"><i class="ti ti-user-plus"></i> Solicitudes de acceso</div>`;
+    h += `<p class="legend-txt" style="margin-top:.15rem;margin-bottom:.65rem">Jugadores de otras ligas de la plataforma que pidieron sumarse a esta.</p>`;
+    if(!solicitudesPendientes.length){
+      h += `<div class="legend-txt">No hay solicitudes pendientes.</div>`;
+    } else {
+      h += solicitudesPendientes.map(r=>{
+        const fecha = r.fecha ? new Date(r.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+        const contacto = [r.email, r.tel].filter(Boolean).join(' · ');
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border)">
+          <div style="min-width:0">
+            <div style="font-weight:700">${attr(r.nombre)}</div>
+            <div class="legend-txt" style="margin:0">Desde: ${attr(r.origenLigaNombre||'—')}${fecha?' · '+fecha:''}${contacto?' · '+attr(contacto):''}</div>
+          </div>
+          <div style="display:flex;gap:.4rem;flex-shrink:0">
+            ${puedeAceptarJugadores?`<button class="btn btn-accent btn-sm" onclick="aceptarSolicitudUI('${r.id}')"><i class="ti ti-check"></i> Aceptar</button>`:''}
+            <button class="btn btn-danger btn-sm" onclick="rechazarSolicitudUI('${r.id}')"><i class="ti ti-x"></i> Rechazar</button>
+          </div>
+        </div>`;
+      }).join('');
+      if(!puedeAceptarJugadores){
+        h += `<p class="legend-txt" style="margin-top:.5rem">Solo el administrador original o el super admin pueden aceptar jugadores nuevos. Vos podés rechazar solicitudes.</p>`;
+      }
+    }
+    h += `</div>`;
+
     const numGrupos = grps.length || 12;
     const ppg = (grps[0]&&grps[0].players)?grps[0].players.length:5;
     const cActiveHasMatches = matches.some(m=>m.cycle===activeN&&!m.po);
@@ -827,4 +860,45 @@ function repararJugadorCicloUI(){
   try { renderAdmin(); } catch(_){}
   if(nombreInput) nombreInput.value = '';
   toast(name + ' fue agregado al ' + groupName(gid) + ' del Ciclo ' + cycN + '.');
+}
+
+// ============================================================================
+// Gestión de solicitudes de acceso (panel de admin, ver renderAdmin arriba).
+// ============================================================================
+
+// Acepta una solicitud: crea el jugador en ESTA liga (ALLNAMES + USERS) con
+// contraseña por defecto —mismo patrón que cualquier jugador nuevo— y lo deja
+// SIN GRUPO asignado. El admin lo ubica después con las herramientas
+// habituales (agregar a un grupo del ciclo activo, o "Reparar jugador en un
+// ciclo" si hiciera falta anotarlo en un ciclo ya cerrado).
+function aceptarSolicitudUI(reqId){
+  const req = (JOIN_REQUESTS||[]).find(r=>r&&r.id===reqId);
+  if(!req){ toast('Esa solicitud ya no existe.'); return; }
+  if(!(currentUser.key==='admin' || currentUser.role==='superadmin')){
+    toast('Solo el administrador original o el super admin pueden aceptar jugadores nuevos.');
+    return;
+  }
+  if(USERS[req.nombre]){
+    if(!confirm('Ya existe un jugador llamado "'+req.nombre+'" en esta liga. ¿Marcar la solicitud como aceptada de todas formas? (no se crea una cuenta nueva, ya existe)')) return;
+  } else {
+    if(ALLNAMES.indexOf(req.nombre)<0) ALLNAMES.push(req.nombre);
+    USERS[req.nombre] = { role:'player', pass:DEFAULT_PASS_HASH, name:req.nombre, email:req.email||'', tel:req.tel||'' };
+  }
+  req.status = 'accepted';
+  persist(true);
+  renderAdmin();
+  toast(req.nombre+' fue aceptado con contraseña por defecto. Ahora hay que ubicarlo en un grupo.');
+}
+
+// Rechaza una solicitud. No borra el registro (queda como 'rejected' para que
+// quede trazabilidad), y el jugador puede volver a pedir acceso más adelante
+// si quiere — el backend no bloquea un reintento después de un rechazo.
+function rechazarSolicitudUI(reqId){
+  const req = (JOIN_REQUESTS||[]).find(r=>r&&r.id===reqId);
+  if(!req){ toast('Esa solicitud ya no existe.'); return; }
+  if(!confirm('¿Rechazar la solicitud de "'+req.nombre+'"?')) return;
+  req.status = 'rejected';
+  persist(true);
+  renderAdmin();
+  toast('Solicitud rechazada.');
 }

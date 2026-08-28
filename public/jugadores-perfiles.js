@@ -546,7 +546,8 @@ function renderPerfil(){
     if(u.role==='superadmin') cargarCatJugadores();
   } else {
     const loc = findLoc(u.name, activeN);
-    let h = statsPerfilHTML(u.name);
+    let h = misLigasHeaderHTML();
+    h += statsPerfilHTML(u.name);
     h += `<div class="card"><div class="section-lbl">${t('my_profile')}</div>`;
     h += `<div class="prof-row"><span>${t('full_name')}</span><span>${u.name}</span></div>`;
     h += `<div class="prof-row"><span>${t('email')}</span><span>${u.email||'—'}</span></div>`;
@@ -564,6 +565,7 @@ function renderPerfil(){
     h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('my_history')}</div>${playerHistoryHTML(u.name)}</div>`;
     document.getElementById('view-perfil').innerHTML = h; try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+    cargarMisLigasHeader();
   }
 }
 
@@ -1063,3 +1065,88 @@ async function changePw(){
   ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id).value='');
 }
 
+
+// ============================================================================
+// "Mis Ligas" — header en el perfil del jugador que muestra todas las ligas
+// activas de la plataforma, marcando en cuál está parado, en cuáles ya
+// participa, y dejándolo pedir acceso a las demás. El admin de la liga
+// destino ve la solicitud en su panel y la acepta o rechaza.
+// ============================================================================
+
+// Pinta la card vacía (loading) — el fetch real lo hace cargarMisLigasHeader(),
+// llamado después de inyectar el HTML en el DOM (mismo patrón que otras cards
+// asincrónicas de este archivo, como el catálogo de superadmin).
+function misLigasHeaderHTML(){
+  return `<div class="card" id="mis-ligas-card">
+    <div class="section-lbl"><i class="ti ti-trophy"></i> Mis Ligas</div>
+    <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.6rem">Estas son las ligas activas de la plataforma. Podés pedir acceso a otra sin perder tu lugar acá.</p>
+    <div id="mis-ligas-body" class="ml-chips"><div class="legend-txt">Cargando ligas activas…</div></div>
+  </div>`;
+}
+
+async function cargarMisLigasHeader(){
+  const body = document.getElementById('mis-ligas-body');
+  if(!body) return;
+  if(!_token || !_ligaActual){
+    body.innerHTML = '<div class="legend-txt">No se pudo determinar tu liga actual.</div>';
+    return;
+  }
+  try{
+    const r = await fetch('/api/liga', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
+      body: JSON.stringify({ accion:'misLigas', ligaId:_ligaActual })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){ body.innerHTML = '<div class="legend-txt">'+attr(d.error||'No se pudo cargar.')+'</div>'; return; }
+    const ligas = Array.isArray(d.ligas) ? d.ligas : [];
+    if(!ligas.length){ body.innerHTML = '<div class="legend-txt">No hay ligas activas por el momento.</div>'; return; }
+    body.innerHTML = ligas.map(l => {
+      const nombreSafe = attr(l.nombre || '');
+      const nombreJs = String(l.nombre || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      if(l.esLigaActual){
+        return '<div class="ml-chip ml-chip-here"><i class="ti ti-map-pin"></i> '+nombreSafe+' <span class="ml-tag">estás acá</span></div>';
+      }
+      if(l.participo){
+        return '<button class="ml-chip ml-chip-ok" onclick="entrarAOtraLiga(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-login-2"></i> '+nombreSafe+' <span class="ml-tag">participando</span></button>';
+      }
+      if(l.solicitudEstado === 'pending'){
+        return '<div class="ml-chip ml-chip-pending"><i class="ti ti-clock"></i> '+nombreSafe+' <span class="ml-tag">pendiente</span></div>';
+      }
+      // Sin relación todavía, o una solicitud previa fue rechazada (puede reintentar).
+      const label = l.solicitudEstado === 'rejected' ? 'Reintentar' : 'Solicitar acceso';
+      return '<button class="ml-chip ml-chip-ask" onclick="solicitarAccesoUI(\''+l.id+'\',\''+nombreJs+'\')"><i class="ti ti-send"></i> '+nombreSafe+' <span class="ml-tag">'+label+'</span></button>';
+    }).join('');
+  } catch(e){
+    body.innerHTML = '<div class="legend-txt">No se pudo conectar con el servidor.</div>';
+  }
+}
+
+// Pide acceso a otra liga. El backend valida que no esté ya participando ahí
+// y que no tenga otra solicitud pendiente para esa misma liga.
+async function solicitarAccesoUI(ligaId, nombre){
+  if(!confirm('¿Solicitar acceso a "'+nombre+'"? El administrador de esa liga va a tener que aprobarlo antes de que puedas entrar.')) return;
+  try{
+    const r = await fetch('/api/liga', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
+      body: JSON.stringify({ accion:'solicitarAcceso', ligaId:_ligaActual, ligaDestino:ligaId })
+    });
+    const d = await r.json().catch(()=>({}));
+    if(!r.ok){ toast(d.error || 'No se pudo enviar la solicitud.'); return; }
+    toast('Solicitud enviada. El administrador de "'+nombre+'" la va a revisar.');
+    cargarMisLigasHeader();
+  }catch(e){ toast('No se pudo conectar con el servidor.'); }
+}
+
+// El jugador ya participa en la otra liga (fue aceptado en algún momento):
+// lo mandamos al selector de login de esa liga para que entre con su usuario
+// y contraseña de ahí (cada liga tiene sus propias credenciales).
+async function entrarAOtraLiga(ligaId, nombre){
+  if(!confirm('Vas a salir de esta sesión para entrar a "'+nombre+'". ¿Continuar?')) return;
+  doLogout();
+  // Pequeño delay para dejar terminar el detectarLigaActiva() que dispara
+  // initLogin() (llamado dentro de doLogout), y recién ahí forzar la liga
+  // elegida + traer su lista de usuarios para pintar el selector de login.
+  setTimeout(function(){ try{ elegirLigaLogin(ligaId); }catch(_){} }, 300);
+}
