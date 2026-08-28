@@ -216,7 +216,14 @@ undo_demo:'Undo simulation',confirm_undo_demo:'Undo the simulation? Only matches
 toast_demo_undone:'Simulations removed.',
 },};
 const LAYOUT='selector';const LOGINMODE='groups';
-let PUNTOS={1:[35,34,33,32,31],2:[32,31,30,29,28],3:[29,28,27,26,25],4:[26,25,24,23,22],5:[23,22,21,20,19],6:[20,19,18,17,16],7:[17,16,15,14,13],8:[14,13,12,11,10],9:[14,13,12,11,10],10:[11,10,9,8,7],11:[8,7,6,5,4],12:[5,4,3,2,1]};
+// Default de PUNTOS antes de que _hydrate() lo pise con lo guardado en la base.
+// Generado con la fórmula estándar de la liga: 12 grupos de 5, paso=3, el
+// último puesto del último grupo vale 1 punto. (Antes había un valor
+// hardcodeado con un bug: G8 y G9 tenían los mismos puntos por una escala
+// vieja que quedó desalineada al agregar un grupo. Ya no puede pasar: este
+// valor se recalcula con la misma fórmula que usa "Recalcular puntos" y
+// "Generar escala automática" en el panel de admin.)
+let PUNTOS={1:[38,37,36,35,34],2:[35,34,33,32,31],3:[32,31,30,29,28],4:[29,28,27,26,25],5:[26,25,24,23,22],6:[23,22,21,20,19],7:[20,19,18,17,16],8:[17,16,15,14,13],9:[14,13,12,11,10],10:[11,10,9,8,7],11:[8,7,6,5,4],12:[5,4,3,2,1]};
 let DESTINO={1:['G1','G1','G2','G2','G3'],2:['G1','G1','G2','G3','G4'],3:['G1','G2','G3','G4','G5'],4:['G2','G3','G4','G5','G6'],5:['G3','G4','G5','G6','G7'],6:['G4','G5','G6','G7','G8'],7:['G5','G6','G7','G8','G9'],8:['G6','G7','G8','G9','G10'],9:['G7','G8','G9','G10','G11'],10:['G8','G9','G10','G11','G12'],11:['G9','G10','G11','G12','G12'],12:['G10','G11','G11','G12','G12']};
 let FECHAS=['15/06/26 – 19/07/26','20/07/26 – 23/08/26','24/08/26 – 27/09/26'];
 let PO_FECHAS = { r64:{type:'single',date:'',from:'',to:''}, r32:{type:'single',date:'',from:'',to:''}, r16:{type:'single',date:'',from:'',to:''}, r8:{type:'single',date:'',from:'',to:''}, r4:{type:'single',date:'',from:'',to:''}, r2:{type:'single',date:'',from:'',to:''} };

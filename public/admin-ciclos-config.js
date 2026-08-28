@@ -315,6 +315,11 @@ function renderAdmin(){
               </div>
               <button class="btn btn-accent" onclick="autoGenerarEscala()">${t('autoscale_btn')}</button>
             </div>
+          </div>
+          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🔄 Recalcular puntos por posición</div>
+            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Regenera automáticamente los puntos de TODOS los grupos del ciclo activo con la escala estándar de la liga (paso 3, el último puesto del último grupo siempre vale 1 punto). Útil después de agregar/quitar grupos o jugadores.</p>
+            <button class="btn btn-accent" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular ahora</button>
           </div>`;
     } // fin config exclusiva superadmin
 

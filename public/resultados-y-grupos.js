@@ -54,8 +54,7 @@ function renderGrupos(){
       if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
       
       if(LAYOUT==='selector'){
-        const btnRecalc = esAdmin(currentUser) ? `<button class="btn btn-sm btn-primary" style="margin-left:auto" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular Puntos</button>` : '';
-        html+=`<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem"><div class="section-lbl" style="margin:0">${t('choose_group')}</div>${btnRecalc}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
+        html+=`<div class="card"><div class="section-lbl">${t('choose_group')}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
             const gid=i+1;
             const loc=currentUser?findLoc(currentUser.name,viewCycle):null;
             const mine=currentUser&&currentUser.role==='player'&&loc&&loc.g===gid;
@@ -642,18 +641,28 @@ function setTotalCycles(val){
 // ============================================================================
 // Recalcular puntos por posición de todos los grupos.
 //
-// Se llama desde el botón "Recalcular" en la tabla de grupos y en el header
-// "Puntos para la Clasificación General". Sólo admins.
+// Se llama SOLO desde el panel de administrador (Ciclos y Configuración,
+// sección "Recalcular puntos por posición"). NO se llama desde el botón
+// "Editar" de cada grupo — ese botón abre editPuntosUI() para edición 100%
+// manual, sin recalcular nada automáticamente.
 //
-// Qué hace: recorre todos los grupos del ciclo activo y regenera PUNTOS[gid]
-// usando ptsForPos(), que calcula:
-//   pts_pos = jugadores_en_grupos_inferiores + (jugadores_en_mi_grupo - posicion)
+// Qué hace: regenera PUNTOS para TODOS los grupos del ciclo activo con la
+// escala estándar de la liga:
+//   - El ÚLTIMO grupo SIEMPRE ancla en 1 punto para el último puesto,
+//     subiendo de a 1 por posición (…,2,3,4,5 para el 1º puesto del último grupo).
+//   - Cada grupo hacia ARRIBA suma STEP puntos al ganador (1er puesto).
+//   - Dentro de un mismo grupo, cada posición baja 1 punto respecto a la anterior,
+//     con piso en 1 punto (nunca negativo ni cero).
+//   - Si un grupo tiene más de 5 jugadores, del 6º puesto en adelante se repite
+//     el valor del 5º puesto (no sigue bajando).
 //
-// Ejemplo: en un ciclo con 3 grupos de 5, el 1º del Grupo 1 saca
-// 10 (los 2 grupos abajo) + 5 (mi grupo) - 0 (posición) = 15 puntos.
+// Es la MISMA fórmula que usa "Generar escala automática" con STEP=3 fijo,
+// pero sin pedir el valor a mano — es la escala estándar de la liga.
 //
-// Útil cuando: agregaste/quitaste jugadores, moviste alguien de grupo, o los
-// puntos configurados quedaron desalineados con la realidad de la liga.
+// Ejemplo con 3 grupos de 5 (STEP=3):
+//   Grupo 3 (último): 5,4,3,2,1
+//   Grupo 2:          8,7,6,5,4   (5+1*3=8)
+//   Grupo 1:          11,10,9,8,7 (5+2*3=11)
 // ============================================================================
 function recalcularPuntajesGrupos(){
   if(!esAdmin(currentUser)){
@@ -661,37 +670,40 @@ function recalcularPuntajesGrupos(){
     return;
   }
   const c = cycles[activeN - 1];
-  if(!c || !Array.isArray(c.groups)){
+  if(!c || !Array.isArray(c.groups) || !c.groups.length){
     toast('No hay ciclo activo.');
     return;
   }
-  // Guardar el viewCycle actual porque ptsForPos lo lee para saber qué ciclo
-  // usar; forzamos que use el activo mientras recalculamos.
-  const vcPrev = (typeof viewCycle !== 'undefined') ? viewCycle : activeN;
-  try { viewCycle = activeN; } catch(_){}
+  if(!confirm('Esto va a sobrescribir los puntos por posición de TODOS los grupos del ciclo activo con la escala estándar (paso 3). ¿Confirmás?')) return;
+
+  const STEP = 3;   // cuánto sube el 1er puesto de un grupo al siguiente hacia arriba
+  const BASE = 5;   // escalones definidos (1º a 5º); del 6º en adelante se repite el 5º
+  const numGrupos = c.groups.length;
 
   const nuevoPUNTOS = {};
-  for(let gi = 0; gi < c.groups.length; gi++){
+  for(let gi = 0; gi < numGrupos; gi++){
     const gid = gi + 1;
     const g = c.groups[gi];
-    const nPlayers = (g && Array.isArray(g.players)) ? g.players.length : 5;
-    // Generamos array de puntos para las N posiciones posibles del grupo.
-    // Usamos max(nPlayers, 5) para tener holgura si en el futuro se agrega gente.
-    const N = Math.max(nPlayers, 5);
+    // Cantidad de posiciones a generar: el tamaño real del grupo, con mínimo
+    // BASE para no perder escalones si el grupo está incompleto.
+    const nPlayers = (g && Array.isArray(g.players)) ? g.players.length : 0;
+    const N = Math.max(nPlayers, BASE);
+    // El ÚLTIMO grupo ancla en BASE (5) para el ganador. Cada grupo hacia
+    // arriba (número menor) suma STEP. distanciaDesdeAbajo=0 para el último.
+    const distanciaDesdeAbajo = numGrupos - gid;
+    const ganador = BASE + distanciaDesdeAbajo * STEP;
     const arr = [];
     for(let pos = 0; pos < N; pos++){
-      arr.push(ptsForPos(gid, pos));
+      const escalon = Math.min(pos, BASE - 1);
+      arr.push(Math.max(1, ganador - escalon));
     }
     nuevoPUNTOS[gid] = arr;
   }
   PUNTOS = nuevoPUNTOS;
 
-  // Restaurar viewCycle previo
-  try { viewCycle = vcPrev; } catch(_){}
-
-  // Recalcular todo y persistir
   try { refreshAll(); } catch(_){}
   try { renderAll(); } catch(_){}
+  try { renderAdmin(); } catch(_){}
   if(typeof persist === 'function') persist(true);
-  toast('Puntos recalculados en base a la cantidad actual de jugadores por grupo.');
+  toast('Puntos recalculados con la escala estándar (paso 3, último puesto del último grupo = 1 punto).');
 }
