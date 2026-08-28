@@ -310,6 +310,14 @@ module.exports = async function handler(req, res){
     if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
     if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
 
+    // Una vez arrancados los Play Offs, el chat de grupo queda de solo
+    // lectura (la conversación pasa al cuadro de Play Offs). Esto es un
+    // candado real, no solo visual: si alguien pega directo contra la API
+    // saltándose la interfaz, igual se lo rechaza acá.
+    if(stateMsg.playoff && stateMsg.playoff.started){
+      return res.status(403).json({ error: 'El chat de grupo se cerró: los Play Offs ya arrancaron.' });
+    }
+
     const c = Array.isArray(stateMsg.cycles) ? stateMsg.cycles[ciclo - 1] : null;
     const g = c && Array.isArray(c.groups) ? c.groups[grupo - 1] : null;
     const soyMiembro = !!(g && Array.isArray(g.players) && g.players.indexOf(session.u) >= 0);
