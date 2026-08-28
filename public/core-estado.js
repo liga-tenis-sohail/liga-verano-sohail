@@ -382,33 +382,30 @@ function validMatch(s){if(s.length<2)return{ok:false,msg:t('valid_need2sets')};i
 function findLoc(name,cycN){const c=cycles[cycN-1];if(!c||!c.groups)return null;for(let gi=0;gi<c.groups.length;gi++){if(c.groups[gi]&&c.groups[gi].players&&c.groups[gi].players.indexOf(name)>=0)return{g:gi+1};}return null;}
 function getActive(){return cycles[activeN-1];}
 function getInitials(n){if(!n)return'?';return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
+// Fuente ÚNICA de verdad para "cuántos puntos vale una posición de un grupo".
+// Lee directamente de PUNTOS[gid][pos], que es donde escriben:
+//   - editPuntosUI + savePuntos (edición manual, botón "Editar" en Grupos)
+//   - recalcularPuntajesGrupos (botón "Recalcular ahora" en panel admin)
+//   - autoGenerarEscala (botón "Generar escala automática")
+//   - estadoInicial en el backend (ligas nuevas)
+// Antes esta función tenía su PROPIA fórmula (contaba jugadores en grupos
+// inferiores) que ignoraba por completo lo guardado en PUNTOS. Resultado:
+// editar o recalcular puntos no se reflejaba en ningún lado de la UI, porque
+// la tabla de Grupos, la Clasificación General y el perfil del jugador
+// llamaban a esta función en vez de leer PUNTOS directamente. Unificado acá.
 function ptsForPos(gid, pos) {
   try {
-    const c = (typeof cycles !== 'undefined' && cycles) ? (cycles[viewCycle - 1] || cycles[activeN - 1]) : null;
-    if (!c || !Array.isArray(c.groups)) return Math.max(1, 5 - pos);
-    
-    const grupos = c.groups;
-    const iGrupo = gid - 1;
-    
-    // Si el grupo no existe (por discrepancia en ciclos antiguos), damos fallback seguro
-    if (!grupos[iGrupo]) return Math.max(1, 5 - pos);
-    
-    let jugadoresInferiores = 0;
-    // Contamos cuántos jugadores hay en total en todos los grupos por debajo de este
-    for (let k = iGrupo + 1; k < grupos.length; k++) {
-      if (grupos[k] && Array.isArray(grupos[k].players)) {
-        jugadoresInferiores += grupos[k].players.length;
-      }
+    if (typeof PUNTOS !== 'undefined' && PUNTOS && PUNTOS[gid] && PUNTOS[gid][pos] !== undefined) {
+      return PUNTOS[gid][pos];
     }
-    
-    // Contamos cuántos hay en mi propio grupo
-    const miGrupo = grupos[iGrupo];
-    const cantEnMiGrupo = (miGrupo && Array.isArray(miGrupo.players)) ? miGrupo.players.length : 5;
-    
-    // Cálculo: Jugadores por debajo + (Mi total de grupo - mi posición)
-    // Ej: Grupo 1 de 5, si soy 1º (pos 0) -> Inf(15) + (5 - 0) = 20 pts.
-    return jugadoresInferiores + (cantEnMiGrupo - pos); 
-    
+    // Fallback defensivo si el grupo no tiene escala definida todavía
+    // (por ejemplo, más posiciones de las que se generaron en la escala):
+    // repetimos el último valor conocido del grupo, o usamos 1 como piso.
+    if (typeof PUNTOS !== 'undefined' && PUNTOS && PUNTOS[gid] && PUNTOS[gid].length) {
+      const arr = PUNTOS[gid];
+      return arr[arr.length - 1] || 1;
+    }
+    return Math.max(1, 5 - pos);
   } catch(e) {
     console.error("Error en ptsForPos:", e);
     return Math.max(1, 5 - pos); // Nunca rompe la tabla
