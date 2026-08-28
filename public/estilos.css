@@ -1671,16 +1671,14 @@ button.liga-tab{cursor:pointer}
 
 .msg-bubble-row{display:flex;justify-content:flex-start}
 .msg-bubble-row.me{justify-content:flex-end}
-/* Estilo iMessage/WhatsApp: AMBOS lados con un sombreado claro, no un lado
-   sólido oscuro contra uno neutro. El propio mensaje usa el tono celeste que
-   ya usa el resto de la app (--soft) para diferenciarlo del ajeno (gris
-   clarito, --surface2), pero los dos quedan "livianos" y con texto oscuro. */
+/* Cada burbuja recibe su color por JS (inline style), calculado a partir del
+   nombre del autor — así cada jugador tiene un color propio y consistente
+   en toda la app, no solo "yo=celeste, resto=gris". Estas reglas de clase
+   quedan como valor por defecto/fallback si por algún motivo el inline no
+   llegara a aplicarse. */
 .msg-bubble{
   max-width:78%;padding:8px 12px;border-radius:14px;
   background:var(--surface2);border:1px solid var(--border);color:var(--text);
-}
-.msg-bubble-row.me .msg-bubble{
-  background:var(--soft);border-color:var(--pri);color:var(--text);
 }
 .msg-bubble-author{font-size:11px;font-weight:700;color:var(--priD);margin-bottom:2px}
 .msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
