@@ -4,29 +4,43 @@
 // Este archivo comparte scope global con los otros public/*.js.
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
+// LOGIN UNIFICADO: pintarLogin ahora recibe la respuesta de /api/users en
+// modo GLOBAL ({mode:'global', players:[...]}) — un único dropdown
+// alfabético con todos los jugadores activos de TODAS las ligas activas,
+// sin agrupar por grupo/cuadro (eso ya no aplica: son varias ligas a la vez,
+// y cada una tiene su propia estructura de grupos).
+//
+// Se mantiene compatibilidad con el modo LIGA (d.mode==='cyc'|'po') por si
+// esta función se llama desde otro contexto que sí pasa ?liga= explícito
+// (ej. si en el futuro hiciera falta ver el login de una liga puntual).
 function pintarLogin(d){
   const s=document.getElementById('login-user');if(!s)return;
   const prev=s.value;
   s.innerHTML='';
   const ph=document.createElement('option');ph.value='';ph.textContent=t('select_user');s.appendChild(ph);
   const opt=u=>new Option(u.i?u.v+' (inactivo)':u.v,u.v);
-  // 1) El administrador, arriba de todo
+  // 1) El administrador, arriba de todo (cuenta de gestión, no es parte del catálogo)
   const admin=document.createElement('option');admin.value='admin';admin.textContent=t('admin_org');s.appendChild(admin);
-  // 2) Las secciones: grupos del ciclo activo, o cuadros si están los playoffs
-  const esPO=d.mode==='po';
-  (d.sections||[]).forEach(sec=>{
-    const og=document.createElement('optgroup');
-    og.label=esPO?('Cuadro '+sec.k):groupName(sec.k);
-    (sec.players||[]).forEach(u=>og.appendChild(opt(u)));
-    s.appendChild(og);
-  });
-  // 3) Jugadores que no cayeron en ninguna sección (si los hubiera)
-  if((d.loose||[]).length){
-    const og=document.createElement('optgroup');og.label='Sin grupo';
-    d.loose.forEach(u=>og.appendChild(opt(u)));
-    s.appendChild(og);
+
+  if(d.mode==='global'){
+    // Lista plana, alfabética, sin secciones.
+    (d.players||[]).forEach(u=>s.appendChild(opt(u)));
+  }else{
+    // Compatibilidad: modo liga puntual (grupos/cuadros)
+    const esPO=d.mode==='po';
+    (d.sections||[]).forEach(sec=>{
+      const og=document.createElement('optgroup');
+      og.label=esPO?('Cuadro '+sec.k):groupName(sec.k);
+      (sec.players||[]).forEach(u=>og.appendChild(opt(u)));
+      s.appendChild(og);
+    });
+    if((d.loose||[]).length){
+      const og=document.createElement('optgroup');og.label='Sin grupo';
+      d.loose.forEach(u=>og.appendChild(opt(u)));
+      s.appendChild(og);
+    }
   }
-  // 4) Super Admin, abajo de todo
+  // 2) Super Admin, abajo de todo
   const saOg=document.createElement('optgroup');saOg.label='Super Admin';
   saOg.appendChild(new Option('Super Administrador','superadmin'));
   s.appendChild(saOg);
@@ -131,9 +145,11 @@ async function initLogin(){
     })
     .catch(() => { /* si falla, seguimos con lo cacheado */ });
 
-  // 0) Determinar a qué liga se hace login. Si hay una sola activa, esa. Si hay
-  //    varias, se muestra un selector. Esto hace el login dinámico: nunca entra
-  //    a una liga cerrada, y sigue a la liga activa aunque cambie.
+  // 0) LOGIN UNIFICADO: ya no se elige liga antes de loguearse. Solo hace
+  //    falta saber si hay AL MENOS una liga activa (si no hay ninguna, cae
+  //    en el acceso especial de admin). El jugador ya no ve ningún selector
+  //    de liga acá — eso ahora ocurre DESPUÉS del login (ver doLogin y
+  //    mostrarSelectorLigaPostLogin), solo si está en 2+ ligas activas.
   await detectarLigaActiva();
 
   // 1) Pintar YA con lo último que sabemos. El desplegable aparece instantáneo
@@ -148,10 +164,11 @@ async function initLogin(){
   //    405 al instante sin tocar la base, pero deja la función levantada.
   fetch('/api/login',{method:'GET'}).catch(()=>{});
 
-  // 3) Traer la lista de verdad y refrescar por detrás.
+  // 3) Traer la lista de verdad (modo GLOBAL: sin ?liga=, junta todas las
+  //    ligas activas en un único dropdown alfabético) y refrescar por detrás.
   let d={};
   try{
-    const r=await fetch(_conLiga('/api/users'),{cache:'no-store'});
+    const r=await fetch('/api/users',{cache:'no-store'});
     if(!r.ok){
       const err=await r.json().catch(()=>({}));
       const msg=r.status===404 ? t('err_users_404') : t('err_server_said')+r.status+'. '+(err.error||'');
@@ -174,16 +191,17 @@ async function initLogin(){
   let viejo=null; try{ viejo=localStorage.getItem('lsu'); }catch(_){}
   if(nuevo!==viejo){
     pintarLogin(d);
-    // Solo nombres y grupos: no viajan hashes ni roles (lo garantiza /api/users).
+    // Solo nombres: no viajan hashes ni roles (lo garantiza /api/users).
     try{ localStorage.setItem('lsu',nuevo); }catch(_){ /* modo privado: sin caché */ }
   }
   cargarLigasPasadas();
 }
 
-// Detecta las ligas activas y decide a cuál hacer login.
-// - 1 activa  → se elige sola (login directo a esa).
-// - 2+ activas → se muestra un selector arriba del login.
-// - 0 activas → cae en la liga por defecto (compatibilidad).
+// Detecta si hay alguna liga activa. Ya NO elige una liga para el login del
+// jugador (eso pasa después de loguearse, ver mostrarSelectorLigaPostLogin):
+// esta función solo resuelve el caso especial "0 ligas activas" (acceso
+// admin para reabrir/crear) y deja _ligaActual listo para ese caso, y para
+// el modo "ver liga pasada" que sigue existiendo aparte.
 let _ligasActivas=[];
 async function detectarLigaActiva(){
   let todas=[];
@@ -195,6 +213,7 @@ async function detectarLigaActiva(){
       .sort((a,b)=>(b.orden||0)-(a.orden||0));
   }catch(_){ _ligasActivas=[]; todas=[]; }
   const sel=document.getElementById('liga-selector');
+  if(sel) sel.style.display='none';   // el pre-selector de liga ya no se usa en el login
   // CASO ESPECIAL: ninguna liga activa. El admin igual tiene que poder entrar
   // (para reabrir o crear una). Elegimos la última liga (la más reciente aunque
   // esté cerrada) como destino de login, y mostramos el acceso admin especial.
@@ -202,24 +221,18 @@ async function detectarLigaActiva(){
     const ultima=todas.slice().sort((a,b)=>(b.orden||0)-(a.orden||0))[0];
     _ligaActual = ultima ? ultima.id : null;
     _sinLigasActivas = true;
-    if(sel) sel.style.display='none';
     aplicarNombreLigaLogin();
     mostrarAccesoAdmin(ultima);
     return;
   }
   _sinLigasActivas = false;
   ocultarAccesoAdmin();
-  if(_ligasActivas.length===1){
-    _ligaActual = _ligasActivas[0].id;
-    if(sel) sel.style.display='none';
-    aplicarNombreLigaLogin();
-    return;
-  }
-  // Varias activas: si no hay una elegida (o la elegida ya no está activa), tomar la primera.
+  // _ligaActual queda apuntando a la primera activa por defecto: lo usan
+  // admin/superadmin (que sí siguen atados a una sola liga por login) y el
+  // panel de gestión al recién entrar. El jugador ya no depende de esto.
   if(!_ligaActual || !_ligasActivas.some(l=>l.id===_ligaActual)){
     _ligaActual=_ligasActivas[0].id;
   }
-  pintarSelectorLigas();
   aplicarNombreLigaLogin();
 }
 // Muestra los botones para elegir entre varias ligas activas.

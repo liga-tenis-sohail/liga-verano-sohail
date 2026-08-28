@@ -98,26 +98,87 @@ async function cargarCatJugadores(){
     pintarCatJugadores();
   }catch(_){ cont.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
+// ---- Fusión de perfiles (login unificado) ----
+// Un mismo jugador real puede tener 2 filas de catálogo (2 jugadorId
+// distintos) si se lo cargó con nombres de usuario distintos en dos ligas
+// (ej: "Juan Pérez" en una, "jperez" en otra), sin email para vincularlos
+// solo. _fusionModo activa un modo de selección: se eligen 2 jugadores con
+// checkbox y se fusionan en uno solo (una queda como principal, la otra se
+// borra del catálogo y se re-vincula en todas las ligas donde aparecía).
+let _fusionModo=false, _fusionSel=[];
+function toggleFusionModo(){
+  _fusionModo=!_fusionModo;
+  _fusionSel=[];
+  pintarCatJugadores();
+}
+function toggleFusionSel(jid){
+  const i=_fusionSel.indexOf(jid);
+  if(i>=0){ _fusionSel.splice(i,1); }
+  else{
+    if(_fusionSel.length>=2) _fusionSel.shift();   // solo se sostienen 2 a la vez
+    _fusionSel.push(jid);
+  }
+  pintarCatJugadores();
+}
 function pintarCatJugadores(){
   const cont=document.getElementById('cat-jugadores-list');
   if(!cont)return;
   const q=(document.getElementById('cj-search')?.value||'').toLowerCase().trim();
   const lista=_catJugadores.filter(j=>!q||j.nombre.toLowerCase().includes(q));
-  if(!lista.length){ cont.innerHTML='<div class="pm-past-empty">'+t('cj_none')+'</div>'; return; }
-  cont.innerHTML='<div class="cj-count">'+t('cj_total').replace('{n}',_catJugadores.length)+'</div>'
+  const barraFusion='<div class="cj-fusion-bar">'
+    +'<button class="btn btn-sm'+(_fusionModo?' btn-primary':'')+'" onclick="toggleFusionModo()">'
+    +'<i class="ti ti-git-merge"></i> '+(_fusionModo?t('cj_fusion_salir'):t('cj_fusion_btn'))+'</button>'
+    +(_fusionModo?'<span class="cj-fusion-hint">'+t('cj_fusion_hint')+'</span>':'')
+    +'</div>';
+  if(!lista.length){ cont.innerHTML=barraFusion+'<div class="pm-past-empty">'+t('cj_none')+'</div>'; return; }
+  cont.innerHTML=barraFusion+'<div class="cj-count">'+t('cj_total').replace('{n}',_catJugadores.length)+'</div>'
     + lista.map(j=>{
     // Un jugador con partidos NO se puede borrar (protege el historial).
+    // La fusión SÍ puede incluir jugadores con partidos: no se pierde nada,
+    // el historial queda guardado por nombre en cada liga tal cual estaba.
     const tienePartidos=j.partidos>0;
     const meta=[];
     if(j.email) meta.push('<i class="ti ti-mail"></i> '+escPast(j.email));
     meta.push('<i class="ti ti-trophy"></i> '+t('cj_leagues').replace('{n}',j.ligas));
     meta.push('<i class="ti ti-ball-tennis"></i> '+t('cj_matches').replace('{n}',j.partidos));
+
+    if(_fusionModo){
+      const marcado=_fusionSel.indexOf(j.jugadorId)>=0;
+      return '<div class="cj-item cj-item-fusion'+(marcado?' on':'')+'" onclick="toggleFusionSel(\''+escJsAttr(j.jugadorId)+'\')">'
+        +'<div class="cj-chk'+(marcado?' on':'')+'"><i class="ti ti-check"></i></div>'
+        +'<div class="cj-item-tx"><b>'+escPast(j.nombre)+'</b>'
+        +'<span class="cj-meta">'+meta.join(' · ')+'</span></div></div>';
+    }
+
     const btn=tienePartidos
       ? '<button class="cj-del" disabled title="'+t('cj_has_matches')+'"><i class="ti ti-lock"></i></button>'
       : '<button class="cj-del cj-del-on" onclick="eliminarJugadorUI(\''+escJsAttr(j.jugadorId)+'\',\''+escJsAttr(j.nombre)+'\')"><i class="ti ti-trash"></i></button>';
     return '<div class="cj-item"><div class="cj-item-tx"><b>'+escPast(j.nombre)+'</b>'
       +'<span class="cj-meta">'+meta.join(' · ')+'</span></div>'+btn+'</div>';
-  }).join('');
+  }).join('')
+    + (_fusionModo && _fusionSel.length===2 ? pintarBarraConfirmarFusion() : '');
+}
+function pintarBarraConfirmarFusion(){
+  const a=_catJugadores.find(j=>j.jugadorId===_fusionSel[0]);
+  const b=_catJugadores.find(j=>j.jugadorId===_fusionSel[1]);
+  if(!a||!b) return '';
+  return '<div class="cj-fusion-confirm">'
+    +'<div class="cj-fusion-confirm-tx">'+t('cj_fusion_confirm_lbl').replace('{a}',escPast(a.nombre)).replace('{b}',escPast(b.nombre))+'</div>'
+    +'<div class="cj-fusion-confirm-btns">'
+    +'<button class="btn btn-sm" onclick="fusionarJugadoresUI(\''+escJsAttr(a.jugadorId)+'\',\''+escJsAttr(b.jugadorId)+'\',\''+escJsAttr(a.nombre)+'\')">'+t('cj_fusion_keep').replace('{n}',escPast(a.nombre))+'</button>'
+    +'<button class="btn btn-sm" onclick="fusionarJugadoresUI(\''+escJsAttr(b.jugadorId)+'\',\''+escJsAttr(a.jugadorId)+'\',\''+escJsAttr(b.nombre)+'\')">'+t('cj_fusion_keep').replace('{n}',escPast(b.nombre))+'</button>'
+    +'</div></div>';
+}
+async function fusionarJugadoresUI(mantenerId,descartarId,nombreMantener){
+  if(!(await confirmarModal(t('cj_fusion_final_confirm').replace('{n}',nombreMantener), {titulo:t('cj_fusion_btn'), okTxt:t('cj_fusion_btn'), peligro:true})))return;
+  try{
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'fusionarJugadores',jugadorIdMantener:mantenerId,jugadorIdDescartar:descartarId,ligaId:_ligaActual||undefined})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ alert(d.error||t('cj_fusion_err')); return; }
+    toast(t('cj_fusion_done').replace('{n}',nombreMantener));
+    _fusionModo=false; _fusionSel=[];
+    cargarCatJugadores();
+  }catch(_){ alert(t('cj_fusion_err')); }
 }
 function filtrarCatJugadores(){ pintarCatJugadores(); }
 async function eliminarJugadorUI(jid,nombre){

@@ -48,11 +48,13 @@ async function loginConPasskey(){
     const d=await r2.json();
     if(!r2.ok) throw new Error(d.error||'No se pudo entrar.');
     // 4) Entrar con el token, igual que el login con clave
-    entrarConToken(d);
+    const resuelto=entrarConToken(d);
     // Si la contraseña sigue siendo pública, forzar el cambio. En este flujo no
     // tenemos la clave anterior (entramos con Face ID): pasamos null y el
     // servidor la acepta porque la clave guardada está en la lista pública.
-    if(d && d.mustChangePw) forcePwChange(null);
+    // Si eligeLiga cortó el flujo (resuelto===false), el cambio de clave se
+    // aplica DESPUÉS de elegir liga (ver elegirLigaTrasLogin), no acá.
+    if(resuelto && d && d.mustChangePw) forcePwChange(null);
   }catch(err){
     // Si el usuario cancela el Face ID, no es un error para mostrar feo.
     const msg=(err&&err.name==='NotAllowedError')?t('pk_cancelled'):(err.message||t('pk_login_err'));
@@ -531,11 +533,25 @@ async function doLogin(){
   if(!uv||!pv){e.textContent=t('err_need_both');e.style.display='block';return;}
   if(btn){btn.disabled=true;btn.textContent=t('login_working');}
   try{
-    // La contraseña se verifica en el servidor. Acá no hay ningún hash con qué compararla.
+    // LOGIN UNIFICADO: ya no se manda ligaId de antemano para un jugador
+    // (admin/superadmin siguen mandando _ligaActual, que el server ignora
+    // para 'player'). El server busca al usuario en todas las ligas activas.
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){e.textContent=d.error||'Usuario o contraseña incorrectos.';e.style.display='block';return;}
     _token=d.token;
+
+    // El jugador está en 2+ ligas activas: la contraseña YA se validó, pero
+    // todavía no sabemos a qué liga entrar. Se muestran botones y se corta
+    // acá — el resto del login sigue en elegirLigaTrasLogin() cuando el
+    // jugador toque uno.
+    if(d.eligeLiga){
+      _pendienteMustChangePw = !!d.mustChangePw;
+      _pendientePassPlano = pv;
+      mostrarSelectorLigaPostLogin(d.ligas, d.name);
+      return;
+    }
+
     // El estado ya viene en la respuesta del login: no hace falta una segunda
     // llamada a /api/state, que releía los mismos 222 KB de la base.
     if(d.state){
@@ -566,6 +582,62 @@ async function doLogin(){
     if(btn){btn.disabled=false;btn.textContent=t('enter')||'Entrar';}
   }
   montarAppTrasLogin();
+}
+
+// ============================================================================
+// PASO 2 DEL LOGIN UNIFICADO — el jugador está en 2+ ligas activas.
+// La contraseña ya se validó y _token ya es válido (sin liga asignada
+// todavía). Se muestran botones (mismo lenguaje visual que el selector de
+// ligas pasadas) y, al elegir una, se pide el state con /api/state
+// (?elegir=1 hace que el server revalide pertenencia antes de entregar nada).
+// ============================================================================
+let _pendienteMustChangePw=false, _pendientePassPlano='';
+function mostrarSelectorLigaPostLogin(ligas, nombreUsuario){
+  const wrap=document.querySelector('.login-wrap');
+  const body=document.querySelector('.login-body');
+  if(!wrap || !body) return;
+  // Ocultamos SOLO el formulario de usuario/contraseña (.login-body): ya
+  // se autenticó, solo falta elegir liga. El header (logo/título) queda
+  // visible arriba, igual que en el pre-selector viejo de ligas.
+  body.style.display='none';
+  let box=document.getElementById('login-liga-post');
+  if(!box){
+    box=document.createElement('div');
+    box.id='login-liga-post';
+    box.className='liga-selector';
+    // Mismo patrón que #liga-selector: hermano de .login-wrap, insertado
+    // justo después (dentro del login-body hubiera quedado oculto con él).
+    if(wrap.parentNode) wrap.parentNode.insertBefore(box, wrap.nextSibling);
+  }
+  box.innerHTML='<div class="liga-sel-lbl">'+t('lsel_title_post').replace('{n}', escPast(nombreUsuario))+'</div><div class="liga-sel-btns">'
+    + ligas.map(l=>
+      '<button class="liga-sel-btn" onclick="elegirLigaTrasLogin(\''+String(l.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">'
+      + '<i class="ti ti-trophy"></i> '+escPast(l.nombre)+'</button>').join('')
+    +'</div><button class="btn btn-sm" style="margin-top:.75rem" onclick="doLogout()">'+t('lsel_cancel')+'</button>';
+  box.style.display='';
+}
+async function elegirLigaTrasLogin(ligaId){
+  const box=document.getElementById('login-liga-post');
+  const e=document.getElementById('login-err');
+  try{
+    const r=await fetch('/api/state?liga='+encodeURIComponent(ligaId)+'&elegir=1',{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok){ if(e){e.textContent=d.error||t('err_hydrate');e.style.display='block';} return; }
+    _ligaActual=ligaId;
+    const ok=_hydrate(d.state);
+    if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} return; }
+    _lastSaved=_serialize();
+    _loadOK=true;
+    const u=USERS[d.name];
+    if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} return; }
+    currentUser=u; currentUser.key=d.name;
+    if(box) box.style.display='none';
+    if(_pendienteMustChangePw) forcePwChange(_pendientePassPlano);
+    _pendientePassPlano='';
+    montarAppTrasLogin();
+  }catch(err){
+    if(e){e.textContent=t('err_no_server');e.style.display='block';}
+  }
 }
 
 // Monta la app tras un login exitoso (con clave o con passkey). currentUser,
@@ -602,23 +674,52 @@ function montarAppTrasLogin(){
 
 // Entrar con un token+state ya obtenidos (usado por el login con passkey).
 // Replica los chequeos de doLogin sobre el resultado del servidor.
+//
+// LOGIN UNIFICADO: si el server devolvió eligeLiga:true (jugador en 2+
+// ligas activas), no hay state todavía — se muestra el mismo selector de
+// botones que usa el login con clave, y se corta acá. Devuelve true/false
+// para que el llamador (loginConPasskey) sepa si ya se resolvió del todo
+// o si mustChangePw hay que aplicarlo después de elegir liga.
 function entrarConToken(d){
   const e=document.getElementById('login-err');
   _token=d.token;
+
+  if(d.eligeLiga){
+    _pendienteMustChangePw = !!d.mustChangePw;
+    _pendientePassPlano = null;   // vino de passkey: no hay clave en texto plano
+    mostrarSelectorLigaPostLogin(d.ligas, d.name);
+    return false;
+  }
+
   if(d.state){
     const ok=_hydrate(d.state);
-    if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} _token=null; return; }
+    if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} _token=null; return false; }
     _lastSaved=_serialize();
     _loadOK=true;
   }
-  if(!_loadOK){ if(e){e.textContent=t('err_no_data');e.style.display='block';} _token=null; return; }
+  if(!_loadOK){ if(e){e.textContent=t('err_no_data');e.style.display='block';} _token=null; return false; }
   const u=USERS[d.name];
-  if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} _token=null; return; }
-  if(u.inactive&&d.role==='player'){ if(e){e.textContent=t('err_inactive');e.style.display='block';} _token=null; return; }
+  if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} _token=null; return false; }
+  if(u.inactive&&d.role==='player'){ if(e){e.textContent=t('err_inactive');e.style.display='block';} _token=null; return false; }
   currentUser=u; currentUser.key=d.name;
   if(_sinLigasActivas && !esAdmin(currentUser)){
-    if(e){e.textContent=t('err_no_active_league');e.style.display='block';} _token=null; currentUser=null; return;
+    if(e){e.textContent=t('err_no_active_league');e.style.display='block';} _token=null; currentUser=null; return false;
   }
   montarAppTrasLogin();
+  return true;
 }
-function doLogout(){closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;_hdrLigasCache=null;document.getElementById('main-app').style.display='none';document.getElementById('login-screen').style.display='block';document.getElementById('login-pass').value='';initLogin();}
+function doLogout(){
+  closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;_hdrLigasCache=null;
+  document.getElementById('main-app').style.display='none';
+  document.getElementById('login-screen').style.display='block';
+  document.getElementById('login-pass').value='';
+  // Si veníamos del selector post-login (paso 2 del login unificado), hay
+  // que devolverle la visibilidad al formulario usuario/contraseña, que
+  // mostrarSelectorLigaPostLogin había ocultado, y esconder el selector.
+  const body=document.querySelector('.login-body');
+  if(body) body.style.display='';
+  const box=document.getElementById('login-liga-post');
+  if(box) box.style.display='none';
+  _pendientePassPlano='';
+  initLogin();
+}
