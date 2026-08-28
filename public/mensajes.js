@@ -1,11 +1,16 @@
 // ============================================================================
-// MENSAJERÍA — pestaña "Mensajes" con dos sub-hilos:
-//   'admin' → avisos del administrador a todos los jugadores (solo lectura
-//             para jugadores, el admin escribe).
-//   'grupo' → chat privado entre los jugadores del grupo del usuario en el
-//             ciclo actualmente seleccionado (viewCycle). Cambia solo si
-//             cambiás de ciclo arriba (Ciclo 1 / Ciclo 2 / ...), igual que
-//             Grupos y Clasificación.
+// MENSAJERÍA — pestaña "Inbox" con hasta TRES sub-hilos:
+//   'admin'   → avisos del administrador a todos los jugadores (solo lectura
+//               para jugadores, el admin escribe).
+//   'grupo'   → chat privado entre los jugadores del grupo del usuario en el
+//               ciclo actualmente seleccionado (viewCycle). Cambia solo si
+//               cambiás de ciclo arriba (Ciclo 1 / Ciclo 2 / ...), igual que
+//               Grupos y Clasificación. La pestaña muestra el número real
+//               del grupo del jugador (ej. "Grupo 5"), no un genérico "Mi Grupo".
+//   'playoff' → chat privado entre los jugadores del CUADRO de Play Offs
+//               (tramo) del usuario. Solo aparece si los Play Offs están
+//               iniciados y el jugador pertenece a algún cuadro. La pestaña
+//               muestra el nombre real del cuadro (ej. "Cuadro A").
 //
 // Los mensajes viven en su propia tabla en el backend (ver api/mensajes.js),
 // NO en el bloque grande de estado de la liga — así dos personas escribiendo
@@ -16,25 +21,43 @@
 // vuelve a bajar todo el hilo. El polling se corta al salir de la pestaña.
 // ============================================================================
 
-let _msgSubTab = 'admin';          // 'admin' | 'grupo'
+let _msgSubTab = 'admin';          // 'admin' | 'grupo' | 'playoff'
 let _msgPollTimer = null;
-let _msgLastId = { admin: 0, grupo: 0 };
+let _msgLastId = { admin: 0, grupo: 0, playoff: 0 };
 let _msgGrupoCtx = null;           // {ciclo, grupo} resuelto para el hilo de grupo actual
+let _msgTramoCtx = null;           // {tramo, label} resuelto para el hilo de playoff actual
 
 function renderMensajes(){
   const el = document.getElementById('view-mensajes');
   if(!el) return;
+  // Resolvemos los contextos ANTES de armar el HTML de las pestañas, para
+  // poder mostrar el número de grupo / nombre de cuadro reales de entrada,
+  // sin esperar a un fetch.
+  _msgGrupoCtx = _msgResolverGrupoCtx();
+  _msgTramoCtx = _msgResolverTramoCtx();
+  // Si la pestaña de playoff/grupo estaba activa pero el jugador ya no
+  // pertenece a ese hilo (ej. cambiaron los Play Offs), volvemos a 'admin'
+  // para no quedar en una pestaña fantasma.
+  if(_msgSubTab === 'playoff' && !_msgTramoCtx) _msgSubTab = 'admin';
+  if(_msgSubTab === 'grupo' && !_msgGrupoCtx) _msgSubTab = 'admin';
+
   el.innerHTML = mensajesShellHTML();
   cargarMsgHilo(_msgSubTab, true);
   reiniciarPollingMensajes();
 }
 
 function mensajesShellHTML(){
+  const grupoLabel = _msgGrupoCtx ? groupName(_msgGrupoCtx.grupo) : t('msg_group_tab');
+  const playoffLabel = _msgTramoCtx ? t('po_match').replace('{l}', _msgTramoCtx.label) : '';
+  let tabsHtml = `<button class="msg-tab ${_msgSubTab==='admin'?'active':''}" onclick="cambiarMsgSubTab('admin')"><i class="ti ti-speakerphone"></i> ${t('msg_admin_tab')}</button>`;
+  if(_msgGrupoCtx){
+    tabsHtml += `<button class="msg-tab ${_msgSubTab==='grupo'?'active':''}" onclick="cambiarMsgSubTab('grupo')"><i class="ti ti-users"></i> ${attr(grupoLabel)}</button>`;
+  }
+  if(_msgTramoCtx){
+    tabsHtml += `<button class="msg-tab ${_msgSubTab==='playoff'?'active':''}" onclick="cambiarMsgSubTab('playoff')"><i class="ti ti-tournament"></i> ${attr(playoffLabel)}</button>`;
+  }
   return `<div class="card msg-card">
-    <div class="msg-tabs">
-      <button class="msg-tab ${_msgSubTab==='admin'?'active':''}" onclick="cambiarMsgSubTab('admin')"><i class="ti ti-speakerphone"></i> ${t('msg_admin_tab')}</button>
-      <button class="msg-tab ${_msgSubTab==='grupo'?'active':''}" onclick="cambiarMsgSubTab('grupo')"><i class="ti ti-users"></i> ${t('msg_group_tab')}</button>
-    </div>
+    <div class="msg-tabs">${tabsHtml}</div>
     <div id="msg-body"></div>
   </div>`;
 }
@@ -42,10 +65,8 @@ function mensajesShellHTML(){
 function cambiarMsgSubTab(tab){
   if(_msgSubTab === tab) return;
   _msgSubTab = tab;
-  const tabs = document.querySelectorAll('#view-mensajes .msg-tab');
-  tabs.forEach(b=>b.classList.remove('active'));
-  const idx = tab === 'admin' ? 0 : 1;
-  if(tabs[idx]) tabs[idx].classList.add('active');
+  const el = document.getElementById('view-mensajes');
+  if(el) el.innerHTML = mensajesShellHTML();
   cargarMsgHilo(tab, true);
   reiniciarPollingMensajes();
 }
@@ -54,41 +75,58 @@ function cambiarMsgSubTab(tab){
 // mirando ahora mismo (mismo criterio que Grupos/Clasificación: si está en
 // Play Offs, usamos el ciclo activo como referencia).
 function _msgResolverGrupoCtx(){
+  if(!currentUser) return null;
   const ciclo = (viewCycle === 'po') ? activeN : viewCycle;
-  const loc = (typeof findLoc === 'function' && currentUser) ? findLoc(currentUser.name, ciclo) : null;
+  const loc = (typeof findLoc === 'function') ? findLoc(currentUser.name, ciclo) : null;
   return loc ? { ciclo, grupo: loc.g } : null;
+}
+
+// Resuelve a qué cuadro (tramo) de Play Offs pertenece el usuario actual.
+// Mismo criterio que ya usa la propia pantalla de Play Offs para saber "cuál
+// es mi cuadro" (playoffs.js). Si los Play Offs no arrancaron, no hay tramo.
+function _msgResolverTramoCtx(){
+  if(!currentUser) return null;
+  if(!playoff || !playoff.started || !Array.isArray(playoff.tramos)) return null;
+  const idx = playoff.tramos.findIndex(tr => tr && Array.isArray(tr.seeds) && tr.seeds.includes(currentUser.name));
+  if(idx < 0) return null;
+  const tr = playoff.tramos[idx];
+  return { tramo: idx, label: (tr.label != null ? tr.label : String(idx + 1)) };
 }
 
 async function cargarMsgHilo(tab, esCargaInicial){
   const body = document.getElementById('msg-body');
   if(!body) return;
 
-  if(tab === 'grupo'){
-    _msgGrupoCtx = _msgResolverGrupoCtx();
-    if(!_msgGrupoCtx){
-      body.innerHTML = `<p class="legend-txt" style="margin:.5rem 0">${t('msg_group_desc')}</p>
-        <div class="msg-empty">${t('msg_no_group')}</div>`;
-      return;
-    }
+  if(tab === 'grupo' && !_msgGrupoCtx){
+    body.innerHTML = `<p class="legend-txt" style="margin:.5rem 0">${t('msg_group_desc')}</p>
+      <div class="msg-empty">${t('msg_no_group')}</div>`;
+    return;
+  }
+  if(tab === 'playoff' && !_msgTramoCtx){
+    body.innerHTML = `<div class="msg-empty">${t('msg_no_playoff')}</div>`;
+    return;
   }
 
   if(esCargaInicial){
-    body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${tab==='admin'?t('msg_admin_desc'):t('msg_group_desc')}</p>
+    const desc = tab==='admin' ? t('msg_admin_desc') : (tab==='grupo' ? t('msg_group_desc') : t('msg_playoff_desc'));
+    body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${desc}</p>
       <div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div>
       <div id="msg-compose"></div>`;
   }
 
   try{
-    const payload = tab === 'admin'
-      ? { accion:'listarAdmin', ligaId:_ligaActual }
-      : { accion:'listarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo };
+    let payload;
+    if(tab === 'admin') payload = { accion:'listarAdmin', ligaId:_ligaActual };
+    else if(tab === 'grupo') payload = { accion:'listarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo };
+    else payload = { accion:'listarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo };
+
     const r = await fetch('/api/mensajes', {
       method:'POST',
       headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
       body: JSON.stringify(payload)
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok){ 
+    if(!r.ok){
       const list = document.getElementById('msg-list');
       if(list) list.innerHTML = '<div class="legend-txt">'+attr(d.error||t('msg_load_err'))+'</div>';
       return;
@@ -124,7 +162,8 @@ function _msgPintarLista(tab, msgs, reset){
 
   if(reset){
     if(!msgs.length){
-      list.innerHTML = `<div class="msg-empty">${tab==='admin'?t('msg_empty_admin'):t('msg_empty_group')}</div>`;
+      const vacio = tab==='admin' ? t('msg_empty_admin') : (tab==='grupo' ? t('msg_empty_group') : t('msg_empty_playoff'));
+      list.innerHTML = `<div class="msg-empty">${vacio}</div>`;
       return;
     }
     list.innerHTML = msgs.map(m=>_msgBubbleHTML(m)).join('');
@@ -157,7 +196,7 @@ function _msgBubbleHTML(m){
 function _msgPintarComposer(tab){
   const box = document.getElementById('msg-compose');
   if(!box) return;
-  const puedeEscribir = tab === 'admin' ? esAdmin(currentUser) : !!_msgGrupoCtx;
+  const puedeEscribir = tab === 'admin' ? esAdmin(currentUser) : (tab === 'grupo' ? !!_msgGrupoCtx : !!_msgTramoCtx);
   if(!puedeEscribir){
     box.innerHTML = '';
     return;
@@ -188,9 +227,10 @@ async function enviarMensajeUI(tab){
   const texto = input.value.trim();
   if(!texto){ toast(t('msg_empty_err')); return; }
 
-  const payload = tab === 'admin'
-    ? { accion:'enviarAdmin', ligaId:_ligaActual, texto }
-    : { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, texto };
+  let payload;
+  if(tab === 'admin') payload = { accion:'enviarAdmin', ligaId:_ligaActual, texto };
+  else if(tab === 'grupo') payload = { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, texto };
+  else payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto };
 
   input.disabled = true;
   try{
@@ -220,9 +260,14 @@ function reiniciarPollingMensajes(){
   _msgPollTimer = setInterval(function(){
     if(!_token || !_ligaActual) return;
     const tab = _msgSubTab;
-    const payload = tab === 'admin'
-      ? { accion:'nuevosAdmin', ligaId:_ligaActual, desdeId:_msgLastId.admin }
-      : (_msgGrupoCtx ? { accion:'nuevosGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, desdeId:_msgLastId.grupo } : null);
+    let payload = null;
+    if(tab === 'admin'){
+      payload = { accion:'nuevosAdmin', ligaId:_ligaActual, desdeId:_msgLastId.admin };
+    } else if(tab === 'grupo' && _msgGrupoCtx){
+      payload = { accion:'nuevosGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, desdeId:_msgLastId.grupo };
+    } else if(tab === 'playoff' && _msgTramoCtx){
+      payload = { accion:'nuevosPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, desdeId:_msgLastId.playoff };
+    }
     if(!payload) return;
     fetch('/api/mensajes', {
       method:'POST',
