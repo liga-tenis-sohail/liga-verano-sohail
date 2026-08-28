@@ -10,7 +10,8 @@ const {
   auth, envOK, sesionEsAdmin, readState, writeState,
   readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
-  ligaIdOK, hashV2, logAudit, clientIP
+  ligaIdOK, hashV2, logAudit, clientIP,
+  insertarMensaje, leerMensajes, leerMensajesDesde
 } = require('./_lib');
 
 const crypto = require('crypto');
@@ -220,6 +221,160 @@ module.exports = async function handler(req, res){
 
     logAudit(session.u, 'liga.solicitarAcceso', ligaDestino, { origenLigaId: ligaOrigen }, clientIP(req));
     return res.status(200).json({ ok: true });
+  }
+
+  const ligaIdMsg = (body.ligaId && ligaIdOK(body.ligaId)) ? body.ligaId : LIGA_DEFAULT;
+
+  // Toda acción necesita saber quién sos DENTRO de esta liga puntual (mismo
+  // patrón que usan misLigas/solicitarAcceso en api/liga.js): el token no
+  // sabe a qué liga pertenece, así que se verifica leyendo el estado real.
+  let stateMsg;
+  try { stateMsg = await readState(ligaIdMsg); }
+  catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga.' }); }
+  if(!stateMsg || !stateMsg.users || !stateMsg.users[session.u]){
+    return res.status(403).json({ error: 'Tu sesión no corresponde a esta liga.' });
+  }
+  const esAdminMsg = sesionEsAdmin(session, stateMsg.users);
+
+  // ---- Lectura del hilo admin (cualquiera logueado en la liga) ----
+  if(accion === 'listarAdmin'){
+    try {
+      const msgs = await leerMensajes({ ligaId: ligaIdMsg, tipo: 'admin', limite: 200 });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ mensajes: msgs });
+    } catch(e){ return res.status(503).json({ error: 'No se pudieron leer los mensajes.' }); }
+  }
+
+  if(accion === 'nuevosAdmin'){
+    const desdeId = parseInt(body.desdeId, 10) || 0;
+    try {
+      const msgs = await leerMensajesDesde({ ligaId: ligaIdMsg, tipo: 'admin', desdeId });
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(200).json({ mensajes: msgs });
+    } catch(e){ return res.status(503).json({ error: 'No se pudieron leer los mensajes.' }); }
+  }
+
+  // ---- Envío al hilo admin (solo admin) ----
+  if(accion === 'enviarAdmin'){
+    if(!esAdminMsg) return res.status(403).json({ error: 'Solo un administrador puede escribir acá.' });
+    const texto = String(body.texto || '').trim();
+    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
+    if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
+
+    // Nota: sin límite de ritmo por ahora — la tabla rate_limits está pensada
+    // para bloqueos de login (contador que no se resetea solo con el tiempo,
+    // solo con un login exitoso) y no encaja bien para "N mensajes por
+    // minuto". Para una liga chica y de confianza el riesgo de spam es bajo;
+    // si hiciera falta más adelante, conviene un contador con ventana de
+    // tiempo real (ej. Redis/KV con TTL), no esta tabla.
+    try {
+      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'admin', autor: session.u, texto });
+      logAudit(session.u, 'mensajes.enviarAdmin', ligaIdMsg, null, clientIP(req));
+      return res.status(200).json({ ok: true, mensaje: fila });
+    } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
+  }
+
+  // ---- Lectura del hilo de grupo (miembro del grupo en ese ciclo, o admin) ----
+  if(accion === 'listarGrupo' || accion === 'nuevosGrupo'){
+    const ciclo = parseInt(body.ciclo, 10);
+    const grupo = parseInt(body.grupo, 10);
+    if(!ciclo || !grupo) return res.status(400).json({ error: 'Falta indicar ciclo y grupo.' });
+
+    const c = Array.isArray(stateMsg.cycles) ? stateMsg.cycles[ciclo - 1] : null;
+    const g = c && Array.isArray(c.groups) ? c.groups[grupo - 1] : null;
+    const soyMiembro = !!(g && Array.isArray(g.players) && g.players.indexOf(session.u) >= 0);
+    if(!soyMiembro && !esAdminMsg){
+      return res.status(403).json({ error: 'No pertenecés a ese grupo en ese ciclo.' });
+    }
+
+    try {
+      if(accion === 'listarGrupo'){
+        const msgs = await leerMensajes({ ligaId: ligaIdMsg, tipo: 'grupo', ciclo, grupo, limite: 200 });
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ mensajes: msgs });
+      } else {
+        const desdeId = parseInt(body.desdeId, 10) || 0;
+        const msgs = await leerMensajesDesde({ ligaId: ligaIdMsg, tipo: 'grupo', ciclo, grupo, desdeId });
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ mensajes: msgs });
+      }
+    } catch(e){ return res.status(503).json({ error: 'No se pudieron leer los mensajes.' }); }
+  }
+
+  // ---- Envío al hilo de grupo (solo miembros del grupo en ese ciclo) ----
+  if(accion === 'enviarGrupo'){
+    const ciclo = parseInt(body.ciclo, 10);
+    const grupo = parseInt(body.grupo, 10);
+    const texto = String(body.texto || '').trim();
+    if(!ciclo || !grupo) return res.status(400).json({ error: 'Falta indicar ciclo y grupo.' });
+    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
+    if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
+
+    const c = Array.isArray(stateMsg.cycles) ? stateMsg.cycles[ciclo - 1] : null;
+    const g = c && Array.isArray(c.groups) ? c.groups[grupo - 1] : null;
+    const soyMiembro = !!(g && Array.isArray(g.players) && g.players.indexOf(session.u) >= 0);
+    // A propósito, un admin que NO es jugador de este grupo NO puede escribir
+    // acá (el chat de grupo es de los jugadores; para avisos generales del
+    // admin está el hilo 'admin'). Solo puede escribir quien juega ahí.
+    if(!soyMiembro){
+      return res.status(403).json({ error: 'No pertenecés a ese grupo en ese ciclo.' });
+    }
+
+    try {
+      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'grupo', ciclo, grupo, autor: session.u, texto });
+      return res.status(200).json({ ok: true, mensaje: fila });
+    } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
+  }
+
+  // ---- Hilo de Play Offs: uno por CUADRO (tramo), no por ciclo/grupo. ----
+  // Reutilizamos la misma columna `grupo` de la tabla para guardar el índice
+  // del tramo (0, 1, 2...) — evita agregar una columna nueva, y como el tipo
+  // es distinto ('playoff' en vez de 'grupo'), no hay ambigüedad posible al
+  // leer: nunca se mezclan mensajes de un cuadro con los de un grupo de liga.
+  // Miembro = su nombre está en playoff.tramos[tramo].seeds (el roster
+  // completo del cuadro, sea que esté jugando el cuadro principal o
+  // consolación — es la misma gente, solo cambia el camino).
+  if(accion === 'listarPlayoff' || accion === 'nuevosPlayoff'){
+    const tramo = parseInt(body.tramo, 10);
+    if(isNaN(tramo) || tramo < 0) return res.status(400).json({ error: 'Falta indicar el cuadro.' });
+
+    const tr = stateMsg.playoff && Array.isArray(stateMsg.playoff.tramos) ? stateMsg.playoff.tramos[tramo] : null;
+    const soyMiembro = !!(tr && Array.isArray(tr.seeds) && tr.seeds.indexOf(session.u) >= 0);
+    if(!soyMiembro && !esAdminMsg){
+      return res.status(403).json({ error: 'No pertenecés a ese cuadro de Play Offs.' });
+    }
+
+    try {
+      if(accion === 'listarPlayoff'){
+        const msgs = await leerMensajes({ ligaId: ligaIdMsg, tipo: 'playoff', ciclo: null, grupo: tramo, limite: 200 });
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ mensajes: msgs });
+      } else {
+        const desdeId = parseInt(body.desdeId, 10) || 0;
+        const msgs = await leerMensajesDesde({ ligaId: ligaIdMsg, tipo: 'playoff', ciclo: null, grupo: tramo, desdeId });
+        res.setHeader('Cache-Control', 'no-store');
+        return res.status(200).json({ mensajes: msgs });
+      }
+    } catch(e){ return res.status(503).json({ error: 'No se pudieron leer los mensajes.' }); }
+  }
+
+  if(accion === 'enviarPlayoff'){
+    const tramo = parseInt(body.tramo, 10);
+    const texto = String(body.texto || '').trim();
+    if(isNaN(tramo) || tramo < 0) return res.status(400).json({ error: 'Falta indicar el cuadro.' });
+    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
+    if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
+
+    const tr = stateMsg.playoff && Array.isArray(stateMsg.playoff.tramos) ? stateMsg.playoff.tramos[tramo] : null;
+    const soyMiembro = !!(tr && Array.isArray(tr.seeds) && tr.seeds.indexOf(session.u) >= 0);
+    if(!soyMiembro){
+      return res.status(403).json({ error: 'No pertenecés a ese cuadro de Play Offs.' });
+    }
+
+    try {
+      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'playoff', ciclo: null, grupo: tramo, autor: session.u, texto });
+      return res.status(200).json({ ok: true, mensaje: fila });
+    } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
   }
 
   // ================= A PARTIR DE ACÁ: solo administradores =================
