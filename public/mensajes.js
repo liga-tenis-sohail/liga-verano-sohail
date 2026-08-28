@@ -1,39 +1,42 @@
 // ============================================================================
-// MENSAJERÍA — pestaña "Inbox" con hasta TRES sub-hilos:
-//   'admin'   → avisos del administrador a todos los jugadores (solo lectura
-//               para jugadores, el admin escribe).
-//   'grupo'   → chat privado entre los jugadores del grupo del usuario en el
-//               ciclo actualmente seleccionado (viewCycle). La pestaña
-//               muestra el número real del grupo del jugador (ej. "Grupo 5").
-//   'playoff' → chat privado entre los jugadores del CUADRO de Play Offs
-//               (tramo) del usuario. Solo aparece si los Play Offs están
-//               iniciados y el jugador pertenece a algún cuadro. La pestaña
-//               muestra el nombre real del cuadro (ej. "Cuadro A").
+// MENSAJERÍA — pestaña "Inbox" con hasta CUATRO sub-hilos:
+//   'admin'    → avisos del administrador a todos los jugadores (solo
+//                lectura para jugadores, el admin escribe).
+//   'grupo'    → chat privado entre los jugadores del grupo del usuario en
+//                el ciclo actualmente seleccionado (viewCycle). Se BLOQUEA
+//                (deja de aparecer) en cuanto arrancan los Play Offs — la
+//                conversación pasa al hilo de Play Offs.
+//   'playoff'  → chat privado entre los jugadores del CUADRO de Play Offs
+//                (tramo) del usuario. Solo aparece si los Play Offs están
+//                iniciados y el jugador pertenece a algún cuadro.
+//   'explorar' → SOLO ADMIN: navegar y leer el chat de CUALQUIER grupo de
+//                CUALQUIER ciclo (elige ciclo + grupo con un selector). Es
+//                de solo lectura — no reemplaza al chat propio del jugador.
 //
 // Los mensajes viven en su propia tabla en el backend (dentro de /api/liga,
 // ver comentario en ese archivo sobre el límite de Serverless Functions),
 // NO en el bloque grande de estado de la liga — así dos personas escribiendo
 // casi al mismo tiempo no se pisan el guardado.
 //
-// Orden de la lista: MÁS NUEVO ARRIBA, más viejo abajo (a pedido explícito;
-// es lo opuesto a la convención habitual de chat, pero así se pidió).
+// Orden de la lista: viejo arriba, nuevo abajo, la vista se mantiene pegada
+// al final — estilo iMessage/WhatsApp estándar.
 //
-// "Tiempo real" liviano: mientras un hilo está abierto, cada 8s se pide solo
-// lo NUEVO. Aparte, haya o no la pestaña Mensajes abierta, cada 15s se
-// consulta cuántos mensajes sin leer hay en total (un solo pedido para los
-// 3 hilos) para la burbuja de la pestaña — igual que la de "Pendientes".
+// Colores de burbuja: cada persona tiene un color propio, calculado a partir
+// de su nombre (mismo color siempre, para todos los que miran el chat — no
+// es un color al azar por sesión). Así, con varias personas escribiendo, se
+// distingue quién dijo qué de un vistazo sin tener que leer el nombre cada
+// vez.
 // ============================================================================
 
-let _msgSubTab = 'admin';          // 'admin' | 'grupo' | 'playoff'
+let _msgSubTab = 'admin';          // 'admin' | 'grupo' | 'playoff' | 'explorar'
 let _msgPollTimer = null;
 let _msgLastId = { admin: 0, grupo: 0, playoff: 0 };
-let _msgGrupoCtx = null;           // {ciclo, grupo} resuelto para el hilo de grupo actual
+let _msgGrupoCtx = null;           // {ciclo, grupo} resuelto para el hilo de grupo actual (null si está bloqueado por playoffs)
 let _msgTramoCtx = null;           // {tramo, label} resuelto para el hilo de playoff actual
+let _msgExplorarCtx = null;        // {ciclo, grupo} elegido a mano por el admin en "Todos los grupos"
 
 // ---------------------------------------------------------------------------
-// Marcado de "leído": guardado en localStorage, por liga + usuario. No es
-// data crítica (si se pierde, en el peor caso el badge cuenta de más una
-// vez), así que no hace falta guardarlo en el servidor.
+// Marcado de "leído": guardado en localStorage, por liga + usuario.
 // ---------------------------------------------------------------------------
 function _msgReadStorageKey(){
   return 'msgRead:' + (_ligaActual||'') + ':' + (currentUser ? currentUser.name : '');
@@ -55,19 +58,45 @@ function _msgThreadKey(tipo, ctx){
   return 'playoff:'+ctx.tramo;
 }
 
+// ---------------------------------------------------------------------------
+// Color por jugador: hash determinístico del nombre → un matiz (hue) fijo
+// en la rueda de 360°. Con esto, "infinitos" jugadores tienen su propio
+// color sin mantener una lista fija — dos nombres distintos casi siempre
+// caen en tonos bien diferenciados, y el mismo nombre da siempre el mismo
+// color (para vos, para otro jugador, para el admin mirando desde afuera).
+// ---------------------------------------------------------------------------
+function _msgHashName(name){
+  let h = 0;
+  const s = String(name||'');
+  for(let i=0;i<s.length;i++){ h = (h*31 + s.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+function _msgEsOscuro(){
+  const at = document.documentElement.getAttribute('data-theme');
+  if(at === 'dark') return true;
+  if(at === 'light') return false;
+  return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+function _msgColorForName(name){
+  const hue = _msgHashName(name) % 360;
+  if(_msgEsOscuro()){
+    return { bg:'hsl('+hue+',34%,22%)', border:'hsl('+hue+',38%,32%)', label:'hsl('+hue+',75%,72%)' };
+  }
+  return { bg:'hsl('+hue+',68%,93%)', border:'hsl('+hue+',45%,80%)', label:'hsl('+hue+',55%,33%)' };
+}
+
 function renderMensajes(){
   const el = document.getElementById('view-mensajes');
   if(!el) return;
-  // Resolvemos los contextos ANTES de armar el HTML de las pestañas, para
-  // poder mostrar el número de grupo / nombre de cuadro reales de entrada,
-  // sin esperar a un fetch.
-  _msgGrupoCtx = _msgResolverGrupoCtx();
+  const playoffsArrancaron = !!(playoff && playoff.started);
+  // Resolvemos los contextos ANTES de armar el HTML de las pestañas. El chat
+  // de grupo se BLOQUEA (no se resuelve, no aparece la pestaña) en cuanto
+  // arrancan los Play Offs — la conversación pasa a "Cuadro X".
+  _msgGrupoCtx = playoffsArrancaron ? null : _msgResolverGrupoCtx();
   _msgTramoCtx = _msgResolverTramoCtx();
-  // Si la pestaña de playoff/grupo estaba activa pero el jugador ya no
-  // pertenece a ese hilo (ej. cambiaron los Play Offs), volvemos a 'admin'
-  // para no quedar en una pestaña fantasma.
   if(_msgSubTab === 'playoff' && !_msgTramoCtx) _msgSubTab = 'admin';
   if(_msgSubTab === 'grupo' && !_msgGrupoCtx) _msgSubTab = 'admin';
+  if(_msgSubTab === 'explorar' && !esAdmin(currentUser)) _msgSubTab = 'admin';
 
   el.innerHTML = mensajesShellHTML();
   cargarMsgHilo(_msgSubTab, true);
@@ -75,9 +104,8 @@ function renderMensajes(){
   actualizarBadgeMensajes();
 }
 
-// Mismas clases .tabs/.tab que usa el resto de la app (Ciclo 1/Ciclo 2/Play
-// Offs, y la fila de Grupos/Clasificación/etc.) — un solo lenguaje visual
-// para todas las pestañas de la app, no un estilo aparte para mensajería.
+// Mismas clases .tabs/.tab que usa el resto de la app — un solo lenguaje
+// visual para todas las pestañas.
 function mensajesShellHTML(){
   const grupoLabel = _msgGrupoCtx ? groupName(_msgGrupoCtx.grupo) : t('msg_group_tab');
   const playoffLabel = _msgTramoCtx ? t('po_match').replace('{l}', _msgTramoCtx.label) : '';
@@ -87,6 +115,9 @@ function mensajesShellHTML(){
   }
   if(_msgTramoCtx){
     tabsHtml += `<button class="tab ${_msgSubTab==='playoff'?'active':''}" onclick="cambiarMsgSubTab('playoff')"><i class="ti ti-tournament" aria-hidden="true"></i> ${attr(playoffLabel)}</button>`;
+  }
+  if(esAdmin(currentUser)){
+    tabsHtml += `<button class="tab ${_msgSubTab==='explorar'?'active':''}" onclick="cambiarMsgSubTab('explorar')"><i class="ti ti-eye" aria-hidden="true"></i> ${t('msg_explorar_tab')}</button>`;
   }
   return `<div class="card msg-card">
     <div class="tabs" style="margin-bottom:.85rem">${tabsHtml}</div>
@@ -103,9 +134,6 @@ function cambiarMsgSubTab(tab){
   reiniciarPollingMensajes();
 }
 
-// Resuelve en qué grupo está el usuario actual, para el ciclo que está
-// mirando ahora mismo (mismo criterio que Grupos/Clasificación: si está en
-// Play Offs, usamos el ciclo activo como referencia).
 function _msgResolverGrupoCtx(){
   if(!currentUser) return null;
   const ciclo = (viewCycle === 'po') ? activeN : viewCycle;
@@ -113,7 +141,6 @@ function _msgResolverGrupoCtx(){
   return loc ? { ciclo, grupo: loc.g } : null;
 }
 
-// Resuelve a qué cuadro (tramo) de Play Offs pertenece el usuario actual.
 function _msgResolverTramoCtx(){
   if(!currentUser) return null;
   if(!playoff || !playoff.started || !Array.isArray(playoff.tramos)) return null;
@@ -121,6 +148,31 @@ function _msgResolverTramoCtx(){
   if(idx < 0) return null;
   const tr = playoff.tramos[idx];
   return { tramo: idx, label: (tr.label != null ? tr.label : String(idx + 1)) };
+}
+
+// Picker de ciclo/grupo para el explorador de admin. Mismo criterio ya usado
+// en "Reparar jugador en un ciclo": ciclos con grupos armados, cantidad de
+// grupos tomada del primero de esa lista (simplificación ya aceptada en
+// otras partes de la app).
+function _msgExplorarPickerHTML(){
+  const cyclesConGrupos = (typeof cycles !== 'undefined' ? cycles : []).filter(c=>c && c.groups);
+  const cicloOpts = cyclesConGrupos.map(c=>`<option value="${c.n}" ${_msgExplorarCtx&&_msgExplorarCtx.ciclo===c.n?'selected':''}>${t('cycle')} ${c.n}</option>`).join('');
+  const maxGrupos = (cyclesConGrupos[0] && cyclesConGrupos[0].groups) ? cyclesConGrupos[0].groups.length : 12;
+  const grupoOpts = Array.from({length:maxGrupos},(_,i)=>i+1)
+    .map(n=>`<option value="${n}" ${_msgExplorarCtx&&_msgExplorarCtx.grupo===n?'selected':''}>${attr(groupName(n))}</option>`).join('');
+  return `<div class="form-row" style="grid-template-columns:1fr 1fr auto;align-items:end;gap:.5rem;margin-bottom:.75rem">
+    <div class="form-group"><label>${t('cycle')}</label><select id="msg-exp-ciclo">${cicloOpts}</select></div>
+    <div class="form-group"><label>${t('tab_grupos')}</label><select id="msg-exp-grupo">${grupoOpts}</select></div>
+    <button class="btn btn-primary" onclick="verGrupoExplorarUI()"><i class="ti ti-eye"></i> ${t('msg_explorar_ver')}</button>
+  </div>`;
+}
+
+function verGrupoExplorarUI(){
+  const ciclo = parseInt(document.getElementById('msg-exp-ciclo').value, 10);
+  const grupo = parseInt(document.getElementById('msg-exp-grupo').value, 10);
+  if(!ciclo || !grupo) return;
+  _msgExplorarCtx = { ciclo, grupo };
+  cargarMsgHilo('explorar', true);
 }
 
 async function cargarMsgHilo(tab, esCargaInicial){
@@ -134,6 +186,34 @@ async function cargarMsgHilo(tab, esCargaInicial){
   }
   if(tab === 'playoff' && !_msgTramoCtx){
     body.innerHTML = `<div class="msg-empty">${t('msg_no_playoff')}</div>`;
+    return;
+  }
+
+  if(tab === 'explorar'){
+    // El picker se repinta siempre (para poder cambiar de grupo sin salir
+    // de la pestaña); la lista solo aparece una vez elegido ciclo+grupo.
+    const picker = _msgExplorarPickerHTML();
+    if(!_msgExplorarCtx){
+      body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${picker}`;
+      return;
+    }
+    body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${picker}
+      <div class="msg-box"><div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div></div>`;
+    try{
+      const r = await fetch('/api/liga', {
+        method:'POST',
+        headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
+        body: JSON.stringify({ accion:'listarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo })
+      });
+      const d = await r.json().catch(()=>({}));
+      const list = document.getElementById('msg-list');
+      if(!r.ok){ if(list) list.innerHTML = '<div class="legend-txt">'+attr(d.error||t('msg_load_err'))+'</div>'; return; }
+      const msgs = Array.isArray(d.mensajes) ? d.mensajes : [];
+      _msgPintarLista('explorar', msgs, true);
+    } catch(e){
+      const list = document.getElementById('msg-list');
+      if(list) list.innerHTML = '<div class="legend-txt">'+attr(t('ml_conn_err'))+'</div>';
+    }
     return;
   }
 
@@ -167,7 +247,6 @@ async function cargarMsgHilo(tab, esCargaInicial){
     _msgLastId[tab] = msgs.length ? msgs[msgs.length-1].id : 0;
     _msgPintarLista(tab, msgs, true);
     _msgPintarComposer(tab);
-    // Estamos mirando este hilo activamente: se marca como leído al toque.
     if(msgs.length){
       const ctx = tab==='admin' ? null : (tab==='grupo' ? _msgGrupoCtx : _msgTramoCtx);
       _msgReadStateSetOne(_msgThreadKey(tab, ctx), _msgLastId[tab]);
@@ -191,10 +270,8 @@ function _msgFmtFecha(iso){
 }
 
 // Pinta la lista completa (reset=true) o agrega mensajes nuevos AL FINAL
-// (reset=false, usado por el polling) — estilo iMessage/WhatsApp estándar:
-// el más viejo arriba, el más nuevo abajo, la vista se mantiene pegada al
-// final salvo que el usuario haya scrolleado para arriba a leer historial
-// (en ese caso no le movemos la vista de abajo del scroll a la fuerza).
+// (reset=false, usado por el polling) — viejo arriba, nuevo abajo, pegado
+// al final salvo que el usuario haya scrolleado para arriba a leer historial.
 function _msgPintarLista(tab, msgs, reset){
   const list = document.getElementById('msg-list');
   if(!list) return;
@@ -202,13 +279,10 @@ function _msgPintarLista(tab, msgs, reset){
 
   if(reset){
     if(!msgs.length){
-      const vacio = tab==='admin' ? t('msg_empty_admin') : (tab==='grupo' ? t('msg_empty_group') : t('msg_empty_playoff'));
+      const vacio = tab==='admin' ? t('msg_empty_admin') : (tab==='grupo'||tab==='explorar' ? t('msg_empty_group') : t('msg_empty_playoff'));
       list.innerHTML = `<div class="msg-empty">${vacio}</div>`;
       return;
     }
-    // msgs viene del servidor en orden cronológico (viejo→nuevo) — se pinta
-    // tal cual, sin invertir, y se arranca pegado al final (el mensaje más
-    // reciente), como cualquier chat.
     list.innerHTML = msgs.map(m=>_msgBubbleHTML(m)).join('');
     list.scrollTop = list.scrollHeight;
     return;
@@ -226,9 +300,12 @@ function _msgBubbleHTML(m){
   const nombre = soyYo ? t('msg_you') : attr(m.autor || '');
   const cuando = attr(_msgFmtFecha(m.fecha));
   const texto = attr(m.texto || '');
+  const c = _msgColorForName(m.autor || '');
+  const estiloBurbuja = 'background:'+c.bg+';border-color:'+c.border+';';
+  const estiloAutor = 'color:'+c.label+';';
   return `<div class="msg-bubble-row ${soyYo?'me':''}">
-    <div class="msg-bubble">
-      ${!soyYo?`<div class="msg-bubble-author">${nombre}</div>`:''}
+    <div class="msg-bubble" style="${estiloBurbuja}">
+      <div class="msg-bubble-author" style="${estiloAutor}">${nombre}</div>
       <div class="msg-bubble-text">${texto}</div>
       <div class="msg-bubble-time">${cuando}</div>
     </div>
@@ -251,7 +328,6 @@ function _msgPintarComposer(tab){
 }
 
 function _msgTeclaComposer(ev){
-  // Enter envía, Shift+Enter hace salto de línea (estándar de cualquier chat).
   if(ev.key === 'Enter' && !ev.shiftKey){
     ev.preventDefault();
     enviarMensajeUI(_msgSubTab);
@@ -292,8 +368,7 @@ async function enviarMensajeUI(tab){
   input.focus();
 }
 
-// ---- Polling liviano del hilo abierto: solo mientras la pestaña Mensajes
-// está mostrando ese hilo puntual. ----
+// ---- Polling liviano del hilo abierto ----
 function reiniciarPollingMensajes(){
   detenerPollingMensajes();
   _msgPollTimer = setInterval(function(){
@@ -307,6 +382,8 @@ function reiniciarPollingMensajes(){
     } else if(tab === 'playoff' && _msgTramoCtx){
       payload = { accion:'nuevosPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, desdeId:_msgLastId.playoff };
     }
+    // El hilo 'explorar' no hace polling: es una foto para revisar, no un
+    // chat en vivo del admin.
     if(!payload) return;
     fetch('/api/liga', {
       method:'POST',
@@ -328,16 +405,15 @@ function detenerPollingMensajes(){
 }
 
 // ---------------------------------------------------------------------------
-// Burbuja de "no leídos" en la pestaña Mensajes — corre SIEMPRE (no solo con
-// la pestaña abierta), igual que la de Pendientes, para que el número
-// aparezca sin que el jugador tenga que entrar a mirar.
+// Burbuja de "no leídos" en la pestaña Mensajes.
 // ---------------------------------------------------------------------------
 async function actualizarBadgeMensajes(){
   if(!_token || !_ligaActual || !currentUser) return;
   const badge = document.getElementById('msg-n');
   if(!badge) return;
 
-  const grupoCtx = _msgResolverGrupoCtx();
+  const playoffsArrancaron = !!(playoff && playoff.started);
+  const grupoCtx = playoffsArrancaron ? null : _msgResolverGrupoCtx();
   const tramoCtx = _msgResolverTramoCtx();
   const readState = _msgReadStateGet();
 
@@ -364,7 +440,6 @@ async function actualizarBadgeMensajes(){
     const key = _msgThreadKey(h.tipo, ctx);
     const estoyMirandoEsteHilo = viendoMensajes && _msgSubTab === h.tipo;
     if(estoyMirandoEsteHilo){
-      // Ya lo estás viendo: se marca leído al toque, no suma al total.
       _msgReadStateSetOne(key, h.ultimoId);
     } else {
       total += h.count;
@@ -379,8 +454,5 @@ async function actualizarBadgeMensajes(){
   }
 }
 
-// Primer chequeo unos segundos después de cargar la página (para no competir
-// con el resto de los pedidos del login), y después cada 15s de forma
-// continua mientras la pestaña del navegador esté abierta.
 if(typeof setTimeout !== 'undefined') setTimeout(actualizarBadgeMensajes, 4000);
 if(typeof setInterval !== 'undefined') setInterval(actualizarBadgeMensajes, 15000);
