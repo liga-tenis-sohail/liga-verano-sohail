@@ -120,7 +120,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
     else if(tab === 'grupo') payload = { accion:'listarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo };
     else payload = { accion:'listarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo };
 
-    const r = await fetch('/api/mensajes', {
+    const r = await fetch('/api/liga', {
       method:'POST',
       headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
       body: JSON.stringify(payload)
@@ -234,7 +234,7 @@ async function enviarMensajeUI(tab){
 
   input.disabled = true;
   try{
-    const r = await fetch('/api/mensajes', {
+    const r = await fetch('/api/liga', {
       method:'POST',
       headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
       body: JSON.stringify(payload)
@@ -269,7 +269,7 @@ function reiniciarPollingMensajes(){
       payload = { accion:'nuevosPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, desdeId:_msgLastId.playoff };
     }
     if(!payload) return;
-    fetch('/api/mensajes', {
+    fetch('/api/liga', {
       method:'POST',
       headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
       body: JSON.stringify(payload)
