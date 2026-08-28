@@ -34,7 +34,7 @@
   // Restaurar nombre y subtítulo sin flash (se ejecuta en DOMContentLoaded para tener acceso al DOM)
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn){document.addEventListener('DOMContentLoaded',function(){var lt=document.getElementById('login-title');if(lt&&lsn.n)lt.textContent=lsn.n;var ls=document.getElementById('login-sub');if(ls&&lsn.s)ls.textContent=lsn.s;var ht=document.getElementById('hdr-title');if(ht&&lsn.n)ht.textContent=lsn.n;if(lsn.n)document.title=lsn.n;},false);}
-}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=11"></script><style>
+}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=12"></script><style>
 /* Respaldo inline de "Mis Ligas": si por cualquier motivo estilos.css no
    llegara a cargar con la versión más reciente, estas reglas viven acá
    adentro del HTML mismo y se aplican igual. Duplicadas a propósito respecto
@@ -53,8 +53,22 @@ button.liga-tab{cursor:pointer}
 .liga-tab-ok .liga-tab-cta{background:rgba(255,255,255,.28);color:#fff}
 .liga-tab-pending .liga-tab-cta{background:rgba(255,255,255,.28);color:#fff}
 .liga-tab-ask .liga-tab-cta{background:#1B4F9C;color:#fff}
+/* Respaldo inline de "Mensajes": mismo motivo que el bloque de arriba —
+   si estilos.css no llega a estar sincronizado, esto igual funciona. */
+.msg-box{display:flex;flex-direction:column;border:1px solid #c8d0dc;border-radius:10px;overflow:hidden;margin-top:.65rem}
+.msg-list{display:flex;flex-direction:column;gap:6px;height:420px;overflow-y:auto;padding:.75rem;background:#ffffff}
+.msg-empty{margin:auto;padding:1.5rem 1rem;text-align:center;color:#5b6675;font-size:13px}
+.msg-bubble-row{display:flex;justify-content:flex-start}
+.msg-bubble-row.me{justify-content:flex-end}
+.msg-bubble{max-width:78%;padding:8px 12px;border-radius:14px;background:#EDF1F6;border:1px solid #e2e7ef;color:#1b2433}
+.msg-bubble-row.me .msg-bubble{background:#E6F1FB;border-color:#1B4F9C;color:#1b2433}
+.msg-bubble-author{font-size:11px;font-weight:700;color:#0E3470;margin-bottom:2px}
+.msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.msg-bubble-time{font-size:10px;color:#5b6675;margin-top:3px;text-align:right}
+.msg-compose-row{display:flex;gap:8px;align-items:flex-end;padding:.6rem;background:#EDF1F6;border-top:1px solid #c8d0dc}
+.msg-input{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border-radius:10px;border:1.5px solid #c8d0dc;background:#ffffff;color:#1b2433;font-family:inherit;font-size:14px;line-height:1.4}
 </style>
-<link rel="stylesheet" href="estilos.css?v=11">
+<link rel="stylesheet" href="estilos.css?v=12">
 
 </head><body>
 <div id="login-screen">
@@ -162,21 +176,21 @@ button.liga-tab{cursor:pointer}
      bootstrap.js DEBE ser el último de la app (contiene el arranque).
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
-<script src="core-estado.js?v=11"></script>
-<script src="login-auth.js?v=11"></script>
-<script src="jugadores-perfiles-catalogo.js?v=11"></script>
-<script src="reglamento.js?v=11"></script>
-<script src="login-auth-p2.js?v=11"></script>
-<script src="shell-render.js?v=11"></script>
-<script src="resultados-y-grupos.js?v=11"></script>
-<script src="admin-ligas-clubes.js?v=11"></script>
-<script src="admin-ciclos-config.js?v=11"></script>
-<script src="playoffs.js?v=11"></script>
-<script src="jugadores-perfiles.js?v=11"></script>
-<script src="mensajes.js?v=11"></script>
-<script src="resultados-po-lm.js?v=11"></script>
-<script src="persistencia.js?v=11"></script>
-<script src="headers-ui.js?v=11"></script>
-<script src="bootstrap.js?v=11"></script>
-<script src="rating.js?v=11"></script>
+<script src="core-estado.js?v=12"></script>
+<script src="login-auth.js?v=12"></script>
+<script src="jugadores-perfiles-catalogo.js?v=12"></script>
+<script src="reglamento.js?v=12"></script>
+<script src="login-auth-p2.js?v=12"></script>
+<script src="shell-render.js?v=12"></script>
+<script src="resultados-y-grupos.js?v=12"></script>
+<script src="admin-ligas-clubes.js?v=12"></script>
+<script src="admin-ciclos-config.js?v=12"></script>
+<script src="playoffs.js?v=12"></script>
+<script src="jugadores-perfiles.js?v=12"></script>
+<script src="mensajes.js?v=12"></script>
+<script src="resultados-po-lm.js?v=12"></script>
+<script src="persistencia.js?v=12"></script>
+<script src="headers-ui.js?v=12"></script>
+<script src="bootstrap.js?v=12"></script>
+<script src="rating.js?v=12"></script>
 </body></html>
