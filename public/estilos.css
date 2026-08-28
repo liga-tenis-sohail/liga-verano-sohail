@@ -1,4 +1,3 @@
-
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
@@ -1606,40 +1605,37 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
    agregado suelto.
    ============================================================================ */
 .liga-tabs{
-  display:flex;flex-wrap:wrap;gap:6px;
+  display:flex;flex-wrap:wrap;gap:8px;
   background:var(--surface2);border:1px solid var(--border);
-  border-radius:12px;padding:6px;
+  border-radius:12px;padding:8px;
 }
 .liga-tab{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:8px 12px;border-radius:9px;
-  font-size:13px;font-weight:600;color:var(--text2);
-  background:transparent;border:1.5px solid transparent;
+  display:inline-flex;align-items:center;gap:7px;
+  padding:9px 14px;border-radius:10px;
+  font-size:13px;font-weight:700;color:var(--text);
+  background:var(--surface);border:1.5px solid var(--border2);
   cursor:default;font-family:inherit;white-space:nowrap;line-height:1.2;
+  box-shadow:0 1px 2px rgba(0,0,0,.04);
 }
-button.liga-tab{cursor:pointer}
-/* Liga donde está parado ahora: mismo tratamiento que .tab.active */
-.liga-tab-here{background:var(--pri);color:#fff;font-weight:700}
-/* Ya participa en otra liga: click para ir a loguearse ahí */
-.liga-tab-ok{background:var(--surface);color:var(--text);border-color:#22c55e}
-.liga-tab-ok:hover{background:#dcfce7;border-color:#16a34a}
-html[data-theme="dark"] .liga-tab-ok:hover{background:#14361f}
-/* Solicitud pendiente de aprobación: no clickeable */
-.liga-tab-pending{background:var(--surface);color:var(--text2);border-color:#f59e0b;opacity:.9}
-/* Sin relación todavía (o rechazada, puede reintentar): pedir acceso */
-.liga-tab-ask{background:var(--surface);color:var(--text);border:1.5px dashed var(--border2)}
+button.liga-tab{cursor:pointer;transition:transform .1s}
+button.liga-tab:hover{transform:translateY(-1px)}
+/* Liga donde está parado ahora: azul sólido, igual que .tab.active */
+.liga-tab-here{background:var(--pri);color:#fff;border-color:var(--pri)}
+/* Ya participa en otra liga: relleno VERDE sólido para que salte a la vista
+   de entrada — es la información más importante de esta lista. */
+.liga-tab-ok{background:#16a34a;color:#fff;border-color:#16a34a}
+.liga-tab-ok:hover{background:#15803d;border-color:#15803d}
+/* Solicitud pendiente de aprobación: relleno naranja sólido, no clickeable */
+.liga-tab-pending{background:#f59e0b;color:#fff;border-color:#f59e0b;cursor:default}
+/* Sin relación todavía (o rechazada, puede reintentar): la única "vacía",
+   discreta a propósito porque es la de menor prioridad visual. */
+.liga-tab-ask{background:var(--surface);color:var(--text2);border:1.5px dashed var(--border2)}
 .liga-tab-ask:hover{background:var(--soft);border-color:var(--pri);color:var(--priD)}
 .liga-tab .liga-tab-cta{
   font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
   padding:2px 8px;border-radius:20px;
 }
 .liga-tab-here .liga-tab-cta{background:rgba(255,255,255,.25);color:#fff}
-.liga-tab-ok .liga-tab-cta{background:#dcfce7;color:#15803d}
-html[data-theme="dark"] .liga-tab-ok .liga-tab-cta{background:#14361f;color:#86efac}
-.liga-tab-pending .liga-tab-cta{background:#fef3c7;color:#92400e}
-html[data-theme="dark"] .liga-tab-pending .liga-tab-cta{background:#3d2a10;color:#fcd34d}
+.liga-tab-ok .liga-tab-cta{background:rgba(255,255,255,.28);color:#fff}
+.liga-tab-pending .liga-tab-cta{background:rgba(255,255,255,.28);color:#fff}
 .liga-tab-ask .liga-tab-cta{background:var(--pri);color:#fff}
-@media (prefers-color-scheme: dark){
-  html:not([data-theme]) .liga-tab-ok .liga-tab-cta{background:#14361f;color:#86efac}
-  html:not([data-theme]) .liga-tab-pending .liga-tab-cta{background:#3d2a10;color:#fcd34d}
-}
