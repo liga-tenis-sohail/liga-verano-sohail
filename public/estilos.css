@@ -1643,16 +1643,31 @@ button.liga-tab{cursor:pointer}
    mismas clases .tabs/.tab que el resto de la app (Ciclo 1/Ciclo 2/Play Offs,
    Grupos/Clasificación/Rating/...) — un solo lenguaje visual para todos los
    botones y pestañas, no un estilo aparte para mensajería.
+
+   La caja de chat (lista + compositor) toma el MISMO lenguaje visual que el
+   editor de Reglamento: una caja con bordes redondeados, borde
+   var(--border2), radio 10px, con una franja inferior tipo "toolbar" para
+   escribir (background var(--surface2), como la barra de herramientas del
+   Reglamento) pegada a la lista de mensajes (background var(--surface)).
    ============================================================================ */
 .msg-card{ padding-bottom: .75rem; }
 
-.msg-list{
-  display:flex;flex-direction:column;gap:6px;
-  max-height:420px;overflow-y:auto;
-  padding:.5rem;background:var(--bg);border:1px solid var(--border);border-radius:10px;
+/* Caja contenedora única: agrupa lista + compositor con un solo borde
+   redondeado exterior, igual que .rg-toolbar + .rg-editor se combinan en
+   una sola caja visual en el Reglamento. overflow:hidden para que los hijos
+   respeten las esquinas redondeadas del contenedor. */
+.msg-box{
+  display:flex;flex-direction:column;
+  border:1px solid var(--border2);border-radius:10px;overflow:hidden;
   margin-top:.65rem;
 }
-.msg-empty{padding:1.5rem 1rem;text-align:center;color:var(--text2);font-size:13px}
+
+.msg-list{
+  display:flex;flex-direction:column;gap:6px;
+  height:420px;overflow-y:auto;
+  padding:.75rem;background:var(--surface);
+}
+.msg-empty{margin:auto;padding:1.5rem 1rem;text-align:center;color:var(--text2);font-size:13px}
 
 .msg-bubble-row{display:flex;justify-content:flex-start}
 .msg-bubble-row.me{justify-content:flex-end}
@@ -1671,9 +1686,14 @@ button.liga-tab{cursor:pointer}
 .msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .msg-bubble-time{font-size:10px;color:var(--text2);margin-top:3px;text-align:right}
 
-.msg-compose-row{display:flex;gap:8px;align-items:flex-end}
+/* Franja inferior de composición: pegada a la lista, mismo look que la
+   barra de herramientas del Reglamento (fondo gris clarito, borde arriba). */
+.msg-compose-row{
+  display:flex;gap:8px;align-items:flex-end;
+  padding:.6rem;background:var(--surface2);border-top:1px solid var(--border2);
+}
 .msg-input{
-  flex:1;resize:vertical;min-height:70px;max-height:200px;
+  flex:1;resize:none;min-height:42px;max-height:120px;
   padding:10px 12px;border-radius:10px;border:1.5px solid var(--border2);
   background:var(--surface);color:var(--text);font-family:inherit;font-size:14px;
   line-height:1.4;
@@ -1681,6 +1701,6 @@ button.liga-tab{cursor:pointer}
 .msg-input:focus{outline:none;border-color:var(--pri)}
 
 @media (max-width: 640px){
-  .msg-list{max-height:340px}
+  .msg-list{height:340px}
   .msg-bubble{max-width:88%}
 }
