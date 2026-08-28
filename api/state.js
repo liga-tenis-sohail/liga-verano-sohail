@@ -5,6 +5,15 @@
 //
 // El login ya trae el estado en su propia respuesta, así que esto queda
 // para recargas y para cualquier refresco posterior.
+//
+// GET /api/state?liga=xxx&elegir=1
+//   Paso 2 del LOGIN UNIFICADO: cuando /api/login devolvió eligeLiga:true
+//   (el jugador está en 2+ ligas activas), la contraseña YA se validó y
+//   el token YA es válido, pero todavía no sabíamos a qué liga entrar.
+//   El cliente llama acá con la liga elegida + el flag ?elegir=1: se
+//   revalida que el jugador realmente pertenezca a esa liga (nunca se
+//   confía ciegamente en lo que mande el cliente) y devuelve el state
+//   igual que haría un login normal.
 // =====================================================================
 const { auth, readState, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
@@ -27,11 +36,23 @@ module.exports = async function handler(req, res){
   const blocked = blockedUser(state, session);
   if(blocked) return res.status(403).json({ error: blocked });
 
+  // Paso 2 del login unificado: el jugador venía sin liga asignada todavía
+  // (session.r === 'player' y recién eligió). Revalidamos que efectivamente
+  // exista como player en ESTA liga antes de entregarle nada — el ?liga=
+  // lo manda el cliente y no hay que confiar en él a ciegas.
+  if(req.query && req.query.elegir){
+    const u = (state.users || {})[session.u];
+    if(!u || u.role !== 'player'){
+      return res.status(403).json({ error: 'No pertenecés a esa liga.' });
+    }
+  }
+
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     state: filterForSession(state, session),
     role: session.r,
     name: session.u,
+    ligaId,
     token: renewIfStale(session) || undefined
   });
 };

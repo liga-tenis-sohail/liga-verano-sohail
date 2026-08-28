@@ -250,20 +250,65 @@ module.exports = async (req, res) => {
       await actualizarContador(pk.credential_id, verification.authenticationInfo.newCounter);
 
       // Emitir el token igual que el login con clave: mismo formato de sesión.
+      //
+      // LOGIN UNIFICADO: igual que en /api/login, admin/superadmin siguen
+      // atados a una sola liga (la que venga en body.ligaId o la default).
+      // Un jugador de catálogo se busca en TODAS las ligas activas donde
+      // participa: si está en una sola, entra directo; si está en 2+, se
+      // devuelve eligeLiga:true para que el cliente muestre los botones
+      // (mismo contrato que /api/login — el cliente ya sabe manejarlo).
       const userName = pk.user_name;
-      const ligaId = body.ligaId || lib.LIGA_DEFAULT;
-      const state = await lib.readState(ligaId);
-      if(!state) return res.status(404).json({ error: 'No se encontró la liga.' });
-      const users = state.users || {};
-      const u = users[userName];
-      if(!u) return res.status(404).json({ error: 'Tu usuario no está en esta liga. Entrá con tu clave.' });
-      if(u.inactive && (u.role || 'player') === 'player'){
-        return res.status(403).json({ error: 'Tu cuenta está inactiva. Contactá al administrador.' });
+      const esCuentaDeGestion = (userName === 'admin' || userName === 'superadmin');
+
+      if(esCuentaDeGestion){
+        const ligaId = (body.ligaId && lib.ligaIdOK(body.ligaId)) ? body.ligaId : lib.LIGA_DEFAULT;
+        const state = await lib.readState(ligaId);
+        if(!state) return res.status(404).json({ error: 'No se encontró la liga.' });
+        const users = state.users || {};
+        const u = users[userName];
+        if(!u) return res.status(404).json({ error: 'Tu usuario no está en esta liga. Entrá con tu clave.' });
+        const role = u.role || 'player';
+        const puedeAdmin = role === 'admin' || role === 'superadmin' || u.isAdmin === true;
+        const exp = Date.now() + lib.SESSION_MIN * 60 * 1000;
+        const session = { u: userName, r: role, exp };
+        const mustChangePw = lib.POR_DEFECTO_V2.has(u.pass || '');
+        return res.status(200).json({
+          token: lib.signToken(session),
+          isAdmin: puedeAdmin,
+          name: userName,
+          role,
+          exp,
+          mustChangePw,
+          ligaId,
+          state: lib.filterForSession(state, session)
+        });
       }
-      const role = u.role || 'player';
-      const puedeAdmin = role === 'admin' || role === 'superadmin' || u.isAdmin === true;
+
+      // --- Jugador: buscar en todas las ligas activas ---
+      let idx;
+      try { idx = await lib.readLigaIndex(); }
+      catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
+      const activas = idx.filter(l => l.estado === 'activa');
+      if(!activas.length) return res.status(401).json({ error: 'No hay ninguna liga activa en este momento.' });
+
+      const encontradoEn = [];   // [{ ligaId, nombre, state, u }]
+      for(const l of activas){
+        let state;
+        try { state = await lib.readState(l.id); } catch(e){ continue; }
+        if(!state || !state.users) continue;
+        const u = state.users[userName];
+        if(u && u.role === 'player') encontradoEn.push({ ligaId: l.id, nombre: l.nombre, state, u });
+      }
+      if(!encontradoEn.length){
+        return res.status(404).json({ error: 'Tu usuario no está en ninguna liga activa. Entrá con tu clave.' });
+      }
+
+      const disponibles = encontradoEn.filter(e => !e.u.inactive);
+      if(!disponibles.length){
+        return res.status(403).json({ error: 'Tu cuenta está inactiva en todas las ligas activas. Contactá al administrador.' });
+      }
+
       const exp = Date.now() + lib.SESSION_MIN * 60 * 1000;
-      const session = { u: userName, r: role, exp };
 
       // ¿La contraseña actual sigue siendo una por defecto? Si sí, avisamos al
       // cliente con mustChangePw=true para que muestre el modal obligatorio.
@@ -271,23 +316,43 @@ module.exports = async (req, res) => {
       // el modal de cambio de clave y se queda con la clave pública para siempre.
       let mustChangePw = false;
       try {
-        let storedPass = u.pass || '';
-        if(u.jugadorId){
+        const primerU = disponibles[0].u;
+        let storedPass = primerU.pass || '';
+        if(primerU.jugadorId){
           const cat = await lib.readCatalogo();
-          const jugGlobal = cat[u.jugadorId];
+          const jugGlobal = cat[primerU.jugadorId];
           if(jugGlobal && jugGlobal.pass) storedPass = jugGlobal.pass;
         }
         mustChangePw = lib.POR_DEFECTO_V2.has(storedPass);
       } catch(_){ /* si falla el chequeo, no bloqueamos el login por Face ID */ }
 
+      if(disponibles.length === 1){
+        const d = disponibles[0];
+        const session = { u: userName, r: 'player', exp };
+        return res.status(200).json({
+          token: lib.signToken(session),
+          isAdmin: false,
+          name: userName,
+          role: 'player',
+          exp,
+          mustChangePw,
+          ligaId: d.ligaId,
+          state: lib.filterForSession(d.state, session)
+        });
+      }
+
+      // 2+ ligas activas: la passkey ya verificó identidad, pero falta
+      // elegir a qué liga entrar. Mismo contrato que /api/login.
+      const session = { u: userName, r: 'player', exp };
       return res.status(200).json({
         token: lib.signToken(session),
-        isAdmin: puedeAdmin,
+        isAdmin: false,
         name: userName,
-        role,
+        role: 'player',
         exp,
         mustChangePw,
-        state: lib.filterForSession(state, session)
+        eligeLiga: true,
+        ligas: disponibles.map(d => ({ id: d.ligaId, nombre: d.nombre }))
       });
     }
 

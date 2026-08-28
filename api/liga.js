@@ -479,6 +479,69 @@ module.exports = async function handler(req, res){
     return res.status(200).json({ ok: true, jugadorId: jid });
   }
 
+  // ================= FUSIONAR JUGADORES (login unificado) =================
+  // Un mismo jugador real puede haber quedado como DOS filas del catálogo
+  // (dos jugadorId distintos) si se lo cargó con nombres de usuario
+  // distintos en dos ligas (ej: "Juan Pérez" en una, "jperez" en otra) sin
+  // que hubiera email para vincularlos automáticamente. Esta acción los
+  // une: recorre TODAS las ligas y, donde encuentre users[x].jugadorId
+  // apuntando al descartado, lo reapunta al que se mantiene. El nombre de
+  // usuario de cada liga NO se toca (sigue siendo "Juan Pérez" en una y
+  // "jperez" en la otra) — solo se unifica la identidad/contraseña, que
+  // es lo que hacía falta para el login único.
+  if(accion === 'fusionarJugadores'){
+    if(!(session && session.r === 'superadmin')) return res.status(403).json({ error: 'Solo el super administrador puede fusionar jugadores.' });
+    const mantener   = String(body.jugadorIdMantener || '');
+    const descartar   = String(body.jugadorIdDescartar || '');
+    if(!mantener || !descartar) return res.status(400).json({ error: 'Faltan los dos jugadores a fusionar.' });
+    if(mantener === descartar) return res.status(400).json({ error: 'Elegí dos jugadores distintos.' });
+
+    let cat = {};
+    try { cat = await readCatalogo(); } catch(e){ return res.status(503).json({ error: 'No se pudo leer el catálogo.' }); }
+    const jMantener  = cat[mantener];
+    const jDescartar = cat[descartar];
+    if(!jMantener || !jDescartar) return res.status(404).json({ error: 'Alguno de los dos jugadores no existe en el catálogo.' });
+
+    // La contraseña que sobrevive es la del que se mantiene. Si no tiene
+    // (nunca la cambió) pero el descartado sí, se hereda esa — mejor que
+    // perder una contraseña que la persona ya conoce.
+    if(!jMantener.pass && jDescartar.pass){
+      jMantener.pass = jDescartar.pass;
+      try { await upsertJugador(jMantener); } catch(e){ return res.status(503).json({ error: 'No se pudo actualizar la contraseña unificada.' }); }
+    }
+
+    let idx = [];
+    try { idx = await readLigaIndex(); } catch(e){ idx = []; }
+
+    const ligasTocadas = [];
+    for(const l of idx){
+      let est;
+      try { est = await readState(l.id); } catch(e){ continue; }
+      if(!est || !est.users) continue;
+      let tocada = false;
+      for(const nombre of Object.keys(est.users)){
+        const u = est.users[nombre];
+        if(u && u.jugadorId === descartar){
+          u.jugadorId = mantener;
+          tocada = true;
+        }
+      }
+      if(tocada){
+        try { await writeState(l.id, est); ligasTocadas.push(l.id); }
+        catch(e){ return res.status(503).json({ error: 'Se fusionó parcialmente: falló al guardar la liga ' + l.id + '. Volvé a intentar.' }); }
+      }
+    }
+
+    try { await borrarJugador(descartar); }
+    catch(e){ return res.status(503).json({ error: 'Se re-vincularon las ligas pero no se pudo borrar el perfil sobrante: ' + e.message }); }
+    if(jDescartar.nombre && jDescartar.nombre !== jMantener.nombre){
+      try { await borrarPasskeysDeUsuario(jDescartar.nombre); } catch(_){}
+    }
+
+    logAudit(session.u, 'jugador.fusionar', mantener, { descartado: descartar, nombreDescartado: jDescartar.nombre, ligas: ligasTocadas }, clientIP(req));
+    return res.status(200).json({ ok: true, jugadorId: mantener, ligasActualizadas: ligasTocadas });
+  }
+
   const id = String(body.id || '');
   if(accion !== 'crear' && !ligaIdOK(id)){ return res.status(400).json({ error: 'Falta el identificador de la liga o es inválido.' }); }
 
