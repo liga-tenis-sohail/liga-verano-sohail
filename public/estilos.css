@@ -1544,18 +1544,26 @@ html[data-theme="dark"] .login-header-bar a:visited{
 }
 
 /* ==========================================================================
-   FIX #4 — Botón "Recalcular" dentro del header .clg-head
+   FIX #4 — Botón "Editar" dentro del header .clg-head
+   El botón está dentro de un th del clg-head, que tiene la regla
+     html[data-theme=dark] .clg-head th * { color:#fff!important }
+   con especificidad (0, 2, 1). Aumentamos la nuestra con :not(.__z)
+   para llegar a (0, 4, 3) y ganar por clases (4 > 2) sin depender del orden.
    ========================================================================== */
-html[data-theme="dark"] .clg-head th .edit-pts-btn,
-html[data-theme="dark"] .clg-head th .edit-pts-btn *,
-html[data-theme="dark"] .clg-head th .edit-pts-btn i{
+html[data-theme="dark"] .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z),
+html[data-theme="dark"] .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) *,
+html[data-theme="dark"] .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) i{
   color: #0E3470 !important;
+  background-color: #dbeafe !important;
+  border-color: #93c5fd !important;
 }
 @media (prefers-color-scheme: dark){
-  html:not([data-theme]) .clg-head th .edit-pts-btn,
-  html:not([data-theme]) .clg-head th .edit-pts-btn *,
-  html:not([data-theme]) .clg-head th .edit-pts-btn i{
+  html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z),
+  html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) *,
+  html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) i{
     color: #0E3470 !important;
+    background-color: #dbeafe !important;
+    border-color: #93c5fd !important;
   }
 }
 

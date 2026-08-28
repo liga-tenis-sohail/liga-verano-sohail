@@ -124,7 +124,7 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   const nmA=m.a||emptyTxt;const nmB=m.b||(m.a?'BYE':emptyTxt);
   const clA=m.a?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.a)+'\')">'+nmA+'</span>':nmA;
   const clB=m.b?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')">'+nmB+'</span>':nmB;
-  const seedA=m.sid[0]||'';const seedB=m.sid[1]||'';
+  const seedA=(m.sid&&m.sid[0])||'';const seedB=(m.sid&&m.sid[1])||'';
   function fn(n){return n?n.split(' ')[0]:'';}
   const fA=fn(m.a),fB=fn(m.b);
   const sameFirst=m.a&&m.b&&fA===fB;

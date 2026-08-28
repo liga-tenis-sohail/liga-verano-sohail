@@ -116,7 +116,7 @@ function groupCardHTML(gid){
         return`<tr class="${currentUser&&p===currentUser.name?'me-mtx-row':''}"><td class="${currentUser&&p===currentUser.name?'me-mtx':''}"><span class="nm-link" onclick="showPlayerHistory('${jsq(p)}')">${lbl(p)}</span></td>${cols}</tr>`;
       }).join('');
       
-      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular</button>` : '');
+      const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> Editar</button>` : '');
       const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th>${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th>${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
       
       return `<div class="card grp-card"><div class="grp-title">${t('group')} ${gid}</div><div class="overflow-x"><table class="cls-table"><thead><tr class="clg-head"><th colspan="9"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div><p class="legend-txt">${t('legend_pts')}</p><div class="section-lbl">${t('players_col')} ${groupName(gid)}</div><div class="overflow-x"><table class="res-table"><thead><tr><th>${t('players_col')}</th>${head}</tr></thead><tbody>${mrows}</tbody></table></div><p class="legend-txt">${t('legend_matrix')}</p></div>`;

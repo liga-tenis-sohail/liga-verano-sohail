@@ -608,6 +608,10 @@ function buildRounds(seeds){
   return rounds;
 }
 function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].forEach((m,mi)=>{const sl=nx[Math.floor(mi/2)];
+  // Defensa: si por algún motivo el slot destino no tiene sid inicializado, lo inicializamos.
+  // Pasa con brackets viejos guardados antes del fix.
+  if(!sl.sid) sl.sid=['',''];
+  if(!m.sid) m.sid=['',''];
   // Propagar también el número de seed del ganador para que lo acompañe por todo el bracket.
   // Antes se propagaba solo el nombre (m.w) y el sid quedaba vacío ('') en rondas siguientes.
   const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';

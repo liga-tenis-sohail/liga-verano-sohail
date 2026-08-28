@@ -100,6 +100,8 @@ function _hydrate(d){try{
     LOGIN_HEADER = {
       color: (typeof d.LOGIN_HEADER.color === 'string' && d.LOGIN_HEADER.color) ? d.LOGIN_HEADER.color : '#0E3470',
       textColor: (typeof d.LOGIN_HEADER.textColor === 'string') ? d.LOGIN_HEADER.textColor : '',
+      colorDark: (typeof d.LOGIN_HEADER.colorDark === 'string') ? d.LOGIN_HEADER.colorDark : '',
+      textColorDark: (typeof d.LOGIN_HEADER.textColorDark === 'string') ? d.LOGIN_HEADER.textColorDark : '',
       links: Array.isArray(d.LOGIN_HEADER.links) ? d.LOGIN_HEADER.links.filter(l => l && l.text && l.url).slice(0, 20) : []
     };
     // Refrescar el cache de localStorage con la versión autoritativa del server.
@@ -111,6 +113,24 @@ function _hydrate(d){try{
   RATING_OVERRIDES=(d.RATING_OVERRIDES&&typeof d.RATING_OVERRIDES==='object')?d.RATING_OVERRIDES:{};
   // Aplicar colores guardados al cargar
   if(d.LEAGUE_COLOR_PRI||d.LEAGUE_COLOR_ACC||d.LEAGUE_COLOR_HL)applyLeagueColors(d.LEAGUE_COLOR_PRI||LEAGUE_COLOR_PRI,d.LEAGUE_COLOR_ACC||LEAGUE_COLOR_ACC,d.LEAGUE_COLOR_HL||LEAGUE_COLOR_HL);
+  // Reparación automática de seeds en brackets ya armados. Antes propagate()
+  // no copiaba el sid del ganador a la ronda siguiente, y rebuildTramo() recalculaba
+  // seeds de consolación en base al orden del array de perdedores en vez del
+  // seed original del jugador. Ambos bugs se arreglaron, PERO los brackets
+  // guardados en la base ya tienen los sids viejos. Correr rebuildAll una vez
+  // aquí los reprocesa: como es determinístico y aplica los resultados guardados
+  // desde playoff.results, no toca ni pierde información — solo actualiza el
+  // sid de cada slot. Persistimos siempre para asegurar que la reparación se
+  // guarde en la base y sobreviva a recargas / otros dispositivos.
+  try {
+    if(playoff && Array.isArray(playoff.tramos) && playoff.tramos.length
+       && typeof rebuildAll === 'function'){
+      rebuildAll();
+      if(typeof persist === 'function'){
+        setTimeout(function(){ try { persist(false); } catch(_){} }, 500);
+      }
+    }
+  } catch(_){ /* si falla la reparación, no bloquear la app */ }
   return true;
 }catch(e){console.warn('hydrate',e);return false;}
 }
