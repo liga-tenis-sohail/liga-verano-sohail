@@ -373,6 +373,33 @@ function updateCycleDate(i, type, val) {
 
 function ensureDestino(gid,len){if(!DESTINO)DESTINO={};if(!DESTINO[gid]||!Array.isArray(DESTINO[gid]))DESTINO[gid]=[];const maxG=(cycles[0]&&cycles[0].groups)?cycles[0].groups.length:12;while(DESTINO[gid].length<len)DESTINO[gid].push('G'+Math.min(gid+1,maxG));return DESTINO[gid];}
 function addPlayerToCycle(name,gid){if(!name||!cycles[activeN-1].groups||!cycles[activeN-1].groups[gid-1])return false;if(ALLNAMES.indexOf(name)<0)ALLNAMES.push(name);if(!USERS[name])USERS[name]={role:'player',pass:DEFAULT_PASS_HASH,name};cycles[activeN-1].groups[gid-1].players.push(name);ensureDestino(gid,cycles[activeN-1].groups[gid-1].players.length);return true;}
+// Reparación: agrega un jugador a la lista de un grupo de UN CICLO ESPECÍFICO
+// (a diferencia de addPlayerToCycle, que solo trabaja sobre el ciclo activo).
+// Sirve para casos donde un jugador quedó fuera de la lista de un ciclo YA
+// CERRADO (por ejemplo, al reducir "jugadores por grupo" con setPlayersPerGroup,
+// que avisa pero permite sacar igual a alguien con partidos ya cargados). Los
+// partidos en `matches` nunca se borran, pero si el nombre no está en
+// cycles[n].groups[gid].players, desaparece de la tabla de Clasificación de
+// ese ciclo y el historial no puede resolver en qué grupo jugó.
+// Devuelve {ok:true} o {ok:false, motivo:'...'} para que la UI muestre el error.
+function repairPlayerInCycleGroup(cycN, gid, name){
+  name = (name||'').trim();
+  if(!name) return {ok:false, motivo:'Nombre vacío.'};
+  const c = cycles[cycN-1];
+  if(!c || !Array.isArray(c.groups)) return {ok:false, motivo:'Ese ciclo no existe o no tiene grupos.'};
+  const g = c.groups[gid-1];
+  if(!g) return {ok:false, motivo:'Ese grupo no existe en ese ciclo.'};
+  if(!Array.isArray(g.players)) g.players=[];
+  if(g.players.indexOf(name)>=0) return {ok:false, motivo:'Ya está en ese grupo.'};
+  // Evitar que quede en DOS grupos del mismo ciclo a la vez (inconsistencia).
+  const otro = c.groups.findIndex((gg,i)=>i!==(gid-1)&&gg&&Array.isArray(gg.players)&&gg.players.indexOf(name)>=0);
+  if(otro>=0) return {ok:false, motivo:'Ya está anotado en '+groupName(otro+1)+' de este mismo ciclo.'};
+  if(ALLNAMES.indexOf(name)<0) ALLNAMES.push(name);
+  if(!USERS[name]) USERS[name]={role:'player',pass:DEFAULT_PASS_HASH,name};
+  g.players.push(name);
+  ensureDestino(gid, g.players.length);
+  return {ok:true};
+}
 function buildUsers(){const u={admin:{role:'admin',pass:ADMIN_PASS_HASH,name:'Organización',email:'',tel:''},superadmin:{role:'superadmin',pass:ADMIN_PASS_HASH,name:'Super Administrador',email:'',tel:''}};ALLNAMES.forEach(n=>u[n]={role:'player',pass:DEFAULT_PASS_HASH,name:n,email:'',tel:''});return u;}
 const USERS=buildUsers();let currentUser=null;
 function groupName(g){return (typeof t==='function'?t('group'):'Grupo')+' '+g;}
