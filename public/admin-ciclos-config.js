@@ -320,6 +320,30 @@ function renderAdmin(){
             <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🔄 Recalcular puntos por posición</div>
             <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Regenera automáticamente los puntos de TODOS los grupos del ciclo activo con la escala estándar de la liga (paso 3, el último puesto del último grupo siempre vale 1 punto). Útil después de agregar/quitar grupos o jugadores.</p>
             <button class="btn btn-accent" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular ahora</button>
+          </div>
+          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🩹 Reparar jugador en un ciclo</div>
+            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Si un jugador tiene partidos cargados en un ciclo (incluso ya cerrado) pero no aparece en la tabla de Clasificación de ese ciclo, usá esto para volver a anotarlo en el grupo correspondiente. NO toca los partidos ya jugados, solo la lista de jugadores del grupo.</p>
+            <div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end;gap:.5rem">
+              <div class="form-group">
+                <label>Ciclo</label>
+                <select id="rep-ciclo">
+                  ${cycles.filter(cy=>cy.groups).map(cy=>`<option value="${cy.n}">Ciclo ${cy.n}${cy.status==='finished'?' (cerrado)':''}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Grupo</label>
+                <select id="rep-grupo">
+                  ${Array.from({length:numGrupos},(_,i)=>i+1).map(n=>`<option value="${n}">Grupo ${n}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Jugador</label>
+                <input type="text" id="rep-jugador" list="rep-jugador-list" placeholder="Nombre exacto" style="width:100%;padding:.5rem;border:1.5px solid var(--border2);border-radius:8px">
+                <datalist id="rep-jugador-list">${ALLNAMES.map(n=>`<option value="${n}">`).join('')}</datalist>
+              </div>
+              <button class="btn btn-accent" onclick="repararJugadorCicloUI()"><i class="ti ti-tool"></i> Agregar al grupo</button>
+            </div>
           </div>`;
     } // fin config exclusiva superadmin
 
@@ -776,4 +800,31 @@ function importarResultadosExcel(input){
   };
   reader.readAsArrayBuffer(file);
   input.value='';
+}
+
+// UI del panel "Reparar jugador en un ciclo". Lee los 3 selectores/input y
+// llama a repairPlayerInCycleGroup (core-estado.js), que sabe operar sobre
+// CUALQUIER ciclo (no solo el activo). Pensado para el caso de jugadores que
+// tienen partidos cargados en un ciclo pero desaparecieron de la lista de su
+// grupo (por ejemplo, al reducir "jugadores por grupo" y confirmar igual pese
+// al aviso de que tenían partidos).
+function repararJugadorCicloUI(){
+  const cycN = parseInt(document.getElementById('rep-ciclo')?.value, 10);
+  const gid = parseInt(document.getElementById('rep-grupo')?.value, 10);
+  const nombreInput = document.getElementById('rep-jugador');
+  const name = (nombreInput?.value || '').trim();
+  if(!cycN || !gid || !name){
+    toast('Completá ciclo, grupo y nombre del jugador.');
+    return;
+  }
+  const r = repairPlayerInCycleGroup(cycN, gid, name);
+  if(!r.ok){
+    toast(r.motivo || 'No se pudo agregar.');
+    return;
+  }
+  persist(true);
+  try { refreshAll(); } catch(_){}
+  try { renderAdmin(); } catch(_){}
+  if(nombreInput) nombreInput.value = '';
+  toast(name + ' fue agregado al ' + groupName(gid) + ' del Ciclo ' + cycN + '.');
 }
