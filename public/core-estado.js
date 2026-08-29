@@ -813,19 +813,25 @@ let _hdrLigasCargando = false;
 
 function pintarHdrLigaSwitch(){
   const btn = document.getElementById('hdr-liga-switch');
-  const txt = document.getElementById('hdr-liga-switch-txt');
   const menu = document.getElementById('hdr-liga-switch-menu');
-  if(!btn || !txt) return;
+  if(!btn) return;
   const ligas = _hdrLigasCache || [];
   if(ligas.length < 2){
-    // Nada para elegir: solo participa acá (o todavía no cargó). Ocultar.
-    btn.style.display = 'none';
+    // Nada para elegir: solo participa acá (o todavía no cargó). El botón
+    // queda visible igual (ES el título de la liga) pero sin pinta de
+    // clickeable ni flecha — se ve exactamente como el título de siempre.
+    btn.classList.remove('multi');
+    btn.onclick = null;
     if(menu) menu.style.display = 'none';
     return;
   }
-  const actual = ligas.find(l=>l.esLigaActual);
-  txt.textContent = actual ? actual.nombre : (t('lsel_current')||'');
-  btn.style.display = '';
+  // 2+ ligas activas: el título se vuelve clickeable (fondo + flecha).
+  // El TEXTO del título lo sigue controlando el flujo normal de arriba
+  // (lsn.n / updateHdr) — acá solo togglear la apariencia de "es un botón".
+  btn.classList.add('multi');
+  btn.onclick = abrirSelectorLigaHdr;
+  const arrows = btn.querySelector('.hdr-liga-switch-arrows');
+  if(arrows) arrows.style.display = '';
 }
 
 // Abre/cierra el menú de botones (mismo lenguaje visual que el selector de
