@@ -1064,7 +1064,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .cycle-bar.many{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
 .cycle-bar.many .cycle-tab{flex:0 0 auto}
 .cycle-tab{flex:1;min-width:90px;padding:10px 8px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;align-items:center;justify-content:center;gap:5px}
-.cycle-tab:hover:not(.locked){border-color:var(--pri);background:var(--soft)}
+.cycle-tab:hover:not(.locked):not(.active){border-color:var(--pri);background:var(--soft)}
 .cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
 .cycle-tab.locked{opacity:.45;cursor:not-allowed;background:var(--surface2)}.cycle-tab .st{font-size:11px}
 /* Si por algún desfasaje de estado un botón queda con AMBAS clases a la
@@ -1075,6 +1075,14 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
    en el archivo (misma especificidad que .active); acá se sube la
    especificidad explícitamente para no depender del orden de las reglas. */
 .cycle-tab.active.locked{opacity:1;cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}
+/* BUG DISTINTO: en touch (iOS Safari en particular) el estado :hover queda
+   "pegado" un instante tras el tap, incluso sobre el botón que acaba de
+   activarse. El selector :hover:not(.locked) tenía especificidad (0,3,0)
+   — más alta que .active (0,2,0) — así que el celeste de hover le ganaba
+   al azul sólido de activo apenas se tocaba la pestaña, mostrando el botón
+   recién elegido como si no estuviera seleccionado. Arreglado arriba
+   excluyendo .active del selector de hover (:not(.active) agregado), para
+   que ni siquiera compitan. */
 .tabs{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:.75rem;flex-wrap:wrap;align-items:stretch}
 /* Sin min-width fijo: así vale el min-width:auto de flex, que impide que la caja
    se encoja por debajo de su texto. Y sin nowrap, el texto usa 2 renglones en vez
