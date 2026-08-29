@@ -352,15 +352,19 @@ function tintColor(hex,pct){
 }
 
 function saveLeagueName(){
-  const inp=document.getElementById('sa-league-name');
   const sub=document.getElementById('sa-league-sub');
   const loginTit=document.getElementById('sa-login-title');
   const pri=document.getElementById('sa-color-pri');
   const acc=document.getElementById('sa-color-acc');
   const hl=document.getElementById('sa-color-hl');
   const al=document.getElementById('sa-league-alert');
-  if(!inp||!inp.value.trim()){if(al)al.innerHTML='<span style="color:#e55">El nombre no puede estar vacío.</span>';return;}
-  LEAGUE_NAME=inp.value.trim();
+  // LEAGUE_NAME ya NO se edita desde acá: el nombre "oficial" de la liga
+  // (el que se ve en el header y en el selector de ligas) solo cambia con
+  // el botón "Renombrar" de Gestión de Ligas, que sincroniza tanto
+  // liga_index como state.LEAGUE_NAME de una sola vez. Antes este
+  // formulario tocaba solo LEAGUE_NAME sin avisarle al índice, y el
+  // nombre visible quedaba desincronizado del que figuraba en Gestión de
+  // Ligas.
   if(sub)LEAGUE_SUBTITLE=sub.value.trim();
   if(loginTit)LOGIN_TITLE=loginTit.value.trim();
   if(pri)LEAGUE_COLOR_PRI=pri.value;
@@ -394,16 +398,18 @@ function saveLeagueName(){
   matches.forEach((m,i)=>{ m.club = nuevos[i]; });
   // Aplicar colores
   applyLeagueColors(LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL);
-  // Actualizar textos. El título del LOGIN usa LOGIN_TITLE si está definido,
-  // si no cae a LEAGUE_NAME (mismo criterio que applyLeagueNameToDOM).
-  const loginTxt=(LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:LEAGUE_NAME;
-  const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME;
+  // Actualizar textos. El nombre "oficial" (header, login post-selección) es
+  // LIGA_NOMBRE_OFICIAL, no LEAGUE_NAME — ver updateHdr() en shell-render.js.
+  // El título del LOGIN pre-selección usa LOGIN_TITLE si está definido, si
+  // no cae al nombre oficial.
+  const nombreOficial=(LIGA_NOMBRE_OFICIAL&&LIGA_NOMBRE_OFICIAL.trim())?LIGA_NOMBRE_OFICIAL:LEAGUE_NAME;
+  const loginTxt=(LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:nombreOficial;
+  const tit=document.getElementById('hdr-title');if(tit)tit.textContent=nombreOficial;
   const lt=document.getElementById('login-title');if(lt)lt.textContent=loginTxt;
   const lsb=document.getElementById('login-sub');if(lsb)lsb.textContent=LEAGUE_SUBTITLE;
-  document.title=LEAGUE_NAME;
-  addLog('Config: nombre y colores actualizados',{po:null,a:LEAGUE_NAME,b:LEAGUE_SUBTITLE});
+  addLog('Config: apariencia actualizada',{po:null,a:LOGIN_TITLE,b:LEAGUE_SUBTITLE});
   // Guardar en localStorage para recuperación inmediata sin flash
-  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
+  try{localStorage.setItem('lsn',JSON.stringify({n:nombreOficial,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
   persist(true);
   if(al)al.innerHTML='<span style="color:#22c55e">✓ Configuración guardada.</span>';
   setTimeout(()=>{if(al)al.innerHTML='';},3000);

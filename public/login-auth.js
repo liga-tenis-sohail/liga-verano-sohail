@@ -19,12 +19,19 @@ function pintarLogin(d){
   s.innerHTML='';
   const ph=document.createElement('option');ph.value='';ph.textContent=t('select_user');s.appendChild(ph);
   const opt=u=>new Option(u.i?u.v+' (inactivo)':u.v,u.v);
-  // 1) El administrador, arriba de todo (cuenta de gestión, no es parte del catálogo)
-  const admin=document.createElement('option');admin.value='admin';admin.textContent=t('admin_org');s.appendChild(admin);
 
+  // 1) Organización: cuenta de gestión, no es parte del catálogo de jugadores.
+  const orgOg=document.createElement('optgroup');orgOg.label='Organización';
+  const admin=new Option(t('admin_org'),'admin');orgOg.appendChild(admin);
+  s.appendChild(orgOg);
+
+  // 2) Jugadores: todo el catálogo, agrupado bajo su propia sección para
+  // distinguirlo claramente de las cuentas de gestión (Organización / Super Admin).
   if(d.mode==='global'){
-    // Lista plana, alfabética, sin secciones.
-    (d.players||[]).forEach(u=>s.appendChild(opt(u)));
+    // Lista plana, alfabética, sin sub-secciones por grupo/cuadro.
+    const playersOg=document.createElement('optgroup');playersOg.label='Jugadores';
+    (d.players||[]).forEach(u=>playersOg.appendChild(opt(u)));
+    s.appendChild(playersOg);
   }else{
     // Compatibilidad: modo liga puntual (grupos/cuadros)
     const esPO=d.mode==='po';
@@ -40,7 +47,8 @@ function pintarLogin(d){
       s.appendChild(og);
     }
   }
-  // 2) Super Admin, abajo de todo
+
+  // 3) Super Admin, abajo de todo
   const saOg=document.createElement('optgroup');saOg.label='Super Admin';
   saOg.appendChild(new Option('Super Administrador','superadmin'));
   s.appendChild(saOg);
@@ -403,6 +411,7 @@ async function cargarGestionLigas(){
         acciones+='<button class="btn btn-sm" onclick="reabrirLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-lock-open"></i> '+t('lm_reopen')+'</button>';
       }
       acciones+='<button class="btn btn-sm" onclick="renombrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-pencil"></i> '+t('lm_rename')+'</button>';
+      acciones+='<button class="btn btn-sm" onclick="renombrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-pencil"></i> '+t('lm_rename')+'</button>';
       acciones+='<button class="btn btn-sm btn-danger" onclick="eliminarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-trash"></i> '+t('lm_delete')+'</button>';
       return '<div class="lm-item">'
         +'<div class="lm-item-h"><b>'+escPast(l.nombre)+'</b>'+badge+(esActual?' <span class="lm-badge lm-cur">'+t('past_current')+'</span>':'')+'</div>'
@@ -704,11 +713,6 @@ async function reabrirLigaUI(id,nombre){
   if(!(await confirmarModal(t('lm_reopen_confirm').replace('{n}',nombre), {titulo:t('lm_reopen'), okTxt:t('lm_reopen')})))return;
   await accionLiga('reabrir',{id});
 }
-// Renombra el nombre visible de una liga (el id interno queda fijo). El
-// backend (acción 'renombrar' en api/liga.js) sincroniza tanto liga_index
-// (lo que se ve en esta lista) como state.LEAGUE_NAME (header + login post-
-// selección) — a diferencia de guardar desde "Apariencia de la liga", que
-// hasta hace poco solo tocaba el state y dejaba este índice desactualizado.
 async function renombrarLigaUI(id,nombre){
   const nuevo=prompt(t('lm_rename_prompt'), nombre);
   if(nuevo===null)return;
@@ -724,6 +728,15 @@ async function eliminarLigaUI(id,nombre){
   if(tecleado===null)return;
   if(tecleado.trim()!==nombre && tecleado.trim()!==id){ alert(t('lm_delete_mismatch')); return; }
   await accionLiga('eliminar',{id,confirmar:tecleado.trim()});
+}
+// Renombrar el nombre visible de una liga (el id interno queda fijo).
+async function renombrarLigaUI(id,nombreActual){
+  const nuevo=prompt(t('lm_rename_prompt'), nombreActual);
+  if(nuevo===null)return;
+  const limpio=nuevo.trim();
+  if(!limpio){ alert(t('lm_rename_empty')); return; }
+  if(limpio===nombreActual)return;
+  await accionLiga('renombrar',{id,nombre:limpio});
 }
 async function accionLiga(accion,extra){
   try{

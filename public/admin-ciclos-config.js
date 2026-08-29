@@ -318,20 +318,15 @@ function renderAdmin(){
     // aparte, más abajo (exclusivo superadmin). ====
     if(esAdmin(currentUser)){
       h += `<div class="card"><div class="section-lbl" style="color:var(--pri)">${t('appearance_title')}</div>
+        <p class="legend-txt" style="margin-top:0">${t('appearance_name_hint')}</p>
         <div class="form-row" style="margin-bottom:.75rem">
           <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Nombre de la liga</label>
-            <input id="sa-league-name" type="text" value="${attr(LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('login_title_lbl')} <span style="font-size:11px">${t('login_title_hint')}</span></label>
+            <input id="sa-login-title" type="text" value="${attr(LOGIN_TITLE)}" placeholder="${attr((LIGA_NOMBRE_OFICIAL&&LIGA_NOMBRE_OFICIAL.trim())?LIGA_NOMBRE_OFICIAL:LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
           </div>
           <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Subtítulo</label>
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('login_subtitle_lbl')}</label>
             <input id="sa-league-sub" type="text" value="${attr(LEAGUE_SUBTITLE)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
-          </div>
-        </div>
-        <div class="form-row" style="margin-bottom:.75rem">
-          <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Nombre del login <span style="font-size:11px">(se ve en la pantalla de login, antes de elegir liga — ej: "Club Sohail Fuengirola". Si se deja vacío, se usa el nombre de la liga de arriba)</span></label>
-            <input id="sa-login-title" type="text" value="${attr(LOGIN_TITLE)}" placeholder="${attr(LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
           </div>
         </div>
         <div class="form-row" style="margin-bottom:.75rem">

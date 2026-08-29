@@ -6,14 +6,15 @@
 // ============================================================================
 function _conLiga2(url,ligaId){ return url+(url.includes('?')?'&':'?')+'liga='+encodeURIComponent(ligaId); }
 function applyLeagueNameToDOM(){
-  const loginTxt = (LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:LEAGUE_NAME;
+  const nombreOficial=(LIGA_NOMBRE_OFICIAL&&LIGA_NOMBRE_OFICIAL.trim())?LIGA_NOMBRE_OFICIAL:LEAGUE_NAME;
+  const loginTxt = (LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:nombreOficial;
   const _lt=document.getElementById('login-title');if(_lt&&loginTxt)_lt.textContent=loginTxt;
   const _ls=document.getElementById('login-sub');if(_ls&&LEAGUE_SUBTITLE)_ls.textContent=LEAGUE_SUBTITLE;
-  if(LEAGUE_NAME)document.title=LEAGUE_NAME;
+  if(nombreOficial)document.title=nombreOficial;
   // Cacheado para que la próxima pantalla de login ya muestre el nombre correcto.
   // 'lt' es el nombre específico del login (si está vacío, el próximo load cae
   // a 'n' como antes — ver el script del <head> en index.html).
-  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
+  try{localStorage.setItem('lsn',JSON.stringify({n:nombreOficial,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
 }
 // ==================== PASSKEYS (Face ID / Touch ID) ====================
 // Login con clave sigue intacto: esto es una capa opcional encima.
@@ -562,6 +563,8 @@ async function doLogin(){
       if(!ok){e.textContent=t('err_hydrate');e.style.display='block';_token=null;return;}
       _lastSaved=_serialize();
       _loadOK=true;
+      // Nombre oficial de la liga (Gestión de Ligas), separado de LEAGUE_NAME.
+      LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
     }else{
       await loadState();
     }
@@ -631,6 +634,7 @@ async function elegirLigaTrasLogin(ligaId){
     if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} return; }
     _lastSaved=_serialize();
     _loadOK=true;
+    LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
     const u=USERS[d.name];
     if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} return; }
     currentUser=u; currentUser.key=d.name;
@@ -704,6 +708,7 @@ function entrarConToken(d){
     if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} _token=null; return false; }
     _lastSaved=_serialize();
     _loadOK=true;
+    LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
   }
   if(!_loadOK){ if(e){e.textContent=t('err_no_data');e.style.display='block';} _token=null; return false; }
   const u=USERS[d.name];
