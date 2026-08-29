@@ -31,6 +31,14 @@
 //         eligeLiga:true + la lista de ligas para que el cliente muestre
 //         los botones. El state se pide después con /api/state?elegir=1.
 //
+// ligaNombre: en TODOS los logins directos (1 sola liga) se devuelve
+// además el nombre OFICIAL de la liga tal como figura en liga_index (lo
+// mismo que se ve en "Gestión de ligas"), separado de state.LEAGUE_NAME.
+// El cliente lo usa para pintar el header y el título del login post-
+// selección, para que ese nombre visible SIEMPRE coincida con el que
+// figura en Gestión de Ligas, sin importar qué guardó el formulario de
+// "Apariencia de la liga" en LEAGUE_NAME.
+//
 // Rate limiting: por USUARIO y por IP, con contador compartido en Supabase.
 // Antes vivía en un Map en memoria: al escalar Vercel a N instancias, el
 // atacante ganaba N * MAX_FAILS intentos. Ahora el contador es global.
@@ -174,6 +182,7 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
       exp,
       mustChangePw,
       ligaId: d.ligaId,
+      ligaNombre: d.nombre,
       state: filterForSession(d.state, session)
     });
   }
@@ -210,12 +219,16 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
 // =====================================================================
 async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, body, idx }){
   let ligaId = null;
+  let ligaNombre = '';
   const bodyLigaId = body && ligaIdOK(body.ligaId) ? body.ligaId : '';
   if(bodyLigaId && idx.some(l => l.id === bodyLigaId)){
     ligaId = bodyLigaId;
+    const e = idx.find(l => l.id === bodyLigaId);
+    ligaNombre = e ? e.nombre : '';
   } else if(idx.length){
     const ultima = idx.slice().sort((a, b) => (b.orden || 0) - (a.orden || 0))[0];
     ligaId = ultima.id;
+    ligaNombre = ultima.nombre || '';
   } else {
     ligaId = LIGA_DEFAULT;
   }
@@ -266,6 +279,7 @@ async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, bod
     exp,
     mustChangePw,
     ligaId,
+    ligaNombre,
     state: filterForSession(state, session)
   });
 }
@@ -363,6 +377,7 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
       exp,
       mustChangePw,
       ligaId: d.ligaId,
+      ligaNombre: d.nombre,
       state: filterForSession(d.state, session)
     });
   }

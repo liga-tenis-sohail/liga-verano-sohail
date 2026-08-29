@@ -8,14 +8,23 @@
 //
 // GET /api/state?liga=xxx&elegir=1
 //   Paso 2 del LOGIN UNIFICADO: cuando /api/login devolvió eligeLiga:true
-//   (el jugador está en 2+ ligas activas), la contraseña YA se validó y
-//   el token YA es válido, pero todavía no sabíamos a qué liga entrar.
-//   El cliente llama acá con la liga elegida + el flag ?elegir=1: se
-//   revalida que el jugador realmente pertenezca a esa liga (nunca se
-//   confía ciegamente en lo que mande el cliente) y devuelve el state
-//   igual que haría un login normal.
+//   (el jugador o el admin están en 2+ ligas activas), la contraseña YA
+//   se validó y el token YA es válido, pero todavía no sabíamos a qué
+//   liga entrar. El cliente llama acá con la liga elegida + el flag
+//   ?elegir=1: se revalida que la sesión realmente pertenezca a esa liga
+//   (nunca se confía ciegamente en lo que mande el cliente) y devuelve
+//   el state igual que haría un login normal. También lo usa
+//   cambiarLigaDesdeMenu() en el header para cambiar de liga ya logueado,
+//   sin importar el rol de la sesión — por eso el chequeo de pertenencia
+//   ya NO exige role==='player' (ver más abajo).
+//
+// ligaNombre: además de state.LEAGUE_NAME, se devuelve el nombre OFICIAL
+// de la liga tal como figura en liga_index (lo mismo que "Gestión de
+// ligas"). El cliente lo usa para el header y el título del login, para
+// que ese nombre visible no dependa de lo que haya quedado guardado en
+// LEAGUE_NAME desde el formulario de "Apariencia de la liga".
 // =====================================================================
-const { auth, readState, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
+const { auth, readState, readLigaIndex, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
 module.exports = async function handler(req, res){
   if(!envOK(res)) return;
@@ -38,20 +47,10 @@ module.exports = async function handler(req, res){
 
   // Paso 2 del login unificado / cambio de liga desde el header ya logueado:
   // revalidamos que la sesión realmente pertenezca a ESTA liga antes de
-  // entregarle nada — el ?liga= lo manda el cliente y no hay que confiar en
-  // él a ciegas.
-  //
-  // OJO: este mismo endpoint lo usan DOS flujos distintos:
-  //   1) paso 2 del login unificado (un jugador de catálogo en 2+ ligas
-  //      activas, session.r === 'player')
-  //   2) cambiarLigaDesdeMenu() en el header, que puede disparar CUALQUIER
-  //      rol de sesión (admin/superadmin incluidos) — un admin también
-  //      participa de varias ligas y necesita poder cambiar entre ellas.
-  // Antes se exigía u.role === 'player', lo que bloqueaba siempre a
-  // admin/superadmin con "No pertenecés a esa liga.", aunque existieran
-  // perfectamente en state.users de esa liga (heredados en estadoInicial()).
-  // Lo correcto es solo verificar que la sesión exista como user ahí,
-  // sin importar el rol.
+  // entregarle nada — el ?liga= lo manda el cliente y no hay que confiar
+  // en él a ciegas. Solo se chequea que exista como user ahí, sin importar
+  // el rol: un admin/superadmin también participa de varias ligas y
+  // necesita poder cambiar entre ellas con este mismo endpoint.
   if(req.query && req.query.elegir){
     const u = (state.users || {})[session.u];
     if(!u){
@@ -59,12 +58,20 @@ module.exports = async function handler(req, res){
     }
   }
 
+  let ligaNombre = '';
+  try {
+    const idx = await readLigaIndex();
+    const entry = idx.find(l => l.id === ligaId);
+    if(entry) ligaNombre = entry.nombre;
+  } catch(e){ /* si falla, el cliente cae a LEAGUE_NAME como antes */ }
+
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     state: filterForSession(state, session),
     role: session.r,
     name: session.u,
     ligaId,
+    ligaNombre,
     token: renewIfStale(session) || undefined
   });
 };
