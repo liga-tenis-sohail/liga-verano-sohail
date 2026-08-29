@@ -331,19 +331,32 @@ function _msgPintarLista(tab, msgs, reset){
 }
 
 // Resuelve una CLAVE de usuario (la que guarda session.u / m.autor, ej.
-// "admin") al nombre para mostrar (ej. "Organización"). Los mensajes se
-// guardan con la clave técnica, no con el nombre de display — sin este
-// mapeo, el autor admin aparecía literalmente como "admin" en minúscula
-// en vez de "Organización", y además nunca se detectaba como "vos" en tus
-// propios mensajes (currentUser.name ya es el nombre de display, entonces
-// comparaba mal contra la clave cruda).
+// "admin") al nombre para mostrar. Los mensajes se guardan con la clave
+// técnica, no con el nombre de display.
+//
+// Para "admin" usamos la traducción VIGENTE (t('org_label'), que responde
+// al idioma actual: "Organización"/"Organisation") en vez de
+// USERS['admin'].name — ese campo viene persistido en el state de la base
+// tal como se escribió al crear la liga (casi siempre en español) y NO se
+// traduce solo, así que mostrarlo literal hacía que en inglés igual
+// apareciera "Organización". Para superadmin no hace falta ningún mapeo
+// especial porque ese rol no participa del chat. Para cualquier otro
+// usuario (jugadores), USERS[clave].name es su nombre real de persona y
+// no depende del idioma, así que ahí sí se usa tal cual.
 function _msgNombreDeAutor(clave){
+  if(clave === 'admin') return t('org_label');
   const u = USERS && USERS[clave];
   return (u && u.name) ? u.name : (clave || '');
 }
 function _msgBubbleHTML(m){
   const nombreAutor = _msgNombreDeAutor(m.autor);
-  const soyYo = currentUser && nombreAutor === currentUser.name;
+  // Comparamos por CLAVE (currentUser.key, no currentUser.name): comparar
+  // por nombre de display fallaba para el admin en inglés, porque
+  // nombreAutor ya sale traducido (t('org_label')) pero currentUser.name
+  // seguía siendo el string persistido en la base (casi siempre en
+  // español) — nunca coincidían y el admin nunca se veía a sí mismo como
+  // "Tú" en sus propios mensajes.
+  const soyYo = currentUser && m.autor === currentUser.key;
   const nombre = soyYo ? t('msg_you') : attr(nombreAutor);
   const cuando = attr(_msgFmtFecha(m.fecha));
   const texto = attr(m.texto || '');
