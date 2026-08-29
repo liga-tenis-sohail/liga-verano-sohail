@@ -3,7 +3,7 @@
 // Sin token no se escribe nada. Y lo que un jugador nunca vio,
 // tampoco lo puede pisar: se reinyecta desde la base.
 // =====================================================================
-const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex } = require('./_lib');
+const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex, upsertLigaIndex } = require('./_lib');
 const { notifyAdmins, fmtFecha, fmtSets } = require('./_lib_whatsapp');
 
 module.exports = async function handler(req, res){
@@ -88,10 +88,17 @@ async function _handlerSave(req, res){
 
   if(!current) return res.status(409).json({ error: 'La base respondió vacía; no se sobrescribe.' });
 
+  // ligaEntry se reutiliza más abajo para sincronizar liga_index si el admin
+  // cambia LEAGUE_NAME desde "Apariencia de la liga" (ver bloque después de
+  // writeState). Antes solo se leía acá para chequear "finalizada" y se
+  // descartaba; ese cambio de nombre nunca se propagaba al índice, así que
+  // el nombre listado en "Gestión de ligas" quedaba desincronizado del que
+  // el admin veía en el header y en el formulario de apariencia.
+  let ligaEntry = null;
   try {
     const idx = await readLigaIndex();
-    const entry = idx.find(l => l.id === ligaId);
-    if(entry && entry.estado === 'finalizada'){
+    ligaEntry = idx.find(l => l.id === ligaId) || null;
+    if(ligaEntry && ligaEntry.estado === 'finalizada'){
       return res.status(403).json({ error: 'Esta liga está finalizada: es de solo lectura. Reabrila para poder cargar resultados.' });
     }
   } catch(e){ }
@@ -166,7 +173,7 @@ async function _handlerSave(req, res){
   }
 
   if(!admin){
-    const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE','LEAGUE_COLOR_PRI',
+    const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LEAGUE_COLOR_PRI',
                        'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON',
                          'RATING_SEEDS','RATING_OVERRIDES'];
     for(const k of COSMETICO){
@@ -200,16 +207,8 @@ async function _handlerSave(req, res){
       if('tel'   in curU) inU.tel   = curU.tel;   else delete inU.tel;
     }
 
-    // CONGELADO: campos cosméticos/estructurales que un jugador SIEMPRE
-    // recibe tal cual están en el servidor, nunca lo que traiga su copia
-    // local. Sin esto, un jugador con el estado desactualizado (por
-    // ejemplo, todavía no recargó la página después de que el admin
-    // cambió el título del login) pisaba silenciosamente el valor nuevo
-    // en cada autosave — pasó justo con LOGIN_TITLE: el admin lo guardaba
-    // bien, pero el próximo autosave de cualquier jugador (cada 12s) lo
-    // devolvía a como estaba antes.
     const CONGELADO = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
-                       'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE',
+                       'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE',
                        'LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL'];
     for(const k of CONGELADO){
       if(k in current) incoming[k] = current[k]; else delete incoming[k];
@@ -274,6 +273,26 @@ async function _handlerSave(req, res){
     await writeState(ligaId, incoming); 
   } catch(e) { 
     return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); 
+  }
+
+  // 1.5. Si el admin cambió LEAGUE_NAME (por ejemplo desde "Apariencia de la
+  // liga"), propagamos el nombre nuevo también a liga_index — el mismo
+  // registro que alimenta "Gestión de ligas" y el nombre que se ve ANTES de
+  // elegir liga en el login. Sin esto, el nombre quedaba correcto en el
+  // header/state pero desactualizado en esos otros dos lugares, que solo se
+  // sincronizaban cuando el admin usaba el botón "Renombrar" de Gestión de
+  // Ligas (una acción distinta, 'renombrar', que si actualiza ambos lados).
+  // Fire-and-forget con try/catch propio: si esto falla, el guardado
+  // principal del estado ya se hizo y no se pierde nada importante.
+  if(admin && ligaEntry && incoming.LEAGUE_NAME && incoming.LEAGUE_NAME !== ligaEntry.nombre){
+    try {
+      await upsertLigaIndex({
+        id: ligaId,
+        nombre: incoming.LEAGUE_NAME,
+        estado: ligaEntry.estado,
+        orden: ligaEntry.orden
+      });
+    } catch(e){ /* no bloquea el guardado del estado, que ya se hizo bien */ }
   }
 
   // 2. SEGUNDO disparamos las notificaciones CON AWAIT.
