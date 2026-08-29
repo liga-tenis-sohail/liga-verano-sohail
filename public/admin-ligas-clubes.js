@@ -354,6 +354,7 @@ function tintColor(hex,pct){
 function saveLeagueName(){
   const inp=document.getElementById('sa-league-name');
   const sub=document.getElementById('sa-league-sub');
+  const loginTit=document.getElementById('sa-login-title');
   const pri=document.getElementById('sa-color-pri');
   const acc=document.getElementById('sa-color-acc');
   const hl=document.getElementById('sa-color-hl');
@@ -361,6 +362,7 @@ function saveLeagueName(){
   if(!inp||!inp.value.trim()){if(al)al.innerHTML='<span style="color:#e55">El nombre no puede estar vacío.</span>';return;}
   LEAGUE_NAME=inp.value.trim();
   if(sub)LEAGUE_SUBTITLE=sub.value.trim();
+  if(loginTit)LOGIN_TITLE=loginTit.value.trim();
   if(pri)LEAGUE_COLOR_PRI=pri.value;
   if(acc)LEAGUE_COLOR_ACC=acc.value;
   if(hl)LEAGUE_COLOR_HL=hl.value;
@@ -392,14 +394,16 @@ function saveLeagueName(){
   matches.forEach((m,i)=>{ m.club = nuevos[i]; });
   // Aplicar colores
   applyLeagueColors(LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL);
-  // Actualizar textos
+  // Actualizar textos. El título del LOGIN usa LOGIN_TITLE si está definido,
+  // si no cae a LEAGUE_NAME (mismo criterio que applyLeagueNameToDOM).
+  const loginTxt=(LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:LEAGUE_NAME;
   const tit=document.getElementById('hdr-title');if(tit)tit.textContent=LEAGUE_NAME;
-  const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME;
+  const lt=document.getElementById('login-title');if(lt)lt.textContent=loginTxt;
   const lsb=document.getElementById('login-sub');if(lsb)lsb.textContent=LEAGUE_SUBTITLE;
   document.title=LEAGUE_NAME;
   addLog('Config: nombre y colores actualizados',{po:null,a:LEAGUE_NAME,b:LEAGUE_SUBTITLE});
   // Guardar en localStorage para recuperación inmediata sin flash
-  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE}));}catch(e){}
+  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
   persist(true);
   if(al)al.innerHTML='<span style="color:#22c55e">✓ Configuración guardada.</span>';
   setTimeout(()=>{if(al)al.innerHTML='';},3000);

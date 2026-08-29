@@ -82,7 +82,7 @@ function updateLangUI(){
   ['btn-lang-en','btn-lang-en-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='en');}});
   const lu=document.getElementById('lbl-user');if(lu)lu.textContent=t('select_user');
   const lp=document.getElementById('lbl-pass');if(lp)lp.textContent=t('password');
-  const lt=document.getElementById('login-title');if(lt)lt.textContent=LEAGUE_NAME||t('app_title');
+  const lt=document.getElementById('login-title');if(lt)lt.textContent=(LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:(LEAGUE_NAME||t('app_title'));
   const ls=document.getElementById('login-sub');if(ls)ls.textContent=LEAGUE_SUBTITLE||t('app_subtitle');
   const bEnv=document.getElementById('btn-enviar');if(bEnv)bEnv.innerHTML='<i class="ti ti-send"></i> '+t('send');
   const bLim=document.getElementById('btn-limpiar');if(bLim)bLim.textContent=t('clear');
@@ -311,6 +311,13 @@ let playoff={started:false,numTramos:4,tramos:[],results:{},viewT:0,qualified:[]
 let matches=[],matchId=1,activeN=1,viewCycle=1,subView='grupos',currentModal=null,formClub='',poContext=null,selGroup=1,adminMode='',_formCycleN=null;
 let LOG=[]; // historial de acciones sobre resultados (max 500 entradas)
 let LEAGUE_NAME='Liga de Tenis Sohail'; // nombre editable de la liga
+// Nombre que se muestra en la pantalla de LOGIN (antes de elegir liga).
+// Separado de LEAGUE_NAME: el nombre del login es el mismo para todas las
+// ligas del club (ej. "Club Sohail Fuengirola"), mientras que LEAGUE_NAME
+// es el nombre de ESTA liga puntual (ej. "Liga de Tenis Verano 2026") y
+// varía de liga en liga. Vacío = usa LEAGUE_NAME como antes (compatibilidad
+// con ligas creadas antes de este campo).
+let LOGIN_TITLE='';
 // Configuración del header de la pantalla de LOGIN (arriba del recuadro azul):
 //   color: fondo de la barra
 //   textColor: color del texto y borde de los pills (vacío = auto según contraste)

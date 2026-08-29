@@ -6,11 +6,14 @@
 // ============================================================================
 function _conLiga2(url,ligaId){ return url+(url.includes('?')?'&':'?')+'liga='+encodeURIComponent(ligaId); }
 function applyLeagueNameToDOM(){
-  const _lt=document.getElementById('login-title');if(_lt&&LEAGUE_NAME)_lt.textContent=LEAGUE_NAME;
+  const loginTxt = (LOGIN_TITLE&&LOGIN_TITLE.trim())?LOGIN_TITLE:LEAGUE_NAME;
+  const _lt=document.getElementById('login-title');if(_lt&&loginTxt)_lt.textContent=loginTxt;
   const _ls=document.getElementById('login-sub');if(_ls&&LEAGUE_SUBTITLE)_ls.textContent=LEAGUE_SUBTITLE;
   if(LEAGUE_NAME)document.title=LEAGUE_NAME;
-  // Cacheado para que la próxima pantalla de login ya muestre el nombre correcto
-  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE}));}catch(e){}
+  // Cacheado para que la próxima pantalla de login ya muestre el nombre correcto.
+  // 'lt' es el nombre específico del login (si está vacío, el próximo load cae
+  // a 'n' como antes — ver el script del <head> en index.html).
+  try{localStorage.setItem('lsn',JSON.stringify({n:LEAGUE_NAME,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
 }
 // ==================== PASSKEYS (Face ID / Touch ID) ====================
 // Login con clave sigue intacto: esto es una capa opcional encima.

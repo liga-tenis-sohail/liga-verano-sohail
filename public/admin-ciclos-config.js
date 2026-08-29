@@ -312,6 +312,86 @@ function renderAdmin(){
     }
     h += `</div>`;
 
+    // ==== Apariencia de la liga (movido desde Perfil): nombre, subtítulo,
+    // nombre del login, colores y clubes. Cualquier admin puede cambiar la
+    // parte cosmética; lo estructural (puntos, grupos, ciclos) sigue gateado
+    // aparte, más abajo (exclusivo superadmin). ====
+    if(esAdmin(currentUser)){
+      h += `<div class="card"><div class="section-lbl" style="color:var(--pri)">${t('appearance_title')}</div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Nombre de la liga</label>
+            <input id="sa-league-name" type="text" value="${attr(LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
+          </div>
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Subtítulo</label>
+            <input id="sa-league-sub" type="text" value="${attr(LEAGUE_SUBTITLE)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Nombre del login <span style="font-size:11px">(se ve en la pantalla de login, antes de elegir liga — ej: "Club Sohail Fuengirola". Si se deja vacío, se usa el nombre de la liga de arriba)</span></label>
+            <input id="sa-login-title" type="text" value="${attr(LOGIN_TITLE)}" placeholder="${attr(LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color primario</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input id="sa-color-pri" type="color" value="${LEAGUE_COLOR_PRI}" oninput="syncHex('pri','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-pri-hex" type="text" value="${LEAGUE_COLOR_PRI}" maxlength="7" spellcheck="false" oninput="syncHex('pri')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+            </div>
+          </div>
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color acento</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input id="sa-color-acc" type="color" value="${LEAGUE_COLOR_ACC}" oninput="syncHex('acc','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-acc-hex" type="text" value="${LEAGUE_COLOR_ACC}" maxlength="7" spellcheck="false" oninput="syncHex('acc')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+            </div>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color de resaltado <span style="font-size:11px">(fondo de "No jugado" y "W.O.")</span></label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <input id="sa-color-hl" type="color" value="${LEAGUE_COLOR_HL}" oninput="syncHex('hl','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-hl-hex" type="text" value="${LEAGUE_COLOR_HL}" maxlength="7" spellcheck="false" oninput="syncHex('hl')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+              <span id="sa-hl-demo" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${LEAGUE_COLOR_HL};color:var(--priD);border:1px solid var(--priD)">No jugado</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:.75rem">
+          <div class="form-group">
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('dispute_color')} <span style="font-size:11px">(${t('dispute_color_hint')})</span></label>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <input id="sa-color-disp" type="color" value="${COLOR_DISPUTA}" oninput="syncHex('disp','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
+              <input id="sa-disp-hex" type="text" value="${COLOR_DISPUTA}" maxlength="7" spellcheck="false" oninput="syncHex('disp')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
+              <span id="sa-disp-demo" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${COLOR_DISPUTA};color:${autoTxt(COLOR_DISPUTA)}">${t('dispute_short')}</span>
+            </div>
+          </div>
+        </div>
+        <div class="section-lbl" style="color:var(--pri);margin-top:1rem">${t('clubs_title')}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:.6rem">${t('clubs_hint')}</div>
+        <div id="clubs-editor">${clubsEditorHTML()}</div>
+        <div class="section-lbl" style="color:var(--pri);margin-top:1.5rem">${t('rating_feature')}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding:.85rem 1rem;border:1px solid var(--border2);border-radius:10px;background:var(--surface)">
+          <div style="flex:1;min-width:200px">
+            <div style="font-weight:600;font-size:.9rem">${t('rating_toggle_label')}</div>
+            <div style="font-size:.8rem;color:var(--text2);margin-top:2px">${t('rating_toggle_hint')}</div>
+          </div>
+          <button id="rating-toggle-btn" class="btn ${RATING_ON?'btn-success':''}" onclick="toggleRating()">
+            <i class="ti ${RATING_ON?'ti-eye':'ti-eye-off'}"></i> ${RATING_ON?t('rating_on'):t('rating_off')}
+          </button>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:.25rem;margin-top:1rem">
+          <button class="btn btn-primary" onclick="previewLeagueColors()"><i class="ti ti-eye"></i> ${t('preview')}</button>
+          <button class="btn btn-success" onclick="saveLeagueName()"><i class="ti ti-device-floppy"></i> ${t('save_all')}</button>
+          <button class="btn" onclick="resetLeagueColors()"><i class="ti ti-refresh"></i> ${t('reset_colors')}</button>
+        </div>
+        <div id="sa-league-alert" style="margin-top:6px;font-size:12px"></div>
+      </div>`;
+    }
+
     const numGrupos = grps.length || 12;
     const ppg = (grps[0]&&grps[0].players)?grps[0].players.length:5;
     const cActiveHasMatches = matches.some(m=>m.cycle===activeN&&!m.po);

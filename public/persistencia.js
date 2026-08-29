@@ -23,7 +23,7 @@ let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=fal
 // tienen la app abierta, la segunda en guardar recibe 409 en vez de pisar a la primera.
 let _stateV=0;
 function _serialize(){
-  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER,JOIN_REQUESTS});
+  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LOGIN_TITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER,JOIN_REQUESTS});
 }
 
 function _hydrate(d){try{
@@ -82,6 +82,10 @@ function _hydrate(d){try{
   if(d.LEAGUE_NAME)LEAGUE_NAME=d.LEAGUE_NAME;
   REGLAMENTO=(typeof d.REGLAMENTO==='string')?d.REGLAMENTO:'';
   if(d.LEAGUE_SUBTITLE)LEAGUE_SUBTITLE=d.LEAGUE_SUBTITLE;
+  // typeof==='string' (no truthy-check): un LOGIN_TITLE vacío es un valor
+  // válido y querido (significa "usar LEAGUE_NAME por defecto"), a diferencia
+  // de LEAGUE_SUBTITLE de arriba donde vacío se trata como "no vino nada".
+  LOGIN_TITLE=(typeof d.LOGIN_TITLE==='string')?d.LOGIN_TITLE:'';
   if(d.LEAGUE_COLOR_PRI)LEAGUE_COLOR_PRI=d.LEAGUE_COLOR_PRI;
   if(d.LEAGUE_COLOR_ACC)LEAGUE_COLOR_ACC=d.LEAGUE_COLOR_ACC;
   if(d.LEAGUE_COLOR_HL)LEAGUE_COLOR_HL=d.LEAGUE_COLOR_HL;
