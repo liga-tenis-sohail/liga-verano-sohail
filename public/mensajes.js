@@ -9,13 +9,9 @@
 //   'playoff'  → chat privado entre los jugadores del CUADRO de Play Offs
 //                (tramo) del usuario. Solo aparece si los Play Offs están
 //                iniciados y el jugador pertenece a algún cuadro.
-//   'explorar' → SOLO ADMIN: navegar, leer Y ESCRIBIR en el chat de
-//                CUALQUIER grupo de CUALQUIER ciclo, o cualquier cuadro de
-//                Play Offs (elige ciclo + grupo, o cuadro, con un selector).
-//                No reemplaza al chat propio del jugador — es la vía del
-//                admin para escribir en un grupo/cuadro donde no juega.
-//                No tiene polling en vivo (ver reiniciarPollingMensajes):
-//                es para revisar y, si hace falta, avisar algo puntual.
+//   'explorar' → SOLO ADMIN: navegar y leer el chat de CUALQUIER grupo de
+//                CUALQUIER ciclo (elige ciclo + grupo con un selector). Es
+//                de solo lectura — no reemplaza al chat propio del jugador.
 //
 // Los mensajes viven en su propia tabla en el backend (dentro de /api/liga,
 // ver comentario en ese archivo sobre el límite de Serverless Functions),
@@ -234,7 +230,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
       return;
     }
     body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${nivel1}${nivel2}
-      <div class="msg-box"><div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div><div id="msg-compose"></div></div>`;
+      <div class="msg-box"><div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div></div>`;
     try{
       const payload = _msgExplorarCtx.tipo === 'playoff'
         ? { accion:'listarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo }
@@ -249,11 +245,6 @@ async function cargarMsgHilo(tab, esCargaInicial){
       if(!r.ok){ if(list) list.innerHTML = '<div class="legend-txt">'+attr(d.error||t('msg_load_err'))+'</div>'; return; }
       const msgs = Array.isArray(d.mensajes) ? d.mensajes : [];
       _msgPintarLista('explorar', msgs, true);
-      // El admin puede escribir en cualquier grupo/cuadro desde acá (ver
-      // enviarGrupo/enviarPlayoff en api/liga.js, que ya lo permiten). Antes
-      // el explorador era 100% de solo lectura porque nunca se pintaba el
-      // composer; ahora sí, igual que en los hilos propios.
-      _msgPintarComposer('explorar');
     } catch(e){
       const list = document.getElementById('msg-list');
       if(list) list.innerHTML = '<div class="legend-txt">'+attr(t('ml_conn_err'))+'</div>';
@@ -339,12 +330,24 @@ function _msgPintarLista(tab, msgs, reset){
   if(estabaAbajo) list.scrollTop = list.scrollHeight;
 }
 
+// Resuelve una CLAVE de usuario (la que guarda session.u / m.autor, ej.
+// "admin") al nombre para mostrar (ej. "Organización"). Los mensajes se
+// guardan con la clave técnica, no con el nombre de display — sin este
+// mapeo, el autor admin aparecía literalmente como "admin" en minúscula
+// en vez de "Organización", y además nunca se detectaba como "vos" en tus
+// propios mensajes (currentUser.name ya es el nombre de display, entonces
+// comparaba mal contra la clave cruda).
+function _msgNombreDeAutor(clave){
+  const u = USERS && USERS[clave];
+  return (u && u.name) ? u.name : (clave || '');
+}
 function _msgBubbleHTML(m){
-  const soyYo = currentUser && m.autor === currentUser.name;
-  const nombre = soyYo ? t('msg_you') : attr(m.autor || '');
+  const nombreAutor = _msgNombreDeAutor(m.autor);
+  const soyYo = currentUser && nombreAutor === currentUser.name;
+  const nombre = soyYo ? t('msg_you') : attr(nombreAutor);
   const cuando = attr(_msgFmtFecha(m.fecha));
   const texto = attr(m.texto || '');
-  const c = _msgColorForName(m.autor || '');
+  const c = _msgColorForName(nombreAutor);
   const estiloBurbuja = 'background:'+c.bg+';border-color:'+c.border+';';
   const estiloAutor = 'color:'+c.label+';';
   return `<div class="msg-bubble-row ${soyYo?'me':''}">
@@ -359,14 +362,7 @@ function _msgBubbleHTML(m){
 function _msgPintarComposer(tab){
   const box = document.getElementById('msg-compose');
   if(!box) return;
-  // 'explorar': el admin escribe en el grupo/cuadro que esté navegando en
-  // ese momento (_msgExplorarCtx). Solo esAdmin llega acá (la pestaña ni
-  // se muestra si no lo es), y el backend igual valida esAdminMsg de nuevo.
-  const puedeEscribir = tab === 'admin' ? esAdmin(currentUser)
-    : tab === 'grupo' ? !!_msgGrupoCtx
-    : tab === 'playoff' ? !!_msgTramoCtx
-    : tab === 'explorar' ? (esAdmin(currentUser) && !!_msgExplorarCtx)
-    : false;
+  const puedeEscribir = tab === 'admin' ? esAdmin(currentUser) : (tab === 'grupo' ? !!_msgGrupoCtx : !!_msgTramoCtx);
   if(!puedeEscribir){
     box.innerHTML = '';
     return;
@@ -394,13 +390,7 @@ async function enviarMensajeUI(tab){
   let payload;
   if(tab === 'admin') payload = { accion:'enviarAdmin', ligaId:_ligaActual, texto };
   else if(tab === 'grupo') payload = { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, texto };
-  else if(tab === 'playoff') payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto };
-  else if(tab === 'explorar' && _msgExplorarCtx){
-    payload = _msgExplorarCtx.tipo === 'playoff'
-      ? { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo, texto }
-      : { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo, texto };
-  }
-  if(!payload) return;
+  else payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto };
 
   input.disabled = true;
   try{
@@ -415,13 +405,8 @@ async function enviarMensajeUI(tab){
     if(d.mensaje){
       _msgLastId[tab] = d.mensaje.id;
       _msgPintarLista(tab, [d.mensaje], false);
-      // 'explorar' no tiene marcado de leído propio (es de otro): el hilo
-      // real que se actualiza es el de _msgExplorarCtx, no un hilo del
-      // usuario. Se omite _msgReadStateSetOne para ese caso.
-      if(tab !== 'explorar'){
-        const ctx = tab==='admin' ? null : (tab==='grupo' ? _msgGrupoCtx : _msgTramoCtx);
-        _msgReadStateSetOne(_msgThreadKey(tab, ctx), d.mensaje.id);
-      }
+      const ctx = tab==='admin' ? null : (tab==='grupo' ? _msgGrupoCtx : _msgTramoCtx);
+      _msgReadStateSetOne(_msgThreadKey(tab, ctx), d.mensaje.id);
     }
   }catch(e){
     toast(t('msg_send_err'));
