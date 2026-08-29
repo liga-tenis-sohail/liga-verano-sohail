@@ -19,12 +19,19 @@ function pintarLogin(d){
   s.innerHTML='';
   const ph=document.createElement('option');ph.value='';ph.textContent=t('select_user');s.appendChild(ph);
   const opt=u=>new Option(u.i?u.v+' (inactivo)':u.v,u.v);
-  // 1) El administrador, arriba de todo (cuenta de gestión, no es parte del catálogo)
-  const admin=document.createElement('option');admin.value='admin';admin.textContent=t('admin_org');s.appendChild(admin);
 
+  // 1) Organización: cuenta de gestión, no es parte del catálogo de jugadores.
+  const orgOg=document.createElement('optgroup');orgOg.label='Organización';
+  const admin=new Option(t('admin_org'),'admin');orgOg.appendChild(admin);
+  s.appendChild(orgOg);
+
+  // 2) Jugadores: todo el catálogo, agrupado bajo su propia sección para
+  // distinguirlo claramente de las cuentas de gestión (Organización / Super Admin).
   if(d.mode==='global'){
-    // Lista plana, alfabética, sin secciones.
-    (d.players||[]).forEach(u=>s.appendChild(opt(u)));
+    // Lista plana, alfabética, sin sub-secciones por grupo/cuadro.
+    const playersOg=document.createElement('optgroup');playersOg.label='Jugadores';
+    (d.players||[]).forEach(u=>playersOg.appendChild(opt(u)));
+    s.appendChild(playersOg);
   }else{
     // Compatibilidad: modo liga puntual (grupos/cuadros)
     const esPO=d.mode==='po';
@@ -40,7 +47,8 @@ function pintarLogin(d){
       s.appendChild(og);
     }
   }
-  // 2) Super Admin, abajo de todo
+
+  // 3) Super Admin, abajo de todo
   const saOg=document.createElement('optgroup');saOg.label='Super Admin';
   saOg.appendChild(new Option('Super Administrador','superadmin'));
   s.appendChild(saOg);
@@ -532,12 +540,10 @@ function clRemoveClub(i){
 }
 function _clNumGrupos(){ return parseInt(document.getElementById('cl-grupos')?.value,10)||1; }
 // callExpr: expresión JS completa a ejecutar en el onchange, ej "clSetGrupo('id',this.value)"
-// cur=0 representa "Sin grupo" (el jugador se da de alta en la liga pero no
-// se lo asigna a ningún grupo todavía; el admin lo hace después a mano).
 function _clGrupoSelectHTML(cur,callExpr){
   const n=_clNumGrupos();
+  if(n<=1) return '';
   let h='<select class="cl-grp-sel" onclick="event.stopPropagation()" onchange="'+callExpr+'">';
-  h+='<option value="0"'+(cur===0?' selected':'')+'>'+t('cl_sin_grupo')+'</option>';
   for(let g=1; g<=n; g++) h+='<option value="'+g+'"'+(g===cur?' selected':'')+'>'+t('group')+' '+g+'</option>';
   return h+'</select>';
 }
@@ -548,29 +554,24 @@ function pintarCatFiltrado(){
   cont.innerHTML=lista.map(j=>{
     const sel=_crearLigaSel[j.jugadorId];
     const on=!!sel;
-    // sel.grupo puede ser 0 ("Sin grupo") legítimamente: no usar `sel.grupo||1`
-    // acá, que convertiría ese 0 en 1 y perdería la selección.
-    const grpSel=on?_clGrupoSelectHTML(sel.grupo!=null?sel.grupo:0,"clSetGrupo('"+escJsAttr(j.jugadorId)+"',this.value)"):'';
+    const grpSel=on?_clGrupoSelectHTML(sel.grupo||1,"clSetGrupo('"+escJsAttr(j.jugadorId)+"',this.value)"):'';
     return '<div class="cl-cat-item'+(on?' on':'')+'" onclick="clToggle(\''+escJsAttr(j.jugadorId)+'\')">'
       +'<div class="cl-chk">'+(on?'<i class="ti ti-check"></i>':'')+'</div>'
       +'<span>'+escPast(j.nombre)+'</span>'+grpSel+'</div>';
   }).join('')||'<div class="cl-hint">'+t('lm_no_match')+'</div>';
 }
-// Por default, un jugador recién marcado queda "Sin grupo" (grupo:0): el
-// admin elige después, desde este mismo selector o desde el panel de la
-// liga ya creada, a qué grupo lo asigna. Antes quedaba en Grupo 1 directo.
-function clToggle(id){ if(_crearLigaSel[id])delete _crearLigaSel[id]; else _crearLigaSel[id]={grupo:0}; pintarCatFiltrado(); clActualizarCount(); }
-function clSetGrupo(id,v){ if(_crearLigaSel[id]) _crearLigaSel[id].grupo=parseInt(v,10)||0; }
-function clAddNuevo(){ _crearLigaNuevos.push({nombre:'',email:'',grupo:0}); pintarNuevos(); clActualizarCount(); }
+function clToggle(id){ if(_crearLigaSel[id])delete _crearLigaSel[id]; else _crearLigaSel[id]={grupo:1}; pintarCatFiltrado(); clActualizarCount(); }
+function clSetGrupo(id,v){ if(_crearLigaSel[id]) _crearLigaSel[id].grupo=parseInt(v,10)||1; }
+function clAddNuevo(){ _crearLigaNuevos.push({nombre:'',email:'',grupo:1}); pintarNuevos(); clActualizarCount(); }
 function clDelNuevo(i){ _crearLigaNuevos.splice(i,1); pintarNuevos(); clActualizarCount(); }
-function clSetGrupoNuevo(i,v){ if(_crearLigaNuevos[i]) _crearLigaNuevos[i].grupo=parseInt(v,10)||0; }
+function clSetGrupoNuevo(i,v){ if(_crearLigaNuevos[i]) _crearLigaNuevos[i].grupo=parseInt(v,10)||1; }
 function pintarNuevos(){
   const cont=document.getElementById('cl-nuevos'); if(!cont)return;
   cont.innerHTML=_crearLigaNuevos.map((n,i)=>
     '<div class="cl-nuevo-row">'
     +'<input class="cl-inp cl-inp-sm" placeholder="'+t('lm_np_name')+'" value="'+escPast(n.nombre)+'" oninput="_crearLigaNuevos['+i+'].nombre=this.value;clActualizarCount()">'
     +'<input class="cl-inp cl-inp-sm" placeholder="'+t('lm_np_email')+'" value="'+escPast(n.email)+'" oninput="_crearLigaNuevos['+i+'].email=this.value">'
-    +_clGrupoSelectHTML(n.grupo!=null?n.grupo:0,'clSetGrupoNuevo('+i+',this.value)')
+    +_clGrupoSelectHTML(n.grupo||1,'clSetGrupoNuevo('+i+',this.value)')
     +'<button class="cl-del" onclick="clDelNuevo('+i+')"><i class="ti ti-x"></i></button>'
     +'</div>').join('');
 }
@@ -600,14 +601,9 @@ async function crearLigaConfirmar(){
   if(new Set(nombresClubs.map(n=>n.toLowerCase())).size!==nombresClubs.length){ alert(t('club_err_dup')); return; }
   const clubs=_crearLigaClubs.map(c=>({id:c.id,name:c.name.trim(),bg:c.bg}));
   // Armar la lista de jugadores: del catálogo + nuevos con nombre.
-  // grupo puede ser legítimamente 0 ("Sin grupo") — no usar `||1` acá, que
-  // convertiría ese 0 en Grupo 1 y perdería la elección de dejarlo sin asignar.
   const jugadores=[];
-  Object.keys(_crearLigaSel).forEach(jid=>{
-    const g=_crearLigaSel[jid]&&_crearLigaSel[jid].grupo;
-    jugadores.push({jugadorId:jid, grupo:(g!=null?g:0)});
-  });
-  _crearLigaNuevos.forEach(n=>{ if(n.nombre.trim()) jugadores.push({nombre:n.nombre.trim(), email:(n.email||'').trim(), grupo:(n.grupo!=null?n.grupo:0)}); });
+  Object.keys(_crearLigaSel).forEach(jid=>jugadores.push({jugadorId:jid, grupo:(_crearLigaSel[jid]&&_crearLigaSel[jid].grupo)||1}));
+  _crearLigaNuevos.forEach(n=>{ if(n.nombre.trim()) jugadores.push({nombre:n.nombre.trim(), email:(n.email||'').trim(), grupo:n.grupo||1}); });
   if(!jugadores.length){ if(!confirm(t('lm_confirm_empty')))return; }
   const btn=event&&event.target?event.target.closest('button'):null;
   if(btn){btn.disabled=true;btn.textContent=t('lm_creating');}
