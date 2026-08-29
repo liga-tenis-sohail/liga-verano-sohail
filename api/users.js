@@ -14,9 +14,11 @@
 // Modo GLOBAL (login unificado): junta los jugadores de TODAS las ligas
 // activas en una sola lista alfabética plana, sin agrupar por grupo/cuadro
 // (ya no tiene sentido: son varias ligas a la vez). Deduplica por
-// jugadorId cuando existe (misma persona en 2 ligas -> aparece una vez);
-// si no tiene jugadorId (jugador no migrado al catálogo todavía), se
-// deduplica por nombre exacto dentro de esta lista.
+// jugadorId cuando existe, y además por NOMBRE normalizado (cubre
+// perfiles que quedaron con jugadorId distinto por variantes de nombre
+// o falta de fusión): la misma persona aparece UNA sola vez sin importar
+// en cuántas ligas activas participe. Los jugadores INACTIVOS no aparecen
+// en absoluto (no pueden entrar a ninguna liga activa igual).
 //
 // Devuelve el mínimo: nombre y marca de inactivo. Nada de emails,
 // teléfonos, hashes, roles ni resultados.
@@ -129,9 +131,7 @@ async function handlerGlobal(req, res){
 
   // porClave: dedupe. Preferimos jugadorId como clave (misma persona real
   // en 2 ligas = una sola entrada). Si un usuario no tiene jugadorId
-  // todavía (no migrado al catálogo), deduplicamos por nombre exacto:
-  // puede haber tocayos reales sin relación, eso ya es un caso conocido
-  // y aceptado (el admin los fusiona a mano si corresponde).
+  // todavía (no migrado al catálogo), deduplicamos por nombre normalizado.
   const porClave = new Map();   // clave -> { nombre, inactive }
 
   for(const l of activas){
@@ -141,7 +141,7 @@ async function handlerGlobal(req, res){
     for(const nombre of Object.keys(state.users)){
       const u = state.users[nombre];
       if(!u || u.role !== 'player') continue;
-      const clave = u.jugadorId ? ('j:' + u.jugadorId) : ('n:' + nombre.trim().toLowerCase());
+      const clave = u.jugadorId ? ('j:' + u.jugadorId) : ('n:' + normNombre(nombre));
       const inactivo = !!u.inactive;
       const prev = porClave.get(clave);
       if(!prev){
@@ -154,12 +154,39 @@ async function handlerGlobal(req, res){
     }
   }
 
-  const players = Array.from(porClave.values())
+  // Segunda pasada: fusiona por NOMBRE normalizado entre entradas que
+  // quedaron con jugadorId distinto (o con y sin jugadorId). Esto cubre
+  // perfiles duplicados que ya existen en la base de antes del fix en
+  // liga.js que evita crearlos — acá el dropdown igual muestra al jugador
+  // una sola vez, aunque su catálogo siga separado hasta que el admin
+  // fusione los perfiles desde el panel.
+  const porNombreFinal = new Map();   // nombreNorm -> { nombre, inactive }
+  for(const { nombre, inactive } of porClave.values()){
+    const key = normNombre(nombre);
+    const prev = porNombreFinal.get(key);
+    if(!prev){
+      porNombreFinal.set(key, { nombre, inactive });
+    } else if(prev.inactive && !inactive){
+      prev.inactive = false;
+    }
+  }
+
+  // Los inactivos NO aparecen en el login: no pueden entrar a ninguna liga
+  // activa igual, así que mostrarlos en el desplegable solo confunde.
+  const players = Array.from(porNombreFinal.values())
+    .filter(p => !p.inactive)
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
-    .map(p => ({ v: p.nombre, i: p.inactive ? 1 : 0 }));
+    .map(p => ({ v: p.nombre }));
 
   const result = { mode: 'global', players };
   cacheGlobal = { data: result, at: Date.now() };
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json(result);
+}
+
+// Normaliza un nombre para comparar (minúsculas, sin tildes, espacios
+// colapsados). Mismo criterio que idDeJugador() en liga.js, para que el
+// dedupe del login coincida con el criterio de creación de perfiles.
+function normNombre(n){
+  return String(n).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 }
