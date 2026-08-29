@@ -9,9 +9,13 @@
 //   'playoff'  → chat privado entre los jugadores del CUADRO de Play Offs
 //                (tramo) del usuario. Solo aparece si los Play Offs están
 //                iniciados y el jugador pertenece a algún cuadro.
-//   'explorar' → SOLO ADMIN: navegar y leer el chat de CUALQUIER grupo de
-//                CUALQUIER ciclo (elige ciclo + grupo con un selector). Es
-//                de solo lectura — no reemplaza al chat propio del jugador.
+//   'explorar' → SOLO ADMIN: navegar, leer Y ESCRIBIR en el chat de
+//                CUALQUIER grupo de CUALQUIER ciclo, o cualquier cuadro de
+//                Play Offs (elige ciclo + grupo, o cuadro, con un selector).
+//                No reemplaza al chat propio del jugador — es la vía del
+//                admin para escribir en un grupo/cuadro donde no juega.
+//                No tiene polling en vivo (ver reiniciarPollingMensajes):
+//                es para revisar y, si hace falta, avisar algo puntual.
 //
 // Los mensajes viven en su propia tabla en el backend (dentro de /api/liga,
 // ver comentario en ese archivo sobre el límite de Serverless Functions),
@@ -230,7 +234,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
       return;
     }
     body.innerHTML = `<p class="legend-txt" style="margin:.15rem 0 .6rem">${t('msg_explorar_desc')}</p>${nivel1}${nivel2}
-      <div class="msg-box"><div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div></div>`;
+      <div class="msg-box"><div class="msg-list" id="msg-list"><div class="legend-txt">${t('past_loading')}</div></div><div id="msg-compose"></div></div>`;
     try{
       const payload = _msgExplorarCtx.tipo === 'playoff'
         ? { accion:'listarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo }
@@ -245,6 +249,11 @@ async function cargarMsgHilo(tab, esCargaInicial){
       if(!r.ok){ if(list) list.innerHTML = '<div class="legend-txt">'+attr(d.error||t('msg_load_err'))+'</div>'; return; }
       const msgs = Array.isArray(d.mensajes) ? d.mensajes : [];
       _msgPintarLista('explorar', msgs, true);
+      // El admin puede escribir en cualquier grupo/cuadro desde acá (ver
+      // enviarGrupo/enviarPlayoff en api/liga.js, que ya lo permiten). Antes
+      // el explorador era 100% de solo lectura porque nunca se pintaba el
+      // composer; ahora sí, igual que en los hilos propios.
+      _msgPintarComposer('explorar');
     } catch(e){
       const list = document.getElementById('msg-list');
       if(list) list.innerHTML = '<div class="legend-txt">'+attr(t('ml_conn_err'))+'</div>';
@@ -350,7 +359,14 @@ function _msgBubbleHTML(m){
 function _msgPintarComposer(tab){
   const box = document.getElementById('msg-compose');
   if(!box) return;
-  const puedeEscribir = tab === 'admin' ? esAdmin(currentUser) : (tab === 'grupo' ? !!_msgGrupoCtx : !!_msgTramoCtx);
+  // 'explorar': el admin escribe en el grupo/cuadro que esté navegando en
+  // ese momento (_msgExplorarCtx). Solo esAdmin llega acá (la pestaña ni
+  // se muestra si no lo es), y el backend igual valida esAdminMsg de nuevo.
+  const puedeEscribir = tab === 'admin' ? esAdmin(currentUser)
+    : tab === 'grupo' ? !!_msgGrupoCtx
+    : tab === 'playoff' ? !!_msgTramoCtx
+    : tab === 'explorar' ? (esAdmin(currentUser) && !!_msgExplorarCtx)
+    : false;
   if(!puedeEscribir){
     box.innerHTML = '';
     return;
@@ -378,7 +394,13 @@ async function enviarMensajeUI(tab){
   let payload;
   if(tab === 'admin') payload = { accion:'enviarAdmin', ligaId:_ligaActual, texto };
   else if(tab === 'grupo') payload = { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, texto };
-  else payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto };
+  else if(tab === 'playoff') payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto };
+  else if(tab === 'explorar' && _msgExplorarCtx){
+    payload = _msgExplorarCtx.tipo === 'playoff'
+      ? { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo, texto }
+      : { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo, texto };
+  }
+  if(!payload) return;
 
   input.disabled = true;
   try{
@@ -393,8 +415,13 @@ async function enviarMensajeUI(tab){
     if(d.mensaje){
       _msgLastId[tab] = d.mensaje.id;
       _msgPintarLista(tab, [d.mensaje], false);
-      const ctx = tab==='admin' ? null : (tab==='grupo' ? _msgGrupoCtx : _msgTramoCtx);
-      _msgReadStateSetOne(_msgThreadKey(tab, ctx), d.mensaje.id);
+      // 'explorar' no tiene marcado de leído propio (es de otro): el hilo
+      // real que se actualiza es el de _msgExplorarCtx, no un hilo del
+      // usuario. Se omite _msgReadStateSetOne para ese caso.
+      if(tab !== 'explorar'){
+        const ctx = tab==='admin' ? null : (tab==='grupo' ? _msgGrupoCtx : _msgTramoCtx);
+        _msgReadStateSetOne(_msgThreadKey(tab, ctx), d.mensaje.id);
+      }
     }
   }catch(e){
     toast(t('msg_send_err'));
