@@ -69,7 +69,7 @@ function estadoInicial(nombreLiga, numGrupos, numCiclos){
     _v: 1, users: {}, matches: [], matchId: 1, activeN: 1, cycles: cycles,
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
     DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: generarEscalaPuntos(nG, 5), LOG: [],
-    LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '',
+    LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '', LOGIN_TITLE: '',
     LEAGUE_COLOR_PRI: '#1B4F9C',
     LEAGUE_COLOR_ACC: '#F5C518',
     LEAGUE_COLOR_HL: '#FFEDD5',
