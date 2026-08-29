@@ -653,6 +653,11 @@ function montarAppTrasLogin(){
   if(_sinLigasActivas && esAdmin(currentUser)){ mostrarBannerSinLigas(); } else { const b=document.getElementById('nolig-banner'); if(b)b.style.display='none'; }
   document.getElementById('cur-name').textContent=currentUser.name;
   document.getElementById('cur-role').innerHTML=currentUser.role==='superadmin'?'<span class="role-badge" style="background:#8b5cf6">Super Admin</span>':esAdmin(currentUser)?'<span class="role-badge">'+t('role_admin')+'</span>':t('role_player');
+  // Refresca el botón de cambio de liga (título de la liga en el header):
+  // se llama acá porque montarAppTrasLogin() corre en TODO login (normal,
+  // multi-liga, y al cambiar de liga desde el propio menú), a diferencia de
+  // updateHdr() que solo corre en cambios de pestaña dentro de la misma liga.
+  if(typeof refreshHdrLigaSwitch === 'function') refreshHdrLigaSwitch();
   if(currentUser.role==='player'){const loc=findLoc(currentUser.name,activeN);if(loc)selGroup=loc.g;}
   // Redirigir al lugar correcto según el estado de la liga
   if(playoff.started||(playoff.preview&&esAdmin(currentUser))){
