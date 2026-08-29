@@ -477,7 +477,7 @@ function renderPerfil(){
         <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.5rem"><i class="ti ti-shield-check"></i> ${t('admins_section')}</div>
         <p class="legend-txt" style="margin:0 0 .5rem">${t('admins_hint')}</p>
         <div style="display:flex;gap:.4rem;flex-wrap:wrap">
-          <span class="badge" style="background:var(--pri);color:#fff">Organización</span>
+          <span class="badge" style="background:var(--pri);color:#fff">${t('org_label')}</span>
           ${Object.entries(USERS).filter(([k,u])=>u&&u.isAdmin===true&&k!=='admin'&&k!=='superadmin').map(([k,u])=>`<span class="badge" style="background:var(--hl);color:var(--priD)">${u.name||k}</span>`).join('') || `<span class="legend-txt">${t('admins_none')}</span>`}
         </div>
       </div>` : ''}
@@ -681,6 +681,18 @@ function renderPlayerBodyHTML(p, gOpts){
 }
 function filterPlayerList(){const f=document.getElementById('player-search').value;/* Mismo criterio que renderPerfil: se filtra por CLAVE. Si filtrara por rol,
    un jugador ascendido desaparecería apenas escribís en el buscador. */const players=Object.entries(USERS).filter(([k,u])=>u&&k!=='admin'&&k!=='superadmin').map(([k,u])=>u).sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));document.getElementById('player-list').innerHTML=renderPlayerList(players,f);}
+// Repinta SOLO la lista de jugadores (no todo el perfil): se usa después de
+// resetear o cambiar una contraseña, para que el punto verde/rojo se
+// actualice al instante sin cerrar de paso la tarjeta editable que el admin
+// tenía abierta (renderPerfil() completo reconstruye todo el HTML y esa
+// tarjeta vuelve a su estado inicial cerrado).
+function refreshPlayerList(){
+  const cont=document.getElementById('player-list');
+  if(!cont) return;
+  const f=document.getElementById('player-search')?.value || '';
+  const players=Object.entries(USERS).filter(([k,u])=>u&&k!=='admin'&&k!=='superadmin').map(([k,u])=>u).sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
+  cont.innerHTML=renderPlayerList(players,f);
+}
 function togglePlayerEdit(name){const el=document.getElementById('pe-'+name);if(el)el.style.display=el.style.display==='none'?'block':'none';}
 
 // Renombra un jugador en TODO el estado (liga + playoffs). Un solo lugar para no olvidar ninguna referencia.
@@ -852,7 +864,7 @@ async function resetPwd(name){
     // HASHES_PASS_DEFAULT — usamos ese mismo valor acá.
     u.pass = 'v2:7afc817d4013c0e9740356ad09b7e4094ee6678df855c5869aaad97dd4d2f3eb';
     toast(t('reset_ok').replace('{n}',name));
-    renderPerfil();
+    refreshPlayerList();
   }catch(e){toast(t('reset_err'));}
 }
 // El admin le pone una contraseña personalizada a un jugador (hasheada con PBKDF2 v2).
@@ -880,7 +892,7 @@ async function setPlayerPwd(name){
   // que tienePasswordDefault() dé false y el punto se pinte verde al instante.
   u.pass = 'v2:custom';
   toast(name+': contraseña actualizada.');
-  renderPerfil();
+  refreshPlayerList();
 }
 function toggleInactive(name){
   const u=USERS[name];if(!u)return;
