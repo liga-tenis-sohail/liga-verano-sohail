@@ -1,4 +1,11 @@
 *{box-sizing:border-box;margin:0;padding:0}
+/* Contiene cualquier desborde horizontal (ej. el bracket de Play Offs, que
+   es intrínsecamente ancho) para que solo scrollee el componente que lo
+   necesita (.bracket ya tiene overflow-x:auto propio) en vez de estirar
+   el <body> entero. Sin esto, en mobile Safari comprimía TODA la página
+   con zoom automático para que el contenido ancho entrara igual. */
+html,body{overflow-x:hidden;max-width:100%}
+
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
 --sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B;
