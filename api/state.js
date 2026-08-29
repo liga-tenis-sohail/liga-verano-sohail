@@ -36,13 +36,25 @@ module.exports = async function handler(req, res){
   const blocked = blockedUser(state, session);
   if(blocked) return res.status(403).json({ error: blocked });
 
-  // Paso 2 del login unificado: el jugador venía sin liga asignada todavía
-  // (session.r === 'player' y recién eligió). Revalidamos que efectivamente
-  // exista como player en ESTA liga antes de entregarle nada — el ?liga=
-  // lo manda el cliente y no hay que confiar en él a ciegas.
+  // Paso 2 del login unificado / cambio de liga desde el header ya logueado:
+  // revalidamos que la sesión realmente pertenezca a ESTA liga antes de
+  // entregarle nada — el ?liga= lo manda el cliente y no hay que confiar en
+  // él a ciegas.
+  //
+  // OJO: este mismo endpoint lo usan DOS flujos distintos:
+  //   1) paso 2 del login unificado (un jugador de catálogo en 2+ ligas
+  //      activas, session.r === 'player')
+  //   2) cambiarLigaDesdeMenu() en el header, que puede disparar CUALQUIER
+  //      rol de sesión (admin/superadmin incluidos) — un admin también
+  //      participa de varias ligas y necesita poder cambiar entre ellas.
+  // Antes se exigía u.role === 'player', lo que bloqueaba siempre a
+  // admin/superadmin con "No pertenecés a esa liga.", aunque existieran
+  // perfectamente en state.users de esa liga (heredados en estadoInicial()).
+  // Lo correcto es solo verificar que la sesión exista como user ahí,
+  // sin importar el rol.
   if(req.query && req.query.elegir){
     const u = (state.users || {})[session.u];
-    if(!u || u.role !== 'player'){
+    if(!u){
       return res.status(403).json({ error: 'No pertenecés a esa liga.' });
     }
   }
