@@ -1234,6 +1234,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .hdr{padding:.5rem .6rem;border-radius:10px;gap:8px}
   .hdr-logo{width:30px;height:30px;font-size:15px;flex-shrink:0}
   .hdr h1{font-size:13px;font-weight:600}.hdr p{font-size:10px}
+  .hdr-liga-switch{font-size:13px}
   .user-info .name{font-size:12px}.user-info .role{font-size:10px}
   .logout-btn{padding:5px 7px;font-size:11px}
   /* Si el título de la liga es largo y no entra en una sola fila junto al
@@ -1612,22 +1613,27 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 /* FIN Tanda 5 =============================================================== */
 
 /* ============================================================================
-   Botón de cambio de liga en el header (junto al nombre de la liga).
-   Reemplaza el <select> nativo viejo: ahora es un botón con el nombre de la
-   liga actual + ícono de doble flecha, que abre un menú de botones (mismo
-   lenguaje visual que el selector de liga del login: .liga-sel-btn).
+   Botón de cambio de liga en el header: AHORA es el propio título de la liga
+   (reemplaza al <h1> viejo). Por defecto se ve exactamente como el título de
+   siempre (texto blanco grande, sin fondo, sin cursor pointer) — solo cuando
+   el usuario participa en 2+ ligas activas se le agrega la clase .multi:
+   ahí aparece la flecha y el fondo/cursor de botón clickeable. El menú que
+   despliega cae JUSTO DEBAJO de este mismo botón (no al costado).
    ============================================================================ */
 .hdr-liga-switch{
-  margin-top:3px;font-size:11px;font-weight:600;color:var(--priD);
-  background:rgba(255,255,255,.9);border:none;border-radius:6px;
-  padding:4px 8px;cursor:pointer;max-width:220px;
-  display:inline-flex;align-items:center;gap:5px;
+  all:unset;cursor:default;
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;
+  font-size:15px;font-weight:600;color:#fff;
 }
-.hdr-liga-switch span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hdr-liga-switch i{font-size:13px;flex-shrink:0}
-.hdr-liga-switch:hover{background:#fff}
+.hdr-liga-switch-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-liga-switch.multi{
+  cursor:pointer;background:rgba(255,255,255,.14);border-radius:8px;
+  padding:3px 9px 3px 7px;margin:-3px -9px -3px -7px;
+}
+.hdr-liga-switch.multi:hover{background:rgba(255,255,255,.24)}
+.hdr-liga-switch.multi .hdr-liga-switch-arrows{display:inline-block!important;font-size:13px;flex-shrink:0;opacity:.85}
 .hdr-liga-switch-menu{
-  position:absolute;z-index:60;top:44px;left:52px;min-width:220px;max-width:320px;
+  position:absolute;z-index:60;top:100%;left:0;margin-top:6px;min-width:220px;max-width:320px;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;
   box-shadow:0 8px 30px rgba(0,0,0,.15);padding:8px;
   display:flex;flex-direction:column;gap:6px;
