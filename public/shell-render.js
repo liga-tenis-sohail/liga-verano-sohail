@@ -5,7 +5,30 @@
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
-function renderCycleBar(){const bar=document.getElementById('cycle-bar');let html='';cycles.forEach(c=>{const playable=!!c.groups;const isView=viewCycle===c.n;const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;});const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;bar.innerHTML=html;}
+function renderCycleBar(){
+  const bar=document.getElementById('cycle-bar');
+  let html='';
+  let n=0;
+  cycles.forEach(c=>{
+    const playable=!!c.groups;
+    const isView=viewCycle===c.n;
+    const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';
+    html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;
+    n++;
+  });
+  const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));
+  const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;
+  html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;
+  n++;
+  bar.innerHTML=html;
+  // Con pocas pestañas (≤3) se estiran para ocupar todo el ancho disponible
+  // (clase 'few'); con 4 o más, pasan a modo scroll horizontal para que
+  // cada una mantenga un tamaño legible en vez de achicarse todas para
+  // entrar en pantalla (clase 'many'). Ver reglas .cycle-bar.few/.many en
+  // estilos.css.
+  bar.classList.toggle('few', n<=3);
+  bar.classList.toggle('many', n>3);
+}
 function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="'+x.badgeId+'" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
   viewCycle=n;
