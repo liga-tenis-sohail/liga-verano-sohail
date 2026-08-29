@@ -1039,7 +1039,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
 .login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
 .hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);flex-wrap:wrap;position:relative}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
-.hdr-titlebox{min-width:0;flex:1 1 auto}
+.hdr-titlebox{min-width:0;flex:1 1 auto;position:relative}
 .hdr h1{font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hdr p{font-size:12px;color:#dce7f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .user-chip{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -1305,6 +1305,12 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .pend-item{gap:5px}
   .seed-list{gap:4px}
   .seed-chip{font-size:11px;padding:3px 7px}
+}
+/* ↑ Cierre del @media(max-width:640px) abierto más arriba. Faltaba esta
+   llave de cierre: sin ella, TODO lo que sigue en el archivo (incluidas
+   las reglas de dark mode y el selector de liga del header) quedaba
+   atrapado dentro del media query mobile-only, aplicándose solo en
+   pantallas angostas y rompiendo el layout / posicionamiento en desktop. */
 
 /* ==== FIX DEFINITIVO DE CONTRASTE Y LEGIBILIDAD EN DARK MODE ==== */
 html[data-theme="dark"] .me-row,
