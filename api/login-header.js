@@ -28,7 +28,7 @@ module.exports = async function handler(req, res){
   }
 
   // Default por si algo falla o la liga no tiene config guardada.
-  const defaultCfg = { color: '#0E3470', textColor: '', links: [] };
+  const defaultCfg = { color: '#0E3470', textColor: '', colorDark: '', textColorDark: '', links: [] };
 
   try {
     const ligaId = ligaIdOK(req.query.liga) ? req.query.liga : LIGA_DEFAULT;
@@ -46,6 +46,8 @@ module.exports = async function handler(req, res){
     return res.status(200).json({
       color: (typeof lh.color === 'string' && lh.color) ? lh.color : '#0E3470',
       textColor: (typeof lh.textColor === 'string') ? lh.textColor : '',
+      colorDark: (typeof lh.colorDark === 'string') ? lh.colorDark : '',
+      textColorDark: (typeof lh.textColorDark === 'string') ? lh.textColorDark : '',
       links: Array.isArray(lh.links)
         ? lh.links.filter(l => l && typeof l.text === 'string' && typeof l.url === 'string' && l.text && l.url).slice(0, 20)
         : []
