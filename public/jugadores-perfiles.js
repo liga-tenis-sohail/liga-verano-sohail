@@ -4,6 +4,25 @@
 // Este archivo comparte scope global con los otros public/*.js.
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
+
+// Hashes de contraseñas PÚBLICAS conocidas (mismo criterio que POR_DEFECTO_V2
+// en api/_lib.js — no se puede importar ese módulo del servidor acá, así que
+// se replican los valores). "tenis" es la clave por defecto de un jugador
+// nuevo o recién reseteado (ver DEFAULT_PASS_HASH en core-estado.js, que es
+// el mismo valor en formato v1); "admin123" quedó pública en el repo en algún
+// momento y también se trata como default. Sirve para pintar el punto
+// verde/rojo junto al nombre en la lista de jugadores del admin: rojo si
+// u.pass coincide con alguno de estos, verde en cualquier otro caso (ya la
+// cambió, o el admin le puso una personalizada).
+const HASHES_PASS_DEFAULT = new Set([
+  'v1:8f5e91d22e332be45d55724423baad250490285a4e302b9eec0e6fd482164b83',   // tenis (v1, hash legacy previo al rehash automático)
+  'v2:7afc817d4013c0e9740356ad09b7e4094ee6678df855c5869aaad97dd4d2f3eb',   // tenis (v2)
+  'v2:e7fd5acfb9cbb0449ad3abe3c0f3436559af8cf74a09cdbee1a29a41bb394d12'    // admin123 (v2)
+]);
+function tienePasswordDefault(u){
+  return !!(u && u.pass && HASHES_PASS_DEFAULT.has(u.pass));
+}
+
 function renderCargarDisputas(){ }
 
 function resolveD(mid){
@@ -532,9 +551,17 @@ function renderPlayerList(players, filter) {
     const gOpts = (c && c.groups) ? c.groups.map((_,k) => `<option value="${k+1}" ${curG===k+1?'selected':''}>${groupName(k+1)}</option>`).join('') : '';
     const isInactive = !!(p.inactive);
     const sinGrupoBadge = (!loc && !isInactive) ? ' <span style="font-size:10px;background:var(--warnBg,#fef3c7);color:var(--warnT,#854d0e);border-radius:4px;padding:1px 5px;font-weight:700">Sin grupo</span>' : '';
+    // Punto verde/rojo: rojo si sigue con una contraseña pública conocida
+    // (la default "tenis", o "admin123" que en algún momento quedó pública),
+    // verde si ya la cambió por una propia. Se recalcula en cada render a
+    // partir de p.pass, así que un reset de contraseña (que vuelve a dejar
+    // el hash en HASHES_PASS_DEFAULT) se refleja solo con volver a pintar
+    // la lista — no hace falta ningún estado aparte.
+    const esDefault = tienePasswordDefault(p);
+    const pwDot = ` <span title="${esDefault?'Sigue con la contraseña por defecto':'Ya cambió su contraseña'}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esDefault?'#e5484d':'#2f9e44'};flex-shrink:0"></span>`;
     return `<div class="ge-group" style="margin-bottom:.5rem;${isInactive?'opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="ge-gtitle">${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?' <span style="font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">INACTIVO</span>':''}</div>
+        <div class="ge-gtitle">${pwDot} ${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?' <span style="font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">INACTIVO</span>':''}</div>
         <button class="btn btn-sm" onclick="togglePlayerEdit('${jsq(p.name)}')"><i class="ti ti-edit"></i> ${t('edit')}</button>
       </div>
       __PLAYER_CARD_BODY_${attr(p.name)}__
@@ -576,11 +603,11 @@ function renderPlayerList(players, filter) {
   // ---- SECCIÓN ACTIVOS ----
   if(nAct > 0){
     out += `<details ${openActivos?'open':''} style="margin-bottom:.5rem"><summary style="${sumStyle}"><span><i class="ti ti-user-check"></i> ${t('pl_active')}</span><span style="${countStyle}">${nAct}</span></summary><div style="margin-top:.4rem">`;
-    // Primero los sin grupo (piden atención del admin), alfabético
+    // Primero los sin grupo (piden atención del admin)
     if(activosSinGrupo.length){
       out += activosSinGrupo.map(cardOf).join('');
     }
-    // Después los con grupo, también alfabético (no por número de grupo)
+    // Después los con grupo (ya ordenados)
     if(activosConGrupo.length){
       out += activosConGrupo.map(cardOf).join('');
     }
@@ -819,7 +846,13 @@ async function resetPwd(name){
       body:JSON.stringify({target:name,newPass:'tenis',ligaId:_ligaActual||undefined})});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){toast(d.error||t('reset_err'));return;}
+    // Reflejamos el reset en memoria para que el punto verde/rojo de la lista
+    // cambie a rojo al instante, sin esperar a recargar la página. El
+    // servidor guardó exactamente hashV2('tenis'), que ya está en
+    // HASHES_PASS_DEFAULT — usamos ese mismo valor acá.
+    u.pass = 'v2:7afc817d4013c0e9740356ad09b7e4094ee6678df855c5869aaad97dd4d2f3eb';
     toast(t('reset_ok').replace('{n}',name));
+    renderPerfil();
   }catch(e){toast(t('reset_err'));}
 }
 // El admin le pone una contraseña personalizada a un jugador (hasheada con PBKDF2 v2).
@@ -840,7 +873,14 @@ async function setPlayerPwd(name){
     if(!r.ok){toast(d.error||'No se pudo cambiar la contraseña.');return;}
   }catch(e){toast('No se pudo conectar con el servidor.');return;}
   if(inp)inp.value='';
+  // No conocemos el hash real (PBKDF2 se calcula del lado del servidor), pero
+  // sabemos que YA NO es una contraseña por defecto conocida — salvo que el
+  // admin haya escrito literalmente "tenis" o "admin123" a mano, caso límite
+  // que se deja fuera a propósito. Marcador explícito (no un hash real) para
+  // que tienePasswordDefault() dé false y el punto se pinte verde al instante.
+  u.pass = 'v2:custom';
   toast(name+': contraseña actualizada.');
+  renderPerfil();
 }
 function toggleInactive(name){
   const u=USERS[name];if(!u)return;
