@@ -19,12 +19,19 @@ function pintarLogin(d){
   s.innerHTML='';
   const ph=document.createElement('option');ph.value='';ph.textContent=t('select_user');s.appendChild(ph);
   const opt=u=>new Option(u.i?u.v+' (inactivo)':u.v,u.v);
-  // 1) El administrador, arriba de todo (cuenta de gestión, no es parte del catálogo)
-  const admin=document.createElement('option');admin.value='admin';admin.textContent=t('admin_org');s.appendChild(admin);
 
+  // 1) Organización: cuenta de gestión, no es parte del catálogo de jugadores.
+  const orgOg=document.createElement('optgroup');orgOg.label='Organización';
+  const admin=new Option(t('admin_org'),'admin');orgOg.appendChild(admin);
+  s.appendChild(orgOg);
+
+  // 2) Jugadores: todo el catálogo, agrupado bajo su propia sección para
+  // distinguirlo claramente de las cuentas de gestión (Organización / Super Admin).
   if(d.mode==='global'){
-    // Lista plana, alfabética, sin secciones.
-    (d.players||[]).forEach(u=>s.appendChild(opt(u)));
+    // Lista plana, alfabética, sin sub-secciones por grupo/cuadro.
+    const playersOg=document.createElement('optgroup');playersOg.label='Jugadores';
+    (d.players||[]).forEach(u=>playersOg.appendChild(opt(u)));
+    s.appendChild(playersOg);
   }else{
     // Compatibilidad: modo liga puntual (grupos/cuadros)
     const esPO=d.mode==='po';
@@ -40,7 +47,8 @@ function pintarLogin(d){
       s.appendChild(og);
     }
   }
-  // 2) Super Admin, abajo de todo
+
+  // 3) Super Admin, abajo de todo
   const saOg=document.createElement('optgroup');saOg.label='Super Admin';
   saOg.appendChild(new Option('Super Administrador','superadmin'));
   s.appendChild(saOg);
