@@ -514,20 +514,15 @@ function renderPlayerList(players, filter) {
     if(!loc) activosSinGrupo.push(p);
     else activosConGrupo.push(p);
   }
-  // Orden dentro de cada bucket:
-  //  - activosSinGrupo: alfabético (no hay otro criterio útil).
-  //  - activosConGrupo: por número de grupo asc y, dentro del grupo, alfabético.
-  //  - inactivos: alfabético.
+  // Orden dentro de cada bucket: puramente alfabético en los 3 — el número
+  // de grupo ya NO determina el orden de activosConGrupo (antes se ordenaba
+  // primero por grupo asc y recién dentro del grupo por nombre); el badge
+  // de grupo se sigue mostrando en la tarjeta, solo cambia el orden de la lista.
   // Localización 'es' para que las tildes ordenen bien (Ávila antes que Bar).
   const _cmpNombre = (a,b) => (a.name||'').localeCompare(b.name||'', 'es');
   activosSinGrupo.sort(_cmpNombre);
+  activosConGrupo.sort(_cmpNombre);
   inactivos.sort(_cmpNombre);
-  activosConGrupo.sort((a,b) => {
-    const la = findLoc(a.name, activeN); const lb = findLoc(b.name, activeN);
-    const ga = la ? la.g : 999, gb = lb ? lb.g : 999;
-    if(ga !== gb) return ga - gb;
-    return _cmpNombre(a,b);
-  });
 
   // Renderea una tarjeta de jugador. Extraído para no duplicar el HTML masivo.
   const renderOne = (p) => {
@@ -581,11 +576,11 @@ function renderPlayerList(players, filter) {
   // ---- SECCIÓN ACTIVOS ----
   if(nAct > 0){
     out += `<details ${openActivos?'open':''} style="margin-bottom:.5rem"><summary style="${sumStyle}"><span><i class="ti ti-user-check"></i> ${t('pl_active')}</span><span style="${countStyle}">${nAct}</span></summary><div style="margin-top:.4rem">`;
-    // Primero los sin grupo (piden atención del admin)
+    // Primero los sin grupo (piden atención del admin), alfabético
     if(activosSinGrupo.length){
       out += activosSinGrupo.map(cardOf).join('');
     }
-    // Después los con grupo (ya ordenados)
+    // Después los con grupo, también alfabético (no por número de grupo)
     if(activosConGrupo.length){
       out += activosConGrupo.map(cardOf).join('');
     }
