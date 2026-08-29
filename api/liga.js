@@ -324,10 +324,12 @@ module.exports = async function handler(req, res){
     const c = Array.isArray(stateMsg.cycles) ? stateMsg.cycles[ciclo - 1] : null;
     const g = c && Array.isArray(c.groups) ? c.groups[grupo - 1] : null;
     const soyMiembro = !!(g && Array.isArray(g.players) && g.players.indexOf(session.u) >= 0);
-    // A propósito, un admin que NO es jugador de este grupo NO puede escribir
-    // acá (el chat de grupo es de los jugadores; para avisos generales del
-    // admin está el hilo 'admin'). Solo puede escribir quien juega ahí.
-    if(!soyMiembro){
+    // El admin (o superadmin) puede escribir en CUALQUIER grupo, sea o no
+    // jugador ahí — mismo criterio que ya usan listarGrupo/listarPlayoff
+    // para lectura. Antes solo podía escribir quien jugaba en el grupo;
+    // ahora el admin también puede, por ejemplo para avisar algo puntual
+    // a ese grupo sin tener que usar el hilo general.
+    if(!soyMiembro && !esAdminMsg){
       return res.status(403).json({ error: 'No pertenecés a ese grupo en ese ciclo.' });
     }
 
@@ -378,7 +380,9 @@ module.exports = async function handler(req, res){
 
     const tr = stateMsg.playoff && Array.isArray(stateMsg.playoff.tramos) ? stateMsg.playoff.tramos[tramo] : null;
     const soyMiembro = !!(tr && Array.isArray(tr.seeds) && tr.seeds.indexOf(session.u) >= 0);
-    if(!soyMiembro){
+    // Mismo criterio que en enviarGrupo: el admin puede escribir en
+    // cualquier cuadro de Play Offs, sea o no jugador ahí.
+    if(!soyMiembro && !esAdminMsg){
       return res.status(403).json({ error: 'No pertenecés a ese cuadro de Play Offs.' });
     }
 
