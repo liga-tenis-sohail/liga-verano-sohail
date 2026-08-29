@@ -1037,12 +1037,14 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .cj-fusion-confirm-btns{display:flex;gap:8px;flex-wrap:wrap}
 .login-hint{margin-top:.875rem;padding:.7rem;background:var(--soft);border-radius:8px;font-size:11px;color:var(--priD);line-height:1.5}
 .login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
-.hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);}
+.hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);flex-wrap:wrap;position:relative}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
-.hdr h1{font-size:15px;font-weight:600;color:#fff}.hdr p{font-size:12px;color:#dce7f6}
-.user-chip{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hdr-titlebox{min-width:0;flex:1 1 auto}
+.hdr h1{font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr p{font-size:12px;color:#dce7f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-chip{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .user-info{text-align:right}.user-info .name{font-size:13px;color:#fff;font-weight:600}.user-info .role{font-size:11px;color:var(--acc)}
-.logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer}.logout-btn:hover{background:rgba(255,255,255,.28)}
+.logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer;flex-shrink:0}.logout-btn:hover{background:rgba(255,255,255,.28)}
 
 .lang-btn { background: rgba(255,255,255,.15);
 color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: 600;
@@ -1234,6 +1236,11 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .hdr h1{font-size:13px;font-weight:600}.hdr p{font-size:10px}
   .user-info .name{font-size:12px}.user-info .role{font-size:10px}
   .logout-btn{padding:5px 7px;font-size:11px}
+  /* Si el título de la liga es largo y no entra en una sola fila junto al
+     usuario/idioma/logout, .hdr ya hace wrap (ver regla base): acá forzamos
+     que .user-chip pase a ocupar toda la fila de abajo en vez de quedar
+     amontonado o cortado — así "Salir" nunca queda fuera de pantalla. */
+  .user-chip{flex-basis:100%;justify-content:flex-end;margin-left:0}
   
   .cycle-bar, .tabs, .grp-pick {
     flex-wrap: nowrap !important; overflow-x: auto !important;
@@ -1605,14 +1612,27 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 /* FIN Tanda 5 =============================================================== */
 
 /* ============================================================================
-   Dropdown de cambio de liga en el header (junto al nombre de la liga).
+   Botón de cambio de liga en el header (junto al nombre de la liga).
+   Reemplaza el <select> nativo viejo: ahora es un botón con el nombre de la
+   liga actual + ícono de doble flecha, que abre un menú de botones (mismo
+   lenguaje visual que el selector de liga del login: .liga-sel-btn).
    ============================================================================ */
 .hdr-liga-switch{
   margin-top:3px;font-size:11px;font-weight:600;color:var(--priD);
   background:rgba(255,255,255,.9);border:none;border-radius:6px;
-  padding:3px 6px;cursor:pointer;max-width:220px;
+  padding:4px 8px;cursor:pointer;max-width:220px;
+  display:inline-flex;align-items:center;gap:5px;
 }
+.hdr-liga-switch span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hdr-liga-switch i{font-size:13px;flex-shrink:0}
 .hdr-liga-switch:hover{background:#fff}
+.hdr-liga-switch-menu{
+  position:absolute;z-index:60;top:44px;left:52px;min-width:220px;max-width:320px;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  box-shadow:0 8px 30px rgba(0,0,0,.15);padding:8px;
+  display:flex;flex-direction:column;gap:6px;
+}
+.hdr-liga-switch-menu .liga-sel-btn{font-size:12.5px;padding:8px 10px}
 
 /* ============================================================================
    "Mis Ligas" — selector tipo pestañas en el perfil de jugador (ligas activas
