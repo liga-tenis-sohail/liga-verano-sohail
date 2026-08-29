@@ -623,13 +623,27 @@ module.exports = async function handler(req, res){
         
         if(!estado.ALLNAMES.includes(perfil.nombre)) {
           estado.ALLNAMES.push(perfil.nombre);
-          
+
+          // grupo === 0 (o no numérico) significa "Sin grupo": el jugador
+          // queda dado de alta en la liga (existe en estado.users) pero no
+          // se lo empuja a ningún cycles[0].groups[i].players. El admin lo
+          // asigna después a mano desde el panel (mismo estado que ya
+          // reconoce el resto de la app para "Sin grupo": ver findLoc() y
+          // el badge correspondiente en jugadores-perfiles.js). Antes, un
+          // grupo inválido o ausente caía SIEMPRE en Grupo 1 por fallback;
+          // ahora ese fallback solo aplica si el grupo pedido no es 0 pero
+          // tampoco es válido (fuera de rango), para no romper compatibilidad
+          // con llamadas viejas que no mandan grupo en absoluto.
+          const grupoPedido = parseInt(j.grupo, 10);
+          const sinGrupo = grupoPedido === 0;
           const numGroups = estado.cycles[0].groups.length;
-          let targetIndex = (parseInt(j.grupo, 10) || 1) - 1;
-          if (targetIndex < 0 || targetIndex >= numGroups) targetIndex = 0; 
-          
-          if (numGroups > 0) {
-            estado.cycles[0].groups[targetIndex].players.push(perfil.nombre);
+
+          if(!sinGrupo){
+            let targetIndex = (grupoPedido || 1) - 1;
+            if (targetIndex < 0 || targetIndex >= numGroups) targetIndex = 0;
+            if (numGroups > 0) {
+              estado.cycles[0].groups[targetIndex].players.push(perfil.nombre);
+            }
           }
         }
         
