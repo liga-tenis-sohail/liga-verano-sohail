@@ -272,12 +272,31 @@ async function elegirLigaLogin(id){
   }catch(_){}
 }
 // Pone el nombre de la liga activa elegida en el encabezado del login.
+// IMPORTANTE: no usa activa.nombre a secas. Esta función corre ANTES de
+// cualquier login (detectarLigaActiva se llama primera cosa en initLogin),
+// así que LOGIN_TITLE todavía está vacío en memoria — recién se llena con
+// el state real después de loguearse. La única forma de saber si esta liga
+// tiene un "Nombre del login" configurado, en este momento tan temprano,
+// es el mismo caché que usa el script del <head> (localStorage 'lsn'):
+// si esa liga es la que está cacheada Y tiene 'lt' (LOGIN_TITLE) seteado,
+// se respeta ese texto; si no, se cae al nombre oficial de la liga (el
+// mismo criterio que aplicarNombreLigaLogin usaba, solo que sin pisar el
+// LOGIN_TITLE que el <head> ya había pintado correctamente).
+// Antes esta función pisaba SIEMPRE con activa.nombre en mayúsculas
+// crudas, sin este chequeo — el título terminaba parpadeando entre el
+// LOGIN_TITLE correcto (pintado por el <head> en DOMContentLoaded) y el
+// nombre crudo del índice (pintado acá después, sin ningún orden
+// garantizado entre ambos).
 function aplicarNombreLigaLogin(){
   const activa=_ligasActivas.find(l=>l.id===_ligaActual);
-  if(activa){
-    const tit=document.getElementById('login-title');
-    if(tit&&activa.nombre) tit.textContent=activa.nombre;
-  }
+  if(!activa) return;
+  const tit=document.getElementById('login-title');
+  if(!tit) return;
+  let cache=null;
+  try{ cache=JSON.parse(localStorage.getItem('lsn')||'null'); }catch(_){ cache=null; }
+  const loginTitleCacheado=(cache&&cache.lt&&cache.lt.trim())?cache.lt.trim():'';
+  const texto=loginTitleCacheado||activa.nombre;
+  if(texto) tit.textContent=texto;
 }
 // Acceso admin cuando NO hay ninguna liga activa: un aviso en el login para que
 // el admin/superadmin igual pueda entrar (a la última liga) y reabrir o crear.
@@ -410,7 +429,6 @@ async function cargarGestionLigas(){
       } else {
         acciones+='<button class="btn btn-sm" onclick="reabrirLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-lock-open"></i> '+t('lm_reopen')+'</button>';
       }
-      acciones+='<button class="btn btn-sm" onclick="renombrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-pencil"></i> '+t('lm_rename')+'</button>';
       acciones+='<button class="btn btn-sm" onclick="renombrarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-pencil"></i> '+t('lm_rename')+'</button>';
       acciones+='<button class="btn btn-sm btn-danger" onclick="eliminarLigaUI(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')"><i class="ti ti-trash"></i> '+t('lm_delete')+'</button>';
       return '<div class="lm-item">'
@@ -713,6 +731,11 @@ async function reabrirLigaUI(id,nombre){
   if(!(await confirmarModal(t('lm_reopen_confirm').replace('{n}',nombre), {titulo:t('lm_reopen'), okTxt:t('lm_reopen')})))return;
   await accionLiga('reabrir',{id});
 }
+// Renombra el nombre visible de una liga (el id interno queda fijo). El
+// backend (acción 'renombrar' en api/liga.js) sincroniza tanto liga_index
+// (lo que se ve en esta lista) como state.LEAGUE_NAME (header + login post-
+// selección) — a diferencia de guardar desde "Apariencia de la liga", que
+// hasta hace poco solo tocaba el state y dejaba este índice desactualizado.
 async function renombrarLigaUI(id,nombre){
   const nuevo=prompt(t('lm_rename_prompt'), nombre);
   if(nuevo===null)return;
@@ -728,15 +751,6 @@ async function eliminarLigaUI(id,nombre){
   if(tecleado===null)return;
   if(tecleado.trim()!==nombre && tecleado.trim()!==id){ alert(t('lm_delete_mismatch')); return; }
   await accionLiga('eliminar',{id,confirmar:tecleado.trim()});
-}
-// Renombrar el nombre visible de una liga (el id interno queda fijo).
-async function renombrarLigaUI(id,nombreActual){
-  const nuevo=prompt(t('lm_rename_prompt'), nombreActual);
-  if(nuevo===null)return;
-  const limpio=nuevo.trim();
-  if(!limpio){ alert(t('lm_rename_empty')); return; }
-  if(limpio===nombreActual)return;
-  await accionLiga('renombrar',{id,nombre:limpio});
 }
 async function accionLiga(accion,extra){
   try{
