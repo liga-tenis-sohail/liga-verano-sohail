@@ -17,7 +17,10 @@ const {
 const crypto = require('crypto');
 
 function idDeJugador(nombre){
-  const norm = String(nombre).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Colapsa espacios múltiples ("Juan  Pérez" -> "Juan Pérez") además de
+  // sacar mayúsculas/tildes/bordes: sin esto, una variante con doble
+  // espacio generaba un hash distinto y duplicaba el perfil del jugador.
+  const norm = String(nombre).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
   return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
 }
 
@@ -580,12 +583,34 @@ module.exports = async function handler(req, res){
       } else if(j.email){
         try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
         if(!perfil && j.nombre){
-          perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
-          try { await upsertJugador(perfil); } catch(e){}
+          // Antes de crear un perfil nuevo, ver si ya existe uno con el MISMO
+          // nombre normalizado (aunque nunca haya tenido email). Sin este
+          // chequeo, cargar al mismo "Juan Pérez" en dos ligas sin pasar
+          // jugadorId explícito generaba DOS filas de catálogo -> el jugador
+          // aparecía duplicado en el login unificado.
+          const idPorNombre = idDeJugador(j.nombre);
+          if(catalogo[idPorNombre]){
+            perfil = catalogo[idPorNombre];
+            // Si no tenía email todavía, aprovechamos para completarlo.
+            if(!perfil.email){
+              perfil.email = String(j.email).trim().toLowerCase();
+              try { await upsertJugador(perfil); } catch(e){}
+            }
+          } else {
+            perfil = { id: idPorNombre, nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
+            try { await upsertJugador(perfil); } catch(e){}
+          }
         }
       } else if(j.nombre){
-        perfil = { id: idDeJugador(j.nombre), nombre: String(j.nombre).trim(), email: null, pass: null };
-        try { await upsertJugador(perfil); } catch(e){}
+        // Mismo chequeo que arriba: reusar el perfil existente por nombre
+        // normalizado en vez de crear uno nuevo a ciegas.
+        const idPorNombre = idDeJugador(j.nombre);
+        if(catalogo[idPorNombre]){
+          perfil = catalogo[idPorNombre];
+        } else {
+          perfil = { id: idPorNombre, nombre: String(j.nombre).trim(), email: null, pass: null };
+          try { await upsertJugador(perfil); } catch(e){}
+        }
       }
 
       if(perfil && perfil.nombre){
