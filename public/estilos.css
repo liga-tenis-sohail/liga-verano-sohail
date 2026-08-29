@@ -1055,6 +1055,14 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 
 .role-badge{background:var(--acc);color:var(--priD);font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;text-transform:uppercase}
 .cycle-bar{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
+/* Pocas pestañas (≤3, clase 'few'): se estiran para ocupar todo el ancho
+   disponible — es el comportamiento por defecto de .cycle-tab (flex:1).
+   4 o más (clase 'many'): en vez de achicarse todas para entrar en una
+   fila, pasan a una sola fila con scroll horizontal, manteniendo un
+   tamaño legible por pestaña. Esto vale en cualquier ancho de pantalla;
+   el forzado adicional para mobile está en el @media(max-width:640px). */
+.cycle-bar.many{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
+.cycle-bar.many .cycle-tab{flex:0 0 auto}
 .cycle-tab{flex:1;min-width:90px;padding:10px 8px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;align-items:center;justify-content:center;gap:5px}
 .cycle-tab:hover:not(.locked){border-color:var(--pri);background:var(--soft)}
 .cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
@@ -1243,11 +1251,23 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
      amontonado o cortado — así "Salir" nunca queda fuera de pantalla. */
   .user-chip{flex-basis:100%;justify-content:flex-end;margin-left:0}
   
-  .cycle-bar, .tabs, .grp-pick {
+  .tabs, .grp-pick {
     flex-wrap: nowrap !important; overflow-x: auto !important;
     justify-content: flex-start !important;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none; 
+    padding-bottom: 4px;
+  }
+  /* .cycle-bar ya NO se fuerza acá de forma incondicional: con 3 pestañas
+     o menos (clase 'few') se estira a ancho completo; con 4 o más (clase
+     'many') se comporta igual que antes (scroll horizontal). Ver reglas
+     .cycle-bar.few / .cycle-bar.many más abajo, que valen en cualquier
+     ancho de pantalla, no solo mobile. */
+  .cycle-bar.many {
+    flex-wrap: nowrap !important; overflow-x: auto !important;
+    justify-content: flex-start !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
     padding-bottom: 4px;
   }
   .cycle-bar::-webkit-scrollbar, .tabs::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none; }
@@ -1261,7 +1281,12 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .cls-table, .gen-table, .res-table { min-width: max-content !important; width: 100% !important; table-layout: auto !important; }
   .cls-table th, .gen-table th, .cls-table td, .gen-table td, .res-table th, .res-table td { white-space: nowrap !important; }
 
-  .cycle-tab, .tab, .grp-btn { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
+  .tab, .grp-btn { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
+  /* .cycle-tab ya NO se fuerza a flex:0 0 auto de forma incondicional acá:
+     con pocas pestañas (.cycle-bar.few) debe poder seguir estirándose
+     (flex:1, regla base) para ocupar todo el ancho; con 4+ (.cycle-bar.many)
+     sí se comporta como antes, en fila con scroll horizontal. */
+  .cycle-bar.many .cycle-tab { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
   .cycle-tab { padding: 8px 14px; font-size: 13px; border-radius: 9px; }
   .tab { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
   .grp-btn { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
