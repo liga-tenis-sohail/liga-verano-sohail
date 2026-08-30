@@ -12,15 +12,16 @@ function setNumGroups(val){
   const cur = c.groups.length;
   const ppg = c.groups[0] ? c.groups[0].players.length : 5;
   if(newNum > cur){
-    if(!confirm('¿Agregar '+(newNum-cur)+' grupo'+(newNum-cur>1?'s':'')+' a la liga? Se crearán con jugadores placeholder que deberás renombrar desde Perfil & Jugadores.')) { renderAdmin(); return; }
+    if(!confirm('¿Agregar '+(newNum-cur)+' grupo'+(newNum-cur>1?'s':'')+' a la liga? Los '+ppg+' cupos de cada grupo nuevo quedan vacíos: asigná jugadores desde Perfil & Jugadores o "Agregar de ligas anteriores".')) { renderAdmin(); return; }
     for(let i = cur; i < newNum; i++){
-      const newPlayers = [];
-      for(let j = 0; j < ppg; j++){
-        let nm, k=0;
-        do { nm = 'Jugador nuevo'+(k>0?' '+(k+1):'')+' G'+(i+1)+'-'+(j+1); k++; }
-        while(ALLNAMES.includes(nm) || USERS[nm]);
-        newPlayers.push(nm);
-      }
+      // Cupos vacíos (null), NO jugadores placeholder con nombre inventado.
+      // shell-render.js ya filtra estos huecos con .filter(Boolean) al armar
+      // la tabla de clasificación, y ensureDestino() solo necesita la
+      // LONGITUD del array (no le importa qué hay en cada posición) — así
+      // que un array con null en el medio funciona igual de bien que uno
+      // con nombres reales, sin generar un "jugador" ficticio que aparecía
+      // en listados y estadísticas hasta que el admin lo renombraba a mano.
+      const newPlayers = new Array(ppg).fill(null);
       c.groups.push({players: newPlayers});
       ensureDestino(i+1, ppg);
     }
@@ -64,16 +65,16 @@ function setPlayersPerGroup(val){
   c.groups.forEach((g, gi) => {
     const cur = g.players.length;
     if(ppg > cur){
-      for(let j = cur; j < ppg; j++){
-        let nm, k=0;
-        do { nm = 'Jugador nuevo'+(k>0?' '+(k+1):'')+' G'+(gi+1)+'-'+(j+1); k++; }
-        while(ALLNAMES.includes(nm) || USERS[nm]);
-        g.players.push(nm);
-      }
+      // Cupos vacíos (null) en vez de jugadores placeholder con nombre
+      // inventado — mismo criterio que setNumGroups: se filtran en el
+      // render (shell-render.js, .filter(Boolean)) y ensureDestino solo
+      // necesita la longitud, no el contenido.
+      for(let j = cur; j < ppg; j++) g.players.push(null);
     } else if(ppg < cur){
       const removed = g.players.slice(ppg);
       g.players.splice(ppg);
       removed.forEach(n=>{
+        if(!n) return;   // los cupos vacíos (null) no son jugadores reales
         const stillUsed = cycles.some(cy=>cy.groups&&cy.groups.some(gg=>(gg.players||[]).includes(n)));
         if(!stillUsed){
           delete USERS[n];
@@ -83,7 +84,11 @@ function setPlayersPerGroup(val){
     }
     ensureDestino(gi+1, ppg);
   });
-  c.groups.flatMap(g=>g.players).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
+  // Filtramos los cupos vacíos (null) antes de sincronizar ALLNAMES: sin
+  // este filtro, un null colado acá terminaría como entrada fantasma en
+  // ALLNAMES (ALLNAMES.includes(null) sería false la primera vez y
+  // ALLNAMES.push(null) lo agregaría).
+  c.groups.flatMap(g=>g.players).filter(Boolean).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
   persist(true); renderAdmin();
   toast('Grupos actualizados a '+ppg+' jugadores.');
 }

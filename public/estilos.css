@@ -1037,7 +1037,14 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .cj-fusion-confirm-btns{display:flex;gap:8px;flex-wrap:wrap}
 .login-hint{margin-top:.875rem;padding:.7rem;background:var(--soft);border-radius:8px;font-size:11px;color:var(--priD);line-height:1.5}
 .login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
-.hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);flex-wrap:wrap;position:relative}
+/* Header fijo: se queda pegado arriba al scrollear la página, para que el
+   nombre de la liga, el cambio de liga y el logout siempre estén a mano sin
+   tener que volver arriba. z-index alto para quedar por encima de tablas,
+   modales de fondo, etc. El radio inferior se aplana mientras está pegado
+   (sticky no dispara ningún pseudo-clase para esto en CSS puro, así que se
+   deja el radio completo siempre — visualmente se nota poco al estar pegado
+   al borde superior de la pantalla). */
+.hdr{display:flex;align-items:center;gap:12px;padding:.7rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);flex-wrap:wrap;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(0,0,0,.12)}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
 .hdr-titlebox{min-width:0;flex:1 1 auto;position:relative}
 .hdr h1{font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -1258,7 +1265,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .hdr{padding:.5rem .6rem;border-radius:10px;gap:8px}
   .hdr-logo{width:30px;height:30px;font-size:15px;flex-shrink:0}
   .hdr h1{font-size:13px;font-weight:600}.hdr p{font-size:10px}
-  .hdr-liga-switch{font-size:13px}
+  .hdr-liga-switch{font-size:15px}
   .user-info .name{font-size:12px}.user-info .role{font-size:10px}
   .logout-btn{padding:5px 7px;font-size:11px}
   /* Si el título de la liga es largo y no entra en una sola fila junto al
@@ -1666,19 +1673,26 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
    el usuario participa en 2+ ligas activas se le agrega la clase .multi:
    ahí aparece la flecha y el fondo/cursor de botón clickeable. El menú que
    despliega cae JUSTO DEBAJO de este mismo botón (no al costado).
+
+   Rediseño: el nombre de la liga sube de peso (700) y tamaño (17px), con un
+   leve letter-spacing negativo para que se vea más compacto y "de marca" en
+   vez de texto de UI genérico. Un sutil text-shadow le da algo de profundidad
+   sobre el fondo sólido del header sin llegar a verse pesado.
    ============================================================================ */
 .hdr-liga-switch{
   all:unset;cursor:default;
-  display:inline-flex;align-items:center;gap:6px;max-width:100%;
-  font-size:15px;font-weight:600;color:#fff;
+  display:inline-flex;align-items:center;gap:7px;max-width:100%;
+  font-size:17px;font-weight:700;color:#fff;letter-spacing:-.01em;
+  text-shadow:0 1px 2px rgba(0,0,0,.15);
 }
 .hdr-liga-switch-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hdr-liga-switch.multi{
   cursor:pointer;background:rgba(255,255,255,.14);border-radius:8px;
-  padding:3px 9px 3px 7px;margin:-3px -9px -3px -7px;
+  padding:4px 10px 4px 8px;margin:-4px -10px -4px -8px;
+  transition:background .15s ease;
 }
 .hdr-liga-switch.multi:hover{background:rgba(255,255,255,.24)}
-.hdr-liga-switch.multi .hdr-liga-switch-arrows{display:inline-block!important;font-size:13px;flex-shrink:0;opacity:.85}
+.hdr-liga-switch.multi .hdr-liga-switch-arrows{display:inline-block!important;font-size:14px;flex-shrink:0;opacity:.9}
 .hdr-liga-switch-menu{
   position:absolute;z-index:60;top:100%;left:0;margin-top:6px;min-width:220px;max-width:320px;
   background:var(--surface);border:1px solid var(--border);border-radius:12px;

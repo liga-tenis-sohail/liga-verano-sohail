@@ -239,12 +239,16 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
   // Llenar el select de reporter con todos los grupos (sin filtro)
   function fillReporterAll(){
     r.innerHTML='<option value="">— '+t('select_user')+' —</option>';
-    c.groups.forEach((g,gi)=>{const gid2=gi+1;const og=document.createElement('optgroup');og.label=groupName(gid2);(g.players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>og.appendChild(new Option(j,gi+'|'+j)));r.appendChild(og);});
+    // .filter(Boolean) descarta los cupos vacíos (null) de grupos con
+    // jugadores sin asignar todavía (ver setNumGroups/setPlayersPerGroup en
+    // admin-ligas-clubes.js) — sin este filtro, sort() explota al intentar
+    // null.localeCompare(...).
+    c.groups.forEach((g,gi)=>{const gid2=gi+1;const og=document.createElement('optgroup');og.label=groupName(gid2);(g.players||[]).filter(Boolean).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>og.appendChild(new Option(j,gi+'|'+j)));r.appendChild(og);});
   }
   function fillReporterByGroup(fgi){
     r.innerHTML='<option value="">— '+t('select_user')+' —</option>';
     const g=c.groups[fgi];if(!g)return;
-    (g.players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>r.appendChild(new Option(j,fgi+'|'+j)));
+    (g.players||[]).filter(Boolean).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>r.appendChild(new Option(j,fgi+'|'+j)));
   }
   // Construir opciones del filtro incluyendo playoffs dinámicos
   function buildFilterOptions(){
@@ -401,7 +405,7 @@ function filterRival(repVal,preselect){
   const g=c.groups[gi];if(!g)return;
   const og=document.createElement('optgroup');
   og.label=groupName(gi+1);
-  (g.players||[]).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>{
+  (g.players||[]).filter(Boolean).slice().sort((a,b)=>a.localeCompare(b,'es')).forEach(j=>{
     if(j===repName)return;
     const hasMatch=findMatch(activeN,gi+1,repName,j);
     const jInactive=USERS[j]&&USERS[j].inactive;
