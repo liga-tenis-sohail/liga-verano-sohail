@@ -1058,7 +1058,12 @@ details[open]>summary{border-bottom:1px solid var(--border)}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
 .hdr-titlebox{min-width:0;flex:1 1 auto;position:relative}
 .hdr h1{font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.hdr p{font-size:12px;color:#dce7f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* margin-top: separa visualmente el subtítulo ("Ciclo 2 · finished") del
+   nombre de la liga arriba — sin esto quedaban pegados uno contra el otro,
+   ya que el reset global (*{margin:0}, línea 1 del archivo) le saca a <p>
+   cualquier espaciado propio y .hdr-titlebox no define ningún gap entre sus
+   hijos. */
+.hdr p{font-size:12px;color:#dce7f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
 /* .cycle-bar y .tabs, siendo ahora parte del bloque sticky, necesitan su
    propio respiro para no verse pisados por el borde del header de arriba ni
    por el contenido que sigue debajo — antes ese margen alcanzaba porque todo
@@ -1166,6 +1171,18 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);align-items:center}
 .legend span{display:inline-flex;align-items:center;gap:4px}.dot{width:11px;height:11px;border-radius:3px;display:inline-block}.dot-pend{background:#FAEEDA}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
+/* Cada columna de un .form-row puede tener distinta cantidad de texto de
+   ayuda arriba del input (un label simple vs. label + hint en 2 líneas,
+   como en el formulario de Apariencia de la liga) — sin esto, los inputs de
+   columnas vecinas quedaban a alturas distintas, visualmente desalineados
+   entre sí. Acotado a ".form-row .form-group" (no ".form-group" a secas)
+   para no afectar los demás usos de la clase fuera de un grid de 2
+   columnas, donde este ajuste no aplica y no hace falta. flex-direction:
+   column + el input empujado al final con margin-top:auto hace que todos
+   los inputs de una misma fila caigan sobre la misma línea de base, sin
+   importar cuánto texto tenga cada columna arriba. */
+.form-row .form-group{display:flex;flex-direction:column}
+.form-row .form-group input,.form-row .form-group select,.form-row .form-group textarea{margin-top:auto}
 .form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
 .form-group select,.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
 .req{border:2px solid var(--reqBorder)!important;background:var(--reqBg)!important}.req-empty,.req-empty input,.req-empty select{border:2px solid var(--reqEmptyBorder)!important;background:var(--reqEmptyBg)!important}
