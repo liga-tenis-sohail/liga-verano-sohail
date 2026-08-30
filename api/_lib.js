@@ -384,7 +384,7 @@ function clientIP(req){
 // ============================================================================
 
 // Inserta un mensaje nuevo. Devuelve la fila creada (con id y fecha reales).
-async function insertarMensaje({ ligaId, tipo, ciclo, grupo, autor, texto }){
+async function insertarMensaje({ ligaId, tipo, ciclo, grupo, autor, texto, imagen }){
   const row = {
     liga_id: ligaId,
     tipo,
@@ -393,6 +393,17 @@ async function insertarMensaje({ ligaId, tipo, ciclo, grupo, autor, texto }){
     autor: String(autor || '').slice(0, 80),
     texto: String(texto || '').slice(0, 2000)
   };
+  // imagen: data URL base64 (ya comprimida del lado del cliente, mismo
+  // patrón que rgComprimirImg en reglamento.js — máx 1200px, JPEG calidad
+  // 0.75). Se guarda tal cual en la columna `imagen` de la tabla mensajes
+  // (TEXT, sin límite práctico de longitud en Postgres). Solo el admin
+  // puede adjuntar (ver el chequeo de esAdminMsg en liga.js antes de
+  // llegar acá) — es deliberado: abrir esto a cualquier jugador multiplica
+  // el tamaño de la tabla sin control y sin necesidad real para el caso de
+  // uso (avisos del admin con una captura o un documento adjunto).
+  if(imagen && typeof imagen === 'string' && imagen.startsWith('data:')){
+    row.imagen = imagen.slice(0, 700000);   // ~500KB de imagen en base64, con margen
+  }
   const r = await fetch(SUPA_URL + '/rest/v1/mensajes', {
     method: 'POST',
     headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=representation' }),
