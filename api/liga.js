@@ -669,8 +669,13 @@ module.exports = async function handler(req, res){
         estado.users[perfil.nombre].name = perfil.nombre;
         if(perfil.email) estado.users[perfil.nombre].email = perfil.email;
       } else {
+        // pass: perfil.pass — mismo fix que en 'crear' (ver comentario ahí):
+        // sin esto, un jugador agregado a una liga existente vía "Agregar de
+        // ligas anteriores" quedaba con u.pass undefined, y el punto
+        // verde/rojo lo pintaba siempre verde sin importar su estado real.
         estado.users[perfil.nombre] = {
-          role: 'player', name: perfil.nombre, email: perfil.email || null, jugadorId: perfil.id
+          role: 'player', name: perfil.nombre, email: perfil.email || null, jugadorId: perfil.id,
+          pass: perfil.pass || null
         };
       }
       agregados.push(perfil.nombre);
@@ -790,11 +795,23 @@ module.exports = async function handler(req, res){
             estado.users[perfil.nombre].name = perfil.nombre;
             if (perfil.email) estado.users[perfil.nombre].email = perfil.email;
         } else {
+            // pass: perfil.pass — CRÍTICO. Antes este objeto se armaba sin
+            // campo pass en absoluto, así que quedaba undefined en la liga
+            // nueva. El punto verde/rojo de contraseña (tienePasswordDefault
+            // en jugadores-perfiles.js) chequea exactamente este campo:
+            // undefined es falsy, así que SIEMPRE pintaba verde acá, sin
+            // importar que en la liga vieja el jugador tuviera la clave por
+            // defecto (rojo) o una propia. perfil.pass es el hash REAL y
+            // vigente del catálogo global — la misma fuente que ya usa el
+            // login (loginJugadorGlobal prioriza jugGlobal.pass sobre
+            // cualquier u.pass de una liga puntual), así que copiarlo acá
+            // simplemente mantiene ambos lados consistentes entre sí.
             estado.users[perfil.nombre] = { 
                 role: 'player', 
                 name: perfil.nombre, 
                 email: perfil.email || null, 
-                jugadorId: perfil.id 
+                jugadorId: perfil.id,
+                pass: perfil.pass || null
             };
         }
       }
