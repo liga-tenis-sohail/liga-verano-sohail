@@ -55,7 +55,16 @@ async function cargarStatsTotales(name, actualSt){
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
-    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
+    // Antes, si _ligaActual no estaba seteado (null), el filtro caía a
+    // comparar contra el string fijo 'liga-actual' — si la liga real del
+    // jugador tenía otro id, NO se excluía de "las otras ligas" y sus
+    // partidos se sumaban dos veces (una como base 'actualSt', otra de
+    // nuevo dentro de este loop). Ahora, sin _ligaActual confiable, se
+    // prefiere no descartar ninguna liga del listado en vez de descartar
+    // la incorrecta — el bug de fondo (_ligaActual sin asignar tras login
+    // directo) ya se corrigió en doLogin()/entrarConToken(), esto es un
+    // blindaje extra para que un futuro caso similar no vuelva a duplicar.
+    const otras=(d.ligas||[]).filter(l=>_ligaActual ? l.id!==_ligaActual : true);
     for(const l of otras){
       try{
         let est=null;
@@ -191,4 +200,3 @@ async function eliminarJugadorUI(jid,nombre){
     cargarCatJugadores();
   }catch(_){ alert(t('cj_del_err')); }
 }
-
