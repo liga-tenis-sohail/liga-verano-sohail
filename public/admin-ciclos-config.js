@@ -318,10 +318,11 @@ function renderAdmin(){
     // aparte, más abajo (exclusivo superadmin). ====
     if(esAdmin(currentUser)){
       h += `<div class="card"><div class="section-lbl" style="color:var(--pri)">${t('appearance_title')}</div>
-        <p class="legend-txt" style="margin-top:0">${t('appearance_name_hint')}</p>
+        <p class="legend-txt" style="margin-top:0;margin-bottom:.9rem">${t('appearance_name_hint')}</p>
         <div class="form-row" style="margin-bottom:.75rem">
           <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('login_title_lbl')} <span style="font-size:11px">${t('login_title_hint')}</span></label>
+            <label style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:2px;display:block">${t('login_title_lbl')}</label>
+            <span style="font-size:11px;color:var(--text2);display:block;margin-bottom:6px;line-height:1.4">${t('login_title_hint')}</span>
             <input id="sa-login-title" type="text" value="${attr(LOGIN_TITLE)}" placeholder="${attr((LIGA_NOMBRE_OFICIAL&&LIGA_NOMBRE_OFICIAL.trim())?LIGA_NOMBRE_OFICIAL:LEAGUE_NAME)}" style="width:100%;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);font-size:14px">
           </div>
           <div class="form-group">
