@@ -267,6 +267,65 @@ function saveAjustePuntos(ciclo, gid, nombre, limpiar){
   toast(t('pts_ajuste_saved').replace('{n}', nombre));
 }
 
+// ===== Editor de ajustes desde Clasificación General: TODOS los ciclos =====
+// A diferencia de editAjustePuntosUI (un solo ciclo/grupo fijo, usado desde
+// la tabla de un grupo puntual), este editor lista cada ciclo donde el
+// jugador tiene un grupo asignado, con su propio campo editable, y guarda
+// todos los cambios juntos en un solo click.
+//
+// Encuentra, para cada ciclo de la liga, el gid (grupo) donde jugó `nombre`
+// — necesario porque AJUSTES_PUNTOS se guarda por ciclo+grupo+jugador, y la
+// Clasificación General no expone ese gid por ciclo (solo el total ya
+// sumado). Un jugador juega en un único grupo por ciclo, así que alcanza
+// con findLoc(nombre, cicloN) por cada ciclo.
+function _ajustesDelJugadorPorCiclo(nombre){
+  return cycles.map(c=>{
+    const loc=findLoc(nombre, c.n);
+    if(!loc) return null;   // no jugó este ciclo (o no tiene grupo asignado)
+    const actual=(AJUSTES_PUNTOS[c.n]&&AJUSTES_PUNTOS[c.n][loc.g]&&AJUSTES_PUNTOS[c.n][loc.g][nombre])||0;
+    return {ciclo:c.n, gid:loc.g, actual};
+  }).filter(Boolean);
+}
+function editAjustePuntosGeneralUI(nombre){
+  if(!esAdmin(currentUser)) return;
+  const filas=_ajustesDelJugadorPorCiclo(nombre);
+  if(!filas.length){ toast(t('pts_ajuste_none')); return; }
+  document.getElementById('modal-title').textContent = t('pts_ajuste_title').replace('{n}', nombre);
+  const rowsHtml = filas.map(f=>
+    `<div class="form-group" style="margin-bottom:.6rem">
+      <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('cycle')} ${f.ciclo} · ${groupName(f.gid)}</label>
+      <input type="number" id="pts-ajuste-c${f.ciclo}" data-gid="${f.gid}" value="${f.actual}" step="1" class="po-in" style="width:100px;font-size:16px">
+    </div>`
+  ).join('');
+  document.getElementById('modal-body').innerHTML = `
+    <p class="legend-txt" style="margin-top:0">${t('pts_ajuste_hint_gen')}</p>
+    ${rowsHtml}`;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="saveAjustesPuntosGeneral('${jsq(nombre)}')"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
+    <button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function saveAjustesPuntosGeneral(nombre){
+  const filas=_ajustesDelJugadorPorCiclo(nombre);
+  filas.forEach(f=>{
+    const inp=document.getElementById('pts-ajuste-c'+f.ciclo);
+    if(!inp) return;
+    let v=parseInt(inp.value,10);
+    if(isNaN(v)) v=0;
+    if(!AJUSTES_PUNTOS[f.ciclo]) AJUSTES_PUNTOS[f.ciclo]={};
+    if(!AJUSTES_PUNTOS[f.ciclo][f.gid]) AJUSTES_PUNTOS[f.ciclo][f.gid]={};
+    if(v===0){
+      delete AJUSTES_PUNTOS[f.ciclo][f.gid][nombre];
+    } else {
+      AJUSTES_PUNTOS[f.ciclo][f.gid][nombre]=v;
+    }
+  });
+  persist(true);
+  closeM();
+  refreshAll();
+  toast(t('pts_ajuste_saved').replace('{n}', nombre));
+}
+
 // ===== Historial de partidos por jugador =====
 function _histRow(rival,sc,won,extra,base){
   const badge=won?`<span class="badge badge-ok">${t('hist_won')}</span>`:`<span class="badge badge-disp">${t('hist_lost')}</span>`;
