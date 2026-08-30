@@ -565,6 +565,23 @@ async function doLogin(){
       _loadOK=true;
       // Nombre oficial de la liga (Gestión de Ligas), separado de LEAGUE_NAME.
       LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
+      // CRÍTICO: _ligaActual tiene que quedar con el id REAL de la liga a la
+      // que se entró (d.ligaId), no seguir en null. Sin esto, toda llamada
+      // posterior que arma su payload con `ligaId:_ligaActual` (Mensajes,
+      // Mis Ligas, el cálculo de estadísticas totales entre ligas, etc.)
+      // mandaba null — el backend caía a LIGA_DEFAULT ('liga-actual') como
+      // fallback, y si la liga real del jugador tenía OTRO id, el server
+      // rechazaba todo con "tu sesión no corresponde a esa liga" aunque el
+      // jugador estuviera perfectamente logueado en su liga real. También
+      // duplicaba las estadísticas totales: cargarStatsTotales() filtra
+      // "las otras ligas" comparando contra _ligaActual, así que con null
+      // terminaba sumando la liga actual dos veces (una como base, otra
+      // dentro del loop de "otras" porque nunca se excluía).
+      // Este bug NO afectaba el login multi-liga (2+ ligas activas) ni el
+      // cambio de liga desde el header: esos dos flujos sí asignaban
+      // _ligaActual correctamente — solo faltaba acá, el caso más común
+      // (una sola liga activa, login directo).
+      if(d.ligaId) _ligaActual=d.ligaId;
     }else{
       await loadState();
     }
@@ -709,6 +726,11 @@ function entrarConToken(d){
     _lastSaved=_serialize();
     _loadOK=true;
     LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
+    // Mismo fix que en doLogin(): sin esto, _ligaActual se quedaba en null
+    // tras entrar con passkey (login directo, 1 sola liga), y toda llamada
+    // posterior que dependía de _ligaActual (Mensajes, Mis Ligas, stats
+    // totales) fallaba o duplicaba datos.
+    if(d.ligaId) _ligaActual=d.ligaId;
   }
   if(!_loadOK){ if(e){e.textContent=t('err_no_data');e.style.display='block';} _token=null; return false; }
   const u=USERS[d.name];
