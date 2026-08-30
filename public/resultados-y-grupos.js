@@ -97,7 +97,21 @@ document.getElementById('gen-body').innerHTML=all.map((p,i)=>{const me=currentUs
   const poActivo=playoff&&playoff.started;
   const celdaPO=poActivo?('<td class="gen-po">'+(p.poDraw?('<span class="po-chip">'+t('draw')+' '+attr(p.poDraw)+'</span>'):'<span class="gen-dash">—</span>')+'</td>'):'';
   const inactBadge=p.inactive?' <span class="badge-inact">'+t('inactive_short')+'</span>':'';
-  return '<tr class="'+(me?'me-row':'')+'" style="'+(p.inactive?'opacity:.55':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong></td>'+celdasCiclos+celdaPO+'</tr>';}).join('');}
+  // Botón de ajuste manual, también acá (Clasificación General) — antes
+  // solo existía en la tabla de un grupo puntual (groupCardHTML), pero la
+  // pestaña "Clasificación" que ve el admin (tab_general) es ESTA, tanto
+  // en modo ciclo normal como dentro de Play Offs (ahí no hay ninguna otra
+  // tabla de clasificación). Como acá no hay un gid único por fila (Total
+  // es la suma de todos los ciclos), el ajuste opera sobre el grupo ACTUAL
+  // del jugador en el ciclo activo (mismo `loc` que ya se calcula arriba
+  // para la columna de grupo) — coherente con dónde termina viviendo el
+  // ajuste en AJUSTES_PUNTOS (ciclo -> grupo -> jugador). Si el jugador no
+  // tiene grupo en el ciclo activo (loc es null — "Sin grupo", o inactivo
+  // sin ubicación), no se muestra el botón: no hay dónde guardar el ajuste.
+  const ajusteBtnGen=(esAdmin(currentUser)&&loc)
+    ? ' <button class="pts-ajuste-btn" title="'+attr(t('pts_ajuste_btn'))+'" onclick="editAjustePuntosUI('+activeN+','+loc.g+',\''+jsq(p.name)+'\')"><i class="ti ti-edit"></i></button>'
+    : '';
+  return '<tr class="'+(me?'me-row':'')+'" style="'+(p.inactive?'opacity:.55':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong>'+ajusteBtnGen+'</td>'+celdasCiclos+celdaPO+'</tr>';}).join('');}
 
 // Dibuja un botón por club en el formulario de carga, desde CLUBS. Reemplaza a los
 // dos botones fijos Sohail/Haza. Cada botón lleva el color del club como fondo.
