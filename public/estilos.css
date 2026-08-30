@@ -1086,7 +1086,13 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
    el forzado adicional para mobile está en el @media(max-width:640px). */
 .cycle-bar.many{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
 .cycle-bar.many .cycle-tab{flex:0 0 auto}
-.cycle-tab{flex:1;min-width:90px;padding:10px 8px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;align-items:center;justify-content:center;gap:5px}
+.cycle-tab{flex:1;min-width:90px;padding:8px 8px 6px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.cycle-tab-main{display:flex;align-items:center;justify-content:center;gap:5px}
+/* Fecha corta ("Sep 12 - Oct 10") centrada debajo del nombre de la pestaña.
+   Tamaño chico y color atenuado (hereda el color del texto del botón vía
+   opacity, no un color fijo, para que siga leyéndose bien tanto en el estado
+   normal como en .active, donde el fondo pasa a ser sólido var(--pri)). */
+.cycle-tab-date{font-size:10px;font-weight:500;opacity:.65;line-height:1.1}
 .cycle-tab:hover:not(.locked):not(.active){border-color:var(--pri);background:var(--soft)}
 .cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
 .cycle-tab.locked{opacity:.45;cursor:not-allowed;background:var(--surface2)}.cycle-tab .st{font-size:11px}
