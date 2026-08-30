@@ -31,7 +31,16 @@ function renderCycleBar(){
   html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}"><span class="cycle-tab-main">${poLabel}</span>${poFechaHtml}</button>`;
   bar.innerHTML=html;
 }
-function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="'+x.badgeId+'" style="display:none">0</span>':'')+'</button>';}).join('');}
+function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}
+  // El resaltado de una pestaña normal (Mensajes, Cargar, Perfil, etc.) se
+  // basa PURA Y EXCLUSIVAMENTE en subView — sin el "!inPO" que tenía antes.
+  // subView nunca vale 'po' (esa es la pestaña especial x.po, con su propio
+  // branch arriba), así que el "!inPO" nunca protegía contra un conflicto
+  // real; solo lograba que, apenas viewCycle pasaba a 'po' (estando en Play
+  // Offs), CUALQUIER otra pestaña activa (Mensajes, Cargar…) dejara de
+  // marcarse como seleccionada, aunque siguiera siendo la vista que el
+  // usuario tenía abierta.
+  const active=subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="'+x.badgeId+'" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
   viewCycle=n;
   if(n==='po'){
@@ -78,7 +87,20 @@ function viewCyc(n){
     showSub('grupos');
   }
 }
-function showSub(name){if(viewCycle==='po')viewCycle=activeN;subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento','mensajes'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();if(name==='mensajes')renderMensajes();else try{detenerPollingMensajes();}catch(_){}updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
+function showSub(name){
+  // Antes esto reseteaba viewCycle de 'po' a activeN INCONDICIONALMENTE en
+  // cada llamada — así que hacer clic en "Mensajes" (o Cargar, Pendientes,
+  // Perfil, etc.) mientras se estaba viendo Play Offs sacaba a la persona
+  // del contexto de playoff sin que lo pidiera, y el header pasaba a
+  // mostrar "Ciclo N" en vez de "Play Offs" aunque la pestaña "Play Offs"
+  // siguiera resaltada como activa arriba. La única vista que de verdad
+  // necesita viewCycle numérico es 'grupos' (renderGrupos indexa
+  // cycles[viewCycle-1] directamente); el resto de pestañas (Mensajes,
+  // Cargar, Pendientes, Perfil, General, Rating, Admin, Historial,
+  // Reglamento) funcionan igual en cualquier contexto y no dependen de él,
+  // así que ya no se les fuerza la salida de Play Offs.
+  if(viewCycle==='po' && name==='grupos') viewCycle=activeN;
+  subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento','mensajes'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();if(name==='mensajes')renderMensajes();else try{detenerPollingMensajes();}catch(_){}updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
 function updateHdr(){
   // El subtítulo del header ya NO incluye el rango de fechas del ciclo — se
   // movió a una línea propia, centrada, debajo del nombre de cada pestaña de
@@ -137,9 +159,21 @@ function groupCardHTML(gid){
         const ic=dn<gid?'↑':dn>gid?'↓':'=';
         const ex=pos0===0?2:0;
         const base=ptsForPos(gid,pos0);
+        // Ajuste manual del admin (bonus/penalidad) sobre el Total de ESTE
+        // jugador en ESTE ciclo/grupo — independiente de su posición. Ver
+        // AJUSTES_PUNTOS en core-estado.js. 0 si nunca se tocó.
+        const ajuste = (AJUSTES_PUNTOS[viewCycle] && AJUSTES_PUNTOS[viewCycle][gid] && AJUSTES_PUNTOS[viewCycle][gid][s.name]) || 0;
+        const totalFinal = base + ex + ajuste;
+        const ajusteTxt = ajuste ? ` <span class="pts-ajuste ${ajuste>0?'pos':'neg'}">${ajuste>0?'+':''}${ajuste}</span>` : '';
+        // Botón de ajuste manual: solo admin, discreto (lápiz chico) para no
+        // saturar la fila. Abre editAjustePuntosUI con el jugador/ciclo/
+        // grupo ya resueltos, así el modal no tiene que volver a buscarlos.
+        const ajusteBtn = esAdmin(currentUser)
+          ? `<button class="pts-ajuste-btn" title="${attr(t('pts_ajuste_btn'))}" onclick="editAjustePuntosUI(${viewCycle},${gid},'${jsq(s.name)}')"><i class="ti ti-edit"></i></button>`
+          : '';
         const pInactive = USERS[s.name]&&USERS[s.name].inactive;
         const inactiveBadge = pInactive?'<span style="font-size:9px;background:#e55;color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:700">INACTIVO</span>':'';
-        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.6':''}"><td>${d?`<span class="dest ${ar}">${ic}${groupName(dn)}</span>`:''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${base}</td><td>${ex>0?ex:''}</td><td><strong>${base+ex}</strong></td></tr>`;
+        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.6':''}"><td>${d?`<span class="dest ${ar}">${ic}${groupName(dn)}</span>`:''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${base}</td><td>${ex>0?ex:''}</td><td><strong>${totalFinal}</strong>${ajusteTxt}${ajusteBtn}</td></tr>`;
       }).join('');
       
       // Para la MATRIZ de resultados: los activos siempre aparecen. Los inactivos

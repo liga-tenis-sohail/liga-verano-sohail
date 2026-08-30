@@ -372,14 +372,28 @@ function _msgBubbleHTML(m){
   const c = _msgColorForName(nombreAutor);
   const estiloBurbuja = 'background:'+c.bg+';border-color:'+c.border+';';
   const estiloAutor = 'color:'+c.label+';';
+  // Imagen adjunta (solo la manda el admin — ver imagenValida en liga.js).
+  // onclick abre la imagen a tamaño completo en pestaña nueva: window.open
+  // con un data URL directo es el patrón estándar del navegador para esto,
+  // sin necesitar ningún endpoint de descarga aparte.
+  const imagenHtml = m.imagen
+    ? `<div class="msg-bubble-img"><img src="${attr(m.imagen)}" alt="" onclick="window.open(this.src,'_blank')"></div>`
+    : '';
   return `<div class="msg-bubble-row ${soyYo?'me':''}">
     <div class="msg-bubble" style="${estiloBurbuja}">
       <div class="msg-bubble-author" style="${estiloAutor}">${nombre}</div>
-      <div class="msg-bubble-text">${texto}</div>
+      ${imagenHtml}
+      ${texto?`<div class="msg-bubble-text">${texto}</div>`:''}
       <div class="msg-bubble-time">${cuando}</div>
     </div>
   </div>`;
 }
+
+// Imagen elegida por el admin en el composer, ya comprimida a data URL
+// (mismo criterio que rgComprimirImg en reglamento.js), pendiente de
+// enviar junto con el próximo mensaje. Se limpia después de cada envío
+// exitoso, o si el admin la saca con el botón de la previsualización.
+let _msgImagenPendiente = null;
 
 function _msgPintarComposer(tab){
   const box = document.getElementById('msg-compose');
@@ -394,13 +408,54 @@ function _msgPintarComposer(tab){
     : false;
   if(!puedeEscribir){
     box.innerHTML = '';
+    _msgImagenPendiente = null;
     return;
   }
-  box.innerHTML = `<div class="msg-compose-row">
+  // El botón de adjuntar imagen es EXCLUSIVO admin (ver imagenValida en
+  // liga.js — el backend igual lo rechaza si no es admin, esto es solo
+  // para no mostrar un botón que un jugador normal no puede usar).
+  const puedeAdjuntar = esAdmin(currentUser);
+  const clipBtn = puedeAdjuntar
+    ? `<button type="button" class="btn btn-sm msg-attach-btn" title="${attr(t('msg_attach'))}" onclick="document.getElementById('msg-file-input').click()"><i class="ti ti-paperclip"></i></button>
+       <input type="file" id="msg-file-input" accept="image/*" style="display:none" onchange="_msgFileSeleccionado(this)">`
+    : '';
+  const previewHtml = _msgImagenPendiente
+    ? `<div class="msg-attach-preview"><img src="${_msgImagenPendiente}" alt=""><button type="button" class="msg-attach-remove" onclick="_msgQuitarImagenPendiente()" title="${attr(t('msg_attach_remove'))}"><i class="ti ti-x"></i></button></div>`
+    : '';
+  box.innerHTML = `${previewHtml}<div class="msg-compose-row">
+    ${clipBtn}
     <textarea id="msg-input" class="msg-input" placeholder="${attr(t('msg_placeholder'))}" rows="3"
       onkeydown="_msgTeclaComposer(event)"></textarea>
     <button class="btn btn-primary" onclick="enviarMensajeUI('${tab}')"><i class="ti ti-send"></i> ${t('msg_send')}</button>
   </div>`;
+}
+
+// Comprime la imagen elegida (mismo criterio que reglamento.js: máx 1200px,
+// JPEG calidad 0.75) y la deja pendiente para el próximo envío. rgComprimirImg
+// ya está definida globalmente en reglamento.js — se reutiliza tal cual, sin
+// duplicar la lógica de compresión acá.
+function _msgFileSeleccionado(inp){
+  const f = inp.files && inp.files[0];
+  if(!f) return;
+  if(f.size > 8*1024*1024){ toast(t('msg_attach_too_big')); inp.value=''; return; }
+  rgComprimirImg(f, (dataUrl)=>{
+    if(!dataUrl){ toast(t('msg_attach_err')); return; }
+    _msgImagenPendiente = dataUrl;
+    // Repintar solo la previsualización + fila, sin perder lo que el admin
+    // ya haya escrito en el textarea.
+    const textoActual = document.getElementById('msg-input')?.value || '';
+    _msgPintarComposer(_msgSubTab);
+    const inpNuevo = document.getElementById('msg-input');
+    if(inpNuevo) inpNuevo.value = textoActual;
+  });
+  inp.value = '';
+}
+function _msgQuitarImagenPendiente(){
+  _msgImagenPendiente = null;
+  const textoActual = document.getElementById('msg-input')?.value || '';
+  _msgPintarComposer(_msgSubTab);
+  const inpNuevo = document.getElementById('msg-input');
+  if(inpNuevo) inpNuevo.value = textoActual;
 }
 
 function _msgTeclaComposer(ev){
@@ -414,16 +469,20 @@ async function enviarMensajeUI(tab){
   const input = document.getElementById('msg-input');
   if(!input) return;
   const texto = input.value.trim();
-  if(!texto){ toast(t('msg_empty_err')); return; }
+  // Un mensaje puede ser SOLO imagen, sin texto — por eso el chequeo de
+  // "vacío" ahora contempla ambos. _msgImagenPendiente ya viene comprimida
+  // (ver _msgFileSeleccionado) y solo puede tener valor si esAdmin — el
+  // composer no muestra el botón de adjuntar para nadie más.
+  if(!texto && !_msgImagenPendiente){ toast(t('msg_empty_err')); return; }
 
   let payload;
-  if(tab === 'admin') payload = { accion:'enviarAdmin', ligaId:_ligaActual, texto };
-  else if(tab === 'grupo') payload = { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, texto };
-  else if(tab === 'playoff') payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto };
+  if(tab === 'admin') payload = { accion:'enviarAdmin', ligaId:_ligaActual, texto, imagen:_msgImagenPendiente||undefined };
+  else if(tab === 'grupo') payload = { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgGrupoCtx.ciclo, grupo:_msgGrupoCtx.grupo, texto, imagen:_msgImagenPendiente||undefined };
+  else if(tab === 'playoff') payload = { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgTramoCtx.tramo, texto, imagen:_msgImagenPendiente||undefined };
   else if(tab === 'explorar' && _msgExplorarCtx){
     payload = _msgExplorarCtx.tipo === 'playoff'
-      ? { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo, texto }
-      : { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo, texto };
+      ? { accion:'enviarPlayoff', ligaId:_ligaActual, tramo:_msgExplorarCtx.tramo, texto, imagen:_msgImagenPendiente||undefined }
+      : { accion:'enviarGrupo', ligaId:_ligaActual, ciclo:_msgExplorarCtx.ciclo, grupo:_msgExplorarCtx.grupo, texto, imagen:_msgImagenPendiente||undefined };
   }
   if(!payload) return;
 
@@ -437,6 +496,8 @@ async function enviarMensajeUI(tab){
     const d = await r.json().catch(()=>({}));
     if(!r.ok){ toast(d.error || t('msg_send_err')); input.disabled = false; return; }
     input.value = '';
+    _msgImagenPendiente = null;
+    _msgPintarComposer(tab);
     if(d.mensaje){
       _msgLastId[tab] = d.mensaje.id;
       _msgPintarLista(tab, [d.mensaje], false);

@@ -297,6 +297,19 @@ html[data-theme="dark"] .edit-pts-btn,
 html[data-theme="dark"] .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
 html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
 
+/* Ajuste manual de puntos (bonus/penalidad) por jugador, en la tabla de
+   Clasificación. .pts-ajuste-btn es un lápiz chico y discreto (no tiene el
+   mismo peso visual que el botón "Editar" de la escala general, porque es
+   una acción de uso ocasional, no algo que se toque todo el tiempo).
+   .pts-ajuste es el indicador "(+3)"/"(-5)" junto al Total, solo visible
+   cuando el jugador tiene un ajuste activo — verde para bonus, rojo para
+   penalidad, coherente con el resto de la paleta de estados de la app. */
+.pts-ajuste-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:4px;border-radius:5px;font-size:11px;line-height:1;vertical-align:middle}
+.pts-ajuste-btn:hover{background:var(--surface2);color:var(--pri)}
+.pts-ajuste{font-size:11px;font-weight:700;margin-left:3px;white-space:nowrap}
+.pts-ajuste.pos{color:#2f9e44}
+.pts-ajuste.neg{color:#e5484d}
+
 /* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
 .seed-chip .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
 .seed-chip .mv:hover{background:rgba(0,0,0,.08)}
@@ -1826,6 +1839,13 @@ button.liga-tab{cursor:pointer}
 .msg-bubble-author{font-size:11px;font-weight:700;color:var(--priD);margin-bottom:2px}
 .msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .msg-bubble-time{font-size:10px;color:var(--text2);margin-top:3px;text-align:right}
+/* Imagen adjunta dentro de una burbuja (solo el admin puede mandar una —
+   ver imagenValida en api/liga.js). max-width acotado al ancho de la
+   burbuja, altura limitada para que una foto no domine todo el chat;
+   cursor pointer + el onclick en el HTML abren el original a tamaño
+   completo en pestaña nueva. */
+.msg-bubble-img{margin:4px 0}
+.msg-bubble-img img{max-width:100%;max-height:220px;border-radius:8px;cursor:pointer;display:block}
 
 /* Franja inferior de composición: pegada a la lista, mismo look que la
    barra de herramientas del Reglamento (fondo gris clarito, borde arriba). */
@@ -1840,8 +1860,25 @@ button.liga-tab{cursor:pointer}
   line-height:1.4;
 }
 .msg-input:focus{outline:none;border-color:var(--pri)}
+/* Botón de adjuntar (clip): mismo alto que el botón de enviar para quedar
+   alineados en la fila del composer (align-items:flex-end del contenedor). */
+.msg-attach-btn{flex-shrink:0;height:42px;width:42px;padding:0;display:flex;align-items:center;justify-content:center}
+/* Previsualización de la imagen elegida, ANTES de enviar — vive arriba de
+   la fila del composer, dentro del mismo panel gris. Botón de quitar en la
+   esquina, mismo patrón visual que un chip removible. */
+.msg-attach-preview{
+  position:relative;display:inline-block;margin:.6rem .6rem 0;
+  background:var(--surface2);border-top:1px solid var(--border2);padding-top:.6rem;
+}
+.msg-attach-preview img{max-height:90px;border-radius:8px;display:block;border:1.5px solid var(--border2)}
+.msg-attach-remove{
+  position:absolute;top:2px;right:-8px;width:22px;height:22px;border-radius:50%;
+  background:var(--pri);color:#fff;border:2px solid var(--surface);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:11px;padding:0;
+}
 
 @media (max-width: 640px){
   .msg-list{height:340px}
   .msg-bubble{max-width:88%}
+  .msg-bubble-img img{max-height:180px}
 }

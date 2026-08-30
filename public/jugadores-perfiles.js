@@ -218,6 +218,55 @@ function savePuntos(gid,len){
   toast('Puntos actualizados.');
 }
 
+// ===== Ajuste manual de puntos por jugador (bonus/penalidad) =====
+// Distinto de editPuntosUI/savePuntos (que edita la ESCALA por posición,
+// aplica a quien sea que termine en ese puesto): esto es un ajuste puntual
+// para UN jugador específico en UN ciclo/grupo específico, típicamente para
+// sumar o restar puntos por una penalidad disciplinaria o un reconocimiento
+// discrecional del admin — no depende de en qué posición terminó.
+function editAjustePuntosUI(ciclo, gid, nombre){
+  if(!esAdmin(currentUser)) return;
+  const actual = (AJUSTES_PUNTOS[ciclo] && AJUSTES_PUNTOS[ciclo][gid] && AJUSTES_PUNTOS[ciclo][gid][nombre]) || 0;
+  document.getElementById('modal-title').textContent = t('pts_ajuste_title').replace('{n}', nombre);
+  document.getElementById('modal-body').innerHTML = `
+    <p class="legend-txt" style="margin-top:0">${t('pts_ajuste_hint')}</p>
+    <div class="form-group">
+      <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('pts_ajuste_lbl')}</label>
+      <input type="number" id="pts-ajuste-input" value="${actual}" step="1" class="po-in" style="width:100px;font-size:16px">
+    </div>`;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="saveAjustePuntos(${ciclo},${gid},'${jsq(nombre)}')"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
+    ${actual ? `<button class="btn" onclick="saveAjustePuntos(${ciclo},${gid},'${jsq(nombre)}',true)">${t('pts_ajuste_clear')}</button>` : ''}
+    <button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(()=>document.getElementById('pts-ajuste-input')?.focus(), 50);
+}
+function saveAjustePuntos(ciclo, gid, nombre, limpiar){
+  let v = 0;
+  if(!limpiar){
+    v = parseInt(document.getElementById('pts-ajuste-input').value, 10);
+    if(isNaN(v)) v = 0;
+    // Sin tope numérico duro: una penalidad o bonus real puede ser
+    // cualquier valor razonable que el admin decida — a diferencia de
+    // PUNTOS (la escala por posición, 0-100), esto no compone una fórmula
+    // automática que dependa de un rango fijo.
+  }
+  if(!AJUSTES_PUNTOS[ciclo]) AJUSTES_PUNTOS[ciclo] = {};
+  if(!AJUSTES_PUNTOS[ciclo][gid]) AJUSTES_PUNTOS[ciclo][gid] = {};
+  if(v === 0){
+    // Limpiar la entrada en vez de guardar un 0 explícito: mantiene el
+    // objeto liviano y evita que "sin ajuste" y "ajuste de 0" se confundan
+    // en el guardado.
+    delete AJUSTES_PUNTOS[ciclo][gid][nombre];
+  } else {
+    AJUSTES_PUNTOS[ciclo][gid][nombre] = v;
+  }
+  persist(true);
+  closeM();
+  refreshAll();
+  toast(t('pts_ajuste_saved').replace('{n}', nombre));
+}
+
 // ===== Historial de partidos por jugador =====
 function _histRow(rival,sc,won,extra,base){
   const badge=won?`<span class="badge badge-ok">${t('hist_won')}</span>`:`<span class="badge badge-disp">${t('hist_lost')}</span>`;
@@ -301,12 +350,25 @@ async function togglePlayerPast(name){
   }catch(_){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
 
+// Trae los resultados de esa persona en OTRA liga (activa o finalizada —
+// ya no se distingue: el pedido es que el jugador pueda ver su historial
+// completo sin importar el estado de esas otras ligas). Antes esta función
+// estaba declarada DOS VECES en el archivo: la segunda declaración (más
+// simple, sin el fallback a /api/state) pisaba silenciosamente a la
+// primera en JavaScript, y esa versión solo intentaba accion:'ver', que el
+// backend rechaza si la liga no está finalizada (ver liga.js) — así que
+// para cualquier liga TODAVÍA ACTIVA esto siempre fallaba con
+// "No se pudo cargar", que es exactamente el síntoma reportado.
 async function verJugadorEnLiga(name, ligaId, btn){
   if(btn){ document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
   const box=document.getElementById('pm-season-results');
   if(box) box.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
   try{
     let est=null;
+    // accion:'ver' solo sirve para ligas FINALIZADAS (ver liga.js). Para
+    // una liga todavía activa, cae al fallback de /api/state (que sí lee
+    // cualquier liga, con el token de la sesión — ver el fix de state.js
+    // que permite leer el estado de una liga ajena para este propósito).
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
     if(r.ok){ const d=await r.json().catch(()=>({})); est=d.estado; }
     else if(_token){
@@ -317,32 +379,40 @@ async function verJugadorEnLiga(name, ligaId, btn){
     if(box) box.innerHTML=resultadosJugadorEnEstado(name, est);
   }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
-// Trae los resultados de esa persona en una liga pasada específica.
-async function verJugadorEnLiga(name, ligaId, btn){
-  if(btn){ document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
-  const box=document.getElementById('pm-season-results');
-  if(box) box.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
-  try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok||!d.estado){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; return; }
-    if(box) box.innerHTML=resultadosJugadorEnEstado(name, d.estado);
-  }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
-}
 // Arma la lista de partidos de un jugador dado el estado de una liga.
+// Incluye TANTO partidos de liga regular (aName/bName) COMO de Play Offs
+// (po:true, poNames array) — antes solo miraba aName/bName, así que los
+// partidos de playoff de otras ligas quedaban completamente invisibles acá
+// (statsJugadorEnEstado, en jugadores-perfiles-catalogo.js, ya tenía este
+// mismo fix para el conteo total; esta función lo necesitaba también para
+// el LISTADO partido por partido).
 function resultadosJugadorEnEstado(name, estado){
-  const matches=(estado.matches||[]).filter(m=>m&&(m.aName===name||m.bName===name)&&m.status==='confirmed');
+  const matches=(estado.matches||[]).filter(m=>{
+    if(!m || m.status!=='confirmed') return false;
+    if(m.aName===name || m.bName===name) return true;
+    if(m.po && Array.isArray(m.poNames) && m.poNames.indexOf(name)!==-1) return true;
+    return false;
+  });
   if(!matches.length) return '<div class="pm-past-empty">'+t('past_player_nomatch')+'</div>';
   let g=0,p=0, rows='';
   matches.forEach(m=>{
-    const yoA=m.aName===name; const rival=yoA?m.bName:m.aName;
+    const esPO = !!m.po;
+    const yoA = esPO ? (m.poNames && m.poNames[0]===name) : (m.aName===name);
+    const rival = esPO ? (yoA ? m.poNames[1] : m.poNames[0]) : (yoA ? m.bName : m.aName);
     const sets=(m.sets||[]).map(s=>Array.isArray(s)?(yoA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join(' ');
-    // ganador: quien tiene más sets ganados
-    let sgA=0,sgB=0; (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
-    const gane = yoA? sgA>sgB : sgB>sgA;
+    // En playoffs se prioriza m.winner (más confiable que recalcular por
+    // sets: puede haber W.O. o partidos sin sets cargados) — mismo
+    // criterio que statsJugadorEnEstado.
+    let gane;
+    if(esPO && m.winner){ gane = (m.winner===name); }
+    else {
+      let sgA=0,sgB=0; (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
+      gane = yoA? sgA>sgB : sgB>sgA;
+    }
     if(gane)g++;else p++;
+    const marcador = esPO&&m.wo ? 'W.O.' : sets;
     rows+='<div class="pm-res-row"><span class="pm-wl '+(gane?'w':'l')+'">'+(gane?t('win_short'):t('loss_short'))+'</span>'
-      +'<span class="pm-res-rival">'+escPast(rival)+'</span><span class="pm-res-sc">'+escPast(sets)+'</span></div>';
+      +'<span class="pm-res-rival">'+escPast(rival||'')+'</span><span class="pm-res-sc">'+escPast(marcador)+'</span></div>';
   });
   return '<div class="pm-res-stats">'+g+' '+t('won_lc')+' · '+p+' '+t('lost_lc')+'</div>'+rows;
 }

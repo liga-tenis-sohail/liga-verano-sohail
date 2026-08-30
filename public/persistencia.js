@@ -23,7 +23,7 @@ let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=fal
 // tienen la app abierta, la segunda en guardar recibe 409 en vez de pisar a la primera.
 let _stateV=0;
 function _serialize(){
-  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LOGIN_TITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER,JOIN_REQUESTS});
+  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:USERS,PUNTOS,AJUSTES_PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LOGIN_TITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER,JOIN_REQUESTS});
 }
 
 function _hydrate(d){try{
@@ -78,6 +78,12 @@ function _hydrate(d){try{
   const _hayAlgunSuper=Object.keys(USERS).some(k=>USERS[k]&&USERS[k].role==='superadmin');
   if(!_hayAlgunSuper)USERS['superadmin']={role:'superadmin',pass:ADMIN_PASS_HASH,name:'Super Administrador',email:'',tel:''};
   if(d.PUNTOS)PUNTOS=d.PUNTOS;
+  // AJUSTES_PUNTOS: bonus/penalidades manuales del admin sobre el puntaje
+  // final de un jugador puntual en un grupo puntual — independiente de su
+  // posición (eso ya lo cubre PUNTOS/ptsForPos). Objeto anidado ciclo ->
+  // grupo -> nombre -> número (puede ser negativo). Si no viene en el
+  // estado (ligas viejas, guardadas antes de esta función), arranca vacío.
+  AJUSTES_PUNTOS=(d.AJUSTES_PUNTOS && typeof d.AJUSTES_PUNTOS==='object')?d.AJUSTES_PUNTOS:{};
   if(Array.isArray(d.LOG))LOG=d.LOG;
   if(d.LEAGUE_NAME)LEAGUE_NAME=d.LEAGUE_NAME;
   REGLAMENTO=(typeof d.REGLAMENTO==='string')?d.REGLAMENTO:'';
