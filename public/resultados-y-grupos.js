@@ -101,11 +101,13 @@ document.getElementById('gen-body').innerHTML=all.map((p,i)=>{const me=currentUs
   // "Total" como antes), y abre un modal que deja tocar el ajuste de CADA
   // ciclo por separado (editAjustePuntosGeneralUI), no solo el del ciclo
   // activo — el admin puede corregir un ciclo pasado sin tener que
-  // cambiarse de ciclo primero. Solo se ofrece si el jugador tiene algún
-  // dato en algún ciclo (Object.keys(p.porCiclo).length): sin eso no hay
-  // ningún grupo/ciclo real donde guardar un ajuste.
+  // cambiarse de ciclo primero, INCLUSO en un ciclo donde el jugador nunca
+  // participó (ver _ajustesDelJugadorPorCiclo y la segunda pasada de
+  // computeGeneral en core-estado.js, que suma esos ajustes "sueltos").
+  // Ya no depende de p.porCiclo: el modal siempre ofrece TODOS los ciclos
+  // de la liga, jugados o no.
   const celdaEditor=esAdmin(currentUser)
-    ? '<td class="gen-edit">'+(Object.keys(p.porCiclo).length?'<button class="pts-ajuste-btn" title="'+attr(t('pts_ajuste_btn'))+'" onclick="editAjustePuntosGeneralUI(\''+jsq(p.name)+'\')"><i class="ti ti-edit"></i></button>':'')+'</td>'
+    ? '<td class="gen-edit">'+(cycles.length?'<button class="pts-ajuste-btn" title="'+attr(t('pts_ajuste_btn'))+'" onclick="editAjustePuntosGeneralUI(\''+jsq(p.name)+'\')"><i class="ti ti-edit"></i></button>':'')+'</td>'
     : '';
   return '<tr class="'+(me?'me-row':'')+'" style="'+(p.inactive?'opacity:.55':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong></td>'+celdasCiclos+celdaPO+celdaEditor+'</tr>';}).join('');}
 
