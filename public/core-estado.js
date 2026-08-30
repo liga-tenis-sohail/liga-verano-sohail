@@ -443,6 +443,63 @@ function fmtRange(str){
   if(a&&b)return a+' – '+b;
   return a||b||'';
 }
+// Meses abreviados, en el idioma activo — no existe un Intl.DateTimeFormat
+// consistente entre navegadores móviles viejos para esto, así que se arma
+// a mano; son solo 12 strings por idioma.
+const _MESES_CORTOS={
+  es:['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'],
+  en:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+};
+// Formatea una sola fecha ISO/DD-MM-YYYY a "Sep 12" (mes abreviado + día,
+// sin año — el año no aporta nada en el contexto de "esta pestaña de ciclo",
+// ya que todos los ciclos de una liga caen en la misma temporada).
+function fmtDateShort(iso){
+  if(!iso)return '';
+  const m=String(iso).match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(!m)return '';
+  const meses=_MESES_CORTOS[LANG]||_MESES_CORTOS.es;
+  const mi=parseInt(m[2],10)-1;
+  if(mi<0||mi>11)return '';
+  return meses[mi]+' '+parseInt(m[3],10);
+}
+// Rango de fechas de ciclo -> "Sep 12 - Oct 10" (formato corto, pedido para
+// la línea que va debajo del nombre de cada pestaña de ciclo — reemplaza el
+// "DD/MM/YYYY – DD/MM/YYYY" de fmtRange() en ese único lugar). Siempre lee
+// FECHAS/PO_FECHAS en el momento de renderizar (no se cachea nada acá), así
+// que si el admin edita las fechas desde el panel, la próxima vez que se
+// pinte la barra de ciclos ya sale el valor nuevo — son dinámicas por
+// construcción, no hace falta ningún paso extra para "refrescarlas".
+function fmtRangeShort(str){
+  if(!str)return '';
+  const r=parseDateRange(str);
+  const a=fmtDateShort(r[0]),b=fmtDateShort(r[1]);
+  if(a&&b)return a+' - '+b;
+  return a||b||'';
+}
+// Fecha corta para la pestaña de Play Offs: a diferencia de un ciclo normal
+// (un solo rango en FECHAS[i]), Play Offs tiene una fecha POR RONDA en
+// PO_FECHAS (r64..r2, cada una con su propio date/from/to, cargadas en el
+// orden en que el admin las va completando — no necesariamente en orden
+// cronológico ni de ronda). Acá se juntan TODAS las fechas válidas de TODAS
+// las rondas y se muestra el rango de la más vieja a la más nueva, para que
+// la pestaña única "Play Offs" tenga un rango coherente sin importar en qué
+// orden o con qué rondas incompletas esté cargado el bracket todavía.
+function fmtPlayoffRangeShort(){
+  if(!PO_FECHAS || typeof PO_FECHAS !== 'object') return '';
+  const fechas=[];
+  Object.keys(PO_FECHAS).forEach(k=>{
+    const f=PO_FECHAS[k];
+    if(!f) return;
+    if(typeof f==='string'){ if(f) fechas.push(f); return; }
+    if(f.type==='range'){ if(f.from) fechas.push(f.from); if(f.to) fechas.push(f.to); }
+    else if(f.date) fechas.push(f.date);
+  });
+  if(!fechas.length) return '';
+  fechas.sort();   // ISO (YYYY-MM-DD): el orden alfabético YA es cronológico
+  const a=fmtDateShort(fechas[0]), b=fmtDateShort(fechas[fechas.length-1]);
+  if(a && b && a!==b) return a+' - '+b;
+  return a||b||'';
+}
 // Cualquier formato -> ISO (YYYY-MM-DD) para guardar
 function toISODate(d){
   if(!d)return '';
@@ -473,7 +530,20 @@ function updateCycleDate(i, type, val) {
 }
 
 function ensureDestino(gid,len){if(!DESTINO)DESTINO={};if(!DESTINO[gid]||!Array.isArray(DESTINO[gid]))DESTINO[gid]=[];const maxG=(cycles[0]&&cycles[0].groups)?cycles[0].groups.length:12;while(DESTINO[gid].length<len)DESTINO[gid].push('G'+Math.min(gid+1,maxG));return DESTINO[gid];}
-function addPlayerToCycle(name,gid){if(!name||!cycles[activeN-1].groups||!cycles[activeN-1].groups[gid-1])return false;if(ALLNAMES.indexOf(name)<0)ALLNAMES.push(name);if(!USERS[name])USERS[name]={role:'player',pass:DEFAULT_PASS_HASH,name};cycles[activeN-1].groups[gid-1].players.push(name);ensureDestino(gid,cycles[activeN-1].groups[gid-1].players.length);return true;}
+// Agrega un jugador (ya existente en ALLNAMES/catálogo, o recién creado) a
+// un grupo del ciclo activo. NO asume que su contraseña es la default: antes
+// esto ponía `pass:DEFAULT_PASS_HASH` a ciegas para cualquier nombre que
+// todavía no estuviera en USERS de ESTA liga puntual — así que un jugador
+// que ya tenía una clave propia en otra liga (verde ahí) aparecía en rojo
+// acá, sin ninguna base real (el frontend no tiene forma síncrona de
+// consultar el catálogo en este punto para saber su hash real). Se deja
+// pass:null: el punto verde/rojo (tienePasswordDefault, en
+// jugadores-perfiles.js) trata eso como "no es la clave default" — ni falso
+// rojo ni falso verde con datos que no se tienen. El hash real se resuelve
+// solo en dos momentos confiables: cuando el jugador entra por primera vez
+// (el server valida contra el catálogo o, si es nuevo, contra "tenis" y deja
+// el hash correspondiente) o cuando el admin hace un reset explícito.
+function addPlayerToCycle(name,gid){if(!name||!cycles[activeN-1].groups||!cycles[activeN-1].groups[gid-1])return false;if(ALLNAMES.indexOf(name)<0)ALLNAMES.push(name);if(!USERS[name])USERS[name]={role:'player',pass:null,name};cycles[activeN-1].groups[gid-1].players.push(name);ensureDestino(gid,cycles[activeN-1].groups[gid-1].players.length);return true;}
 // Reparación: agrega un jugador a la lista de un grupo de UN CICLO ESPECÍFICO
 // (a diferencia de addPlayerToCycle, que solo trabaja sobre el ciclo activo).
 // Sirve para casos donde un jugador quedó fuera de la lista de un ciclo YA
@@ -496,7 +566,9 @@ function repairPlayerInCycleGroup(cycN, gid, name){
   const otro = c.groups.findIndex((gg,i)=>i!==(gid-1)&&gg&&Array.isArray(gg.players)&&gg.players.indexOf(name)>=0);
   if(otro>=0) return {ok:false, motivo:'Ya está anotado en '+groupName(otro+1)+' de este mismo ciclo.'};
   if(ALLNAMES.indexOf(name)<0) ALLNAMES.push(name);
-  if(!USERS[name]) USERS[name]={role:'player',pass:DEFAULT_PASS_HASH,name};
+  // Mismo criterio que addPlayerToCycle: no asumir DEFAULT_PASS_HASH a
+  // ciegas para un jugador que todavía no está en USERS de esta liga.
+  if(!USERS[name]) USERS[name]={role:'player',pass:null,name};
   g.players.push(name);
   ensureDestino(gid, g.players.length);
   return {ok:true};
