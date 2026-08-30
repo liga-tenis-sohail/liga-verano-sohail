@@ -24,6 +24,26 @@ function idDeJugador(nombre){
   return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
 }
 
+// Valida un adjunto de imagen para mensajes (solo admin puede mandar uno,
+// ver los 3 puntos que llaman esto: enviarAdmin/enviarGrupo/enviarPlayoff).
+// El cliente ya comprime la imagen antes de mandarla (mismo criterio que
+// rgComprimirImg en reglamento.js — máx 1200px, JPEG calidad 0.75), así que
+// acá solo se revalida el formato y un tope de tamaño duro, por si acaso
+// (un cliente modificado, o un adjunto que igual quedó pesado). No se
+// re-comprime del lado del servidor: hacerlo bien requeriría una librería
+// de imágenes que este proyecto no tiene, y el tope ya cubre el caso real.
+const IMAGEN_MSG_MAX_CHARS = 700000;   // ~500KB de imagen en base64
+function imagenValida(v){
+  if(v == null || v === '') return { ok: true, valor: null };   // sin adjunto, válido
+  if(typeof v !== 'string' || !v.startsWith('data:image/')){
+    return { ok: false, error: 'El adjunto tiene que ser una imagen.' };
+  }
+  if(v.length > IMAGEN_MSG_MAX_CHARS){
+    return { ok: false, error: 'La imagen es demasiado grande (máximo ~500KB una vez comprimida).' };
+  }
+  return { ok: true, valor: v };
+}
+
 // Genera la escala de puntos por posición con la fórmula estándar de la liga:
 // el último grupo SIEMPRE ancla el último puesto en 1 punto, subiendo de a 1
 // por posición hacia el 1er puesto. Cada grupo hacia arriba (número menor)
@@ -286,7 +306,13 @@ module.exports = async function handler(req, res){
   if(accion === 'enviarAdmin'){
     if(!esAdminMsg) return res.status(403).json({ error: 'Solo un administrador puede escribir acá.' });
     const texto = String(body.texto || '').trim();
-    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
+    // El adjunto de imagen es exclusivo admin (ya se validó esAdminMsg
+    // arriba): permite avisar algo con una captura o documento sin
+    // depender de WhatsApp aparte. Un mensaje puede llevar SOLO imagen,
+    // sin texto — por eso el chequeo de "vacío" ahora contempla ambos.
+    const imgCheck = imagenValida(body.imagen);
+    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error });
+    if(!texto && !imgCheck.valor) return res.status(400).json({ error: 'El mensaje está vacío.' });
     if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
 
     // Nota: sin límite de ritmo por ahora — la tabla rate_limits está pensada
@@ -296,7 +322,7 @@ module.exports = async function handler(req, res){
     // si hiciera falta más adelante, conviene un contador con ventana de
     // tiempo real (ej. Redis/KV con TTL), no esta tabla.
     try {
-      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'admin', autor: session.u, texto });
+      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'admin', autor: session.u, texto, imagen: imgCheck.valor });
       logAudit(session.u, 'mensajes.enviarAdmin', ligaIdMsg, null, clientIP(req));
       return res.status(200).json({ ok: true, mensaje: fila });
     } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
@@ -335,7 +361,6 @@ module.exports = async function handler(req, res){
     const grupo = parseInt(body.grupo, 10);
     const texto = String(body.texto || '').trim();
     if(!ciclo || !grupo) return res.status(400).json({ error: 'Falta indicar ciclo y grupo.' });
-    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
     if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
 
     // Una vez arrancados los Play Offs, el chat de grupo queda de solo
@@ -358,8 +383,14 @@ module.exports = async function handler(req, res){
       return res.status(403).json({ error: 'No pertenecés a ese grupo en ese ciclo.' });
     }
 
+    // El adjunto de imagen es exclusivo admin — un jugador que manda a su
+    // propio grupo no puede adjuntar nada (solo texto), igual que antes.
+    const imgCheck = esAdminMsg ? imagenValida(body.imagen) : { ok: true, valor: null };
+    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error });
+    if(!texto && !imgCheck.valor) return res.status(400).json({ error: 'El mensaje está vacío.' });
+
     try {
-      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'grupo', ciclo, grupo, autor: session.u, texto });
+      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'grupo', ciclo, grupo, autor: session.u, texto, imagen: imgCheck.valor });
       return res.status(200).json({ ok: true, mensaje: fila });
     } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
   }
@@ -400,7 +431,6 @@ module.exports = async function handler(req, res){
     const tramo = parseInt(body.tramo, 10);
     const texto = String(body.texto || '').trim();
     if(isNaN(tramo) || tramo < 0) return res.status(400).json({ error: 'Falta indicar el cuadro.' });
-    if(!texto) return res.status(400).json({ error: 'El mensaje está vacío.' });
     if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
 
     const tr = stateMsg.playoff && Array.isArray(stateMsg.playoff.tramos) ? stateMsg.playoff.tramos[tramo] : null;
@@ -411,8 +441,13 @@ module.exports = async function handler(req, res){
       return res.status(403).json({ error: 'No pertenecés a ese cuadro de Play Offs.' });
     }
 
+    // El adjunto de imagen es exclusivo admin — mismo criterio que enviarGrupo.
+    const imgCheck = esAdminMsg ? imagenValida(body.imagen) : { ok: true, valor: null };
+    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error });
+    if(!texto && !imgCheck.valor) return res.status(400).json({ error: 'El mensaje está vacío.' });
+
     try {
-      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'playoff', ciclo: null, grupo: tramo, autor: session.u, texto });
+      const fila = await insertarMensaje({ ligaId: ligaIdMsg, tipo: 'playoff', ciclo: null, grupo: tramo, autor: session.u, texto, imagen: imgCheck.valor });
       return res.status(200).json({ ok: true, mensaje: fila });
     } catch(e){ return res.status(503).json({ error: 'No se pudo enviar el mensaje.' }); }
   }
