@@ -31,19 +31,32 @@ function renderCycleBar(){
   html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}"><span class="cycle-tab-main">${poLabel}</span>${poFechaHtml}</button>`;
   bar.innerHTML=html;
 }
-function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}
+function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{
+  // El botón "Play Offs" de esta fila se marca activo solo cuando subView
+  // vale 'po' — es decir, cuando se acaba de entrar a Play Offs y todavía
+  // no se eligió ninguna sub-pestaña (Cargar, Mensajes, etc.). Antes usaba
+  // inPO (viewCycle==='po'), que sigue siendo true aunque el usuario ya
+  // esté en "Cargar" DENTRO de Play Offs — ahí quedaban DOS botones
+  // marcados 'active' en esta fila a la vez ("Play Offs" y "Cargar").
+  if(x.po){const active=subView==='po';return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}
   // El resaltado de una pestaña normal (Mensajes, Cargar, Perfil, etc.) se
-  // basa PURA Y EXCLUSIVAMENTE en subView — sin el "!inPO" que tenía antes.
-  // subView nunca vale 'po' (esa es la pestaña especial x.po, con su propio
-  // branch arriba), así que el "!inPO" nunca protegía contra un conflicto
-  // real; solo lograba que, apenas viewCycle pasaba a 'po' (estando en Play
-  // Offs), CUALQUIER otra pestaña activa (Mensajes, Cargar…) dejara de
-  // marcarse como seleccionada, aunque siguiera siendo la vista que el
-  // usuario tenía abierta.
+  // basa PURA Y EXCLUSIVAMENTE en subView. subView puede valer 'po' (ver
+  // arriba) además de los ids reales de pestaña, así que nunca coincide
+  // por accidente con ninguna de estas.
   const active=subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="'+x.badgeId+'" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
   viewCycle=n;
   if(n==='po'){
+    // subView='po': antes esto NO se tocaba acá, así que subView se quedaba
+    // con lo último que tenía (ej. 'cargar', si esa era la última pestaña
+    // vista) — como esa misma pestaña sigue existiendo dentro de Play Offs,
+    // el botón "Cargar" Y el botón "Play Offs" de la fila de tabs quedaban
+    // los dos marcados 'active' a la vez. 'po' es un valor de subView que
+    // ningún botón real usa como id, así que representa limpiamente "estoy
+    // viendo el bracket de Play Offs en sí, sin ninguna sub-pestaña
+    // elegida" — el único momento en que el botón "Play Offs" de la fila de
+    // tabs debe ser el resaltado.
+    subView='po';
     ['grupos','general','cargar','pendientes','admin','perfil'].forEach(v=>{
       const el=document.getElementById('view-'+v);
       if(el)el.style.display='none';
