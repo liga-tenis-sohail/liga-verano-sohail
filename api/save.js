@@ -173,7 +173,7 @@ async function _handlerSave(req, res){
   }
 
   if(!admin){
-    const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LEAGUE_COLOR_PRI',
+    const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE','LEAGUE_COLOR_PRI',
                        'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON',
                          'RATING_SEEDS','RATING_OVERRIDES'];
     for(const k of COSMETICO){
@@ -207,8 +207,16 @@ async function _handlerSave(req, res){
       if('tel'   in curU) inU.tel   = curU.tel;   else delete inU.tel;
     }
 
+    // CONGELADO: campos cosméticos/estructurales que un jugador SIEMPRE
+    // recibe tal cual están en el servidor, nunca lo que traiga su copia
+    // local. Sin esto, un jugador con el estado desactualizado (por
+    // ejemplo, todavía no recargó la página después de que el admin
+    // cambió el título del login) pisaba silenciosamente el valor nuevo
+    // en cada autosave — pasó justo con LOGIN_TITLE: el admin lo guardaba
+    // bien, pero el próximo autosave de cualquier jugador (cada 12s) lo
+    // devolvía a como estaba antes.
     const CONGELADO = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
-                       'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE',
+                       'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE',
                        'LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL'];
     for(const k of CONGELADO){
       if(k in current) incoming[k] = current[k]; else delete incoming[k];
