@@ -303,12 +303,17 @@ html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
    una acción de uso ocasional, no algo que se toque todo el tiempo).
    .pts-ajuste es el indicador "(+3)"/"(-5)" junto al Total, solo visible
    cuando el jugador tiene un ajuste activo — verde para bonus, rojo para
-   penalidad, coherente con el resto de la paleta de estados de la app. */
+   penalidad, coherente con el resto de la paleta de estados de la app.
+   .gen-edit es la columna dedicada al editor en la Clasificación General
+   (al final de la fila, después de Play Off si corresponde) — angosta,
+   centrada, sin necesitar más que el ancho del ícono. */
 .pts-ajuste-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:4px;border-radius:5px;font-size:11px;line-height:1;vertical-align:middle}
 .pts-ajuste-btn:hover{background:var(--surface2);color:var(--pri)}
 .pts-ajuste{font-size:11px;font-weight:700;margin-left:3px;white-space:nowrap}
 .pts-ajuste.pos{color:#2f9e44}
 .pts-ajuste.neg{color:#e5484d}
+.gen-edit{width:1%;white-space:nowrap;text-align:center;padding:0 6px}
+.gen-edit .pts-ajuste-btn{margin-left:0;font-size:13px;padding:4px 6px}
 
 /* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
 .seed-chip .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
