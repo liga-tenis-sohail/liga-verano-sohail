@@ -54,7 +54,24 @@ function generarEscalaPuntos(numGrupos, ppg){
 }
 
 // ESTADO INICIAL SINCRONIZADO CON EL FRONTEND
-function estadoInicial(nombreLiga, numGrupos, numCiclos){
+//
+// heredarDe: el state de la liga desde la que se está creando esta nueva
+// (sesionState en el flujo de 'crear', más abajo). Antes esta función SIEMPRE
+// hardcodeaba LOGIN_TITLE vacío, los colores por defecto (#1B4F9C/#F5C518/
+// #FFEDD5) y los clubes Sohail/Haza, sin importar qué tuviera configurado la
+// liga actual — cada liga nueva "reseteaba" el formato al default original en
+// vez de partir del de la liga anterior, y el "Nombre del login" se perdía
+// cada vez (quedaba en blanco, cayendo al nombre de la liga nueva en vez de
+// mantenerse estable entre ligas). Ahora se hereda todo lo cosmético de
+// heredarDe cuando está disponible, y solo cae al default de fábrica si no
+// hay ninguna liga anterior de la que heredar (primera liga del sistema).
+//
+// clubsOverride: los clubes tal como quedaron en el modal "Crear liga" tras
+// que el admin los edite (agregar/quitar/renombrar) — vienen en body.clubs
+// desde el frontend. Si el admin no tocó nada, coinciden con los de
+// heredarDe; si los cambió, se respeta lo que el admin eligió explícitamente
+// en el modal por sobre lo heredado.
+function estadoInicial(nombreLiga, numGrupos, numCiclos, heredarDe, clubsOverride){
   const nG = Math.max(1, Math.min(30, parseInt(numGrupos, 10) || 1));
   const nC = Math.max(1, Math.min(12, parseInt(numCiclos, 10) || 1));
   const cycles = [];
@@ -65,20 +82,28 @@ function estadoInicial(nombreLiga, numGrupos, numCiclos){
       cycles.push({ n: i + 1, status: 'locked', groups: null });
     }
   }
+  const h = heredarDe || {};
+  const clubsHeredados = Array.isArray(clubsOverride) && clubsOverride.length
+    ? clubsOverride
+    : (Array.isArray(h.CLUBS) && h.CLUBS.length ? h.CLUBS : [
+        { id: 'sohail', name: 'Sohail', bg: '#D6ECFB' },
+        { id: 'haza', name: 'Haza', bg: '#FCE6CF' }
+      ]);
   return {
     _v: 1, users: {}, matches: [], matchId: 1, activeN: 1, cycles: cycles,
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
     DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: generarEscalaPuntos(nG, 5), LOG: [],
-    LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '', LOGIN_TITLE: '',
-    LEAGUE_COLOR_PRI: '#1B4F9C',
-    LEAGUE_COLOR_ACC: '#F5C518',
-    LEAGUE_COLOR_HL: '#FFEDD5',
-    CLUBS: [
-      { id: 'sohail', name: 'Sohail', bg: '#D6ECFB' },
-      { id: 'haza', name: 'Haza', bg: '#FCE6CF' }
-    ], 
-    COLOR_DISPUTA: '#FDE68A', 
-    RATING_ON: false, REGLAMENTO: ''
+    // LEAGUE_NAME siempre es el nombre nuevo que puso el admin (no se hereda:
+    // cada liga tiene su propio nombre). LOGIN_TITLE, en cambio, SÍ se hereda:
+    // es el mismo texto para todas las ligas del club (ver comentario arriba).
+    LEAGUE_NAME: nombreLiga || 'Liga nueva', LEAGUE_SUBTITLE: '',
+    LOGIN_TITLE: (typeof h.LOGIN_TITLE === 'string' && h.LOGIN_TITLE) ? h.LOGIN_TITLE : '',
+    LEAGUE_COLOR_PRI: h.LEAGUE_COLOR_PRI || '#1B4F9C',
+    LEAGUE_COLOR_ACC: h.LEAGUE_COLOR_ACC || '#F5C518',
+    LEAGUE_COLOR_HL: h.LEAGUE_COLOR_HL || '#FFEDD5',
+    CLUBS: clubsHeredados,
+    COLOR_DISPUTA: h.COLOR_DISPUTA || '#FDE68A',
+    RATING_ON: h.RATING_ON === true, REGLAMENTO: ''
   };
 }
 
@@ -552,6 +577,114 @@ module.exports = async function handler(req, res){
   const id = String(body.id || '');
   if(accion !== 'crear' && !ligaIdOK(id)){ return res.status(400).json({ error: 'Falta el identificador de la liga o es inválido.' }); }
 
+  // ================= AGREGAR JUGADORES A UNA LIGA YA EXISTENTE =================
+  // Usado por "Agregar de ligas anteriores" (botón en Perfil & Jugadores):
+  // el admin elige jugadores del catálogo global que no están en esta liga
+  // todavía y los suma, indicando a qué grupo va cada uno (o "Sin grupo",
+  // grupo:0, igual que al crear una liga — ver estadoInicial()/'crear' más
+  // abajo). Esta acción NUNCA existió en el backend: el frontend
+  // (agregarJugadoresConfirmar en login-auth.js) la llama desde hace
+  // tiempo, pero como no había ningún `if(accion === 'agregarJugadores')`
+  // acá, el fetch fallaba silenciosamente (probablemente con algún error
+  // genérico de acción no reconocida) y el botón nunca sumó a nadie.
+  //
+  // Reusa el mismo criterio de asignación que 'crear' un poco más abajo:
+  // por jugadorId de catálogo si viene, si no por email, si no por nombre
+  // (reusando un perfil existente con el mismo nombre normalizado antes de
+  // crear uno nuevo — mismo criterio que idDeJugador()). grupo===0 es
+  // "Sin grupo": el jugador se da de alta en la liga pero no se lo empuja
+  // a ningún cycles[activeN-1].groups[i].players.
+  if(accion === 'agregarJugadores'){
+    if(!sesionState) return res.status(503).json({ error: 'No se pudo leer la liga' + (sesionStateErr ? (': ' + sesionStateErr.message) : '.') });
+    const jugadoresIn = Array.isArray(body.jugadores) ? body.jugadores : [];
+    if(!jugadoresIn.length) return res.status(400).json({ error: 'No se indicó ningún jugador para agregar.' });
+
+    const estado = sesionState;
+    if(!Array.isArray(estado.ALLNAMES)) estado.ALLNAMES = [];
+    if(!estado.users) estado.users = {};
+    // Grupo destino: el ciclo ACTIVO de esta liga (activeN), no siempre el
+    // primero — a diferencia de 'crear', acá la liga ya puede llevar varios
+    // ciclos jugados. Si por algún motivo no hay ciclo activo con grupos
+    // (todos bloqueados), el jugador igual se da de alta en estado.users,
+    // solo que no se lo puede asignar a ningún grupo (queda "Sin grupo"
+    // de hecho, aunque no lo haya pedido así).
+    const cicloActivo = estado.cycles && estado.cycles[(estado.activeN || 1) - 1];
+    const numGroups = (cicloActivo && Array.isArray(cicloActivo.groups)) ? cicloActivo.groups.length : 0;
+
+    let catalogo = {}; try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
+    const agregados = [];
+
+    for(const j of jugadoresIn){
+      if(!j) continue;
+      let perfil = null;
+
+      if(j.jugadorId && catalogo[j.jugadorId]){
+        perfil = catalogo[j.jugadorId];
+      } else if(j.email){
+        try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
+        if(!perfil && j.nombre){
+          const idPorNombre = idDeJugador(j.nombre);
+          if(catalogo[idPorNombre]){
+            perfil = catalogo[idPorNombre];
+            if(!perfil.email){
+              perfil.email = String(j.email).trim().toLowerCase();
+              try { await upsertJugador(perfil); } catch(e){}
+            }
+          } else {
+            perfil = { id: idPorNombre, nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
+            try { await upsertJugador(perfil); } catch(e){}
+          }
+        }
+      } else if(j.nombre){
+        const idPorNombre = idDeJugador(j.nombre);
+        if(catalogo[idPorNombre]){
+          perfil = catalogo[idPorNombre];
+        } else {
+          perfil = { id: idPorNombre, nombre: String(j.nombre).trim(), email: null, pass: null };
+          try { await upsertJugador(perfil); } catch(e){}
+        }
+      }
+
+      if(!perfil || !perfil.nombre) continue;
+      const nomNorm = perfil.nombre.trim().toLowerCase();
+      if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
+      // Ya está en esta liga: no se duplica (silenciosamente se saltea, el
+      // frontend ya filtra esto de antemano al armar _addLigaCat, pero se
+      // revalida acá por si el catálogo cambió entre que se abrió el modal
+      // y se confirmó).
+      if(estado.ALLNAMES.includes(perfil.nombre)) continue;
+
+      estado.ALLNAMES.push(perfil.nombre);
+
+      const grupoPedido = parseInt(j.grupo, 10);
+      const sinGrupo = grupoPedido === 0;
+      if(!sinGrupo && cicloActivo && numGroups > 0){
+        let targetIndex = (grupoPedido || 1) - 1;
+        if(targetIndex < 0 || targetIndex >= numGroups) targetIndex = 0;
+        cicloActivo.groups[targetIndex].players.push(perfil.nombre);
+      }
+
+      if(estado.users[perfil.nombre]){
+        estado.users[perfil.nombre].jugadorId = perfil.id;
+        estado.users[perfil.nombre].name = perfil.nombre;
+        if(perfil.email) estado.users[perfil.nombre].email = perfil.email;
+      } else {
+        estado.users[perfil.nombre] = {
+          role: 'player', name: perfil.nombre, email: perfil.email || null, jugadorId: perfil.id
+        };
+      }
+      agregados.push(perfil.nombre);
+    }
+
+    if(!agregados.length) return res.status(200).json({ ok: true, agregados: [] });
+
+    try { await writeState(id, estado); }
+    catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
+
+    logAudit(session.u, 'liga.agregarJugadores', id, { agregados }, clientIP(req));
+    return res.status(200).json({ ok: true, agregados });
+  }
+
   // ================= CREAR LIGA =================
   if(accion === 'crear'){
     const nombre = String(body.nombre || '').trim();
@@ -563,7 +696,11 @@ module.exports = async function handler(req, res){
     if(idx.some(l => l.id === nuevoId)) return res.status(409).json({ error: 'Ya existe una liga con ese identificador.' });
     if(!sesionState || !sesionState.users) return res.status(503).json({ error: 'No se pudo leer la liga actual para heredar administradores.' });
 
-    const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos);
+    // Se hereda el formato (colores, clubes, LOGIN_TITLE) de sesionState: el
+    // state de la liga desde la que el admin está creando esta nueva (ya
+    // leído más arriba para heredar admins). body.clubs, si viene, gana por
+    // sobre lo heredado — es lo que el admin dejó configurado en el modal.
+    const estado = estadoInicial(nombre, body.numGrupos, body.numCiclos, sesionState, Array.isArray(body.clubs) ? body.clubs : null);
 
     // HEREDAR ADMINS CORRECTAMENTE
     if(sesionState && sesionState.users){

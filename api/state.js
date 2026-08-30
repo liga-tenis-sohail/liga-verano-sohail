@@ -42,8 +42,24 @@ module.exports = async function handler(req, res){
 
   if(!state) return res.status(200).json({ empty: true });
 
-  const blocked = blockedUser(state, session);
-  if(blocked) return res.status(403).json({ error: blocked });
+  // blockedUser() devuelve error tanto si el jugador NO EXISTE en esta liga
+  // como si existe pero está inactivo. Lo primero es un caso legítimo de
+  // solo-lectura: cualquier jugador logueado puede consultar el estado de
+  // OTRA liga en la que nunca participó (por ejemplo, para sumar sus
+  // partidos totales entre todas las ligas activas — ver cargarStatsTotales
+  // en jugadores-perfiles-catalogo.js). Antes esto SIEMPRE devolvía 403
+  // ("Tu usuario ya no existe en la liga"), así que ese cálculo nunca podía
+  // completarse para ninguna liga donde el jugador no jugara — que es el
+  // caso normal para la mayoría de "las otras ligas".
+  // Sí seguimos bloqueando el caso real que blockedUser() protege: un
+  // jugador que SÍ existe en esta liga pero está inactivo ahí. Y el caso
+  // ?elegir=1 (cambio real de liga) mantiene su propia validación estricta
+  // de pertenencia más abajo, sin cambios.
+  const uEnEstaLiga = (state.users || {})[session.u];
+  if(uEnEstaLiga){
+    const blocked = blockedUser(state, session);
+    if(blocked) return res.status(403).json({ error: blocked });
+  }
 
   // Paso 2 del login unificado / cambio de liga desde el header ya logueado:
   // revalidamos que la sesión realmente pertenezca a ESTA liga antes de
@@ -52,8 +68,7 @@ module.exports = async function handler(req, res){
   // el rol: un admin/superadmin también participa de varias ligas y
   // necesita poder cambiar entre ellas con este mismo endpoint.
   if(req.query && req.query.elegir){
-    const u = (state.users || {})[session.u];
-    if(!u){
+    if(!uEnEstaLiga){
       return res.status(403).json({ error: 'No pertenecés a esa liga.' });
     }
   }
