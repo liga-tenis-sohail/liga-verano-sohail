@@ -5,7 +5,32 @@
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
 function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
-function renderCycleBar(){const bar=document.getElementById('cycle-bar');let html='';cycles.forEach(c=>{const playable=!!c.groups;const isView=viewCycle===c.n;const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}">${icon} ${t('cycle')} ${c.n}</button>`;});const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}">${poLabel}</button>`;bar.innerHTML=html;}
+function renderCycleBar(){
+  const bar=document.getElementById('cycle-bar');
+  let html='';
+  cycles.forEach(c=>{
+    const playable=!!c.groups;
+    const isView=viewCycle===c.n;
+    const icon=c.status==='finished'?'<i class="ti ti-circle-check st"></i>':c.status==='active'?'<i class="ti ti-player-play st"></i>':'<i class="ti ti-lock st"></i>';
+    // Fecha corta ("Sep 12 - Oct 10") debajo del nombre del ciclo, centrada.
+    // Se lee de FECHAS[c.n-1] en cada render — dinámica: si el admin la
+    // edita desde el panel, el próximo renderCycleBar() (disparado por
+    // renderShell(), que corre en casi cualquier navegación) ya la muestra
+    // actualizada, sin ningún paso manual de refresco.
+    const fechaCorta=fmtRangeShort(FECHAS[c.n-1]||'');
+    const fechaHtml=fechaCorta?`<span class="cycle-tab-date">${fechaCorta}</span>`:'';
+    html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}"><span class="cycle-tab-main">${icon} ${t('cycle')} ${c.n}</span>${fechaHtml}</button>`;
+  });
+  const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));
+  const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;
+  // Play Offs no tiene un solo rango en FECHAS: tiene una fecha POR RONDA en
+  // PO_FECHAS. fmtPlayoffRangeShort() junta todas las cargadas y muestra de
+  // la más vieja a la más nueva (ver su comentario en core-estado.js).
+  const poFechaCorta=showPO?fmtPlayoffRangeShort():'';
+  const poFechaHtml=poFechaCorta?`<span class="cycle-tab-date">${poFechaCorta}</span>`:'';
+  html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}"><span class="cycle-tab-main">${poLabel}</span>${poFechaHtml}</button>`;
+  bar.innerHTML=html;
+}
 function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{if(x.po){const active=inPO;return '<button class="tab'+(active?' active':'')+'" id="tab-po" onclick="viewCyc(\'po\')"><i class="ti ti-tournament" aria-hidden="true"></i> '+x.l+'</button>';}const active=!inPO&&subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="'+x.badgeId+'" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
   viewCycle=n;
@@ -17,6 +42,14 @@ function viewCyc(n){
     const pv=document.getElementById('view-playoff');
     if(pv)pv.style.display='block';
     renderShell();
+    // updateHdr() faltaba acá: esta rama (entrar a Play Offs) nunca pasa por
+    // showSub(), que es el único lugar que llamaba updateHdr() — la rama
+    // 'else' de abajo sí llama showSub('grupos'). Resultado: el header (línea
+    // de "Ciclo N · fechas · estado") se quedaba mostrando lo último que
+    // tenía pintado hasta que el usuario cambiaba de sub-tab DENTRO de Play
+    // Offs (lo cual sí pasa por showSub). Se veía como si "recordara" el
+    // ciclo anterior en vez de reflejar que ahora se está viendo Play Offs.
+    updateHdr();
     showPlayoffView();
   }else{
     // Al cambiar a un ciclo normal, auto-ajustar el grupo seleccionado al
@@ -46,7 +79,15 @@ function viewCyc(n){
   }
 }
 function showSub(name){if(viewCycle==='po')viewCycle=activeN;subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento','mensajes'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();if(name==='mensajes')renderMensajes();else try{detenerPollingMensajes();}catch(_){}updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
-function updateHdr(){const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+fmtRange(FECHAS[viewCycle-1]||'')+' · '+(cycles[viewCycle-1]?cycles[viewCycle-1].status:'');const sub=document.getElementById('hdr-sub');if(sub)sub.textContent=hs;
+function updateHdr(){
+  // El subtítulo del header ya NO incluye el rango de fechas del ciclo — se
+  // movió a una línea propia, centrada, debajo del nombre de cada pestaña de
+  // ciclo en renderCycleBar() (shell-render.js). Acá solo queda el nombre y
+  // el estado, que es información sobre la SESIÓN de navegación (qué ciclo
+  // estoy viendo), no del ciclo en sí — coherente con "un poco de aire" pedido
+  // para esta zona.
+  const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+(cycles[viewCycle-1]?cycles[viewCycle-1].status:'');
+  const sub=document.getElementById('hdr-sub');if(sub)sub.textContent=hs;
 // hdr-title y login-title usan el nombre OFICIAL de la liga (el mismo que
 // "Gestión de ligas"), no LEAGUE_NAME — así el nombre visible acá nunca se
 // desincroniza de Gestión de Ligas. LIGA_NOMBRE_OFICIAL llega del servidor
