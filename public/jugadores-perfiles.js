@@ -278,22 +278,35 @@ function saveAjustePuntos(ciclo, gid, nombre, limpiar){
 // Clasificación General no expone ese gid por ciclo (solo el total ya
 // sumado). Un jugador juega en un único grupo por ciclo, así que alcanza
 // con findLoc(nombre, cicloN) por cada ciclo.
+//
+// TODOS los ciclos se incluyen, no solo los que jugó: si no tiene grupo ahí
+// (loc es null), se usa gid:0 — la misma convención de "Sin grupo" que ya
+// usa el resto del sistema — para que el admin pueda darle puntos en un
+// ciclo donde nunca participó (por ejemplo, se sumó tarde a la liga, o
+// falta por otro motivo pero igual se le reconoce algo). computeGeneral()
+// (core-estado.js) tiene una segunda pasada específica que suma estos
+// ajustes "sueltos" (gid:0) al Total, ya que el loop principal de esa
+// función solo recorre jugadores con partidos reales en algún grupo.
 function _ajustesDelJugadorPorCiclo(nombre){
   return cycles.map(c=>{
     const loc=findLoc(nombre, c.n);
-    if(!loc) return null;   // no jugó este ciclo (o no tiene grupo asignado)
-    const actual=(AJUSTES_PUNTOS[c.n]&&AJUSTES_PUNTOS[c.n][loc.g]&&AJUSTES_PUNTOS[c.n][loc.g][nombre])||0;
-    return {ciclo:c.n, gid:loc.g, actual};
-  }).filter(Boolean);
+    const gid=loc?loc.g:0;
+    const actual=(AJUSTES_PUNTOS[c.n]&&AJUSTES_PUNTOS[c.n][gid]&&AJUSTES_PUNTOS[c.n][gid][nombre])||0;
+    return {ciclo:c.n, gid, actual, sinGrupo:!loc};
+  });
 }
 function editAjustePuntosGeneralUI(nombre){
   if(!esAdmin(currentUser)) return;
+  // Ya no se filtra por "jugó este ciclo": _ajustesDelJugadorPorCiclo
+  // devuelve TODOS los ciclos de la liga siempre (con gid:0 para los que
+  // el jugador no tiene grupo asignado), así que filas.length nunca es 0
+  // salvo que la liga no tenga NINGÚN ciclo — caso que no debería llegar
+  // acá (el botón ni se muestra sin ciclos).
   const filas=_ajustesDelJugadorPorCiclo(nombre);
-  if(!filas.length){ toast(t('pts_ajuste_none')); return; }
   document.getElementById('modal-title').textContent = t('pts_ajuste_title').replace('{n}', nombre);
   const rowsHtml = filas.map(f=>
     `<div class="form-group" style="margin-bottom:.6rem">
-      <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('cycle')} ${f.ciclo} · ${groupName(f.gid)}</label>
+      <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('cycle')} ${f.ciclo} · ${f.sinGrupo?t('pts_ajuste_sin_grupo'):groupName(f.gid)}</label>
       <input type="number" id="pts-ajuste-c${f.ciclo}" data-gid="${f.gid}" value="${f.actual}" step="1" class="po-in" style="width:100px;font-size:16px">
     </div>`
   ).join('');
@@ -324,6 +337,21 @@ function saveAjustesPuntosGeneral(nombre){
   closeM();
   refreshAll();
   toast(t('pts_ajuste_saved').replace('{n}', nombre));
+}
+// Punto de entrada desde el panel de Admin ("✏️ Editar puntos de un
+// jugador"): a diferencia del lápiz en la fila de Clasificación General,
+// este NO depende de que el jugador ya tenga una fila ahí — sirve
+// justamente para el caso pedido de "dar puntos a alguien que todavía no
+// participó en ningún ciclo" (Clasificación General solo muestra
+// jugadores con al menos un punto; este panel llega a cualquiera). Lee el
+// nombre del input con datalist (mismo patrón que "Reparar jugador en un
+// ciclo") y abre el mismo modal que ya usa el lápiz.
+function editAjustePuntosDesdeAdminUI(){
+  const inp=document.getElementById('pts-ajuste-jugador');
+  const nombre=(inp?inp.value:'').trim();
+  if(!nombre){ toast(t('pts_ajuste_panel_empty')); return; }
+  if(!USERS[nombre]){ toast(t('pts_ajuste_panel_notfound')); return; }
+  editAjustePuntosGeneralUI(nombre);
 }
 
 // ===== Historial de partidos por jugador =====
