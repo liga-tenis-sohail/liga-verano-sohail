@@ -1115,13 +1115,19 @@ async function solicitarAccesoUI(ligaId, nombre){
 }
 
 // El jugador ya participa en la otra liga (fue aceptado en algún momento):
-// lo mandamos al selector de login de esa liga para que entre con su usuario
-// y contraseña de ahí (cada liga tiene sus propias credenciales).
+// cambiamos de liga en caliente, mismo mecanismo que el selector de liga del
+// header (cambiarLigaDesdeMenu, en core-estado.js) — /api/state?elegir=1
+// revalida la pertenencia del lado del servidor e hidrata el estado nuevo
+// sin pasar por el login. Antes esto hacía doLogout() + reabría la pantalla
+// de login para que el jugador tipeara usuario y contraseña de nuevo: una
+// interrupción innecesaria, ya que la sesión (el token) sigue siendo
+// perfectamente válida para la liga destino — el jugador solo necesitaba
+// cambiar de contexto, no volver a autenticarse.
+// No confirma acá: cambiarLigaDesdeMenu() ya pide confirmación con el mismo
+// texto (t('ml_switch_confirm')) — un segundo confirm() encima sería
+// redundante.
 async function entrarAOtraLiga(ligaId, nombre){
-  if(!confirm(t('ml_switch_confirm').replace('{n}', nombre))) return;
-  doLogout();
-  // Pequeño delay para dejar terminar el detectarLigaActiva() que dispara
-  // initLogin() (llamado dentro de doLogout), y recién ahí forzar la liga
-  // elegida + traer su lista de usuarios para pintar el selector de login.
-  setTimeout(function(){ try{ elegirLigaLogin(ligaId); }catch(_){} }, 300);
+  if(typeof cambiarLigaDesdeMenu === 'function'){
+    await cambiarLigaDesdeMenu(ligaId);
+  }
 }
