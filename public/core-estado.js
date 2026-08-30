@@ -791,7 +791,17 @@ function allCyclesDone(){return cycles.every(c=>c.groups&&c.status==='finished')
 // así que además se guardaba dos veces. Ahora quien cambia datos, guarda; quien
 // dibuja, dibuja.
 function refreshAll(){
-  if(viewCycle==='po'){showPlayoffView();renderPend();renderCycleBar();return;}
+  // El corte temprano para Play Offs SOLO debe aplicar cuando se está
+  // viendo el bracket en sí (subView==='po'), no cualquier sub-vista
+  // dentro de Play Offs. Antes cortaba siempre que viewCycle==='po', sin
+  // mirar subView — así que, por ejemplo, guardar un ajuste de puntos
+  // desde "Clasificación" (renderGeneral) mientras se estaba en Play Offs
+  // nunca refrescaba esa tabla: el código volvía antes de llegar a
+  // `if(subView==='general')`. showPlayoffView() SOLO se llama cuando
+  // subView==='po': esa función oculta explícitamente view-general/
+  // view-grupos/etc., así que llamarla con otra sub-vista activa taparía
+  // lo que el usuario está viendo con el bracket.
+  if(viewCycle==='po' && subView==='po'){showPlayoffView();renderPend();renderCycleBar();return;}
   if(subView==='grupos')renderGrupos();
   if(subView==='general')renderGeneral();
   if(subView==='pendientes')renderPend();
