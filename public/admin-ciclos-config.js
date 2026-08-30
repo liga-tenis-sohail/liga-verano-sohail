@@ -453,6 +453,17 @@ function renderAdmin(){
               </div>
               <button class="btn btn-accent" onclick="repararJugadorCicloUI()"><i class="ti ti-tool"></i> Agregar al grupo</button>
             </div>
+          </div>
+          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
+            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">✏️ ${t('pts_ajuste_panel_title')}</div>
+            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('pts_ajuste_panel_hint')}</p>
+            <div class="form-row" style="grid-template-columns:1fr auto;align-items:end;gap:.5rem">
+              <div class="form-group">
+                <label>${t('player')}</label>
+                <input type="text" id="pts-ajuste-jugador" list="rep-jugador-list" placeholder="${attr(t('pts_ajuste_panel_ph'))}" style="width:100%;padding:.5rem;border:1.5px solid var(--border2);border-radius:8px">
+              </div>
+              <button class="btn btn-accent" onclick="editAjustePuntosDesdeAdminUI()"><i class="ti ti-edit"></i> ${t('pts_ajuste_panel_btn')}</button>
+            </div>
           </div>`;
     } // fin config exclusiva superadmin
 
