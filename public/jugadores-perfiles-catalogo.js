@@ -28,6 +28,15 @@ function statsJugadorEnEstado(name, estado){
     // Cálculo por sets: primero determinamos si el jugador es "A" o "B"
     // en la estructura correspondiente al formato del match.
     const yoA = m.po ? (m.poNames && m.poNames[0] === name) : (m.aName === name);
+    // Retiro (RET) en liga regular: mismo caso que playoff arriba, pero
+    // liga regular no tenía este atajo — con m.sets=[] (retiro sin sets),
+    // sgA=sgB=0 y NINGUNO de los dos lados "ganaba" el cálculo por sets, así
+    // que el retiro contaba como derrota para AMBOS jugadores en vez de
+    // victoria para quien no se retiró.
+    if(m.wo && m.winner){
+      if(m.winner === name) g++; else p++;
+      return;
+    }
     let sgA=0,sgB=0;
     (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
     const gane=yoA?sgA>sgB:sgB>sgA;
@@ -200,3 +209,4 @@ async function eliminarJugadorUI(jid,nombre){
     cargarCatJugadores();
   }catch(_){ alert(t('cj_del_err')); }
 }
+

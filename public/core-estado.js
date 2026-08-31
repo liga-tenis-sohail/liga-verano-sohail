@@ -628,6 +628,17 @@ function computeStats(cycN,gid){
   confirmed.forEach(m=>{
     const a=byName[m.aName],b=byName[m.bName];if(!a||!b)return;
     if(m.np){a.nj++;b.nj++;return;}
+    // Retiro (RET/walkover): no hay sets que contar — el ganador ya viene
+    // explícito en m.winner. Sin este caso especial, m.sets=[] pasaba la
+    // validación de "sets bien formados" (un array vacío no tiene ningún
+    // elemento que la falle) y caía al cálculo normal de sets ganados con
+    // w1=w2=0, que SIEMPRE le daba la "victoria" al lado B por el else
+    // genérico de abajo — ignorando por completo quién ganó realmente.
+    if(m.wo){
+      if(m.winner===m.aName){a.g++;b.p++;a.pts+=3;b.pts+=1;}
+      else if(m.winner===m.bName){b.g++;a.p++;b.pts+=3;a.pts+=1;}
+      return;
+    }
     // Defensa contra sets malformados (import de Excel corrupto, edición manual del
     // backup, etc.): si sets no es un array de pares numéricos, el partido se
     // ignora en el cálculo en vez de romper toda la tabla del grupo.
@@ -645,6 +656,15 @@ function computeStats(cycN,gid){
     confirmed.forEach(m=>{
       if(!names.has(m.aName)||!names.has(m.bName))return;
       if(m.np)return;
+      // Mismo caso especial de retiro (RET) que en el cálculo principal de
+      // arriba — sin esto, un partido ganado por retiro entre 2 jugadores
+      // empatados en puntos totales no se contaba bien en el desempate
+      // cara a cara.
+      if(m.wo){
+        if(m.winner===m.aName){h[m.aName].pts+=3;h[m.bName].pts+=1;}
+        else if(m.winner===m.bName){h[m.bName].pts+=3;h[m.aName].pts+=1;}
+        return;
+      }
       if(!Array.isArray(m.sets)||!m.sets.every(st2=>Array.isArray(st2)&&st2.length>=2&&isFinite(st2[0])&&isFinite(st2[1])))return;
       let w1=0,w2=0,a_gw=0,a_gl=0;
       m.sets.forEach(([x,y])=>{if(x>y)w1++;else w2++;a_gw+=x;a_gl+=y;});

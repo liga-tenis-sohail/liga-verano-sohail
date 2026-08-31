@@ -34,6 +34,40 @@ function _poClearBracketResults(ti){
   const prefix=ti+'#';
   Object.keys(playoff.results||{}).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
 }
+// Devuelve la clave de playoff.results para un partido puntual (mismo
+// formato que usa applyStored en core-estado.js: prefix + '#' + nombres
+// ordenados alfabéticamente, unidos con '|').
+function _claveResultado(prefix,a,b){ return prefix+'#'+[a,b].sort().join('|'); }
+// Chequea si ALGUNO de los jugadores dados ya tiene un resultado jugado
+// en este cuadro (cualquier partido en el que haya participado, no solo
+// contra un rival puntual) — es lo que de verdad importa para decidir si
+// un reacomodo de posiciones puede "romper" algo: si ninguno de los
+// jugadores movidos jugó todavía, no hay ningún resultado real en riesgo,
+// sin importar que OTROS partidos del mismo cuadro (en ramas totalmente
+// distintas) sí tengan resultado cargado.
+function _poJugadoresConResultado(prefix,nombres){
+  const resultados=playoff.results||{};
+  return nombres.filter(n=>{
+    if(!n) return false;
+    return Object.keys(resultados).some(k=>{
+      if(!k.startsWith(prefix+'#')) return false;
+      const pares=k.slice(prefix.length+1).split('|');
+      return pares.includes(n);
+    });
+  });
+}
+// Borra ÚNICAMENTE los resultados de los jugadores dados dentro de este
+// cuadro — a diferencia de _poClearBracketResults (que arrasa con TODO el
+// cuadro), esto solo toca los partidos donde participó alguno de los
+// jugadores afectados por el reacomodo puntual que se está haciendo.
+function _poClearResultadosDe(prefix,nombres){
+  const set=new Set(nombres);
+  Object.keys(playoff.results||{}).forEach(k=>{
+    if(!k.startsWith(prefix+'#')) return;
+    const pares=k.slice(prefix.length+1).split('|');
+    if(pares.some(p=>set.has(p))) delete playoff.results[k];
+  });
+}
 function _swapSeeds(ti,i,j){
   const tr=playoff.tramos[ti];
   if(!tr||!Array.isArray(tr.seeds))return false;
@@ -92,9 +126,19 @@ function _swapMainOrder(ti,i,j){
   const slots=_mainSlotsActuales(tr);
   if(i<0||j<0||i>=slots.length||j>=slots.length)return false;
   const label=tr.label;
-  if(_poHasResultsInBracket(ti)){
+  // Antes esto chequeaba "¿hay ALGÚN resultado en TODO el cuadro?" y, de
+  // ser así, borraba TODOS los resultados del cuadro entero — así que
+  // mover a alguien en una rama sin jugar todavía disparaba una
+  // advertencia y un borrado masivo por partidos de OTRA rama completamente
+  // ajena al movimiento, ya jugados y confirmados. Ahora solo se chequean
+  // los DOS jugadores directamente involucrados en este swap puntual (los
+  // que van a intercambiar posición): si ninguno de los dos jugó todavía
+  // en este cuadro, el movimiento es gratis, sin ninguna advertencia.
+  const involucrados=[slots[i],slots[j]].filter(Boolean);
+  const conResultado=_poJugadoresConResultado(String(ti),involucrados);
+  if(conResultado.length){
     if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
-    _poClearBracketResults(ti);
+    _poClearResultadosDe(String(ti),conResultado);
   }
   const tmp=slots[i];slots[i]=slots[j];slots[j]=tmp;
   tr.mainOrder=slots;
@@ -186,9 +230,16 @@ function saveMainPositions(ti){
   });
   if(!asignaciones.length){ closeM(); return; }
   const label=tr.label;
-  if(_poHasResultsInBracket(ti)){
+  // Solo se chequean/borran resultados de los jugadores efectivamente
+  // mencionados en las asignaciones de este guardado (el que se mueve, y
+  // el rival elegido si corresponde) — no todo el cuadro. Ver el
+  // comentario largo en _swapMainOrder sobre por qué esto importa.
+  const involucrados=[];
+  asignaciones.forEach(a=>{ involucrados.push(a.jugador); if(a.destino!=='bye') involucrados.push(a.destino); });
+  const conResultado=_poJugadoresConResultado(String(ti),involucrados);
+  if(conResultado.length){
     if(!confirm(tf('po_reorder_confirm',{l:label}))) return;
-    _poClearBracketResults(ti);
+    _poClearResultadosDe(String(ti),conResultado);
   }
   const slotsFinal=_resolverAsignacionesMain(tr,asignaciones);
   tr.mainOrder=slotsFinal;
@@ -198,7 +249,7 @@ function saveMainPositions(ti){
   toast(t('po_main_positions_saved'));
   persist(true);
 }
-function editMainOrderUI(ti){
+function editMainOrderUI(ti,focoEnJugador){
   if(!esAdmin(currentUser))return;
   const tr=playoff.tramos[ti];
   if(!tr||!tr.main)return;
@@ -217,7 +268,11 @@ function editMainOrderUI(ti){
     // a la posición deseada.
     const opcionBye = hayBye ? `<option value="bye">${attr(t('po_main_give_bye'))}</option>` : '';
     const opcionesRivales = actuales.filter(o=>o!==n).map(o=>`<option value="${attr(o)}">${attr(tf('po_main_play_vs',{n:o}))}</option>`).join('');
-    return `<div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
+    // Si se abrió el modal desde el lápiz de un jugador puntual (foco),
+    // esta fila se marca para hacerle scroll + resaltado apenas se pinta
+    // el modal — así el admin la ve de inmediato sin buscar en la lista.
+    const esFoco = focoEnJugador && n===focoEnJugador;
+    return `<div class="form-row ${esFoco?'po-pos-foco':''}" id="${esFoco?'po-main-row-foco':''}" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(n)}</div>
       <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
     </div>
@@ -236,6 +291,17 @@ function editMainOrderUI(ti){
     <button class="btn btn-primary" onclick="saveMainPositions(${ti})"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
     <button class="btn" onclick="closeM()">${t('close')}</button>`;
   document.getElementById('modal-bg').classList.add('open');
+  if(focoEnJugador){
+    // scrollIntoView tras el reflow del modal recién abierto (setTimeout
+    // corto): apunta directo al selector de este jugador, sin que el
+    // admin tenga que buscarlo en la lista completa.
+    setTimeout(()=>{
+      const el=document.getElementById('po-main-row-foco');
+      if(el) el.scrollIntoView({block:'center',behavior:'smooth'});
+      const sel=document.getElementById('po-main-dest-'+jsq(focoEnJugador));
+      if(sel) sel.focus();
+    },80);
+  }
 }
 function clearMainOrderUI(ti){
   const tr=playoff.tramos[ti];if(!tr)return;
@@ -285,7 +351,7 @@ function _resolverAsignacionesCons(tr,asignaciones){
   });
   return slots;
 }
-function editConsOverrideUI(ti){
+function editConsOverrideUI(ti,focoEnJugador){
   if(!esAdmin(currentUser))return;
   const tr=playoff.tramos[ti];
   if(!tr||!tr.cons){toast(t('po_cons_none'));return;}
@@ -326,7 +392,8 @@ function editConsOverrideUI(ti){
     // el cuadro principal ni del catálogo completo de la liga.
     const opcionBye = hayBye ? `<option value="bye">${attr(t('po_main_give_bye'))}</option>` : '';
     const opcionesRivales = actuales.filter(o=>o!==n).map(o=>`<option value="${attr(o)}">${attr(tf('po_main_play_vs',{n:o}))}</option>`).join('');
-    return `<div class="form-row" style="grid-template-columns:1fr auto auto;align-items:center;margin-bottom:.4rem;gap:6px">
+    const esFoco = focoEnJugador && n===focoEnJugador;
+    return `<div class="form-row ${esFoco?'po-pos-foco':''}" id="${esFoco?'po-cons-row-foco':''}" style="grid-template-columns:1fr auto auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(label)}</div>
       <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
       <div style="display:flex;gap:4px">
@@ -352,6 +419,14 @@ function editConsOverrideUI(ti){
     <button class="btn btn-primary" onclick="saveConsOverridesYPosiciones(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
     <button class="btn" onclick="closeM()">${t('close')}</button>`;
   document.getElementById('modal-bg').classList.add('open');
+  if(focoEnJugador){
+    setTimeout(()=>{
+      const el=document.getElementById('po-cons-row-foco');
+      if(el) el.scrollIntoView({block:'center',behavior:'smooth'});
+      const sel=document.getElementById('po-cons-pos-'+jsq(focoEnJugador));
+      if(sel) sel.focus();
+    },80);
+  }
 }
 // Aplica reemplazos de jugador Y asignaciones de posición (BYE/rival) en
 // un solo click — los reemplazos se resuelven PRIMERO (pueden cambiar
@@ -389,11 +464,15 @@ function saveConsOverridesYPosiciones(ti, actuales){
   let huboPosiciones=false;
   if(asignaciones.length){
     const label=tr.label;
-    const prefix=ti+'c#';
-    const hayResultados=Object.keys(playoff.results||{}).some(k=>k.startsWith(prefix));
-    if(hayResultados){
+    // Solo se chequean/borran resultados de los jugadores efectivamente
+    // mencionados en estas asignaciones — mismo criterio que
+    // saveMainPositions (ver su comentario largo).
+    const involucrados=[];
+    asignaciones.forEach(a=>{ involucrados.push(a.jugador); if(a.destino!=='bye') involucrados.push(a.destino); });
+    const conResultado=_poJugadoresConResultado(ti+'c',involucrados);
+    if(conResultado.length){
       if(confirm(tf('po_reorder_confirm',{l:label}))){
-        Object.keys(playoff.results).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
+        _poClearResultadosDe(ti+'c',conResultado);
         const slotsFinal=_resolverAsignacionesCons(tr,asignaciones);
         tr.consOverrides._order=slotsFinal;
         huboPosiciones=true;
@@ -460,14 +539,14 @@ function _swapConsOrder(ti,i,j){
   // posición donde antes estaba el jugador) — la cantidad TOTAL de BYE en
   // el cuadro nunca cambia con este swap, solo su ubicación.
   const label=tr.label;
-  // Mismo cuidado que _swapSeeds: si ya hay resultados cargados en la
-  // consolación de este cuadro, avisar y limpiarlos antes de reordenar —
-  // los enfrentamientos cambian y esos resultados dejarían de tener sentido.
-  const prefix=ti+'c#';
-  const hayResultados=Object.keys(playoff.results||{}).some(k=>k.startsWith(prefix));
-  if(hayResultados){
+  // Solo se chequean/borran resultados de los DOS jugadores directamente
+  // involucrados en este swap puntual, no toda la consolación — mismo
+  // criterio que _swapMainOrder (ver su comentario largo).
+  const involucrados=[slots[i],slots[j]].filter(Boolean);
+  const conResultado=_poJugadoresConResultado(ti+'c',involucrados);
+  if(conResultado.length){
     if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
-    Object.keys(playoff.results).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
+    _poClearResultadosDe(ti+'c',conResultado);
   }
   const tmp=slots[i];slots[i]=slots[j];slots[j]=tmp;
   if(!tr.consOverrides) tr.consOverrides={};
@@ -572,6 +651,17 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   const clA=m.a?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.a)+'\')">'+nmA+'</span>':nmA;
   const clB=m.b?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')">'+nmB+'</span>':nmB;
   const seedA=(m.sid&&m.sid[0])||'';const seedB=(m.sid&&m.sid[1])||'';
+  // Lápiz de edición rápida junto al nombre: solo en primera ronda (donde
+  // tiene sentido el concepto de "posición"/BYE), solo admin, y solo
+  // mientras el partido no tenga resultado todavía (no tiene sentido
+  // reacomodar a alguien que ya jugó y ganó/perdió). Abre el modal
+  // existente (editMainOrderUI/editConsOverrideUI) con el foco puesto en
+  // ESTE jugador puntual, en vez de tener que buscarlo en la lista
+  // completa — la lista sigue siendo necesaria para elegir el rival entre
+  // TODOS los del cuadro, así que no se reemplaza, se agiliza el acceso.
+  const puedeEditarPos = isFirstRound && esAdmin(currentUser) && !m.w;
+  const editIconA = (puedeEditarPos && m.a) ? '<button class="po-pos-edit" title="'+attr(t('po_main_edit_btn'))+'" onclick="event.stopPropagation();'+(which==='main'?'editMainOrderUI':'editConsOverrideUI')+'('+ti+',\''+jsq(m.a)+'\')"><i class="ti ti-edit"></i></button>' : '';
+  const editIconB = (puedeEditarPos && m.b) ? '<button class="po-pos-edit" title="'+attr(t('po_main_edit_btn'))+'" onclick="event.stopPropagation();'+(which==='main'?'editMainOrderUI':'editConsOverrideUI')+'('+ti+',\''+jsq(m.b)+'\')"><i class="ti ti-edit"></i></button>' : '';
   function fn(n){return n?n.split(' ')[0]:'';}
   const fA=fn(m.a),fB=fn(m.b);
   const sameFirst=m.a&&m.b&&fA===fB;
@@ -621,8 +711,8 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     bot=esAdmin(currentUser)?'<div style="height:56px"></div>':'<div style="height:22px"></div>';
   }
   return '<div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);width:220px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
-    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'
-    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;font-size:12px;min-height:32px;'+sB+iB+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'
+    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+editIconA+'</div>'
+    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;font-size:12px;min-height:32px;'+sB+iB+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+editIconB+'</div>'
     +bot+'</div>';
 }
 

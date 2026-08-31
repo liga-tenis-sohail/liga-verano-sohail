@@ -487,17 +487,20 @@ function resultadosJugadorEnEstado(name, estado){
     const yoA = esPO ? (m.poNames && m.poNames[0]===name) : (m.aName===name);
     const rival = esPO ? (yoA ? m.poNames[1] : m.poNames[0]) : (yoA ? m.bName : m.aName);
     const sets=(m.sets||[]).map(s=>Array.isArray(s)?(yoA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join(' ');
-    // En playoffs se prioriza m.winner (más confiable que recalcular por
-    // sets: puede haber W.O. o partidos sin sets cargados) — mismo
-    // criterio que statsJugadorEnEstado.
+    // En playoffs y en retiros de grupo se prioriza m.winner (más confiable
+    // que recalcular por sets: puede haber W.O./retiro, con sets vacíos o
+    // incompletos) — mismo criterio que statsJugadorEnEstado. Antes esto
+    // solo aplicaba a playoff (esPO), así que un retiro en liga regular
+    // caía al cálculo por sets con sgA=sgB=0 y contaba como derrota para
+    // AMBOS jugadores, sin importar quién ganó realmente por retiro.
     let gane;
-    if(esPO && m.winner){ gane = (m.winner===name); }
+    if(m.winner && (esPO || m.wo)){ gane = (m.winner===name); }
     else {
       let sgA=0,sgB=0; (m.sets||[]).forEach(s=>{if(Array.isArray(s)){if(s[0]>s[1])sgA++;else if(s[1]>s[0])sgB++;}});
       gane = yoA? sgA>sgB : sgB>sgA;
     }
     if(gane)g++;else p++;
-    const marcador = esPO&&m.wo ? 'W.O.' : sets;
+    const marcador = m.wo ? 'W.O.' : sets;
     rows+='<div class="pm-res-row"><span class="pm-wl '+(gane?'w':'l')+'">'+(gane?t('win_short'):t('loss_short'))+'</span>'
       +'<span class="pm-res-rival">'+escPast(rival||'')+'</span><span class="pm-res-sc">'+escPast(marcador)+'</span></div>';
   });

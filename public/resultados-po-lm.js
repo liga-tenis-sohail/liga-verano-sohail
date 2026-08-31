@@ -98,16 +98,16 @@ function openPoForm(m,ti){
     <button class="btn btn-sm" id="po-stb-toggle-btn" onclick="togglePoSTB()"><i class="ti ti-${s3?'x':'plus'}"></i> ${s3?(t('remove_stb')||'Quitar STB'):(t('add_stb')||'Supertiebreak (1-1)')}</button>
   </div>
 
-  ${esAdmin(currentUser)?`
+  ${(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name)?`
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
     <div id="po-wo-trigger" style="text-align:center">
-      <button class="btn btn-sm" onclick="document.getElementById('po-wo-trigger').style.display='none';document.getElementById('po-wo-opts').style.display='block'" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> Marcar como no jugado</button>
+      <button class="btn btn-sm" onclick="document.getElementById('po-wo-trigger').style.display='none';document.getElementById('po-wo-opts').style.display='block'" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET</button>
     </div>
     <div id="po-wo-opts" style="display:none">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:.5rem;text-align:center">Partido no jugado — ¿quién avanza por <strong style="color:var(--priD)">W.O.</strong> (walkover)?</p>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:.5rem;text-align:center">Retiro (RET) — ¿quién se retira del partido?</p>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="markPoWO(true)" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-arrow-big-right-lines"></i> Avanza ${attr(m.a)}</button>
-        <button class="btn btn-sm" onclick="markPoWO(false)" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-arrow-big-right-lines"></i> Avanza ${attr(m.b)}</button>
+        <button class="btn btn-sm" onclick="markPoWO(false)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(m.a)}</button>
+        <button class="btn btn-sm" onclick="markPoWO(true)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(m.b)}</button>
       </div>
     </div>
   </div>`:''}
@@ -363,26 +363,43 @@ function submitLoadModal(){
   submitResult();
 }
 // El admin hace avanzar a un jugador por WO (walkover): el rival no se presenta / no puede jugar.
+// Retiro / walkover en un partido de Play Offs: quien se retira pierde el
+// partido sin jugar más sets, el rival avanza directo. Antes esto era
+// exclusivo admin ("Marcar como no jugado", confirmado al toque). Ahora
+// también lo puede iniciar un jugador del partido — como cualquier otro
+// resultado cargado por un jugador, queda 'pending' hasta que el rival lo
+// confirme o el admin lo valide; si lo hace el admin, queda 'confirmed'
+// directo, igual que siempre.
 function markPoWO(advanceA){
-  if(!(esAdmin(currentUser))){toast('Solo el administrador puede marcar W.O.');return;}
   if(!poContext)return;
   const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
   const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
   const m=tr[which][ri][mi];if(!m||!m.a||!m.b){toast('Faltan jugadores en este partido.');return;}
+  const isAdmin=esAdmin(currentUser);
+  // Un jugador solo puede reportar el retiro de un partido en el que él
+  // mismo participa — no puede declarar retiros ajenos, igual que no
+  // puede cargar resultados de partidos donde no juega.
+  if(!isAdmin && m.a!==currentUser.name && m.b!==currentUser.name){
+    toast('Solo los jugadores de ese partido (o el admin) pueden reportar un retiro.');
+    return;
+  }
   const winnerName=advanceA?m.a:m.b,loser=advanceA?m.b:m.a;
-  if(!confirm(winnerName+' avanza por W.O. (walkover).\n\n'+loser+' queda eliminado por no presentarse. No se registra ningún resultado.\n\n¿Confirmás?'))return;
+  if(!confirm(loser+' se retira del partido.\n\n'+winnerName+' avanza por retiro (RET). '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
   // Reemplazar cualquier resultado/partido previo de este cruce
   matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
-  const k=(which==='main'?ti:ti+'c')+'#'+[m.a,m.b].sort().join('|');
-  playoff.results[k]={sets:[],w:winnerName,wo:true};
-  matches.push({id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,date:'',club:'',status:'confirmed',reporter:currentUser.name,winner:winnerName,locked:true});
-  rebuildTramo(ti);
-  addLog('Playoff: W.O.',{a:m.a,b:m.b,winner:winnerName,po:true,cuadro:tr.label,which});
+  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,date:'',club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
+  matches.push(newM);
+  if(isAdmin){
+    storePo(ti,which,m.a,m.b,[],winnerName,true);
+    rebuildTramo(ti);
+  }else{
+    applyPoPending(newM);
+  }
+  addLog(isAdmin?'Playoff: RET (admin)':'Playoff: RET (reportado)',{a:m.a,b:m.b,winner:winnerName,po:true,cuadro:tr.label,which});
   closeM();
   if(typeof showPlayoffView==='function')showPlayoffView();
-  persist(true);  // explícito: refreshAll ya no guarda
   refreshAll();
-  toast(winnerName+' avanza por W.O.');
+  toast(isAdmin?(winnerName+' avanza por retiro (RET).'):'Retiro reportado, pendiente de confirmación.');
   persist(true);
 }
 
@@ -457,8 +474,8 @@ function submitPo(){
     closeM(); renderPend(); renderCycleBar(); showPlayoffView(); toast(t('po_sent')); persist(true);
   }
 }
-function storePo(ti,which,a,b,sets,w){const k=(which==='main'?ti:ti+'c')+'#'+[a,b].sort().join('|');playoff.results[k]={sets,w};}
-function applyPoPending(rec){storePo(rec.ti,rec.which,rec.poNames[0],rec.poNames[1],rec.sets,rec.winner);rebuildTramo(rec.ti);}
+function storePo(ti,which,a,b,sets,w,wo){const k=(which==='main'?ti:ti+'c')+'#'+[a,b].sort().join('|');playoff.results[k]={sets,w,wo:!!wo};}
+function applyPoPending(rec){storePo(rec.ti,rec.which,rec.poNames[0],rec.poNames[1],rec.sets,rec.winner,rec.wo);rebuildTramo(rec.ti);}
 let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');if(!t){t=document.createElement('div');t.id='_toast';t.className='toast';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';if(_toastTimer)clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.opacity='0';_toastTimer=null;},3800);}
 
 // ============================================================================

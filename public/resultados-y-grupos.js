@@ -557,6 +557,79 @@ function markNotPlayed(){
   setTimeout(()=>populateForm(),50);
 }
 
+// Retiro (RET) desde la vista Cargar: quien se retira pierde el partido
+// sin necesidad de completar sets, el rival gana directo. A diferencia de
+// "No jugado" (exclusivo admin, ambos suman NJ, nadie gana), acá SÍ hay un
+// ganador real — el retiro cuenta como victoria para el rival, igual que
+// si hubiera ganado 6-0 6-0. Disponible para admin y para cualquier
+// jugador que participe del partido seleccionado (mismo criterio de
+// permisos que submitResult): si lo carga un jugador, queda 'pending'
+// hasta que se confirme; si lo carga el admin, queda 'confirmed' directo.
+//
+// Si hay un partido de Play Offs en curso (poContext activo), delega
+// directamente a markPoWO — ese ya tiene su propio flujo con selector de
+// quién se retira dentro del modal de Play Offs.
+function markRetiroUI(){
+  if(poContext){
+    const trigger=document.getElementById('po-wo-trigger');
+    const opts=document.getElementById('po-wo-opts');
+    if(trigger&&opts){ trigger.style.display='none'; opts.style.display='block'; }
+    else toast('Abrí el partido de Play Offs para reportar el retiro.');
+    return;
+  }
+  const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
+  if(!rv||!iv){fAlert(t('select_two'),'err');return;}
+  const isAdmin=esAdmin(currentUser);
+  let repName,rivName,gid;
+  if(currentUser.role==='player' && !isAdmin){
+    repName=currentUser.name;rivName=iv;const loc=findLoc(repName,_formCycleN||activeN);gid=loc?loc.g:null;
+    if(!gid){fAlert(t('not_in_cycle'),'err');return;}
+  }else{
+    const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
+    const a=parseSel(repVal),b=parseSel(iv);
+    if(a.g!==b.g){fAlert(t('same_group'),'err');return;}
+    gid=a.g;repName=a.name;rivName=b.name;
+  }
+  if(repName===rivName){fAlert(t('select_two'),'err');return;}
+  if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
+  const ff=document.getElementById('f-fecha').value;
+  if(!ff){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
+  const _cN=_formCycleN||activeN;
+  const ex=findMatch(_cN,gid,repName,rivName);
+  if(ex&&ex.locked&&!isAdmin){fAlert(t('validated_admin_only'),'err');return;}
+  if(ex&&ex.status==='disputed'&&!isAdmin){fAlert('Este resultado está en disputa. El administrador debe resolverlo primero.','err');return;}
+  // El modal genérico (#modal-bg) ya está disponible en toda la app — se
+  // reutiliza acá para elegir quién se retira, en vez de un prompt de
+  // texto libre.
+  document.getElementById('modal-title').textContent='Retiro (RET)';
+  document.getElementById('modal-body').innerHTML=`
+    <p class="legend-txt" style="margin-top:0;text-align:center">¿Quién se retira del partido?</p>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:.75rem">
+      <button class="btn btn-sm" onclick="confirmarRetiroGrupo('${jsq(repName)}','${jsq(rivName)}',${gid},true)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(repName)}</button>
+      <button class="btn btn-sm" onclick="confirmarRetiroGrupo('${jsq(repName)}','${jsq(rivName)}',${gid},false)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(rivName)}</button>
+    </div>`;
+  document.getElementById('modal-actions').innerHTML=`<button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+// seRetiraRep: true si quien se retira es `repName` (el reporter), false
+// si es `rivName`. El ganador es siempre el otro.
+function confirmarRetiroGrupo(repName,rivName,gid,seRetiraRep){
+  const isAdmin=esAdmin(currentUser);
+  const loser=seRetiraRep?repName:rivName, winner=seRetiraRep?rivName:repName;
+  if(!confirm(loser+' se retira del partido.\n\n'+winner+' gana por retiro (RET). '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
+  const _cN=_formCycleN||activeN;
+  const fecha=document.getElementById('f-fecha').value;
+  matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
+  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:[],wo:true,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,club:formClub,locked:isAdmin});
+  addLog(isAdmin?'Liga: RET (admin)':'Liga: RET (reportado)',{a:repName,b:rivName,winner,grupo:gid,po:false});
+  closeM();
+  clearForm();
+  fAlert(isAdmin?(winner+' gana por retiro (RET).'):'Retiro reportado, pendiente de confirmación.','ok');
+  persist(true);
+  refreshAll();
+  if(isAdmin)setTimeout(()=>populateForm(),50);
+}
+
 function fAlert(m,t){const e=document.getElementById('form-alert');e.className=`alert alert-${t}`;e.textContent=m;setTimeout(()=>{e.textContent='';e.className='';},6000);}
 function clearForm(){if(esAdmin(currentUser)){const r=document.getElementById('f-reporter');if(r)r.value='';}const rv=document.getElementById('f-rival');if(rv)rv.value='';['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='0';});const sr=document.getElementById('s3-row');if(sr)sr.style.display='none';const stbBtn=document.getElementById('stb-toggle-btn');if(stbBtn)stbBtn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');formClub='';renderClubButtons();const ff=document.getElementById('f-fecha');if(ff){const d=new Date();ff.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}const cp=document.getElementById('club-pick');if(cp)cp.classList.remove('req-empty');const fp2=document.getElementById('f-fecha');if(fp2)fp2.classList.remove('req-empty');}
 function involvedPend(m){if(esAdmin(currentUser))return true;if(m.po)return m.poNames&&m.poNames.includes(currentUser.name)&&m.reporter!==currentUser.name;return (m.aName===currentUser.name||m.bName===currentUser.name)&&m.reporter!==currentUser.name;}

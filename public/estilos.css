@@ -315,6 +315,21 @@ html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
 .gen-edit{width:1%;white-space:nowrap;text-align:center;padding:0 6px}
 .gen-edit .pts-ajuste-btn{margin-left:0;font-size:13px;padding:4px 6px}
 
+/* Lápiz de edición rápida de posición, junto al nombre de cada jugador en
+   la primera ronda del bracket (Play Offs) — abre el modal de reacomodo
+   con el foco puesto en ese jugador puntual. Chico y discreto: aparece
+   siempre que hay lugar (solo primera ronda, solo admin), pero no debe
+   competir visualmente con el nombre. */
+.po-pos-edit{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:4px;border-radius:5px;font-size:11px;line-height:1;flex-shrink:0}
+.po-pos-edit:hover{background:var(--surface2);color:var(--pri)}
+/* Fila resaltada dentro del modal de reacomodo cuando se abrió con foco en
+   un jugador puntual (desde el lápiz de la tarjeta) — un fondo suave que
+   se desvanece, para llamar la atención sin quedar permanente. */
+.po-pos-foco{background:#FFF3C4;border-radius:8px;padding:4px 6px;margin:-4px -6px .4rem -6px!important;animation:po-pos-foco-fade 2.5s ease forwards}
+@keyframes po-pos-foco-fade{0%{background:#FFF3C4}100%{background:transparent}}
+@keyframes po-pos-foco-fade-dark{0%{background:#4a3f1a}100%{background:transparent}}
+html[data-theme="dark"] .po-pos-foco{animation-name:po-pos-foco-fade-dark}
+
 /* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
 .seed-chip .mv,.po-cons-move-row .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
 .seed-chip .mv:hover,.po-cons-move-row .mv:hover{background:rgba(0,0,0,.08)}
