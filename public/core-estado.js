@@ -871,57 +871,80 @@ function buildRounds(seeds,ignorarForcedSize){
   rounds[0].forEach(m=>{if(m.a&&!m.b)m.w=m.a;if(m.b&&!m.a)m.w=m.b;});
   return rounds;
 }
-function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].forEach((m,mi)=>{const sl=nx[Math.floor(mi/2)];
-  // Defensa: si por algún motivo el slot destino no tiene sid inicializado, lo inicializamos.
-  // Pasa con brackets viejos guardados antes del fix.
-  if(!sl.sid) sl.sid=['',''];
-  if(!m.sid) m.sid=['',''];
-  // Propagar también el número de seed del ganador para que lo acompañe por todo el bracket.
-  // Antes se propagaba solo el nombre (m.w) y el sid quedaba vacío ('') en rondas siguientes.
-  const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
-  if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
-});}}
-// Resuelve en cascada los cruces donde UN lado tiene jugador y el otro no
-// (BYE real) en TODAS las rondas, no solo la primera. Aplica la misma regla
-// que buildRounds ya usa para la ronda 0.
+// ladoVacio: marca, por RONDA y por LADO ('a'/'b') de cada partido, si ese
+// lado nunca va a tener un jugador real — sin importar cuántos resultados
+// se carguen después. Es distinto de "está null ahora mismo": un lado
+// puede estar null porque (1) es un BYE real que nunca tuvo nadie desde el
+// origen del cuadro, o (2) porque viene de un partido con DOS jugadores
+// reales que todavía no cargó resultado — en ese segundo caso, el jugador
+// SÍ va a llegar ahí eventualmente, y no hay que darle a su rival ningún
+// avance automático.
 //
-// CRÍTICO: esto se llama UNA SOLA VEZ, DESPUÉS de que applyStored() terminó
-// TODAS sus pasadas de propagate() — nunca metido dentro del loop de
-// propagate en sí. La primera versión de este fix lo intentaba adentro de
-// propagate(), y applyStored() llama a propagate() varias veces seguidas
-// (una por ronda, para ir empujando resultados cargados manualmente): en
-// una pasada INTERMEDIA, un slot con un solo lado presente no significa
-// necesariamente "el otro lado es BYE" — puede significar simplemente que
-// el resultado del partido que llenaría ese otro lado TODAVÍA no se había
-// aplicado en esa pasada del loop. Eso causó que partidos reales entre DOS
-// jugadores (ej. octavos ya jugados, con resultado cargado por el admin)
-// aparecieran con un ganador inventado sin que nadie hubiera cargado nada
-// — el auto-avance se disparaba antes de que el segundo jugador llegara a
-// su slot. Ejecutándolo una sola vez al final, cuando la propagación ya
-// está completa de punta a punta, un slot con un solo lado presente es
-// SIEMPRE un BYE genuino (el otro lado nunca va a llegar, porque nunca
-// hubo nadie ahí desde el principio del cuadro).
-function resolverByesEnCascada(r){
+// Un intento anterior de este fix no distinguía estos dos casos (solo
+// miraba "¿está vacío ahora mismo?") y terminaba dándole un avance
+// automático y un "ganador" inventado a jugadores cuyo rival real
+// simplemente todavía no había jugado — por ejemplo, alguien con BYE en
+// primera ronda aparecía ganando también la segunda ronda sin que su
+// verdadero rival (un partido real, sin resultado) hubiera jugado nada.
+// Otro intento intermedio calculaba un mapa "por partido" en vez de "por
+// lado" y tampoco distinguía bien: el rival de un jugador con BYE (que
+// avanzó solo) podía marcarse como no-BYE aunque su propio origen sí lo
+// fuera, porque la propagación de la marca se hacía en el momento
+// equivocado.
+//
+// La marca se calcula EN PARALELO a la propagación real (misma pasada,
+// mismo bucle) para no depender de ningún estado intermedio ambiguo:
+// ladoVacio[ri+1][mi].a/.b = true solo si el partido de origen en la
+// ronda ri tenía AMBOS lados vacíos en ESE MOMENTO de la propagación —
+// que solo puede pasar si ambos eran BYE real desde su propio origen (un
+// partido con dos jugadores reales pendientes nunca tiene ambos lados
+// null a la vez, porque siempre arrancan con a y b poblados).
+function propagate(r,ladoVacio){
   for(let ri=0;ri<r.length-1;ri++){
-    r[ri].forEach(m=>{
-      if(!m.w){
-        if(m.a&&!m.b)m.w=m.a;
-        else if(m.b&&!m.a)m.w=m.b;
+    const nx=r[ri+1];
+    // Slot vacío para la ronda siguiente, si no viene ya inicializado
+    // (primera vez que se llama propagate sobre este bracket).
+    if(ladoVacio && !ladoVacio[ri+1]) ladoVacio[ri+1]=nx.map(()=>({a:false,b:false}));
+    r[ri].forEach((m,mi)=>{
+      const sl=nx[Math.floor(mi/2)];
+      // Defensa: si por algún motivo el slot destino no tiene sid inicializado, lo inicializamos.
+      // Pasa con brackets viejos guardados antes del fix.
+      if(!sl.sid) sl.sid=['',''];
+      if(!m.sid) m.sid=['',''];
+      // Propagar también el número de seed del ganador para que lo acompañe por todo el bracket.
+      // Antes se propagaba solo el nombre (m.w) y el sid quedaba vacío ('') en rondas siguientes.
+      const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
+      if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
+      if(ladoVacio){
+        const origenAmbosVacios = !m.a && !m.b;
+        if(mi%2===0) ladoVacio[ri+1][Math.floor(mi/2)].a = origenAmbosVacios;
+        else ladoVacio[ri+1][Math.floor(mi/2)].b = origenAmbosVacios;
+        // Auto-avance: si en ESTE slot un lado tiene jugador y el otro
+        // está confirmado como "nunca va a tener nadie" (BYE real
+        // propagado), ese jugador gana solo. Sin esto, quedaba esperando
+        // para siempre a un rival BYE que nunca iba a llegar.
+        const lv=ladoVacio[ri+1][Math.floor(mi/2)];
+        if(!sl.w){
+          if(sl.a&&lv.b)sl.w=sl.a;
+          else if(sl.b&&lv.a)sl.w=sl.b;
+        }
       }
     });
-    propagate(r);   // reflejar cualquier BYE recién resuelto en la ronda siguiente
   }
 }
 function applyStored(key,r){
+  // ladoVacio persiste ENTRE las pasadas del loop de abajo (no se reinicia
+  // en cada vuelta): la marca de "este lado nunca va a tener nadie" es
+  // puramente geométrica (depende de la estructura de BYE de origen, no
+  // de qué resultados ya se cargaron), así que una vez calculada para un
+  // slot no cambia — pero como r[0] son los únicos partidos con a/b fijos
+  // desde el principio, alcanza con dejar que se recalcule en cada pasada
+  // de propagate(); todas dan el mismo resultado para los mismos slots.
+  const ladoVacio=[ r.map(m=>({a:!m.a,b:!m.b})) ];
   for(let p=0;p<r.length+1;p++){
     r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));
-    propagate(r);
+    propagate(r,ladoVacio);
   }
-  // Recién ACÁ, con la propagación de resultados reales ya 100% completa
-  // (todas las pasadas del loop de arriba terminaron), es seguro resolver
-  // los BYE en cascada — ver el comentario largo en resolverByesEnCascada
-  // sobre por qué esto no puede ir dentro del loop de arriba.
-  resolverByesEnCascada(r);
 }
 function loserOf(m){return m.w&&m.a&&m.b?(m.w===m.a?m.b:m.a):null;}
 function label(i){return String.fromCharCode(65+i);}
