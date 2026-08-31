@@ -880,27 +880,49 @@ function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].fo
   // Antes se propagaba solo el nombre (m.w) y el sid quedaba vacío ('') en rondas siguientes.
   const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
   if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
-  // Auto-avance en cascada: un slot recién completado por propagación puede
-  // quedar con UN solo lado presente (el otro lado del cruce, en la misma
-  // ronda destino, todavía no se resolvió — por ejemplo porque viene de un
-  // cruce "BYE vs BYE" de la ronda anterior, que deja w:null y por lo tanto
-  // ese lado sigue vacío). Sin este paso, ese jugador quedaba esperando
-  // para siempre a un rival BYE que nunca iba a llegar — el partido se veía
-  // "trabado" en el cuadro, sin poder cargar resultado ni avanzar. Se repite
-  // la MISMA regla de auto-avance que ya se aplica en la ronda 0
-  // (buildRounds): si un lado tiene jugador y el otro no, ese gana solo.
-  // El chequeo `!sl.w` es importante: applyStored() llama a propagate()
-  // varias veces seguidas (una vez por ronda, para ir empujando resultados
-  // cargados manualmente) — sin este chequeo, un slot que YA tiene un
-  // ganador real (de un resultado jugado y confirmado) podría pisarse en
-  // una pasada posterior si, en ese momento intermedio, el otro lado
-  // todavía no había llegado.
-  if(!sl.w){
-    if(sl.a&&!sl.b)sl.w=sl.a;
-    else if(sl.b&&!sl.a)sl.w=sl.b;
-  }
 });}}
-function applyStored(key,r){for(let p=0;p<r.length+1;p++){r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));propagate(r);}}
+// Resuelve en cascada los cruces donde UN lado tiene jugador y el otro no
+// (BYE real) en TODAS las rondas, no solo la primera. Aplica la misma regla
+// que buildRounds ya usa para la ronda 0.
+//
+// CRÍTICO: esto se llama UNA SOLA VEZ, DESPUÉS de que applyStored() terminó
+// TODAS sus pasadas de propagate() — nunca metido dentro del loop de
+// propagate en sí. La primera versión de este fix lo intentaba adentro de
+// propagate(), y applyStored() llama a propagate() varias veces seguidas
+// (una por ronda, para ir empujando resultados cargados manualmente): en
+// una pasada INTERMEDIA, un slot con un solo lado presente no significa
+// necesariamente "el otro lado es BYE" — puede significar simplemente que
+// el resultado del partido que llenaría ese otro lado TODAVÍA no se había
+// aplicado en esa pasada del loop. Eso causó que partidos reales entre DOS
+// jugadores (ej. octavos ya jugados, con resultado cargado por el admin)
+// aparecieran con un ganador inventado sin que nadie hubiera cargado nada
+// — el auto-avance se disparaba antes de que el segundo jugador llegara a
+// su slot. Ejecutándolo una sola vez al final, cuando la propagación ya
+// está completa de punta a punta, un slot con un solo lado presente es
+// SIEMPRE un BYE genuino (el otro lado nunca va a llegar, porque nunca
+// hubo nadie ahí desde el principio del cuadro).
+function resolverByesEnCascada(r){
+  for(let ri=0;ri<r.length-1;ri++){
+    r[ri].forEach(m=>{
+      if(!m.w){
+        if(m.a&&!m.b)m.w=m.a;
+        else if(m.b&&!m.a)m.w=m.b;
+      }
+    });
+    propagate(r);   // reflejar cualquier BYE recién resuelto en la ronda siguiente
+  }
+}
+function applyStored(key,r){
+  for(let p=0;p<r.length+1;p++){
+    r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));
+    propagate(r);
+  }
+  // Recién ACÁ, con la propagación de resultados reales ya 100% completa
+  // (todas las pasadas del loop de arriba terminaron), es seguro resolver
+  // los BYE en cascada — ver el comentario largo en resolverByesEnCascada
+  // sobre por qué esto no puede ir dentro del loop de arriba.
+  resolverByesEnCascada(r);
+}
 function loserOf(m){return m.w&&m.a&&m.b?(m.w===m.a?m.b:m.a):null;}
 function label(i){return String.fromCharCode(65+i);}
 function rebuildTramo(t){
