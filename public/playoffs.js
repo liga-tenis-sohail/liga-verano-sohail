@@ -95,20 +95,31 @@ function editConsOverrideUI(ti){
   tr.cons[0].forEach(m=>{ if(m.a)actuales.push(m.a); if(m.b)actuales.push(m.b); });
   if(!actuales.length){toast(t('po_cons_none'));return;}
   const overrides=tr.consOverrides||{};
-  // El candidato a reemplazo: cualquier jugador de la liga que NO esté ya
-  // en este cuadro de consolación (evita duplicarlo en dos partidos del
-  // mismo bracket). Se usa ALLNAMES (catálogo completo de la liga), igual
-  // que el selector de "Agregar jugador" del cuadro principal.
-  const disponibles=ALLNAMES.filter(n=>!actuales.includes(n));
+  // El candidato a reemplazo: SOLO jugadores de ESTE cuadro (tr.seeds — los
+  // sembrados originales del Cuadro A/B/C, no ALLNAMES/catálogo completo de
+  // la liga) que no estén ya en esta consolación. Antes se ofrecía
+  // cualquier jugador de la liga entera, lo cual no tiene mucho sentido:
+  // un reemplazo de consolación normalmente es alguien que también
+  // participa de este mismo cuadro (perdió otro partido, o directamente
+  // ganó primera ronda y el admin igual quiere sumarlo a consolación).
+  // Ordenado alfabéticamente ('es' para que las tildes ordenen bien),
+  // igual que el resto de los selectores de jugadores del proyecto.
+  const disponibles=tr.seeds.filter(n=>!actuales.includes(n)).slice().sort((a,b)=>a.localeCompare(b,'es'));
   document.getElementById('modal-title').textContent = tf('po_cons_edit_title',{l:tr.label});
-  const rowsHtml = actuales.map(n=>{
+  const rowsHtml = actuales.map((n,idx)=>{
     // Si n ya es resultado de un override previo, mostramos también quién
     // era el perdedor original entre paréntesis, para que quede claro qué
     // se está reemplazando (y se pueda deshacer con "Restaurar").
-    const original = Object.keys(overrides).find(k=>overrides[k]===n);
+    const original = Object.keys(overrides).filter(k=>k!=='_order').find(k=>overrides[k]===n);
     const label = original ? (n+' ('+tf('po_cons_was',{n:original})+')') : n;
-    return `<div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem">
+    const isFirst=idx===0, isLast=idx===actuales.length-1;
+    // Botones ↑↓ para mover DE LLAVE dentro de esta misma consolación (sin
+    // cambiar quién participa) — mismo mecanismo y mismo estilo (.mv) que
+    // ya usa el panel de seeds del cuadro principal.
+    const moveBtns = `<button class="mv" onclick="moveConsUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveConsDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
+    return `<div class="form-row" style="grid-template-columns:1fr auto auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(label)}</div>
+      <div style="display:flex;gap:2px">${moveBtns}</div>
       <div style="display:flex;gap:4px">
         <select id="po-cons-repl-${jsq(n)}" style="font-size:12px;padding:4px 6px">
           <option value="">${attr(t('po_cons_keep'))}</option>
@@ -139,8 +150,10 @@ function saveConsOverrides(ti, actuales){
     // perdió realmente la primera ronda), no `actual` — si `actual` ya es
     // resultado de un override previo, hay que seguir apuntando al
     // original para que rebuildTramo() lo siga reemplazando correctamente
-    // en cada recálculo futuro.
-    const original = Object.keys(tr.consOverrides).find(k=>tr.consOverrides[k]===actual) || actual;
+    // en cada recálculo futuro. Se excluye '_order' explícitamente: es la
+    // clave reservada del reordenamiento manual (ver moveConsUpUI más
+    // abajo), nunca un nombre de jugador.
+    const original = Object.keys(tr.consOverrides).filter(k=>k!=='_order').find(k=>tr.consOverrides[k]===actual) || actual;
     tr.consOverrides[original] = (v==='__remove__') ? null : v;
     huboCambios=true;
   });
@@ -162,6 +175,71 @@ function clearConsOverridesUI(ti){
   showPlayoffView();
   toast(t('po_cons_cleared'));
   persist(true);
+}
+
+// ===== Mover jugadores DE LLAVE dentro de consolación (sin cambiar quién
+// participa, solo contra quién juega cada uno en primera ronda) =====
+// Mismo mecanismo que moveSeedUpUI/moveSeedDownUI del cuadro principal
+// (intercambiar posiciones adyacentes en el array de orden), pero acá el
+// array de orden es tr.consOverrides._order — una clave reservada que
+// nunca puede coincidir con un nombre de jugador real (ver rebuildTramo en
+// core-estado.js, que la lee y reconcilia con los perdedores reales en
+// cada recálculo).
+function _consOrdenActual(tr){
+  // El orden VIGENTE ahora mismo es el que ya está armado en tr.cons[0]
+  // (después de aplicar reemplazos y cualquier '_order' previo) — es la
+  // fuente de verdad más simple, ya la calculó rebuildTramo().
+  const actuales=[];
+  if(tr.cons) tr.cons[0].forEach(m=>{ if(m.a)actuales.push(m.a); if(m.b)actuales.push(m.b); });
+  return actuales;
+}
+function _swapConsOrder(ti,i,j){
+  const tr=playoff.tramos[ti];
+  if(!tr||!tr.cons)return false;
+  const orden=_consOrdenActual(tr);
+  if(i<0||j<0||i>=orden.length||j>=orden.length)return false;
+  const label=tr.label;
+  // Mismo cuidado que _swapSeeds: si ya hay resultados cargados en la
+  // consolación de este cuadro, avisar y limpiarlos antes de reordenar —
+  // los enfrentamientos cambian y esos resultados dejarían de tener sentido.
+  const prefix=ti+'c#';
+  const hayResultados=Object.keys(playoff.results||{}).some(k=>k.startsWith(prefix));
+  if(hayResultados){
+    if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
+    Object.keys(playoff.results).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
+  }
+  const tmp=orden[i];orden[i]=orden[j];orden[j]=tmp;
+  if(!tr.consOverrides) tr.consOverrides={};
+  tr.consOverrides._order=orden;
+  rebuildTramo(ti);
+  return true;
+}
+function moveConsUpUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
+  const orden=_consOrdenActual(tr);
+  const idx=orden.indexOf(name);
+  if(idx<=0)return;
+  if(_swapConsOrder(ti,idx,idx-1)){
+    showPlayoffView();
+    // Re-abrir el modal con el orden ya actualizado: el usuario está
+    // reordenando desde acá y probablemente quiere seguir ajustando sin
+    // tener que cerrar y volver a abrir el modal cada vez.
+    editConsOverrideUI(ti);
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
+function moveConsDownUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
+  const orden=_consOrdenActual(tr);
+  const idx=orden.indexOf(name);
+  if(idx<0||idx>=orden.length-1)return;
+  if(_swapConsOrder(ti,idx,idx+1)){
+    showPlayoffView();
+    editConsOverrideUI(ti);
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
 }
 
 function matchBox(m,ti,which,ri,mi,isFirstRound){
