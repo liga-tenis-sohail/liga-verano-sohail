@@ -986,20 +986,31 @@ function rebuildTramo(t){
                     .filter(n => n !== null);   // null = "sacar sin reemplazo"
   }
   // Reordenamiento manual: si hay un '_order' guardado, se usa ese orden
-  // en vez del orden "natural" (el de aparición de los perdedores). Se
-  // reconcilia con el conjunto real de `losers` en ambos sentidos: un
-  // nombre de '_order' que ya no está en `losers` (por ejemplo, si el
-  // cuadro principal cambió y ese jugador ya no perdió primera ronda) se
-  // descarta, y cualquier jugador de `losers` que todavía no esté en
-  // '_order' (por ejemplo, recién llegó vía un reemplazo nuevo) se agrega
-  // al final — así el reordenamiento nunca "pierde" ni "inventa" jugadores.
+  // en vez del orden "natural" (el de aparición de los perdedores). '_order'
+  // es un array de SLOTS (incluye null en las posiciones BYE, tamaño fijo
+  // = tamaño del cuadro) — no una lista simple de nombres. Se reconcilia
+  // con el conjunto real de `losers` en ambos sentidos: un nombre de
+  // '_order' que ya no está en `losers` (por ejemplo, si el cuadro
+  // principal cambió y ese jugador ya no perdió primera ronda) se
+  // descarta de su slot (que vuelve a null), y cualquier jugador de
+  // `losers` que todavía no esté en ningún slot de '_order' (por ejemplo,
+  // recién llegó vía un reemplazo nuevo) se coloca en el primer slot
+  // vacío disponible — así el reordenamiento nunca "pierde" ni "inventa"
+  // jugadores, y los BYE existentes se mantienen en su lugar salvo que el
+  // admin los haya movido explícitamente.
   let tieneOrderManual=false;
   if(Array.isArray(ov._order) && ov._order.length){
     tieneOrderManual=true;
     const enLosers = new Set(losers);
-    const ordenados = ov._order.filter(n => enLosers.has(n));
-    losers.forEach(n => { if(!ordenados.includes(n)) ordenados.push(n); });
-    losers = ordenados;
+    const slots = ov._order.map(n => (n && enLosers.has(n)) ? n : null);
+    const colocados = new Set(slots.filter(Boolean));
+    losers.forEach(n => {
+      if(colocados.has(n)) return;
+      const libre = slots.indexOf(null);
+      if(libre>=0){ slots[libre]=n; colocados.add(n); }
+      else slots.push(n);   // no debería pasar (el array ya cubre todo el cuadro), red de seguridad
+    });
+    losers = slots;   // incluye null: buildRounds ya sabe tratarlos como BYE
   }
   // ignorarForcedSize=true: consolación SIEMPRE calcula su propio tamaño
   // natural según su cantidad real de jugadores (losers.length), sin
@@ -1008,17 +1019,23 @@ function rebuildTramo(t){
   // propia cantidad de jugadores), consolación se armaba también en 32
   // aunque tuviera 5-10 jugadores — un cuadro con rondas enteras de puro
   // BYE antes de llegar a donde realmente arrancaban los partidos.
+  // Con tieneOrderManual, losers ya puede incluir null (los BYE en su
+  // posición) — el .length de ese array sigue siendo el tamaño correcto
+  // del cuadro para este cálculo, ya que null también ocupa un lugar.
+  const numRealesConsolacion = tieneOrderManual ? losers.filter(Boolean).length : losers.length;
   //
   // ordenVisualDirecto=tieneOrderManual: si el admin YA reordenó a mano
   // (tr.consOverrides._order existe), ese array ya ES el orden visual
-  // final tal como se ve en pantalla — no hay que volver a pasarlo por
-  // seedOrder (el criterio de siembra automático), que lo revolvía de
-  // nuevo y hacía que mover UN jugador con las flechas terminara
-  // reordenando visualmente varios más. Sin ningún '_order' guardado
-  // todavía, se sigue usando el criterio de siembra normal (mejor
-  // puntuado vs peor puntuado en polos opuestos), como corresponde a un
-  // cuadro recién armado.
-  tr.cons=losers.length>=2?buildRounds(losers,true,tieneOrderManual):null;
+  // final tal como se ve en pantalla, BYE incluidos en su posición — no
+  // hay que volver a pasarlo por seedOrder (el criterio de siembra
+  // automático), que lo revolvía de nuevo y hacía que mover UN jugador
+  // con las flechas terminara reordenando visualmente varios más, además
+  // de juntar todos los BYE al final en vez de mantenerlos repartidos.
+  // Sin ningún '_order' guardado todavía, se sigue usando el criterio de
+  // siembra normal (mejor puntuado vs peor puntuado en polos opuestos,
+  // con los BYE bien repartidos entre los mejores), como corresponde a
+  // un cuadro recién armado.
+  tr.cons=numRealesConsolacion>=2?buildRounds(losers,true,tieneOrderManual):null;
   if(tr.cons){
     // Al armar la consolación, buildRounds() calculó sids en base al orden
     // del array `losers`. Los sobrescribimos con el seed ORIGINAL de cada
