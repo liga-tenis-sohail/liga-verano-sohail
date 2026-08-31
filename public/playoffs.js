@@ -261,6 +261,30 @@ function clearMainOrderUI(ti){
 // la consolación (lesión, viaje, etc.) y el admin quiere que otra persona
 // ocupe ese lugar — o directamente sacarlo sin reemplazo si el cuadro de
 // consolación queda con número impar.
+function _resolverAsignacionesCons(tr,asignaciones){
+  const slots=_consSlotsActuales(tr).slice();
+  asignaciones.forEach(({jugador,destino})=>{
+    const idxJugador=slots.indexOf(jugador);
+    if(idxJugador<0)return;
+    if(destino==='bye'){
+      // Mismo criterio que _resolverAsignacionesMain: el BYE tiene que ir
+      // a la posición COMPAÑERA del jugador elegido (no a cualquier BYE
+      // del cuadro) para que sea EL efectivamente quien queda sin rival.
+      const idxCompañera=_posCompañera(idxJugador);
+      if(slots[idxCompañera]===null) return;
+      const idxBye=slots.indexOf(null);
+      if(idxBye<0) return;
+      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxBye];slots[idxBye]=tmp;
+    }else{
+      const idxRival=slots.indexOf(destino);
+      if(idxRival<0)return;
+      const idxCompañera=_posCompañera(idxJugador);
+      if(idxRival===idxCompañera)return;
+      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxRival];slots[idxRival]=tmp;
+    }
+  });
+  return slots;
+}
 function editConsOverrideUI(ti){
   if(!esAdmin(currentUser))return;
   const tr=playoff.tramos[ti];
@@ -282,6 +306,7 @@ function editConsOverrideUI(ti){
   // Ordenado alfabéticamente ('es' para que las tildes ordenen bien),
   // igual que el resto de los selectores de jugadores del proyecto.
   const disponibles=tr.seeds.filter(n=>!actuales.includes(n)).slice().sort((a,b)=>a.localeCompare(b,'es'));
+  const hayBye=_consSlotsActuales(tr).includes(null);
   document.getElementById('modal-title').textContent = tf('po_cons_edit_title',{l:tr.label});
   const rowsHtml = actuales.map((n,idx)=>{
     // Si n ya es resultado de un override previo, mostramos también quién
@@ -294,6 +319,13 @@ function editConsOverrideUI(ti){
     // cambiar quién participa) — mismo mecanismo y mismo estilo (.mv) que
     // ya usa el panel de seeds del cuadro principal.
     const moveBtns = `<button class="mv" onclick="moveConsUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveConsDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
+    // Selector de POSICIÓN (BYE directo / rival puntual dentro de ESTA
+    // consolación) — mismo mecanismo que el modal del cuadro principal
+    // (editMainOrderUI), acotado únicamente a los jugadores que ya
+    // participan de esta consolación específica (actuales), nunca de todo
+    // el cuadro principal ni del catálogo completo de la liga.
+    const opcionBye = hayBye ? `<option value="bye">${attr(t('po_main_give_bye'))}</option>` : '';
+    const opcionesRivales = actuales.filter(o=>o!==n).map(o=>`<option value="${attr(o)}">${attr(tf('po_main_play_vs',{n:o}))}</option>`).join('');
     return `<div class="form-row" style="grid-template-columns:1fr auto auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(label)}</div>
       <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
@@ -304,37 +336,75 @@ function editConsOverrideUI(ti){
           ${disponibles.map(d=>`<option value="${attr(d)}">${attr(d)}</option>`).join('')}
         </select>
       </div>
+    </div>
+    <div style="margin:-.25rem 0 .5rem 0">
+      <select id="po-cons-pos-${jsq(n)}" style="font-size:12px;padding:4px 6px;width:100%">
+        <option value="">${attr(t('po_cons_keep'))}</option>
+        ${opcionBye}
+        ${opcionesRivales}
+      </select>
     </div>`;
   }).join('');
   document.getElementById('modal-body').innerHTML = `
-    <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')}</p>
+    <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')} ${t('po_main_edit_hint')}</p>
     ${rowsHtml}`;
   document.getElementById('modal-actions').innerHTML = `
-    <button class="btn btn-primary" onclick="saveConsOverrides(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
+    <button class="btn btn-primary" onclick="saveConsOverridesYPosiciones(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
     <button class="btn" onclick="closeM()">${t('close')}</button>`;
   document.getElementById('modal-bg').classList.add('open');
 }
-function saveConsOverrides(ti, actuales){
+// Aplica reemplazos de jugador Y asignaciones de posición (BYE/rival) en
+// un solo click — los reemplazos se resuelven PRIMERO (pueden cambiar
+// quién está presente en la consolación), y recién después se calculan
+// las posiciones sobre el conjunto de jugadores ya actualizado.
+function saveConsOverridesYPosiciones(ti, actuales){
   const tr=playoff.tramos[ti];if(!tr)return;
   if(!tr.consOverrides) tr.consOverrides={};
-  let huboCambios=false;
+  let huboReemplazos=false;
   actuales.forEach(actual=>{
     const sel=document.getElementById('po-cons-repl-'+actual);
     if(!sel)return;
     const v=sel.value;
-    if(!v)return;   // "mantener" — sin cambios para este jugador
-    // La CLAVE del override tiene que ser el jugador original (el que
-    // perdió realmente la primera ronda), no `actual` — si `actual` ya es
-    // resultado de un override previo, hay que seguir apuntando al
-    // original para que rebuildTramo() lo siga reemplazando correctamente
-    // en cada recálculo futuro. Se excluye '_order' explícitamente: es la
-    // clave reservada del reordenamiento manual (ver moveConsUpUI más
-    // abajo), nunca un nombre de jugador.
+    if(!v)return;
     const original = Object.keys(tr.consOverrides).filter(k=>k!=='_order').find(k=>tr.consOverrides[k]===actual) || actual;
     tr.consOverrides[original] = (v==='__remove__') ? null : v;
-    huboCambios=true;
+    huboReemplazos=true;
   });
-  if(!huboCambios){ closeM(); return; }
+  if(huboReemplazos) rebuildTramo(ti);   // recalcular ANTES de leer posiciones actuales, para que reflejen los reemplazos recién aplicados
+
+  const actualesTrasReemplazo=_consSlotsActuales(tr).filter(Boolean);
+  const asignaciones=[];
+  actuales.forEach(nombreOriginalEnModal=>{
+    // El select de posición se armó con los IDs de ANTES de los
+    // reemplazos (actuales, el parámetro recibido) — si ese jugador ya no
+    // está presente (fue reemplazado o sacado en este mismo guardado), su
+    // selector de posición ya no aplica a nadie real.
+    if(!actualesTrasReemplazo.includes(nombreOriginalEnModal)) return;
+    const sel=document.getElementById('po-cons-pos-'+jsq(nombreOriginalEnModal));
+    if(!sel)return;
+    const v=sel.value;
+    if(!v)return;
+    asignaciones.push({jugador:nombreOriginalEnModal,destino:v});
+  });
+  let huboPosiciones=false;
+  if(asignaciones.length){
+    const label=tr.label;
+    const prefix=ti+'c#';
+    const hayResultados=Object.keys(playoff.results||{}).some(k=>k.startsWith(prefix));
+    if(hayResultados){
+      if(confirm(tf('po_reorder_confirm',{l:label}))){
+        Object.keys(playoff.results).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
+        const slotsFinal=_resolverAsignacionesCons(tr,asignaciones);
+        tr.consOverrides._order=slotsFinal;
+        huboPosiciones=true;
+      }
+    }else{
+      const slotsFinal=_resolverAsignacionesCons(tr,asignaciones);
+      tr.consOverrides._order=slotsFinal;
+      huboPosiciones=true;
+    }
+  }
+  if(!huboReemplazos && !huboPosiciones){ closeM(); return; }
   rebuildTramo(ti);
   showPlayoffView();
   closeM();
