@@ -988,21 +988,28 @@ function rebuildTramo(t){
   // Reordenamiento manual: si hay un '_order' guardado, se usa ese orden
   // en vez del orden "natural" (el de aparición de los perdedores). '_order'
   // es un array de SLOTS (incluye null en las posiciones BYE, tamaño fijo
-  // = tamaño del cuadro) — no una lista simple de nombres. Se reconcilia
-  // con el conjunto real de `losers` en ambos sentidos: un nombre de
-  // '_order' que ya no está en `losers` (por ejemplo, si el cuadro
-  // principal cambió y ese jugador ya no perdió primera ronda) se
-  // descarta de su slot (que vuelve a null), y cualquier jugador de
-  // `losers` que todavía no esté en ningún slot de '_order' (por ejemplo,
-  // recién llegó vía un reemplazo nuevo) se coloca en el primer slot
-  // vacío disponible — así el reordenamiento nunca "pierde" ni "inventa"
-  // jugadores, y los BYE existentes se mantienen en su lugar salvo que el
-  // admin los haya movido explícitamente.
+  // = tamaño del cuadro EN EL MOMENTO en que se guardó) — no una lista
+  // simple de nombres. Se reconcilia con el conjunto real de `losers` en
+  // varios sentidos:
+  //   - un nombre de '_order' que ya no está en `losers` (por ejemplo, si
+  //     el cuadro principal cambió y ese jugador ya no perdió primera
+  //     ronda) se descarta de su slot (que vuelve a null);
+  //   - cualquier jugador de `losers` que todavía no esté en ningún slot
+  //     de '_order' (por ejemplo, recién llegó vía un reemplazo nuevo) se
+  //     coloca en el primer slot vacío disponible;
+  //   - el TAMAÑO del array se ajusta al tamaño natural correcto para la
+  //     cantidad ACTUAL de jugadores reales — sin este ajuste, si en algún
+  //     momento hubo más jugadores en consolación (ej. 11, cuadro de 16) y
+  //     ahora hay menos (ej. 8, cuadro natural de 8), el `_order` viejo
+  //     seguía teniendo 16 posiciones con 8 huecos de más, que terminaban
+  //     emparejándose entre sí como "BYE vs BYE" — un cruce vacío, sin
+  //     ningún jugador de ningún lado, que se veía como un partido roto en
+  //     el cuadro.
   let tieneOrderManual=false;
   if(Array.isArray(ov._order) && ov._order.length){
     tieneOrderManual=true;
     const enLosers = new Set(losers);
-    const slots = ov._order.map(n => (n && enLosers.has(n)) ? n : null);
+    let slots = ov._order.map(n => (n && enLosers.has(n)) ? n : null);
     const colocados = new Set(slots.filter(Boolean));
     losers.forEach(n => {
       if(colocados.has(n)) return;
@@ -1010,6 +1017,19 @@ function rebuildTramo(t){
       if(libre>=0){ slots[libre]=n; colocados.add(n); }
       else slots.push(n);   // no debería pasar (el array ya cubre todo el cuadro), red de seguridad
     });
+    // Ajuste de tamaño: si el array (con los BYE de más) es más grande que
+    // el cuadro natural que corresponde a la cantidad real de jugadores,
+    // se recorta — se van sacando huecos (null) de a uno, de atrás hacia
+    // adelante, hasta llegar al tamaño correcto. Nunca se saca un jugador
+    // real, solo huecos sobrantes.
+    let tamañoNatural=1;
+    while(tamañoNatural<losers.length) tamañoNatural*=2;
+    if(tamañoNatural<2) tamañoNatural=2;
+    while(slots.length>tamañoNatural){
+      const idxHueco=slots.lastIndexOf(null);
+      if(idxHueco<0) break;   // no debería pasar: si no hay huecos, el array ya es del tamaño justo de jugadores reales
+      slots.splice(idxHueco,1);
+    }
     losers = slots;   // incluye null: buildRounds ya sabe tratarlos como BYE
   }
   // ignorarForcedSize=true: consolación SIEMPRE calcula su propio tamaño
