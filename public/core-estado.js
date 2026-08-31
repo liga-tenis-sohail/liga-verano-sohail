@@ -837,9 +837,21 @@ function refreshAll(){
 function splitTramos(qual,T){const n=qual.length;const base=Math.floor(n/T);const extra=n%T;const out=[];let idx=0;for(let t=0;t<T;t++){// extra players go to LAST brackets (D,C,B...) not first
 const size=base+(t>=(T-extra)?1:0);out.push(qual.slice(idx,idx+size));idx+=size;}return out;}
 function seedOrder(n){if(n===1)return[0];const prev=seedOrder(n/2);const res=[];prev.forEach(p=>{res.push(p);res.push(n-1-p);});return res;}
-function buildRounds(seeds){
+// ignorarForcedSize: cuando es true, NO usa playoff.forcedSize aunque esté
+// seteado — siempre calcula el tamaño mínimo natural para la cantidad de
+// `seeds` recibida. Se usa para el cuadro de CONSOLACIÓN (ver rebuildTramo
+// más abajo): forcedSize es un ajuste manual pensado para el cuadro
+// PRINCIPAL (donde el admin puede querer forzar, por ejemplo, un tamaño
+// más grande del que haría falta por algún motivo puntual), pero antes
+// consolación heredaba ciegamente ese mismo tamaño — si el principal tenía
+// forcedSize:32 porque hacían falta esos 32 slots para 25-28 jugadores
+// reales, consolación (con solo 5-10 perdedores de primera ronda) también
+// se armaba en un cuadro de 32, lleno de rondas enteras que eran BYE de
+// punta a punta (por ejemplo, "16avos" completos sin un solo partido real)
+// antes de llegar a donde efectivamente empezaban a jugar.
+function buildRounds(seeds,ignorarForcedSize){
   let size=1;
-  if(playoff.forcedSize && playoff.forcedSize>=2) {
+  if(!ignorarForcedSize && playoff.forcedSize && playoff.forcedSize>=2) {
     size = playoff.forcedSize;
   } else {
     while(size<seeds.length) size*=2;
@@ -868,6 +880,25 @@ function propagate(r){for(let ri=0;ri<r.length-1;ri++){const nx=r[ri+1];r[ri].fo
   // Antes se propagaba solo el nombre (m.w) y el sid quedaba vacío ('') en rondas siguientes.
   const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
   if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
+  // Auto-avance en cascada: un slot recién completado por propagación puede
+  // quedar con UN solo lado presente (el otro lado del cruce, en la misma
+  // ronda destino, todavía no se resolvió — por ejemplo porque viene de un
+  // cruce "BYE vs BYE" de la ronda anterior, que deja w:null y por lo tanto
+  // ese lado sigue vacío). Sin este paso, ese jugador quedaba esperando
+  // para siempre a un rival BYE que nunca iba a llegar — el partido se veía
+  // "trabado" en el cuadro, sin poder cargar resultado ni avanzar. Se repite
+  // la MISMA regla de auto-avance que ya se aplica en la ronda 0
+  // (buildRounds): si un lado tiene jugador y el otro no, ese gana solo.
+  // El chequeo `!sl.w` es importante: applyStored() llama a propagate()
+  // varias veces seguidas (una vez por ronda, para ir empujando resultados
+  // cargados manualmente) — sin este chequeo, un slot que YA tiene un
+  // ganador real (de un resultado jugado y confirmado) podría pisarse en
+  // una pasada posterior si, en ese momento intermedio, el otro lado
+  // todavía no había llegado.
+  if(!sl.w){
+    if(sl.a&&!sl.b)sl.w=sl.a;
+    else if(sl.b&&!sl.a)sl.w=sl.b;
+  }
 });}}
 function applyStored(key,r){for(let p=0;p<r.length+1;p++){r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));propagate(r);}}
 function loserOf(m){return m.w&&m.a&&m.b?(m.w===m.a?m.b:m.a):null;}
@@ -911,7 +942,14 @@ function rebuildTramo(t){
     losers.forEach(n => { if(!ordenados.includes(n)) ordenados.push(n); });
     losers = ordenados;
   }
-  tr.cons=losers.length>=2?buildRounds(losers):null;
+  // ignorarForcedSize=true: consolación SIEMPRE calcula su propio tamaño
+  // natural según su cantidad real de jugadores (losers.length), sin
+  // heredar el forcedSize que el admin pudo haber fijado para el cuadro
+  // PRINCIPAL. Antes, si el principal necesitaba forcedSize:32 (por su
+  // propia cantidad de jugadores), consolación se armaba también en 32
+  // aunque tuviera 5-10 jugadores — un cuadro con rondas enteras de puro
+  // BYE antes de llegar a donde realmente arrancaban los partidos.
+  tr.cons=losers.length>=2?buildRounds(losers,true):null;
   if(tr.cons){
     // Al armar la consolación, buildRounds() calculó sids en base al orden
     // del array `losers`. Los sobrescribimos con el seed ORIGINAL de cada
