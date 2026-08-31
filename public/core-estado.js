@@ -876,19 +876,40 @@ function rebuildTramo(t){
   const tr=playoff.tramos[t];if(!tr)return;
   tr.main=buildRounds(tr.seeds);applyStored(t,tr.main);
   let losers=tr.main[0].map(loserOf).filter(Boolean);
-  // consOverrides: reemplazos manuales del admin en el cuadro de
-  // consolación ({nombrePerdedorOriginal: nombreReemplazo}). Se aplican
-  // DESPUÉS de calcular quién perdió realmente la primera ronda (así el
-  // admin sigue viendo el bracket principal reflejar la realidad de los
-  // partidos), pero ANTES de armar el bracket de consolación — el
-  // reemplazo entra a jugar consolación en el lugar del perdedor original.
+  // consOverrides: personalización manual del admin sobre la consolación.
+  // Dos cosas distintas conviven en el mismo objeto:
+  //   - Reemplazos de jugador: {nombrePerdedorOriginal: nombreReemplazo}.
+  //     Se aplican DESPUÉS de calcular quién perdió realmente la primera
+  //     ronda (así el cuadro principal sigue reflejando la realidad de los
+  //     partidos), pero ANTES de armar el bracket de consolación.
+  //   - '_order': array explícito con el ORDEN final de esos jugadores
+  //     (después de los reemplazos) — permite mover a alguien de llave
+  //     dentro de consolación sin cambiar quién participa, algo que los
+  //     reemplazos por sí solos no cubren. Es una clave reservada, nunca
+  //     puede coincidir con un nombre de jugador real.
   // rebuildTramo() se llama constantemente (cada resultado cargado, cada
-  // seed movido, etc.), así que sin este paso separado y persistente
-  // (tr.consOverrides vive en el state, se guarda con persist()) cualquier
-  // ajuste manual se perdía en el próximo recálculo automático.
-  if(tr.consOverrides && Object.keys(tr.consOverrides).length){
-    losers = losers.map(n => (tr.consOverrides[n] !== undefined) ? tr.consOverrides[n] : n)
+  // seed movido, etc.), así que sin que esto viva en tr.consOverrides
+  // (persistido con persist()) cualquier ajuste manual se perdía en el
+  // próximo recálculo automático.
+  const ov = tr.consOverrides || {};
+  const reemplazos = Object.keys(ov).filter(k=>k!=='_order');
+  if(reemplazos.length){
+    losers = losers.map(n => (ov[n] !== undefined) ? ov[n] : n)
                     .filter(n => n !== null);   // null = "sacar sin reemplazo"
+  }
+  // Reordenamiento manual: si hay un '_order' guardado, se usa ese orden
+  // en vez del orden "natural" (el de aparición de los perdedores). Se
+  // reconcilia con el conjunto real de `losers` en ambos sentidos: un
+  // nombre de '_order' que ya no está en `losers` (por ejemplo, si el
+  // cuadro principal cambió y ese jugador ya no perdió primera ronda) se
+  // descarta, y cualquier jugador de `losers` que todavía no esté en
+  // '_order' (por ejemplo, recién llegó vía un reemplazo nuevo) se agrega
+  // al final — así el reordenamiento nunca "pierde" ni "inventa" jugadores.
+  if(Array.isArray(ov._order) && ov._order.length){
+    const enLosers = new Set(losers);
+    const ordenados = ov._order.filter(n => enLosers.has(n));
+    losers.forEach(n => { if(!ordenados.includes(n)) ordenados.push(n); });
+    losers = ordenados;
   }
   tr.cons=losers.length>=2?buildRounds(losers):null;
   if(tr.cons){
