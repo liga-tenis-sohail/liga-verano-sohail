@@ -120,189 +120,6 @@ function _mainSlotsActuales(tr){
   if(tr.main) tr.main[0].forEach(m=>{ slots.push(m.a); slots.push(m.b); });
   return slots;
 }
-function _swapMainOrder(ti,i,j){
-  const tr=playoff.tramos[ti];
-  if(!tr||!tr.main)return false;
-  const slots=_mainSlotsActuales(tr);
-  if(i<0||j<0||i>=slots.length||j>=slots.length)return false;
-  const label=tr.label;
-  // Antes esto chequeaba "¿hay ALGÚN resultado en TODO el cuadro?" y, de
-  // ser así, borraba TODOS los resultados del cuadro entero — así que
-  // mover a alguien en una rama sin jugar todavía disparaba una
-  // advertencia y un borrado masivo por partidos de OTRA rama completamente
-  // ajena al movimiento, ya jugados y confirmados. Ahora solo se chequean
-  // los DOS jugadores directamente involucrados en este swap puntual (los
-  // que van a intercambiar posición): si ninguno de los dos jugó todavía
-  // en este cuadro, el movimiento es gratis, sin ninguna advertencia.
-  const involucrados=[slots[i],slots[j]].filter(Boolean);
-  const conResultado=_poJugadoresConResultado(String(ti),involucrados);
-  if(conResultado.length){
-    if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
-    _poClearResultadosDe(String(ti),conResultado);
-  }
-  const tmp=slots[i];slots[i]=slots[j];slots[j]=tmp;
-  tr.mainOrder=slots;
-  rebuildTramo(ti);
-  return true;
-}
-function moveMainUpUI(ti,name){
-  const tr=playoff.tramos[ti];if(!tr||!tr.main)return;
-  const slots=_mainSlotsActuales(tr);
-  const idx=slots.indexOf(name);
-  if(idx<=0)return;
-  if(_swapMainOrder(ti,idx,idx-1)){
-    showPlayoffView();
-    editMainOrderUI(ti);
-    toast(tf('po_reorder_ok',{n:name}));
-    persist(true);
-  }
-}
-function moveMainDownUI(ti,name){
-  const tr=playoff.tramos[ti];if(!tr||!tr.main)return;
-  const slots=_mainSlotsActuales(tr);
-  const idx=slots.indexOf(name);
-  if(idx<0||idx>=slots.length-1)return;
-  if(_swapMainOrder(ti,idx,idx+1)){
-    showPlayoffView();
-    editMainOrderUI(ti);
-    toast(tf('po_reorder_ok',{n:name}));
-    persist(true);
-  }
-}
-// "Compañero de partido" de la posición k: 0<->1, 2<->3, 4<->5... (cada
-// partido de primera ronda ocupa 2 posiciones consecutivas, ver
-// _mainSlotsActuales). Necesario para "elegir rival": mover a alguien a
-// jugar contra un jugador específico significa llevarlo exactamente a
-// esta posición.
-function _posCompañera(k){ return k%2===0 ? k+1 : k-1; }
-// Aplica en un solo paso todas las asignaciones directas elegidas en el
-// modal (BYE o rival específico) — a diferencia de _swapMainOrder (un
-// intercambio simple entre 2 posiciones), acá puede haber VARIAS
-// asignaciones pedidas a la vez, algunas de las cuales se pisan entre sí
-// si se procesaran una por una (mover A a la posición de B, y después
-// mover C a esa misma posición, dejaría a A sin lugar). Se resuelven
-// todas juntas armando el array final de una sola vez.
-//
-// asignaciones: [{jugador, destino}], donde destino es 'bye' o el nombre
-// de otro jugador del cuadro (con quien debe terminar emparejado).
-function _resolverAsignacionesMain(tr,asignaciones){
-  const slots=_mainSlotsActuales(tr).slice();
-  asignaciones.forEach(({jugador,destino})=>{
-    const idxJugador=slots.indexOf(jugador);
-    if(idxJugador<0)return;   // ya no está en el cuadro (se movió con una asignación anterior de este mismo lote)
-    if(destino==='bye'){
-      // Llevar un BYE a la posición COMPAÑERA de este jugador (no a
-      // cualquier posición BYE del cuadro): así es EL JUGADOR quien queda
-      // con BYE, no otro. Se busca cualquier BYE disponible en el resto
-      // del cuadro y se intercambia con quien hoy ocupa la posición
-      // compañera (si hay alguien ahí) — ese rival "libera" el lugar
-      // movíendose a donde estaba el BYE.
-      const idxCompañera=_posCompañera(idxJugador);
-      if(slots[idxCompañera]===null) return;   // ya tiene BYE, nada que hacer
-      const idxBye=slots.indexOf(null);
-      if(idxBye<0) return;   // no hay ningún BYE disponible en el cuadro
-      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxBye];slots[idxBye]=tmp;
-    }else{
-      // Buscar al rival elegido y llevarlo a la posición COMPAÑERA de este
-      // jugador (así terminan enfrentados en el mismo partido de primera
-      // ronda). Si el rival ya se movió por una asignación anterior en
-      // este mismo lote, se lo busca en su posición actual.
-      const idxRival=slots.indexOf(destino);
-      if(idxRival<0)return;
-      const idxCompañera=_posCompañera(idxJugador);
-      if(idxRival===idxCompañera)return;   // ya están enfrentados
-      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxRival];slots[idxRival]=tmp;
-    }
-  });
-  return slots;
-}
-function saveMainPositions(ti){
-  const tr=playoff.tramos[ti];if(!tr||!tr.main)return;
-  const slotsActuales=_mainSlotsActuales(tr);
-  const actuales=slotsActuales.filter(Boolean);
-  const asignaciones=[];
-  actuales.forEach(n=>{
-    const sel=document.getElementById('po-main-dest-'+jsq(n));
-    if(!sel)return;
-    const v=sel.value;
-    if(!v)return;   // "mantener" — sin cambios para este jugador
-    asignaciones.push({jugador:n,destino:v});
-  });
-  if(!asignaciones.length){ closeM(); return; }
-  const label=tr.label;
-  // Solo se chequean/borran resultados de los jugadores efectivamente
-  // mencionados en las asignaciones de este guardado (el que se mueve, y
-  // el rival elegido si corresponde) — no todo el cuadro. Ver el
-  // comentario largo en _swapMainOrder sobre por qué esto importa.
-  const involucrados=[];
-  asignaciones.forEach(a=>{ involucrados.push(a.jugador); if(a.destino!=='bye') involucrados.push(a.destino); });
-  const conResultado=_poJugadoresConResultado(String(ti),involucrados);
-  if(conResultado.length){
-    if(!confirm(tf('po_reorder_confirm',{l:label}))) return;
-    _poClearResultadosDe(String(ti),conResultado);
-  }
-  const slotsFinal=_resolverAsignacionesMain(tr,asignaciones);
-  tr.mainOrder=slotsFinal;
-  rebuildTramo(ti);
-  showPlayoffView();
-  closeM();
-  toast(t('po_main_positions_saved'));
-  persist(true);
-}
-function editMainOrderUI(ti,focoEnJugador){
-  if(!esAdmin(currentUser))return;
-  const tr=playoff.tramos[ti];
-  if(!tr||!tr.main)return;
-  const slots=_mainSlotsActuales(tr);
-  const actuales=slots.filter(Boolean);
-  if(!actuales.length)return;
-  const hayBye=slots.includes(null);
-  document.getElementById('modal-title').textContent = tf('po_main_edit_title',{l:tr.label});
-  const rowsHtml = actuales.map((n,idx)=>{
-    const isFirst=idx===0, isLast=idx===actuales.length-1;
-    const moveBtns = `<button class="mv" onclick="moveMainUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveMainDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
-    // Selector directo: BYE (solo si hay alguno disponible en el cuadro) +
-    // un "jugar contra X" por cada otro jugador real del cuadro. Esto es
-    // lo que permite elegir DIRECTAMENTE quién tiene BYE y quién juega con
-    // quién, sin tener que ir subiendo/bajando de a un paso hasta llegar
-    // a la posición deseada.
-    const opcionBye = hayBye ? `<option value="bye">${attr(t('po_main_give_bye'))}</option>` : '';
-    const opcionesRivales = actuales.filter(o=>o!==n).map(o=>`<option value="${attr(o)}">${attr(tf('po_main_play_vs',{n:o}))}</option>`).join('');
-    // Si se abrió el modal desde el lápiz de un jugador puntual (foco),
-    // esta fila se marca para hacerle scroll + resaltado apenas se pinta
-    // el modal — así el admin la ve de inmediato sin buscar en la lista.
-    const esFoco = focoEnJugador && n===focoEnJugador;
-    return `<div class="form-row ${esFoco?'po-pos-foco':''}" id="${esFoco?'po-main-row-foco':''}" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
-      <div>${attr(n)}</div>
-      <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
-    </div>
-    <div style="margin:-.25rem 0 .5rem 0">
-      <select id="po-main-dest-${jsq(n)}" style="font-size:12px;padding:4px 6px;width:100%">
-        <option value="">${attr(t('po_cons_keep'))}</option>
-        ${opcionBye}
-        ${opcionesRivales}
-      </select>
-    </div>`;
-  }).join('');
-  document.getElementById('modal-body').innerHTML = `
-    <p class="legend-txt" style="margin-top:0">${t('po_main_edit_hint')}</p>
-    ${rowsHtml}`;
-  document.getElementById('modal-actions').innerHTML = `
-    <button class="btn btn-primary" onclick="saveMainPositions(${ti})"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
-    <button class="btn" onclick="closeM()">${t('close')}</button>`;
-  document.getElementById('modal-bg').classList.add('open');
-  if(focoEnJugador){
-    // scrollIntoView tras el reflow del modal recién abierto (setTimeout
-    // corto): apunta directo al selector de este jugador, sin que el
-    // admin tenga que buscarlo en la lista completa.
-    setTimeout(()=>{
-      const el=document.getElementById('po-main-row-foco');
-      if(el) el.scrollIntoView({block:'center',behavior:'smooth'});
-      const sel=document.getElementById('po-main-dest-'+jsq(focoEnJugador));
-      if(sel) sel.focus();
-    },80);
-  }
-}
 function clearMainOrderUI(ti){
   const tr=playoff.tramos[ti];if(!tr)return;
   if(!tr.mainOrder || !tr.mainOrder.length){toast(t('po_cons_none_to_clear'));return;}
@@ -327,30 +144,6 @@ function clearMainOrderUI(ti){
 // la consolación (lesión, viaje, etc.) y el admin quiere que otra persona
 // ocupe ese lugar — o directamente sacarlo sin reemplazo si el cuadro de
 // consolación queda con número impar.
-function _resolverAsignacionesCons(tr,asignaciones){
-  const slots=_consSlotsActuales(tr).slice();
-  asignaciones.forEach(({jugador,destino})=>{
-    const idxJugador=slots.indexOf(jugador);
-    if(idxJugador<0)return;
-    if(destino==='bye'){
-      // Mismo criterio que _resolverAsignacionesMain: el BYE tiene que ir
-      // a la posición COMPAÑERA del jugador elegido (no a cualquier BYE
-      // del cuadro) para que sea EL efectivamente quien queda sin rival.
-      const idxCompañera=_posCompañera(idxJugador);
-      if(slots[idxCompañera]===null) return;
-      const idxBye=slots.indexOf(null);
-      if(idxBye<0) return;
-      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxBye];slots[idxBye]=tmp;
-    }else{
-      const idxRival=slots.indexOf(destino);
-      if(idxRival<0)return;
-      const idxCompañera=_posCompañera(idxJugador);
-      if(idxRival===idxCompañera)return;
-      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxRival];slots[idxRival]=tmp;
-    }
-  });
-  return slots;
-}
 function editConsOverrideUI(ti,focoEnJugador){
   if(!esAdmin(currentUser))return;
   const tr=playoff.tramos[ti];
@@ -372,48 +165,31 @@ function editConsOverrideUI(ti,focoEnJugador){
   // Ordenado alfabéticamente ('es' para que las tildes ordenen bien),
   // igual que el resto de los selectores de jugadores del proyecto.
   const disponibles=tr.seeds.filter(n=>!actuales.includes(n)).slice().sort((a,b)=>a.localeCompare(b,'es'));
-  const hayBye=_consSlotsActuales(tr).includes(null);
   document.getElementById('modal-title').textContent = tf('po_cons_edit_title',{l:tr.label});
-  const rowsHtml = actuales.map((n,idx)=>{
+  // Este modal ahora es SOLO para reemplazos (traer a alguien de afuera de
+  // esta consolación, o sacar a alguien sin reemplazo) — mover DE POSICIÓN
+  // dentro del cuadro ya se hace desde el selector inline de cada tarjeta
+  // (ver _selectorPosicionInline/aplicarPosicionInline), que permite
+  // ubicar a cualquiera en cualquier posición sin la limitación de pares
+  // que tenía este modal antes.
+  const rowsHtml = actuales.map((n)=>{
     // Si n ya es resultado de un override previo, mostramos también quién
     // era el perdedor original entre paréntesis, para que quede claro qué
     // se está reemplazando (y se pueda deshacer con "Restaurar").
     const original = Object.keys(overrides).filter(k=>k!=='_order').find(k=>overrides[k]===n);
     const label = original ? (n+' ('+tf('po_cons_was',{n:original})+')') : n;
-    const isFirst=idx===0, isLast=idx===actuales.length-1;
-    // Botones ↑↓ para mover DE LLAVE dentro de esta misma consolación (sin
-    // cambiar quién participa) — mismo mecanismo y mismo estilo (.mv) que
-    // ya usa el panel de seeds del cuadro principal.
-    const moveBtns = `<button class="mv" onclick="moveConsUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveConsDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
-    // Selector de POSICIÓN (BYE directo / rival puntual dentro de ESTA
-    // consolación) — mismo mecanismo que el modal del cuadro principal
-    // (editMainOrderUI), acotado únicamente a los jugadores que ya
-    // participan de esta consolación específica (actuales), nunca de todo
-    // el cuadro principal ni del catálogo completo de la liga.
-    const opcionBye = hayBye ? `<option value="bye">${attr(t('po_main_give_bye'))}</option>` : '';
-    const opcionesRivales = actuales.filter(o=>o!==n).map(o=>`<option value="${attr(o)}">${attr(tf('po_main_play_vs',{n:o}))}</option>`).join('');
     const esFoco = focoEnJugador && n===focoEnJugador;
-    return `<div class="form-row ${esFoco?'po-pos-foco':''}" id="${esFoco?'po-cons-row-foco':''}" style="grid-template-columns:1fr auto auto;align-items:center;margin-bottom:.4rem;gap:6px">
+    return `<div class="form-row ${esFoco?'po-pos-foco':''}" id="${esFoco?'po-cons-row-foco':''}" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(label)}</div>
-      <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
-      <div style="display:flex;gap:4px">
-        <select id="po-cons-repl-${jsq(n)}" style="font-size:12px;padding:4px 6px">
-          <option value="">${attr(t('po_cons_keep'))}</option>
-          <option value="__remove__">${attr(t('po_cons_remove'))}</option>
-          ${disponibles.map(d=>`<option value="${attr(d)}">${attr(d)}</option>`).join('')}
-        </select>
-      </div>
-    </div>
-    <div style="margin:-.25rem 0 .5rem 0">
-      <select id="po-cons-pos-${jsq(n)}" style="font-size:12px;padding:4px 6px;width:100%">
+      <select id="po-cons-repl-${jsq(n)}" style="font-size:12px;padding:4px 6px">
         <option value="">${attr(t('po_cons_keep'))}</option>
-        ${opcionBye}
-        ${opcionesRivales}
+        <option value="__remove__">${attr(t('po_cons_remove'))}</option>
+        ${disponibles.map(d=>`<option value="${attr(d)}">${attr(d)}</option>`).join('')}
       </select>
     </div>`;
   }).join('');
   document.getElementById('modal-body').innerHTML = `
-    <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')} ${t('po_main_edit_hint')}</p>
+    <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')}</p>
     ${rowsHtml}`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn btn-primary" onclick="saveConsOverridesYPosiciones(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
@@ -432,6 +208,10 @@ function editConsOverrideUI(ti,focoEnJugador){
 // un solo click — los reemplazos se resuelven PRIMERO (pueden cambiar
 // quién está presente en la consolación), y recién después se calculan
 // las posiciones sobre el conjunto de jugadores ya actualizado.
+// Aplica los reemplazos elegidos en el modal de consolación. Ya no maneja
+// posiciones (eso se saca del selector inline de cada tarjeta) — solo
+// reemplazo de jugador: traer a alguien de afuera de esta consolación, o
+// sacar a alguien sin reemplazo.
 function saveConsOverridesYPosiciones(ti, actuales){
   const tr=playoff.tramos[ti];if(!tr)return;
   if(!tr.consOverrides) tr.consOverrides={};
@@ -445,45 +225,7 @@ function saveConsOverridesYPosiciones(ti, actuales){
     tr.consOverrides[original] = (v==='__remove__') ? null : v;
     huboReemplazos=true;
   });
-  if(huboReemplazos) rebuildTramo(ti);   // recalcular ANTES de leer posiciones actuales, para que reflejen los reemplazos recién aplicados
-
-  const actualesTrasReemplazo=_consSlotsActuales(tr).filter(Boolean);
-  const asignaciones=[];
-  actuales.forEach(nombreOriginalEnModal=>{
-    // El select de posición se armó con los IDs de ANTES de los
-    // reemplazos (actuales, el parámetro recibido) — si ese jugador ya no
-    // está presente (fue reemplazado o sacado en este mismo guardado), su
-    // selector de posición ya no aplica a nadie real.
-    if(!actualesTrasReemplazo.includes(nombreOriginalEnModal)) return;
-    const sel=document.getElementById('po-cons-pos-'+jsq(nombreOriginalEnModal));
-    if(!sel)return;
-    const v=sel.value;
-    if(!v)return;
-    asignaciones.push({jugador:nombreOriginalEnModal,destino:v});
-  });
-  let huboPosiciones=false;
-  if(asignaciones.length){
-    const label=tr.label;
-    // Solo se chequean/borran resultados de los jugadores efectivamente
-    // mencionados en estas asignaciones — mismo criterio que
-    // saveMainPositions (ver su comentario largo).
-    const involucrados=[];
-    asignaciones.forEach(a=>{ involucrados.push(a.jugador); if(a.destino!=='bye') involucrados.push(a.destino); });
-    const conResultado=_poJugadoresConResultado(ti+'c',involucrados);
-    if(conResultado.length){
-      if(confirm(tf('po_reorder_confirm',{l:label}))){
-        _poClearResultadosDe(ti+'c',conResultado);
-        const slotsFinal=_resolverAsignacionesCons(tr,asignaciones);
-        tr.consOverrides._order=slotsFinal;
-        huboPosiciones=true;
-      }
-    }else{
-      const slotsFinal=_resolverAsignacionesCons(tr,asignaciones);
-      tr.consOverrides._order=slotsFinal;
-      huboPosiciones=true;
-    }
-  }
-  if(!huboReemplazos && !huboPosiciones){ closeM(); return; }
+  if(!huboReemplazos){ closeM(); return; }
   rebuildTramo(ti);
   showPlayoffView();
   closeM();
@@ -503,14 +245,6 @@ function clearConsOverridesUI(ti){
   persist(true);
 }
 
-// ===== Mover jugadores DE LLAVE dentro de consolación (sin cambiar quién
-// participa, solo contra quién juega cada uno en primera ronda) =====
-// Mismo mecanismo que moveSeedUpUI/moveSeedDownUI del cuadro principal
-// (intercambiar posiciones adyacentes en el array de orden), pero acá el
-// array de orden es tr.consOverrides._order — una clave reservada que
-// nunca puede coincidir con un nombre de jugador real (ver rebuildTramo en
-// core-estado.js, que la lee y reconcilia con los perdedores reales en
-// cada recálculo).
 // Devuelve el array de POSICIONES del cuadro tal como está ahora (incluye
 // null en los BYE) — no solo los nombres. Es importante preservar los null
 // en su lugar: si se "aplanaran" (como hacía la versión anterior de esta
@@ -524,159 +258,76 @@ function _consSlotsActuales(tr){
   if(tr.cons) tr.cons[0].forEach(m=>{ slots.push(m.a); slots.push(m.b); });
   return slots;
 }
-function _swapConsOrder(ti,i,j){
-  const tr=playoff.tramos[ti];
-  if(!tr||!tr.cons)return false;
-  const slots=_consSlotsActuales(tr);
-  if(i<0||j<0||i>=slots.length||j>=slots.length)return false;
-  // Antes esto bloqueaba el swap si alguna de las dos posiciones era un
-  // BYE (null) — pero eso significaba que un jugador nunca podía moverse
-  // a un lugar donde antes había BYE, ni un BYE podía "moverse" a otro
-  // lugar del cuadro: el admin quedaba atado a reordenar solo entre
-  // jugadores reales, sin poder tocar dónde caían los BYE. Ahora se
-  // permite intercambiar con una posición BYE: eso efectivamente MUEVE el
-  // BYE de lugar (el jugador pasa a tener BYE, y el BYE "libera" la
-  // posición donde antes estaba el jugador) — la cantidad TOTAL de BYE en
-  // el cuadro nunca cambia con este swap, solo su ubicación.
-  const label=tr.label;
-  // Solo se chequean/borran resultados de los DOS jugadores directamente
-  // involucrados en este swap puntual, no toda la consolación — mismo
-  // criterio que _swapMainOrder (ver su comentario largo).
-  const involucrados=[slots[i],slots[j]].filter(Boolean);
-  const conResultado=_poJugadoresConResultado(ti+'c',involucrados);
-  if(conResultado.length){
-    if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
-    _poClearResultadosDe(ti+'c',conResultado);
-  }
-  const tmp=slots[i];slots[i]=slots[j];slots[j]=tmp;
-  if(!tr.consOverrides) tr.consOverrides={};
-  // Se guarda el array COMPLETO de slots (con null incluidos) — ver el
-  // comentario grande en core-estado.js (rebuildTramo/buildRounds) sobre
-  // por qué esto necesita ser un array posicional de tamaño fijo (el
-  // tamaño del cuadro) y no una lista "solo de nombres".
-  tr.consOverrides._order=slots;
-  rebuildTramo(ti);
-  return true;
-}
-function moveConsUpUI(ti,name){
-  const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
-  const slots=_consSlotsActuales(tr);
-  const idx=slots.indexOf(name);
-  if(idx<=0)return;
-  // Intercambia con el vecino INMEDIATO de arriba, sea jugador o BYE — a
-  // diferencia de antes, ya no se saltean los BYE buscando "el próximo
-  // jugador real": eso impedía que un jugador pudiera moverse a una
-  // posición donde había BYE (y por lo tanto, que el admin pudiera mover
-  // el BYE de lugar). Ahora, si el vecino es BYE, este jugador pasa a
-  // tener BYE ahí — un movimiento más, en la dirección que sea, lo saca
-  // de esa posición si el admin sigue moviéndolo.
-  const destino=idx-1;
-  if(_swapConsOrder(ti,idx,destino)){
-    showPlayoffView();
-    // Re-abrir el modal con el orden ya actualizado: el usuario está
-    // reordenando desde acá y probablemente quiere seguir ajustando sin
-    // tener que cerrar y volver a abrir el modal cada vez.
-    editConsOverrideUI(ti);
-    toast(tf('po_reorder_ok',{n:name}));
-    persist(true);
-  }
-}
-function moveConsDownUI(ti,name){
-  const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
-  const slots=_consSlotsActuales(tr);
-  const idx=slots.indexOf(name);
-  if(idx<0||idx>=slots.length-1)return;
-  // Mismo criterio que moveConsUpUI: intercambia con el vecino inmediato,
-  // sea jugador o BYE, sin saltarlo.
-  const destino=idx+1;
-  if(_swapConsOrder(ti,idx,destino)){
-    showPlayoffView();
-    editConsOverrideUI(ti);
-    toast(tf('po_reorder_ok',{n:name}));
-    persist(true);
-  }
-}
 
 // Arma el <select> inline de posición para UN slot puntual (jugador o BYE)
 // de la primera ronda. idx es la posición absoluta dentro del cuadro
 // (0-based, mismo espacio que _mainSlotsActuales/_consSlotsActuales).
 // nombreActual es el nombre del jugador ahí, o null si es BYE.
+//
+// Libre total: la lista de opciones es TODOS los jugadores del cuadro +
+// BYE, sin ninguna restricción de "con quién queda enfrentado". Elegir
+// cualquier opción simplemente PONE a esa persona (o un BYE) en ESTA
+// posición puntual — el que estaba antes acá se va a donde estaba el
+// elegido. No hay noción de "compañero de partido": el admin decide
+// directamente QUIÉN VA EN QUÉ LLAVE, no contra quién juega cada uno (eso
+// es una consecuencia de dónde quedó cada uno, no una restricción del
+// editor). Antes el selector solo ofrecía "darle BYE" o "jugar contra X"
+// —un intercambio de a pares, siempre preservando el concepto de "rival"—
+// y eso era justamente la limitación: no dejaba poner a un jugador
+// específico en una posición específica del cuadro sin que el sistema
+// decidiera automáticamente quién quedaba de compañero en el otro extremo
+// del par.
 function _selectorPosicionInline(ti,which,idx,nombreActual){
   const tr=playoff.tramos[ti];if(!tr)return'';
   const slots = which==='main' ? _mainSlotsActuales(tr) : _consSlotsActuales(tr);
   if(idx>=slots.length)return'';
-  const otros=slots.filter((n,i)=>i!==idx&&n); // todos los DEMÁS jugadores reales del cuadro
-  const hayByeEnOtroLado = slots.some((n,i)=>i!==idx&&n===null);
   let opciones='<option value="">'+attr(t('po_cons_keep'))+'</option>';
-  if(nombreActual){
-    // Es un jugador: puede pedir BYE (si hay algún hueco en el resto del
-    // cuadro) o intercambiar con cualquier otro jugador real.
-    if(hayByeEnOtroLado) opciones+='<option value="__bye__">'+attr(t('po_main_give_bye'))+'</option>';
-    otros.forEach(o=>{ opciones+='<option value="'+attr(o)+'">'+attr(tf('po_main_play_vs',{n:o}))+'</option>'; });
-  }else{
-    // Es un BYE: solo tiene sentido traer a alguien acá (intercambiar el
-    // BYE con un jugador real de otro lado del cuadro).
-    otros.forEach(o=>{ opciones+='<option value="'+attr(o)+'">'+attr(tf('po_main_bring_here',{n:o}))+'</option>'; });
-  }
+  const hayByeEnOtroLado = slots.some((n,i)=>i!==idx&&n===null);
+  if(nombreActual && hayByeEnOtroLado) opciones+='<option value="__bye__">'+attr(t('po_main_give_bye'))+'</option>';
+  // Lista COMPLETA de jugadores del cuadro (menos este mismo slot) — cada
+  // uno es "poner a X acá", no "jugar contra X".
+  slots.forEach((n,i)=>{
+    if(i===idx || !n) return;
+    opciones+='<option value="'+attr(n)+'">'+attr(tf('po_main_put_here',{n:n}))+'</option>';
+  });
   const selId='po-inline-pos-'+ti+'-'+which+'-'+idx;
   return '<select id="'+selId+'" class="po-pos-inline-sel" onchange="event.stopPropagation();aplicarPosicionInline('+ti+',\''+which+'\','+idx+',\''+jsq(nombreActual||'')+'\',this.value)" onclick="event.stopPropagation()">'+opciones+'</select>';
 }
-// Aplica el cambio elegido en el <select> inline de una tarjeta puntual.
-// A diferencia de _resolverAsignacionesMain/Cons (que ubican al jugador
-// por NOMBRE, pensadas para el modal viejo con lista completa), esto
-// trabaja directamente con el ÍNDICE de posición — necesario porque un
-// slot BYE no tiene ningún nombre de origen para buscar.
-//   - jugador -> BYE: se busca la posición compañera y se intercambia con
-//     cualquier BYE disponible en el resto del cuadro.
-//   - jugador -> "jugar contra X": se intercambia X con la posición
-//     compañera de este jugador.
-//   - BYE -> "traer acá a X": se intercambia X directamente con ESTA
-//     posición (idx), sin pasar por la posición compañera — achica
-//     directamente el hueco acá.
+// Aplica el cambio elegido en el <select> inline de una posición puntual
+// del cuadro. Libre total: simplemente pone al elegido en la posición
+// `idx`, y a quien estaba antes ahí lo manda a donde estaba el elegido —
+// un swap directo por ÍNDICE, sin ninguna noción de "compañero de
+// partido" ni de "con quién queda enfrentado" cada uno. El admin elige
+// literalmente quién ocupa cada casillero del cuadro; contra quién termine
+// jugando cada uno es una consecuencia de esa ubicación, no algo que el
+// editor imponga.
 function aplicarPosicionInline(ti,which,idx,nombreActualCrudo,valor){
   if(!valor)return;
-  const nombreActual = nombreActualCrudo || null;
   const tr=playoff.tramos[ti];if(!tr)return;
   const esMain = which==='main';
   const slots = (esMain ? _mainSlotsActuales(tr) : _consSlotsActuales(tr)).slice();
   const label=tr.label;
-  let idxOrigen, idxDestino;
-  if(nombreActual){
-    idxOrigen=slots.indexOf(nombreActual);
-    if(idxOrigen<0)return;
-    if(valor==='__bye__'){
-      const idxCompañera=_posCompañera(idxOrigen);
-      if(slots[idxCompañera]===null){ toast('Ya tiene BYE.'); return; }
-      const idxBye=slots.indexOf(null);
-      if(idxBye<0){ toast('No hay ningún BYE disponible en este cuadro.'); return; }
-      idxDestino=idxCompañera;
-      const involucrados=[slots[idxCompañera]].filter(Boolean);
-      const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
-      if(conResultado.length && !confirm(tf('po_reorder_confirm',{l:label}))) return;
-      if(conResultado.length) _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
-      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxBye];slots[idxBye]=tmp;
-    }else{
-      const idxRival=slots.indexOf(valor);
-      if(idxRival<0)return;
-      idxDestino=_posCompañera(idxOrigen);
-      if(idxRival===idxDestino)return;
-      const involucrados=[slots[idxDestino],valor].filter(Boolean);
-      const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
-      if(conResultado.length && !confirm(tf('po_reorder_confirm',{l:label}))) return;
-      if(conResultado.length) _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
-      const tmp=slots[idxDestino];slots[idxDestino]=slots[idxRival];slots[idxRival]=tmp;
-    }
+  let idxOrigen; // de dónde viene lo que se pone en `idx`
+  if(valor==='__bye__'){
+    idxOrigen = slots.indexOf(null, 0);
+    // Buscar un BYE que NO sea esta misma posición (evita el caso trivial
+    // de "poner BYE donde ya hay BYE").
+    while(idxOrigen===idx) idxOrigen = slots.indexOf(null, idxOrigen+1);
+    if(idxOrigen<0){ toast('No hay ningún BYE disponible en este cuadro.'); return; }
   }else{
-    // Este slot es BYE: "traer acá a X" — intercambio directo entre esta
-    // posición (idx) y donde esté X ahora.
-    const idxRival=slots.indexOf(valor);
-    if(idxRival<0)return;
-    const involucrados=[valor];
-    const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
-    if(conResultado.length && !confirm(tf('po_reorder_confirm',{l:label}))) return;
-    if(conResultado.length) _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
-    const tmp=slots[idx];slots[idx]=slots[idxRival];slots[idxRival]=tmp;
+    idxOrigen = slots.indexOf(valor);
+    if(idxOrigen<0 || idxOrigen===idx) return;
   }
+  // Chequeo de resultados ya jugados: solo los DOS jugadores/posiciones
+  // directamente involucrados en este swap puntual (el que se mueve, y
+  // quien ocupaba la posición destino) — nunca todo el cuadro entero.
+  const involucrados=[slots[idx],slots[idxOrigen]].filter(Boolean);
+  const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
+  if(conResultado.length){
+    if(!confirm(tf('po_reorder_confirm',{l:label}))) return;
+    _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
+  }
+  const tmp=slots[idx];slots[idx]=slots[idxOrigen];slots[idxOrigen]=tmp;
   if(esMain){ tr.mainOrder=slots; }
   else{ if(!tr.consOverrides) tr.consOverrides={}; tr.consOverrides._order=slots; }
   rebuildTramo(ti);
@@ -950,22 +601,27 @@ function showPlayoffView(){
 
   const finalM=tr.main&&tr.main.length?tr.main[tr.main.length-1][0]:null;
   const hayMainOrder = tr.mainOrder && tr.mainOrder.length;
-  // Botones de edición manual del cuadro principal: solo admin. Distinto
-  // del panel de seeds (que reordena el RANKING de siembra) — esto edita
-  // directamente las posiciones visuales del cuadro, BYE incluidos, con
-  // el mismo mecanismo que ya existe para consolación (ver
-  // editMainOrderUI/moveMainUpUI/moveMainDownUI más abajo).
-  const mainEditBtns = isAdmin
-    ? '<button class="btn btn-sm" style="margin-left:8px" onclick="editMainOrderUI('+ti+')"><i class="ti ti-edit"></i> '+t('po_main_edit_btn')+'</button>'
-      + (hayMainOrder ? '<button class="btn btn-sm" style="margin-left:4px" onclick="clearMainOrderUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>' : '')
+  // El botón "Editar posiciones" (que abría un modal con lista + flechas)
+  // se eliminó: ahora cada tarjeta del cuadro tiene su propio selector
+  // inline (ver _selectorPosicionInline/aplicarPosicionInline) que permite
+  // poner a CUALQUIER jugador en CUALQUIER posición sin ninguna
+  // restricción de "compañero de partido" — el modal viejo, en cambio,
+  // seguía atado a intercambios de a pares. Solo queda "Restaurar", que
+  // sigue siendo útil para deshacer todos los reacomodos manuales de una
+  // vez.
+  const mainEditBtns = (isAdmin && hayMainOrder)
+    ? '<button class="btn btn-sm" style="margin-left:8px" onclick="clearMainOrderUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>'
     : '';
   html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM&&finalM.w?`<div class="champ-card"><div class="lbl">${tf('po_champ',{l:tr.label})}</div><div class="who"><i class="ti ti-crown"></i> <span class="nm-link" onclick="showPlayerHistory('${jsq(finalM.w)}')">${finalM.w}</span></div></div>`:''}</div>`;
   if(tr.cons){
     const cf=tr.cons[tr.cons.length-1][0];
     const hayOverrides = tr.consOverrides && Object.keys(tr.consOverrides).length;
-    // Botones de edición manual de consolación: solo admin. "Editar
-    // jugadores" abre el modal de reemplazos; "Restaurar" solo aparece si
-    // hay algún override activo, para deshacer todo de una vez.
+    // "Editar jugadores" de consolación se mantiene, pero AHORA solo para
+    // REEMPLAZOS (traer a alguien de afuera de esta consolación, o sacar a
+    // alguien sin reemplazo) — la parte de POSICIONES que tenía antes
+    // (flechas ↑↓ + selector con la limitación de pares) se sacó, porque
+    // el selector inline de cada tarjeta ya cubre eso mejor y sin esa
+    // limitación.
     const consEditBtns = isAdmin
       ? '<button class="btn btn-sm" style="margin-left:8px" onclick="editConsOverrideUI('+ti+')"><i class="ti ti-edit"></i> '+t('po_cons_edit_btn')+'</button>'
         + (hayOverrides ? '<button class="btn btn-sm" style="margin-left:4px" onclick="clearConsOverridesUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>' : '')
