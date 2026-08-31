@@ -849,7 +849,19 @@ function seedOrder(n){if(n===1)return[0];const prev=seedOrder(n/2);const res=[];
 // se armaba en un cuadro de 32, lleno de rondas enteras que eran BYE de
 // punta a punta (por ejemplo, "16avos" completos sin un solo partido real)
 // antes de llegar a donde efectivamente empezaban a jugar.
-function buildRounds(seeds,ignorarForcedSize){
+//
+// ordenVisualDirecto: cuando es true, NO aplica seedOrder — `seeds[k]` va
+// directo a la posición visual `k` (de arriba hacia abajo tal cual el
+// admin lo ve en pantalla), sin ningún reordenamiento de siembra. Se usa
+// cuando el admin ya reordenó manualmente la consolación con las flechas
+// ↑↓ (tr.consOverrides._order, ver moveConsUpUI/_swapConsOrder en
+// playoffs.js): ese array YA ES el orden visual final que el admin
+// definió a mano — pasarlo de nuevo por seedOrder (pensado para tomar un
+// RANKING por puntaje y separar a los mejores sembrados en polos
+// opuestos) lo revolvía de nuevo, así que mover UN jugador con las
+// flechas terminaba reordenando visualmente varios más, sin ninguna
+// relación con lo que el admin acababa de hacer.
+function buildRounds(seeds,ignorarForcedSize,ordenVisualDirecto){
   let size=1;
   if(!ignorarForcedSize && playoff.forcedSize && playoff.forcedSize>=2) {
     size = playoff.forcedSize;
@@ -860,7 +872,7 @@ function buildRounds(seeds,ignorarForcedSize){
   let actualSeeds = seeds;
   if(actualSeeds.length > size) actualSeeds = actualSeeds.slice(0, size);
   
-  const order=seedOrder(size);
+  const order=ordenVisualDirecto ? actualSeeds.map((_,i)=>i) : seedOrder(size);
   const slots=new Array(size).fill(null);
   order.forEach((pos,k)=>{slots[k]=actualSeeds[pos]!==undefined?actualSeeds[pos]:null;});
   const rounds=[];let cur=[];
@@ -981,7 +993,9 @@ function rebuildTramo(t){
   // descarta, y cualquier jugador de `losers` que todavía no esté en
   // '_order' (por ejemplo, recién llegó vía un reemplazo nuevo) se agrega
   // al final — así el reordenamiento nunca "pierde" ni "inventa" jugadores.
+  let tieneOrderManual=false;
   if(Array.isArray(ov._order) && ov._order.length){
+    tieneOrderManual=true;
     const enLosers = new Set(losers);
     const ordenados = ov._order.filter(n => enLosers.has(n));
     losers.forEach(n => { if(!ordenados.includes(n)) ordenados.push(n); });
@@ -994,7 +1008,17 @@ function rebuildTramo(t){
   // propia cantidad de jugadores), consolación se armaba también en 32
   // aunque tuviera 5-10 jugadores — un cuadro con rondas enteras de puro
   // BYE antes de llegar a donde realmente arrancaban los partidos.
-  tr.cons=losers.length>=2?buildRounds(losers,true):null;
+  //
+  // ordenVisualDirecto=tieneOrderManual: si el admin YA reordenó a mano
+  // (tr.consOverrides._order existe), ese array ya ES el orden visual
+  // final tal como se ve en pantalla — no hay que volver a pasarlo por
+  // seedOrder (el criterio de siembra automático), que lo revolvía de
+  // nuevo y hacía que mover UN jugador con las flechas terminara
+  // reordenando visualmente varios más. Sin ningún '_order' guardado
+  // todavía, se sigue usando el criterio de siembra normal (mejor
+  // puntuado vs peor puntuado en polos opuestos), como corresponde a un
+  // cuadro recién armado.
+  tr.cons=losers.length>=2?buildRounds(losers,true,tieneOrderManual):null;
   if(tr.cons){
     // Al armar la consolación, buildRounds() calculó sids en base al orden
     // del array `losers`. Los sobrescribimos con el seed ORIGINAL de cada
