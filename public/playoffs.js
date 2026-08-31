@@ -71,6 +71,94 @@ function moveSeedDownUI(ti,name){
 function removeSeedUI(ti,name){removeSeed(ti,name);showPlayoffView();toast(tf('po_seed_removed',{name}));persist(true);}
 function addSeedUI(ti){const sel=document.getElementById('po-add-'+ti);const name=sel?sel.value:'';if(!name){toast(t('po_choose_add'));return;}addSeed(ti,name);showPlayoffView();toast(tf('po_seed_added',{name}));persist(true);}
 
+// ===== Reacomodar posiciones (BYE incluidos) del cuadro PRINCIPAL =====
+// Distinto del panel de seeds (moveSeedUpUI/DownUI, arriba): ese reordena
+// el RANKING de siembra — quién es "mejor sembrado" que quién, lo que
+// indirectamente decide contra quién juega cada uno según el criterio
+// estándar de bisección (seedOrder). Esto de acá edita directamente las
+// POSICIONES VISUALES del cuadro ya armado, incluyendo los BYE: permite
+// mover a un jugador a un lugar donde había BYE (y viceversa, mover el
+// BYE), sin tener que entender ni tocar el ranking de siembra en sí.
+// Mismo mecanismo que ya existe para consolación (tr.consOverrides._order),
+// pero en tr.mainOrder.
+function _mainSlotsActuales(tr){
+  const slots=[];
+  if(tr.main) tr.main[0].forEach(m=>{ slots.push(m.a); slots.push(m.b); });
+  return slots;
+}
+function _swapMainOrder(ti,i,j){
+  const tr=playoff.tramos[ti];
+  if(!tr||!tr.main)return false;
+  const slots=_mainSlotsActuales(tr);
+  if(i<0||j<0||i>=slots.length||j>=slots.length)return false;
+  const label=tr.label;
+  if(_poHasResultsInBracket(ti)){
+    if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
+    _poClearBracketResults(ti);
+  }
+  const tmp=slots[i];slots[i]=slots[j];slots[j]=tmp;
+  tr.mainOrder=slots;
+  rebuildTramo(ti);
+  return true;
+}
+function moveMainUpUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr||!tr.main)return;
+  const slots=_mainSlotsActuales(tr);
+  const idx=slots.indexOf(name);
+  if(idx<=0)return;
+  if(_swapMainOrder(ti,idx,idx-1)){
+    showPlayoffView();
+    editMainOrderUI(ti);
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
+function moveMainDownUI(ti,name){
+  const tr=playoff.tramos[ti];if(!tr||!tr.main)return;
+  const slots=_mainSlotsActuales(tr);
+  const idx=slots.indexOf(name);
+  if(idx<0||idx>=slots.length-1)return;
+  if(_swapMainOrder(ti,idx,idx+1)){
+    showPlayoffView();
+    editMainOrderUI(ti);
+    toast(tf('po_reorder_ok',{n:name}));
+    persist(true);
+  }
+}
+function editMainOrderUI(ti){
+  if(!esAdmin(currentUser))return;
+  const tr=playoff.tramos[ti];
+  if(!tr||!tr.main)return;
+  const slots=_mainSlotsActuales(tr);
+  const actuales=slots.filter(Boolean);
+  if(!actuales.length)return;
+  document.getElementById('modal-title').textContent = tf('po_main_edit_title',{l:tr.label});
+  const rowsHtml = actuales.map((n,idx)=>{
+    const isFirst=idx===0, isLast=idx===actuales.length-1;
+    const moveBtns = `<button class="mv" onclick="moveMainUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveMainDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
+    return `<div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
+      <div>${attr(n)}</div>
+      <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-body').innerHTML = `
+    <p class="legend-txt" style="margin-top:0">${t('po_main_edit_hint')}</p>
+    ${rowsHtml}`;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function clearMainOrderUI(ti){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  if(!tr.mainOrder || !tr.mainOrder.length){toast(t('po_cons_none_to_clear'));return;}
+  if(!confirm(t('po_cons_clear_confirm')))return;
+  tr.mainOrder=null;
+  rebuildTramo(ti);
+  showPlayoffView();
+  toast(t('po_cons_cleared'));
+  persist(true);
+}
+
 // ===== Edición manual del cuadro de CONSOLACIÓN =====
 // A diferencia del cuadro principal (tr.seeds, editable con
 // add/remove/moveSeedUI de arriba), quiénes juegan la consolación se
@@ -516,7 +604,17 @@ function showPlayoffView(){
   }
 
   const finalM=tr.main&&tr.main.length?tr.main[tr.main.length-1][0]:null;
-  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}</div>${bracketHTML(tr.main,ti,'main')}${finalM&&finalM.w?`<div class="champ-card"><div class="lbl">${tf('po_champ',{l:tr.label})}</div><div class="who"><i class="ti ti-crown"></i> <span class="nm-link" onclick="showPlayerHistory('${jsq(finalM.w)}')">${finalM.w}</span></div></div>`:''}</div>`;
+  const hayMainOrder = tr.mainOrder && tr.mainOrder.length;
+  // Botones de edición manual del cuadro principal: solo admin. Distinto
+  // del panel de seeds (que reordena el RANKING de siembra) — esto edita
+  // directamente las posiciones visuales del cuadro, BYE incluidos, con
+  // el mismo mecanismo que ya existe para consolación (ver
+  // editMainOrderUI/moveMainUpUI/moveMainDownUI más abajo).
+  const mainEditBtns = isAdmin
+    ? '<button class="btn btn-sm" style="margin-left:8px" onclick="editMainOrderUI('+ti+')"><i class="ti ti-edit"></i> '+t('po_main_edit_btn')+'</button>'
+      + (hayMainOrder ? '<button class="btn btn-sm" style="margin-left:4px" onclick="clearMainOrderUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>' : '')
+    : '';
+  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM&&finalM.w?`<div class="champ-card"><div class="lbl">${tf('po_champ',{l:tr.label})}</div><div class="who"><i class="ti ti-crown"></i> <span class="nm-link" onclick="showPlayerHistory('${jsq(finalM.w)}')">${finalM.w}</span></div></div>`:''}</div>`;
   if(tr.cons){
     const cf=tr.cons[tr.cons.length-1][0];
     const hayOverrides = tr.consOverrides && Object.keys(tr.consOverrides).length;
