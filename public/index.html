@@ -151,10 +151,20 @@ button.liga-tab{cursor:pointer}
         <input type="number" id="s3b" min="0" max="1" placeholder="0" class="score-inp-lg">
       </div>
       <div style="text-align:center;margin-bottom:.5rem"><span class="set-hint">6-0 a 6-4, 7-5 o 7-6</span><span id="stb-hint" style="display:none"> · solo 1-0 o 0-1</span></div>
+      <!-- Retiro (RET): el partido se jugó parcialmente (0, 1 o 2 sets) y un
+           jugador se retiró antes de terminar. A diferencia de "No jugado",
+           acá SÍ hay sets/games reales que cuentan para el rating — por eso
+           se cargan en los mismos campos de arriba, no se descartan. -->
+      <div id="ret-toggle-wrap" style="text-align:center;margin-bottom:.5rem">
+        <button class="btn btn-sm" id="ret-toggle-btn" onclick="toggleRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5"><i class="ti ti-flag"></i> RET (se retiró un jugador)</button>
+      </div>
+      <div id="ret-panel" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px">
+        <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
+        <select id="ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5"><option value="">— ¿Quién se retiró? —</option></select>
+      </div>
       <div class="gap-sm mt-sm">
         <button class="btn" id="stb-toggle-btn" onclick="toggleSTB()"><i class="ti ti-plus"></i> Supertiebreak (1-1)</button>
         <button class="btn btn-accent" onclick="submitResult()" id="btn-enviar"><i class="ti ti-send"></i> Enviar</button>
-        <button class="btn" onclick="markRetiroUI()" id="btn-retiro" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5"><i class="ti ti-flag"></i> RET</button>
         <button class="btn" onclick="markNotPlayed()" id="btn-nojugado" style="display:none;background:var(--hl);color:var(--priD);border-color:var(--priD)"><i class="ti ti-ban"></i> No jugado</button>
         <button class="btn" onclick="clearForm()" id="btn-limpiar">Limpiar</button>
       </div>

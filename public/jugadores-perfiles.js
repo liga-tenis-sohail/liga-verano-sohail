@@ -390,7 +390,8 @@ function playerHistoryHTML(name){
     const rows=poMs.map(m=>{
       const isA=m.poNames[0]===name,rival=isA?m.poNames[1]:m.poNames[0];
       const mine=(m.sets||[]).map(([a,b])=>isA?[a,b]:[b,a]);
-      const sc=m.wo?'W.O.':mine.map(([a,b])=>a+'-'+b).join('  ');
+      const setsStr=mine.map(([a,b])=>a+'-'+b).join('  ');
+      const sc=m.wo?(setsStr?(setsStr+' RET'):'RET'):setsStr;
       const won=m.winner===name;if(won)g++;else p++;
       const cuadro=m.tLabel?`<span class="badge badge-tag">${m.tLabel}</span>`:'';
       const club=m.club?`<span class="badge" style="${clubStyle(m.club)}">${m.club}</span>`:'';
@@ -500,7 +501,12 @@ function resultadosJugadorEnEstado(name, estado){
       gane = yoA? sgA>sgB : sgB>sgA;
     }
     if(gane)g++;else p++;
-    const marcador = m.wo ? 'W.O.' : sets;
+    // Antes: un retiro reemplazaba TODO el marcador por "W.O.", incluso si
+    // había sets/games reales jugados antes de retirarse. Ahora se muestran
+    // los sets que sí se jugaron (si los hay) y "RET" se agrega como
+    // indicador aparte, no como reemplazo — un retiro antes de jugar ningún
+    // set muestra solo "RET".
+    const marcador = m.wo ? (sets ? (sets+' RET') : 'RET') : sets;
     rows+='<div class="pm-res-row"><span class="pm-wl '+(gane?'w':'l')+'">'+(gane?t('win_short'):t('loss_short'))+'</span>'
       +'<span class="pm-res-rival">'+escPast(rival||'')+'</span><span class="pm-res-sc">'+escPast(marcador)+'</span></div>';
   });
@@ -526,8 +532,11 @@ function partidosEntre(a, b, estado, ligaNombre){
       ganoA = sa>sb;
     }
     if(ganoA)gA++;else gB++;
-    // Marcador orientado desde A
-    const sc = (esPO&&m.wo)?'W.O.':(m.sets||[]).map(s=>Array.isArray(s)?(aEsA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join('  ');
+    // Marcador orientado desde A. m.wo ya no está limitado a playoff (esPO)
+    // — un retiro en liga regular también debe mostrar RET + los sets
+    // reales jugados, no solo los de playoff.
+    const setsStrH2H=(m.sets||[]).map(s=>Array.isArray(s)?(aEsA?s[0]+'-'+s[1]:s[1]+'-'+s[0]):'').filter(Boolean).join('  ');
+    const sc = m.wo?(setsStrH2H?(setsStrH2H+' RET'):'RET'):setsStrH2H;
     filas.push({sc, ganoA, ligaNombre: ligaNombre||'', fecha: m.date||'', mid: m.id||0});
   });
   return {gA, gB, filas};

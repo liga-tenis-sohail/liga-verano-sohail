@@ -448,39 +448,102 @@ function prefill(gid,n1,n2){
 }
 
 function toggleSTB(){const row=document.getElementById('s3-row');const btn=document.getElementById('stb-toggle-btn');if(row.style.display==='none'||row.style.display===''){row.style.display='flex';btn.innerHTML='<i class="ti ti-x"></i> '+t('remove_stb');['s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}else{row.style.display='none';btn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');['s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}}
+// Panel de retiro (RET): a diferencia del viejo flujo (un modal aparte sin
+// sets), esto vive DENTRO del formulario normal — el usuario carga los
+// sets que efectivamente se jugaron (quedan en 0-0 los que no) en los
+// mismos campos de siempre, y acá solo se elige quién se retiró. Al
+// activarse, se llena #ret-quien con los 2 jugadores ya elegidos arriba
+// (#f-reporter/#f-rival) — si todavía no eligieron a ambos, se avisa.
+function toggleRetiro(){
+  const panel=document.getElementById('ret-panel');
+  const btn=document.getElementById('ret-toggle-btn');
+  const abrir = panel.style.display==='none'||panel.style.display==='';
+  if(abrir){
+    const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
+    if(!rv||!iv){ fAlert(t('select_two'),'err'); return; }
+    const isAdmin=esAdmin(currentUser);
+    let repName,rivName;
+    if(currentUser.role==='player' && !isAdmin){
+      repName=currentUser.name;rivName=iv;
+    }else{
+      const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
+      repName=parseSel(repVal).name;rivName=parseSel(iv).name;
+    }
+    if(!repName||!rivName||repName===rivName){ fAlert(t('select_two'),'err'); return; }
+    const sel=document.getElementById('ret-quien');
+    sel.innerHTML='<option value="">— ¿Quién se retiró? —</option>'
+      +'<option value="'+attr(repName)+'">'+attr(repName)+'</option>'
+      +'<option value="'+attr(rivName)+'">'+attr(rivName)+'</option>';
+    panel.style.display='block';
+    btn.style.display='none';
+  }else{
+    panel.style.display='none';
+    btn.style.display='inline-flex';
+    document.getElementById('ret-quien').value='';
+  }
+}
 function checkAutoSTB(){const s1a=+document.getElementById('s1a').value,s1b=+document.getElementById('s1b').value;const s2a=+document.getElementById('s2a').value,s2b=+document.getElementById('s2b').value;if(!s1a&&!s1b&&!s2a&&!s2b)return;let w1=0,w2=0;if(validSet(s1a,s1b)){if(s1a>s1b)w1++;else w2++;}if(validSet(s2a,s2b)){if(s2a>s2b)w1++;else w2++;}const row=document.getElementById('s3-row');const btn=document.getElementById('stb-toggle-btn');if(w1===1&&w2===1){
 if(row.style.display==='none'||row.style.display===''){row.style.display='flex';if(btn)btn.innerHTML='<i class="ti ti-x"></i> '+t('remove_stb');}}else if(w1===2||w2===2){
 row.style.display='none';if(btn)btn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');['s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});}}
 function readSets(){const s=[[+document.getElementById('s1a').value,+document.getElementById('s1b').value],[+document.getElementById('s2a').value,+document.getElementById('s2b').value]];let w1=0,w2=0;[s[0],s[1]].forEach(([a,b])=>{if(a>b)w1++;else w2++;});if(document.getElementById('s3-row').style.display!=='none'&&w1===1&&w2===1)s.push([+document.getElementById('s3a').value,+document.getElementById('s3b').value]);return s;}
+// Lectura "libre" de sets para un retiro (RET): a diferencia de readSets()
+// (que siempre arma 2 o 3 sets, aunque estén en 0-0), esto SOLO incluye los
+// sets que realmente se jugaron — cualquier set en 0-0 se descarta, porque
+// "0-0" en este contexto significa "no llegaron a jugar este set", no "un
+// set real que terminó 0-0" (algo que no pasa en tenis). Así, un retiro sin
+// ningún set jugado guarda sets:[] (no cuenta para el rating — ver
+// rating.js), y un retiro a mitad del primer set... en la práctica el
+// sistema solo captura SETS COMPLETOS, así que si el retiro fue a mitad de
+// un set, ese set no se puede cargar parcialmente — solo los sets que se
+// terminaron de jugar antes del retiro.
+function readSetsLibre(){
+  const crudos=[[+document.getElementById('s1a').value,+document.getElementById('s1b').value],[+document.getElementById('s2a').value,+document.getElementById('s2b').value]];
+  if(document.getElementById('s3-row').style.display!=='none'){
+    crudos.push([+document.getElementById('s3a').value,+document.getElementById('s3b').value]);
+  }
+  return crudos.filter(([a,b])=>!(a===0&&b===0));
+}
 function parseSel(v){if(v.indexOf('|')>=0){const p=v.split('|');return{g:+p[0]+1,name:p[1]};}return{g:null,name:v};}
 
 function submitResult(){
   const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value,fecha=document.getElementById('f-fecha').value;
   if(!rv||!iv){fAlert(t('select_two'),'err');return;}
+  // Retiro (RET): si el panel está activo y hay alguien elegido, se toma
+  // ESTE camino en vez del de validación normal — los sets se leen tal
+  // cual estén cargados en el formulario (pueden ser 0, no hace falta que
+  // estén completos ni sean 2-3 sets parejos), y el ganador es
+  // directamente "quien no se retiró", no se calcula por sets ganados.
+  const retQuien=document.getElementById('ret-quien')?document.getElementById('ret-quien').value:'';
   // Si hay poContext activo, redirigir a lógica de playoff
   if(poContext){
     if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
     if(!fecha){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
-    const s=readSets();const v=validMatch(s);if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
     const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
     const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
     const m=tr[which][ri][mi];if(!m)return;
     const isAdmin=validaAlCargar(m.a,m.b);
+    let s,winner;
+    if(retQuien){
+      if(retQuien!==m.a&&retQuien!==m.b){fAlert('Elegí quién se retiró entre los dos jugadores de este partido.','err');return;}
+      s=readSetsLibre();
+      winner=retQuien===m.a?m.b:m.a;
+    }else{
+      s=readSets();const v=validMatch(s);if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
+      let w1=0,w2=0;s.forEach(([a,b])=>{if(a>b)w1++;else w2++;});
+      winner=w1>w2?m.a:m.b;
+    }
     // Guardar resultado en matches igual que submitPo
     matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
-    // Calcular ganador igual que submitPo
-    let w1=0,w2=0;s.forEach(([a,b])=>{if(a>b)w1++;else w2++;});
-    const winner=w1>w2?m.a:m.b;
-    const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:playoff.tramos[ti].label,poNames:[m.a,m.b],sets:s,date:fecha,club:formClub||'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,locked:isAdmin};
+    const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:playoff.tramos[ti].label,poNames:[m.a,m.b],sets:s,wo:!!retQuien,retiroDe:retQuien||undefined,date:fecha,club:formClub||'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,locked:isAdmin};
     matches.push(newM);
     if(isAdmin){
-      storePo(ti,which,m.a,m.b,s,winner);
+      storePo(ti,which,m.a,m.b,s,winner,!!retQuien);
       rebuildTramo(ti);
     } else {
       applyPoPending(newM);
     }
     const _rn=(()=>{const fe=tr[which].length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
-    addLog(isAdmin?'Playoff: validado (admin)':'Playoff: cargado',{a:m.a,b:m.b,sets:s,winner,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn});
+    addLog(isAdmin?'Playoff: validado (admin)':'Playoff: cargado',{a:m.a,b:m.b,sets:s,winner,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn});
     clearForm();poContext=null;
     fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
     persist(true);
@@ -511,13 +574,20 @@ function submitResult(){
   const ex=findMatch(_cN,gid,repName,rivName);
   if(ex&&ex.locked&&!esAdmin(currentUser)){fAlert(t('validated_admin_only'),'err');return;}
   if(ex&&ex.status==='disputed'&&!esAdmin(currentUser)){fAlert('Este resultado está en disputa. El administrador debe resolverlo primero.','err');return;}
-  const s=readSets();const v=validMatch(s);
-  if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
+  let s,winnerRet;
+  if(retQuien){
+    if(retQuien!==repName&&retQuien!==rivName){fAlert('Elegí quién se retiró entre los dos jugadores de este partido.','err');return;}
+    s=readSetsLibre();
+    winnerRet=retQuien===repName?rivName:repName;
+  }else{
+    s=readSets();const v=validMatch(s);
+    if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
+  }
   
   matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
   const isAdmin=validaAlCargar(repName,rivName);
-  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub,locked:isAdmin});
-  addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,grupo:gid,po:false});
+  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:!!retQuien,winner:retQuien?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub,locked:isAdmin});
+  addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,wo:!!retQuien,grupo:gid,po:false});
   clearForm();
   fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
   persist(true);
@@ -557,81 +627,15 @@ function markNotPlayed(){
   setTimeout(()=>populateForm(),50);
 }
 
-// Retiro (RET) desde la vista Cargar: quien se retira pierde el partido
-// sin necesidad de completar sets, el rival gana directo. A diferencia de
-// "No jugado" (exclusivo admin, ambos suman NJ, nadie gana), acá SÍ hay un
-// ganador real — el retiro cuenta como victoria para el rival, igual que
-// si hubiera ganado 6-0 6-0. Disponible para admin y para cualquier
-// jugador que participe del partido seleccionado (mismo criterio de
-// permisos que submitResult): si lo carga un jugador, queda 'pending'
-// hasta que se confirme; si lo carga el admin, queda 'confirmed' directo.
-//
-// Si hay un partido de Play Offs en curso (poContext activo), delega
-// directamente a markPoWO — ese ya tiene su propio flujo con selector de
-// quién se retira dentro del modal de Play Offs.
-function markRetiroUI(){
-  if(poContext){
-    const trigger=document.getElementById('po-wo-trigger');
-    const opts=document.getElementById('po-wo-opts');
-    if(trigger&&opts){ trigger.style.display='none'; opts.style.display='block'; }
-    else toast('Abrí el partido de Play Offs para reportar el retiro.');
-    return;
-  }
-  const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
-  if(!rv||!iv){fAlert(t('select_two'),'err');return;}
-  const isAdmin=esAdmin(currentUser);
-  let repName,rivName,gid;
-  if(currentUser.role==='player' && !isAdmin){
-    repName=currentUser.name;rivName=iv;const loc=findLoc(repName,_formCycleN||activeN);gid=loc?loc.g:null;
-    if(!gid){fAlert(t('not_in_cycle'),'err');return;}
-  }else{
-    const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
-    const a=parseSel(repVal),b=parseSel(iv);
-    if(a.g!==b.g){fAlert(t('same_group'),'err');return;}
-    gid=a.g;repName=a.name;rivName=b.name;
-  }
-  if(repName===rivName){fAlert(t('select_two'),'err');return;}
-  if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
-  const ff=document.getElementById('f-fecha').value;
-  if(!ff){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
-  const _cN=_formCycleN||activeN;
-  const ex=findMatch(_cN,gid,repName,rivName);
-  if(ex&&ex.locked&&!isAdmin){fAlert(t('validated_admin_only'),'err');return;}
-  if(ex&&ex.status==='disputed'&&!isAdmin){fAlert('Este resultado está en disputa. El administrador debe resolverlo primero.','err');return;}
-  // El modal genérico (#modal-bg) ya está disponible en toda la app — se
-  // reutiliza acá para elegir quién se retira, en vez de un prompt de
-  // texto libre.
-  document.getElementById('modal-title').textContent='Retiro (RET)';
-  document.getElementById('modal-body').innerHTML=`
-    <p class="legend-txt" style="margin-top:0;text-align:center">¿Quién se retira del partido?</p>
-    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:.75rem">
-      <button class="btn btn-sm" onclick="confirmarRetiroGrupo('${jsq(repName)}','${jsq(rivName)}',${gid},true)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(repName)}</button>
-      <button class="btn btn-sm" onclick="confirmarRetiroGrupo('${jsq(repName)}','${jsq(rivName)}',${gid},false)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(rivName)}</button>
-    </div>`;
-  document.getElementById('modal-actions').innerHTML=`<button class="btn" onclick="closeM()">${t('close')}</button>`;
-  document.getElementById('modal-bg').classList.add('open');
-}
-// seRetiraRep: true si quien se retira es `repName` (el reporter), false
-// si es `rivName`. El ganador es siempre el otro.
-function confirmarRetiroGrupo(repName,rivName,gid,seRetiraRep){
-  const isAdmin=esAdmin(currentUser);
-  const loser=seRetiraRep?repName:rivName, winner=seRetiraRep?rivName:repName;
-  if(!confirm(loser+' se retira del partido.\n\n'+winner+' gana por retiro (RET). '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
-  const _cN=_formCycleN||activeN;
-  const fecha=document.getElementById('f-fecha').value;
-  matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
-  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:[],wo:true,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,club:formClub,locked:isAdmin});
-  addLog(isAdmin?'Liga: RET (admin)':'Liga: RET (reportado)',{a:repName,b:rivName,winner,grupo:gid,po:false});
-  closeM();
-  clearForm();
-  fAlert(isAdmin?(winner+' gana por retiro (RET).'):'Retiro reportado, pendiente de confirmación.','ok');
-  persist(true);
-  refreshAll();
-  if(isAdmin)setTimeout(()=>populateForm(),50);
-}
-
 function fAlert(m,t){const e=document.getElementById('form-alert');e.className=`alert alert-${t}`;e.textContent=m;setTimeout(()=>{e.textContent='';e.className='';},6000);}
-function clearForm(){if(esAdmin(currentUser)){const r=document.getElementById('f-reporter');if(r)r.value='';}const rv=document.getElementById('f-rival');if(rv)rv.value='';['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='0';});const sr=document.getElementById('s3-row');if(sr)sr.style.display='none';const stbBtn=document.getElementById('stb-toggle-btn');if(stbBtn)stbBtn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');formClub='';renderClubButtons();const ff=document.getElementById('f-fecha');if(ff){const d=new Date();ff.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}const cp=document.getElementById('club-pick');if(cp)cp.classList.remove('req-empty');const fp2=document.getElementById('f-fecha');if(fp2)fp2.classList.remove('req-empty');}
+function clearForm(){if(esAdmin(currentUser)){const r=document.getElementById('f-reporter');if(r)r.value='';}const rv=document.getElementById('f-rival');if(rv)rv.value='';['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='0';});const sr=document.getElementById('s3-row');if(sr)sr.style.display='none';const stbBtn=document.getElementById('stb-toggle-btn');if(stbBtn)stbBtn.innerHTML='<i class="ti ti-plus"></i> '+t('add_stb');formClub='';renderClubButtons();const ff=document.getElementById('f-fecha');if(ff){const d=new Date();ff.value=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}const cp=document.getElementById('club-pick');if(cp)cp.classList.remove('req-empty');const fp2=document.getElementById('f-fecha');if(fp2)fp2.classList.remove('req-empty');
+  // Resetear también el panel de retiro (RET): sin esto, si el admin cargaba
+  // un retiro y después quería cargar un resultado normal, el panel seguía
+  // abierto con "quién se retiró" ya elegido de la carga anterior.
+  const retPanel=document.getElementById('ret-panel');if(retPanel)retPanel.style.display='none';
+  const retBtn=document.getElementById('ret-toggle-btn');if(retBtn)retBtn.style.display='inline-flex';
+  const retQuien=document.getElementById('ret-quien');if(retQuien)retQuien.value='';
+}
 function involvedPend(m){if(esAdmin(currentUser))return true;if(m.po)return m.poNames&&m.poNames.includes(currentUser.name)&&m.reporter!==currentUser.name;return (m.aName===currentUser.name||m.bName===currentUser.name)&&m.reporter!==currentUser.name;}
 function renderPend(){
   var _pt=document.getElementById('pend-title');if(_pt)_pt.textContent=t('pending_title');

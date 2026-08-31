@@ -597,9 +597,101 @@ function moveConsDownUI(ti,name){
   }
 }
 
+// Arma el <select> inline de posición para UN slot puntual (jugador o BYE)
+// de la primera ronda. idx es la posición absoluta dentro del cuadro
+// (0-based, mismo espacio que _mainSlotsActuales/_consSlotsActuales).
+// nombreActual es el nombre del jugador ahí, o null si es BYE.
+function _selectorPosicionInline(ti,which,idx,nombreActual){
+  const tr=playoff.tramos[ti];if(!tr)return'';
+  const slots = which==='main' ? _mainSlotsActuales(tr) : _consSlotsActuales(tr);
+  if(idx>=slots.length)return'';
+  const otros=slots.filter((n,i)=>i!==idx&&n); // todos los DEMÁS jugadores reales del cuadro
+  const hayByeEnOtroLado = slots.some((n,i)=>i!==idx&&n===null);
+  let opciones='<option value="">'+attr(t('po_cons_keep'))+'</option>';
+  if(nombreActual){
+    // Es un jugador: puede pedir BYE (si hay algún hueco en el resto del
+    // cuadro) o intercambiar con cualquier otro jugador real.
+    if(hayByeEnOtroLado) opciones+='<option value="__bye__">'+attr(t('po_main_give_bye'))+'</option>';
+    otros.forEach(o=>{ opciones+='<option value="'+attr(o)+'">'+attr(tf('po_main_play_vs',{n:o}))+'</option>'; });
+  }else{
+    // Es un BYE: solo tiene sentido traer a alguien acá (intercambiar el
+    // BYE con un jugador real de otro lado del cuadro).
+    otros.forEach(o=>{ opciones+='<option value="'+attr(o)+'">'+attr(tf('po_main_bring_here',{n:o}))+'</option>'; });
+  }
+  const selId='po-inline-pos-'+ti+'-'+which+'-'+idx;
+  return '<select id="'+selId+'" class="po-pos-inline-sel" onchange="event.stopPropagation();aplicarPosicionInline('+ti+',\''+which+'\','+idx+',\''+jsq(nombreActual||'')+'\',this.value)" onclick="event.stopPropagation()">'+opciones+'</select>';
+}
+// Aplica el cambio elegido en el <select> inline de una tarjeta puntual.
+// A diferencia de _resolverAsignacionesMain/Cons (que ubican al jugador
+// por NOMBRE, pensadas para el modal viejo con lista completa), esto
+// trabaja directamente con el ÍNDICE de posición — necesario porque un
+// slot BYE no tiene ningún nombre de origen para buscar.
+//   - jugador -> BYE: se busca la posición compañera y se intercambia con
+//     cualquier BYE disponible en el resto del cuadro.
+//   - jugador -> "jugar contra X": se intercambia X con la posición
+//     compañera de este jugador.
+//   - BYE -> "traer acá a X": se intercambia X directamente con ESTA
+//     posición (idx), sin pasar por la posición compañera — achica
+//     directamente el hueco acá.
+function aplicarPosicionInline(ti,which,idx,nombreActualCrudo,valor){
+  if(!valor)return;
+  const nombreActual = nombreActualCrudo || null;
+  const tr=playoff.tramos[ti];if(!tr)return;
+  const esMain = which==='main';
+  const slots = (esMain ? _mainSlotsActuales(tr) : _consSlotsActuales(tr)).slice();
+  const label=tr.label;
+  let idxOrigen, idxDestino;
+  if(nombreActual){
+    idxOrigen=slots.indexOf(nombreActual);
+    if(idxOrigen<0)return;
+    if(valor==='__bye__'){
+      const idxCompañera=_posCompañera(idxOrigen);
+      if(slots[idxCompañera]===null){ toast('Ya tiene BYE.'); return; }
+      const idxBye=slots.indexOf(null);
+      if(idxBye<0){ toast('No hay ningún BYE disponible en este cuadro.'); return; }
+      idxDestino=idxCompañera;
+      const involucrados=[slots[idxCompañera]].filter(Boolean);
+      const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
+      if(conResultado.length && !confirm(tf('po_reorder_confirm',{l:label}))) return;
+      if(conResultado.length) _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
+      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxBye];slots[idxBye]=tmp;
+    }else{
+      const idxRival=slots.indexOf(valor);
+      if(idxRival<0)return;
+      idxDestino=_posCompañera(idxOrigen);
+      if(idxRival===idxDestino)return;
+      const involucrados=[slots[idxDestino],valor].filter(Boolean);
+      const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
+      if(conResultado.length && !confirm(tf('po_reorder_confirm',{l:label}))) return;
+      if(conResultado.length) _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
+      const tmp=slots[idxDestino];slots[idxDestino]=slots[idxRival];slots[idxRival]=tmp;
+    }
+  }else{
+    // Este slot es BYE: "traer acá a X" — intercambio directo entre esta
+    // posición (idx) y donde esté X ahora.
+    const idxRival=slots.indexOf(valor);
+    if(idxRival<0)return;
+    const involucrados=[valor];
+    const conResultado=_poJugadoresConResultado(esMain?String(ti):ti+'c',involucrados);
+    if(conResultado.length && !confirm(tf('po_reorder_confirm',{l:label}))) return;
+    if(conResultado.length) _poClearResultadosDe(esMain?String(ti):ti+'c',conResultado);
+    const tmp=slots[idx];slots[idx]=slots[idxRival];slots[idxRival]=tmp;
+  }
+  if(esMain){ tr.mainOrder=slots; }
+  else{ if(!tr.consOverrides) tr.consOverrides={}; tr.consOverrides._order=slots; }
+  rebuildTramo(ti);
+  showPlayoffView();
+  toast(t('po_main_positions_saved'));
+  persist(true);
+}
 function matchBox(m,ti,which,ri,mi,isFirstRound){
   const realMatch=!!(m.a&&m.b);const aw=realMatch&&m.w&&m.w===m.a,bw=realMatch&&m.w&&m.w===m.b;
-  const sc=m.np?t('po_not_played'):m.wo?'W.O.':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
+  // Antes: un retiro (m.wo) reemplazaba todo el marcador por "W.O.", sin
+  // importar si había sets reales jugados antes de retirarse. Ahora se
+  // muestran los sets jugados (si los hay) + "RET" como indicador aparte —
+  // un retiro sin ningún set jugado muestra solo "RET".
+  const setsStr=m.sets&&m.sets.length?m.sets.map(([a,b])=>a+'-'+b).join(' '):'';
+  const sc=m.np?t('po_not_played'):m.wo?(setsStr?(setsStr+' RET'):'RET'):setsStr;
   // Busca si hay un resultado ya cargado (pending o disputed) en `matches` para
   // este slot del bracket. Sin este chequeo, el rival veía el slot como
   // "Pendiente de juego" y podía cargar OTRO resultado (duplicado).
@@ -652,16 +744,19 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   const clB=m.b?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')">'+nmB+'</span>':nmB;
   const seedA=(m.sid&&m.sid[0])||'';const seedB=(m.sid&&m.sid[1])||'';
   // Lápiz de edición rápida junto al nombre: solo en primera ronda (donde
-  // tiene sentido el concepto de "posición"/BYE), solo admin, y solo
-  // mientras el partido no tenga resultado todavía (no tiene sentido
-  // reacomodar a alguien que ya jugó y ganó/perdió). Abre el modal
-  // existente (editMainOrderUI/editConsOverrideUI) con el foco puesto en
-  // ESTE jugador puntual, en vez de tener que buscarlo en la lista
-  // completa — la lista sigue siendo necesaria para elegir el rival entre
-  // TODOS los del cuadro, así que no se reemplaza, se agiliza el acceso.
+  // Selector inline de posición: reemplaza al lápiz + modal separado.
+  // Antes, editar una posición abría un modal aparte con la lista completa
+  // de jugadores — quedaba confuso, con dos selects apilados por fila
+  // (reemplazo + posición) y sin poder tocar directamente a alguien con
+  // BYE. Ahora cada slot (jugador O BYE) de primera ronda tiene su propio
+  // <select> inline, directamente en la tarjeta del cuadro: "Darle BYE" /
+  // "Intercambiar con: X" para un jugador, o "Traer acá a: X" para un BYE.
+  // Solo primera ronda (único lugar donde el concepto de "posición" existe
+  // de forma editable), solo admin, solo sin resultado todavía.
   const puedeEditarPos = isFirstRound && esAdmin(currentUser) && !m.w;
-  const editIconA = (puedeEditarPos && m.a) ? '<button class="po-pos-edit" title="'+attr(t('po_main_edit_btn'))+'" onclick="event.stopPropagation();'+(which==='main'?'editMainOrderUI':'editConsOverrideUI')+'('+ti+',\''+jsq(m.a)+'\')"><i class="ti ti-edit"></i></button>' : '';
-  const editIconB = (puedeEditarPos && m.b) ? '<button class="po-pos-edit" title="'+attr(t('po_main_edit_btn'))+'" onclick="event.stopPropagation();'+(which==='main'?'editMainOrderUI':'editConsOverrideUI')+'('+ti+',\''+jsq(m.b)+'\')"><i class="ti ti-edit"></i></button>' : '';
+  const idxA=mi*2, idxB=mi*2+1;
+  const selPosA = puedeEditarPos ? _selectorPosicionInline(ti,which,idxA,m.a) : '';
+  const selPosB = puedeEditarPos ? _selectorPosicionInline(ti,which,idxB,m.b) : '';
   function fn(n){return n?n.split(' ')[0]:'';}
   const fA=fn(m.a),fB=fn(m.b);
   const sameFirst=m.a&&m.b&&fA===fB;
@@ -683,9 +778,10 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     // igual que en la tabla de grupos, y un botón que abre el modal existente
     // (openModal) que ya sabe manejar matches de playoff: el rival puede
     // disputar, el admin puede validar, todos pueden ver el detalle.
+    const _pSetsStr = _poPending.sets&&_poPending.sets.length ? _poPending.sets.map(([a,b])=>a+'-'+b).join(' ') : '';
     const pSc = _poPending.np ? t('po_not_played')
-              : _poPending.wo ? 'W.O.'
-              : (_poPending.sets ? _poPending.sets.map(([a,b])=>a+'-'+b).join(' ') : '');
+              : _poPending.wo ? (_pSetsStr?(_pSetsStr+' RET'):'RET')
+              : _pSetsStr;
     const disputed = _poPending.status === 'disputed';
     // Estilo del row del resultado: fondo warn con reloj para pending,
     // fondo disputa para disputed. Usa las mismas clases que grupos.
@@ -711,8 +807,8 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     bot=esAdmin(currentUser)?'<div style="height:56px"></div>':'<div style="height:22px"></div>';
   }
   return '<div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);width:220px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
-    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+editIconA+'</div>'
-    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;font-size:12px;min-height:32px;'+sB+iB+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+editIconB+'</div>'
+    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;flex-direction:column;padding:5px 10px 6px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><div style="display:flex;align-items:center"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'+selPosA+'</div>'
+    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;flex-direction:column;padding:5px 10px 6px;font-size:12px;min-height:32px;'+sB+iB+'"><div style="display:flex;align-items:center"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'+selPosB+'</div>'
     +bot+'</div>';
 }
 

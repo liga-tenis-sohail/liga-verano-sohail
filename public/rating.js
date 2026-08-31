@@ -65,7 +65,15 @@ function utrPartidosDeEstado(estado){
     if(m.po && m.poNames){ a = m.poNames[0]; b = m.poNames[1]; }
     else { a = m.aName; b = m.bName; }
     if(!a || !b) return;
-    if(m.wo){ return; }  
+    // Antes: un partido con wo:true (retiro/W.O.) se descartaba SIEMPRE del
+    // rating, incluso si el jugador había ganado o perdido sets/games
+    // reales antes de retirarse — esos games sí reflejan nivel de juego y
+    // deberían contar. Ahora solo se descarta si de verdad no hay ningún
+    // set jugado (retiro antes de empezar, sets:[] vacío) — si hay al
+    // menos un set cargado, se procesa normal más abajo (utrGamesDePartido
+    // ya soporta cualquier cantidad de sets, completos o parciales en
+    // cantidad, sin romperse).
+    if(m.wo && (!Array.isArray(m.sets) || !m.sets.length)){ return; }
     const g = utrGamesDePartido(m.sets);
     if(!g || (g.gamesA + g.gamesB) === 0) return;
     out.push({ a, b, gamesA: g.gamesA, gamesB: g.gamesB, fecha: m.date || '', esSTB: g.esSTB });

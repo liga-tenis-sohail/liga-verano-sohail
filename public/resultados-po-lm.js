@@ -100,14 +100,17 @@ function openPoForm(m,ti){
 
   ${(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name)?`
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
-    <div id="po-wo-trigger" style="text-align:center">
-      <button class="btn btn-sm" onclick="document.getElementById('po-wo-trigger').style.display='none';document.getElementById('po-wo-opts').style.display='block'" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET</button>
+    <div id="po-ret-toggle-wrap" style="text-align:center">
+      <button class="btn btn-sm" id="po-ret-toggle-btn" onclick="togglePoRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET (se retiró un jugador)</button>
     </div>
-    <div id="po-wo-opts" style="display:none">
-      <p style="font-size:12px;color:var(--text2);margin-bottom:.5rem;text-align:center">Retiro (RET) — ¿quién se retira del partido?</p>
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="markPoWO(false)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(m.a)}</button>
-        <button class="btn btn-sm" onclick="markPoWO(true)" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> Se retira ${attr(m.b)}</button>
+    <div id="po-ret-panel" style="display:none">
+      <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;text-align:center;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
+      <div style="text-align:center">
+        <select id="po-ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5">
+          <option value="">— ¿Quién se retiró? —</option>
+          <option value="${attr(m.a)}">${attr(m.a)}</option>
+          <option value="${attr(m.b)}">${attr(m.b)}</option>
+        </select>
       </div>
     </div>
   </div>`:''}
@@ -141,6 +144,28 @@ function togglePoSTB(){
     if(btn) btn.innerHTML = '<i class="ti ti-plus"></i> ' + (t('add_stb') || 'Supertiebreak (1-1)');
     ['po-s3a','po-s3b'].forEach(id => { const e = document.getElementById(id); if(e) e.value = ''; });
   }
+}
+// Panel de retiro (RET) dentro del modal de Play Offs — mismo patrón que
+// toggleRetiro() en resultados-y-grupos.js: vive dentro del formulario
+// normal, no reemplaza los sets. Reemplaza al viejo flujo (markPoWO con
+// botones directos sin sets).
+function togglePoRetiro(){
+  const panel=document.getElementById('po-ret-panel');
+  const btn=document.getElementById('po-ret-toggle-btn');
+  if(!panel||!btn) return;
+  const abrir = panel.style.display==='none'||panel.style.display==='';
+  if(abrir){ panel.style.display='block'; btn.style.display='none'; }
+  else{ panel.style.display='none'; btn.style.display='inline-flex'; const sel=document.getElementById('po-ret-quien'); if(sel) sel.value=''; }
+}
+// Lectura "libre" de sets del modal de Play Offs para un retiro — mismo
+// criterio que readSetsLibre() en resultados-y-grupos.js: solo incluye los
+// sets que realmente se jugaron (descarta cualquier set en 0-0).
+function readPoSetsLibre(){
+  const crudos=[[+document.getElementById('po-s1a').value,+document.getElementById('po-s1b').value],[+document.getElementById('po-s2a').value,+document.getElementById('po-s2b').value]];
+  if(document.getElementById('po-s3-row').style.display!=='none'){
+    crudos.push([+document.getElementById('po-s3a').value,+document.getElementById('po-s3b').value]);
+  }
+  return crudos.filter(([a,b])=>!(a===0&&b===0));
 }
 
 // Auto-show del supertiebreak cuando los 2 sets ya cargados están 1-1. Es el
@@ -370,39 +395,6 @@ function submitLoadModal(){
 // resultado cargado por un jugador, queda 'pending' hasta que el rival lo
 // confirme o el admin lo valide; si lo hace el admin, queda 'confirmed'
 // directo, igual que siempre.
-function markPoWO(advanceA){
-  if(!poContext)return;
-  const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
-  const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
-  const m=tr[which][ri][mi];if(!m||!m.a||!m.b){toast('Faltan jugadores en este partido.');return;}
-  const isAdmin=esAdmin(currentUser);
-  // Un jugador solo puede reportar el retiro de un partido en el que él
-  // mismo participa — no puede declarar retiros ajenos, igual que no
-  // puede cargar resultados de partidos donde no juega.
-  if(!isAdmin && m.a!==currentUser.name && m.b!==currentUser.name){
-    toast('Solo los jugadores de ese partido (o el admin) pueden reportar un retiro.');
-    return;
-  }
-  const winnerName=advanceA?m.a:m.b,loser=advanceA?m.b:m.a;
-  if(!confirm(loser+' se retira del partido.\n\n'+winnerName+' avanza por retiro (RET). '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
-  // Reemplazar cualquier resultado/partido previo de este cruce
-  matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
-  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,date:'',club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
-  matches.push(newM);
-  if(isAdmin){
-    storePo(ti,which,m.a,m.b,[],winnerName,true);
-    rebuildTramo(ti);
-  }else{
-    applyPoPending(newM);
-  }
-  addLog(isAdmin?'Playoff: RET (admin)':'Playoff: RET (reportado)',{a:m.a,b:m.b,winner:winnerName,po:true,cuadro:tr.label,which});
-  closeM();
-  if(typeof showPlayoffView==='function')showPlayoffView();
-  refreshAll();
-  toast(isAdmin?(winnerName+' avanza por retiro (RET).'):'Retiro reportado, pendiente de confirmación.');
-  persist(true);
-}
-
 function deletePoDirect(ti,which,ri,mi){
   if(!confirm('¿Eliminar este resultado? El partido vuelve a estar pendiente.')) return;
   const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
@@ -421,19 +413,32 @@ function deletePo(){
 }
 
 function submitPo(){
-  const s = [
-    [+document.getElementById('po-s1a').value, +document.getElementById('po-s1b').value],
-    [+document.getElementById('po-s2a').value, +document.getElementById('po-s2b').value]
-  ];
-  if(document.getElementById('po-s3-row').style.display !== 'none') {
-    s.push([+document.getElementById('po-s3a').value, +document.getElementById('po-s3b').value]);
-  }
-  
-  const v = validMatch(s);
-  if(!v.ok){
-    const a = document.getElementById('po-alert'); 
-    a.textContent = '✕ ' + v.msg; a.classList.add('err-txt'); 
-    return;
+  const retQuien = document.getElementById('po-ret-quien') ? document.getElementById('po-ret-quien').value : '';
+  const ti = poContext.ti, which = poContext.which, ri = poContext.ri, mi = poContext.mi;
+  const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
+  let s, winner;
+  if(retQuien){
+    if(retQuien!==m.a && retQuien!==m.b){
+      const a=document.getElementById('po-alert'); a.textContent='Elegí quién se retiró entre los dos jugadores de este partido.'; a.classList.add('err-txt'); return;
+    }
+    s=readPoSetsLibre();
+    winner=retQuien===m.a?m.b:m.a;
+  }else{
+    s = [
+      [+document.getElementById('po-s1a').value, +document.getElementById('po-s1b').value],
+      [+document.getElementById('po-s2a').value, +document.getElementById('po-s2b').value]
+    ];
+    if(document.getElementById('po-s3-row').style.display !== 'none') {
+      s.push([+document.getElementById('po-s3a').value, +document.getElementById('po-s3b').value]);
+    }
+    const v = validMatch(s);
+    if(!v.ok){
+      const a = document.getElementById('po-alert'); 
+      a.textContent = '✕ ' + v.msg; a.classList.add('err-txt'); 
+      return;
+    }
+    let w1 = 0, w2 = 0; s.forEach(([a,b]) => {if(a > b) w1++; else w2++;}); 
+    winner = w1 > w2 ? m.a : m.b;
   }
 
   const fecha = document.getElementById('po-f-fecha').value;
@@ -448,12 +453,6 @@ function submitPo(){
       return;
   }
 
-  const ti = poContext.ti, which = poContext.which, ri = poContext.ri, mi = poContext.mi;
-  const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
-  
-  let w1 = 0, w2 = 0; s.forEach(([a,b]) => {if(a > b) w1++; else w2++;}); 
-  const winner = w1 > w2 ? m.a : m.b;
-  
   const exPo = matches.find(x => x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a)));
   if(exPo && exPo.status === 'disputed' && !esAdmin(currentUser)){
     const a=document.getElementById('po-alert'); a.textContent='Este resultado está en disputa. El administrador debe resolverlo primero.'; a.classList.add('err-txt'); return;
@@ -461,16 +460,16 @@ function submitPo(){
   matches = matches.filter(x => !(x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a))));
   
   if(validaAlCargar(m.a, m.b)){
-    storePo(ti, which, m.a, m.b, s, winner);
-    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
+    storePo(ti, which, m.a, m.b, s, winner, !!retQuien);
+    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
     rebuildTramo(ti);
     const _rn2=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
-    addLog('Playoff: validado (admin)',{a:m.a,b:m.b,sets:s,winner,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn2});
+    addLog('Playoff: validado (admin)',{a:m.a,b:m.b,sets:s,winner,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn2});
     closeM(); showPlayoffView(); toast(t('po_validated')); persist(true);
   } else {
-    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
+    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
     const _rn3=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
-    addLog('Playoff: cargado',{a:m.a,b:m.b,sets:s,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn3});
+    addLog('Playoff: cargado',{a:m.a,b:m.b,sets:s,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn3});
     closeM(); renderPend(); renderCycleBar(); showPlayoffView(); toast(t('po_sent')); persist(true);
   }
 }
