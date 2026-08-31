@@ -71,6 +71,99 @@ function moveSeedDownUI(ti,name){
 function removeSeedUI(ti,name){removeSeed(ti,name);showPlayoffView();toast(tf('po_seed_removed',{name}));persist(true);}
 function addSeedUI(ti){const sel=document.getElementById('po-add-'+ti);const name=sel?sel.value:'';if(!name){toast(t('po_choose_add'));return;}addSeed(ti,name);showPlayoffView();toast(tf('po_seed_added',{name}));persist(true);}
 
+// ===== Edición manual del cuadro de CONSOLACIÓN =====
+// A diferencia del cuadro principal (tr.seeds, editable con
+// add/remove/moveSeedUI de arriba), quiénes juegan la consolación se
+// derivan AUTOMÁTICAMENTE de quién perdió la primera ronda del cuadro
+// principal (rebuildTramo, en core-estado.js) — no había ninguna forma de
+// tocarlo a mano. tr.consOverrides guarda reemplazos puntuales
+// {perdedorOriginal: reemplazo} que rebuildTramo aplica en cada recálculo,
+// así que sobreviven a cualquier resultado nuevo que se cargue después.
+//
+// Caso de uso típico: un jugador que perdió primera ronda no puede jugar
+// la consolación (lesión, viaje, etc.) y el admin quiere que otra persona
+// ocupe ese lugar — o directamente sacarlo sin reemplazo si el cuadro de
+// consolación queda con número impar.
+function editConsOverrideUI(ti){
+  if(!esAdmin(currentUser))return;
+  const tr=playoff.tramos[ti];
+  if(!tr||!tr.cons){toast(t('po_cons_none'));return;}
+  // Los jugadores ACTUALES en consolación (tras aplicar overrides previos,
+  // si los hay) — se leen directamente del bracket ya armado (tr.cons[0]),
+  // que es la fuente de verdad de "quién está en consolación ahora mismo".
+  const actuales=[];
+  tr.cons[0].forEach(m=>{ if(m.a)actuales.push(m.a); if(m.b)actuales.push(m.b); });
+  if(!actuales.length){toast(t('po_cons_none'));return;}
+  const overrides=tr.consOverrides||{};
+  // El candidato a reemplazo: cualquier jugador de la liga que NO esté ya
+  // en este cuadro de consolación (evita duplicarlo en dos partidos del
+  // mismo bracket). Se usa ALLNAMES (catálogo completo de la liga), igual
+  // que el selector de "Agregar jugador" del cuadro principal.
+  const disponibles=ALLNAMES.filter(n=>!actuales.includes(n));
+  document.getElementById('modal-title').textContent = tf('po_cons_edit_title',{l:tr.label});
+  const rowsHtml = actuales.map(n=>{
+    // Si n ya es resultado de un override previo, mostramos también quién
+    // era el perdedor original entre paréntesis, para que quede claro qué
+    // se está reemplazando (y se pueda deshacer con "Restaurar").
+    const original = Object.keys(overrides).find(k=>overrides[k]===n);
+    const label = original ? (n+' ('+tf('po_cons_was',{n:original})+')') : n;
+    return `<div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem">
+      <div>${attr(label)}</div>
+      <div style="display:flex;gap:4px">
+        <select id="po-cons-repl-${jsq(n)}" style="font-size:12px;padding:4px 6px">
+          <option value="">${attr(t('po_cons_keep'))}</option>
+          <option value="__remove__">${attr(t('po_cons_remove'))}</option>
+          ${disponibles.map(d=>`<option value="${attr(d)}">${attr(d)}</option>`).join('')}
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('modal-body').innerHTML = `
+    <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')}</p>
+    ${rowsHtml}`;
+  document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="saveConsOverrides(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
+    <button class="btn" onclick="closeM()">${t('close')}</button>`;
+  document.getElementById('modal-bg').classList.add('open');
+}
+function saveConsOverrides(ti, actuales){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  if(!tr.consOverrides) tr.consOverrides={};
+  let huboCambios=false;
+  actuales.forEach(actual=>{
+    const sel=document.getElementById('po-cons-repl-'+actual);
+    if(!sel)return;
+    const v=sel.value;
+    if(!v)return;   // "mantener" — sin cambios para este jugador
+    // La CLAVE del override tiene que ser el jugador original (el que
+    // perdió realmente la primera ronda), no `actual` — si `actual` ya es
+    // resultado de un override previo, hay que seguir apuntando al
+    // original para que rebuildTramo() lo siga reemplazando correctamente
+    // en cada recálculo futuro.
+    const original = Object.keys(tr.consOverrides).find(k=>tr.consOverrides[k]===actual) || actual;
+    tr.consOverrides[original] = (v==='__remove__') ? null : v;
+    huboCambios=true;
+  });
+  if(!huboCambios){ closeM(); return; }
+  rebuildTramo(ti);
+  showPlayoffView();
+  closeM();
+  toast(t('po_cons_saved'));
+  persist(true);
+}
+// Deshace TODOS los overrides de consolación de un cuadro, volviendo a los
+// perdedores reales de la primera ronda del cuadro principal.
+function clearConsOverridesUI(ti){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  if(!tr.consOverrides || !Object.keys(tr.consOverrides).length){toast(t('po_cons_none_to_clear'));return;}
+  if(!confirm(t('po_cons_clear_confirm')))return;
+  tr.consOverrides={};
+  rebuildTramo(ti);
+  showPlayoffView();
+  toast(t('po_cons_cleared'));
+  persist(true);
+}
+
 function matchBox(m,ti,which,ri,mi,isFirstRound){
   const realMatch=!!(m.a&&m.b);const aw=realMatch&&m.w&&m.w===m.a,bw=realMatch&&m.w&&m.w===m.b;
   const sc=m.np?t('po_not_played'):m.wo?'W.O.':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
@@ -319,7 +412,15 @@ function showPlayoffView(){
   html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}</div>${bracketHTML(tr.main,ti,'main')}${finalM&&finalM.w?`<div class="champ-card"><div class="lbl">${tf('po_champ',{l:tr.label})}</div><div class="who"><i class="ti ti-crown"></i> <span class="nm-link" onclick="showPlayerHistory('${jsq(finalM.w)}')">${finalM.w}</span></div></div>`:''}</div>`;
   if(tr.cons){
     const cf=tr.cons[tr.cons.length-1][0];
-    html+=`<div class="card"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}</div>${bracketHTML(tr.cons,ti,'cons')}${cf&&cf.w?`<div class="champ-card champ-cons"><div class="lbl">${tf('po_champ_cons',{l:tr.label})}</div><div class="who"><span class="nm-link" onclick="showPlayerHistory('${jsq(cf.w)}')">${cf.w}</span></div></div>`:''}</div>`;
+    const hayOverrides = tr.consOverrides && Object.keys(tr.consOverrides).length;
+    // Botones de edición manual de consolación: solo admin. "Editar
+    // jugadores" abre el modal de reemplazos; "Restaurar" solo aparece si
+    // hay algún override activo, para deshacer todo de una vez.
+    const consEditBtns = isAdmin
+      ? '<button class="btn btn-sm" style="margin-left:8px" onclick="editConsOverrideUI('+ti+')"><i class="ti ti-edit"></i> '+t('po_cons_edit_btn')+'</button>'
+        + (hayOverrides ? '<button class="btn btn-sm" style="margin-left:4px" onclick="clearConsOverridesUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>' : '')
+      : '';
+    html+=`<div class="card"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}${consEditBtns}</div>${bracketHTML(tr.cons,ti,'cons')}${cf&&cf.w?`<div class="champ-card champ-cons"><div class="lbl">${tf('po_champ_cons',{l:tr.label})}</div><div class="who"><span class="nm-link" onclick="showPlayerHistory('${jsq(cf.w)}')">${cf.w}</span></div></div>`:''}</div>`;
   }
 
   html+=`<div class="card legend-card"><p class="legend-txt">${t('po_legend')}</p></div>`;
