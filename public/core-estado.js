@@ -121,7 +121,7 @@ playoffs_title:'Play Offs',playoffs_ready:'Todos los ciclos están cerrados. Pre
 cycle_closed_next:'Ciclo {n} cerrado. ¡Ciclo {nx} iniciado con grupos actualizados!',cycle3_closed:'Todos los ciclos cerrados. Ya puedes iniciar los Play Offs desde Admin.',last_cycle_finished:'Último ciclo finalizado. Ya puedes previsualizar los Play Offs.',
 po_preview_banner:'Previsualización — los Play Offs todavía NO están iniciados',po_preview_hint:'Así quedarían los cuadros según la clasificación general. Quita o agrega jugadores (los que no juegan) y ajusta la cantidad de cuadros. Cuando esté todo listo, confirma el inicio. Hasta entonces los jugadores no ven nada.',po_confirm_start:'Iniciar Play Offs definitivamente',
 po_config:'Configuración de Play Offs',po_config_hint:'Al cambiar la cantidad, los cuadros se rearman repartiendo la clasificación general en partes iguales. Puedes también forzar en qué ronda empezar cada cuadro.',po_seeds_title:'Jugadores del Cuadro {l} — quita (✕) o agrega',po_removed:'Retirados: {list}.',po_add_label:'Agregar jugador a este cuadro',po_add_choose:'Elige…',po_add_btn:'Agregar',po_bye_note:'Si quitás a alguien, no se reemplaza: pasa uno más por bye.',
-po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
+po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_cons_edit_btn:'Editar jugadores',po_cons_clear_btn:'Restaurar',po_cons_none:'Este cuadro todavía no tiene consolación armada.',po_cons_edit_title:'Editar Consolación {l}',po_cons_edit_hint:'Elegí un reemplazo para cualquier jugador de esta consolación, o sacalo sin reemplazo. Los cambios se guardan y sobreviven a nuevos resultados cargados.',po_cons_was:'reemplaza a {n}',po_cons_keep:'— Mantener —',po_cons_remove:'✕ Sacar sin reemplazo',po_cons_saved:'Consolación actualizada.',po_cons_none_to_clear:'No hay ningún cambio manual que restaurar.',po_cons_clear_confirm:'¿Restaurar la consolación a los perdedores reales de la primera ronda? Se pierden todos los reemplazos manuales de este cuadro.',po_cons_cleared:'Consolación restaurada a los perdedores reales.',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
 po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elige jugador…',po_move_here:'Mover aquí',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elige un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',po_form_note:'Partido de Play Offs — {draw} · {round}',
 po_tab_players:'jug.',
 pending_match:'Pendiente de juego',
@@ -260,7 +260,7 @@ playoffs_title:'Play Offs',playoffs_ready:'All cycles closed. Preview brackets t
 cycle_closed_next:'Cycle {n} closed. Cycle {nx} started with updated groups!',cycle3_closed:'All cycles closed. You can now start the Play Offs from Admin.',last_cycle_finished:'Last cycle finished. You can now preview the Play Offs.',
 po_preview_banner:'Preview — Play Offs have NOT started yet',po_preview_hint:'This is how the brackets would look. Remove or add players (those not playing) and adjust the number of brackets. When ready, confirm the start. Until then players see nothing.',po_confirm_start:'Start Play Offs for real',
 po_config:'Play Off settings',po_config_hint:'Changing the number of brackets redistributes the general standings evenly. You can also force the starting round.',po_seeds_title:'Players in Draw {l} — remove (✕) or add',po_removed:'Withdrawn: {list}.',po_add_label:'Add player to this bracket',po_add_choose:'Choose…',po_add_btn:'Add',po_bye_note:'If you remove someone they are not replaced: another player gets a bye instead.',
-po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
+po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_cons_edit_btn:'Edit players',po_cons_clear_btn:'Restore',po_cons_none:'This bracket does not have a consolation draw yet.',po_cons_edit_title:'Edit Consolation {l}',po_cons_edit_hint:'Pick a replacement for any player in this consolation draw, or remove them with no replacement. Changes are saved and survive new results being entered.',po_cons_was:'replacing {n}',po_cons_keep:'— Keep —',po_cons_remove:'✕ Remove, no replacement',po_cons_saved:'Consolation draw updated.',po_cons_none_to_clear:'There are no manual changes to restore.',po_cons_clear_confirm:'Restore the consolation draw to the actual 1st round losers? All manual replacements in this bracket will be lost.',po_cons_cleared:'Consolation draw restored to the actual losers.',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
 po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',po_form_note:'Play Off Match — {draw} · {round}',
 po_tab_players:'players',
 pending_match:'Pending match',
@@ -875,13 +875,30 @@ function label(i){return String.fromCharCode(65+i);}
 function rebuildTramo(t){
   const tr=playoff.tramos[t];if(!tr)return;
   tr.main=buildRounds(tr.seeds);applyStored(t,tr.main);
-  const losers=tr.main[0].map(loserOf).filter(Boolean);
+  let losers=tr.main[0].map(loserOf).filter(Boolean);
+  // consOverrides: reemplazos manuales del admin en el cuadro de
+  // consolación ({nombrePerdedorOriginal: nombreReemplazo}). Se aplican
+  // DESPUÉS de calcular quién perdió realmente la primera ronda (así el
+  // admin sigue viendo el bracket principal reflejar la realidad de los
+  // partidos), pero ANTES de armar el bracket de consolación — el
+  // reemplazo entra a jugar consolación en el lugar del perdedor original.
+  // rebuildTramo() se llama constantemente (cada resultado cargado, cada
+  // seed movido, etc.), así que sin este paso separado y persistente
+  // (tr.consOverrides vive en el state, se guarda con persist()) cualquier
+  // ajuste manual se perdía en el próximo recálculo automático.
+  if(tr.consOverrides && Object.keys(tr.consOverrides).length){
+    losers = losers.map(n => (tr.consOverrides[n] !== undefined) ? tr.consOverrides[n] : n)
+                    .filter(n => n !== null);   // null = "sacar sin reemplazo"
+  }
   tr.cons=losers.length>=2?buildRounds(losers):null;
   if(tr.cons){
     // Al armar la consolación, buildRounds() calculó sids en base al orden
     // del array `losers`. Los sobrescribimos con el seed ORIGINAL de cada
     // jugador dentro del tramo (tr.seeds), así el número acompaña al jugador
     // desde el cuadro principal a la consolación y por todas sus rondas.
+    // Un reemplazo manual (que puede no estar en tr.seeds en absoluto, si
+    // es alguien de afuera del cuadro) simplemente queda sin número — no
+    // hay un seed "real" que mostrarle.
     tr.cons[0].forEach(m=>{
       if(m.a) m.sid[0] = tr.seeds.indexOf(m.a)+1 || '';
       if(m.b) m.sid[1] = tr.seeds.indexOf(m.b)+1 || '';
@@ -890,11 +907,11 @@ function rebuildTramo(t){
   }
 }
 function rebuildAll(){playoff.tramos.forEach((_,t)=>rebuildTramo(t));}
-function buildTramosFromGeneral(T){const gen=computeGeneral().map(x=>x.name);const slices=splitTramos(gen,T);return{numTramos:T,results:{},viewT:0,qualified:gen,tramos:slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null}))};}
+function buildTramosFromGeneral(T){const gen=computeGeneral().map(x=>x.name);const slices=splitTramos(gen,T);return{numTramos:T,results:{},viewT:0,qualified:gen,tramos:slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null,consOverrides:{}}))};}
 function previewPlayoff(){if(!allCyclesDone())return false;const T=playoff.numTramos||4;playoff=Object.assign({started:false,preview:true,forcedSize:playoff.forcedSize||0},buildTramosFromGeneral(T));rebuildAll();return true;}
 function confirmPlayoff(){if(!playoff.preview&&!playoff.started)return false;playoff.started=true;playoff.preview=false;return true;}
 function startPlayoff(){if(!allCyclesDone())return false;const T=playoff.numTramos||4;playoff=Object.assign({started:true,preview:false,forcedSize:playoff.forcedSize||0},buildTramosFromGeneral(T));rebuildAll();return true;}
-function setNumTramos(T){playoff.numTramos=T;if(playoff.started||playoff.preview){const gen=playoff.qualified;const slices=splitTramos(gen,T);playoff.results={};playoff.viewT=0;playoff.tramos=slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null}));rebuildAll();}}
+function setNumTramos(T){playoff.numTramos=T;if(playoff.started||playoff.preview){const gen=playoff.qualified;const slices=splitTramos(gen,T);playoff.results={};playoff.viewT=0;playoff.tramos=slices.map((s,i)=>({label:label(i),seeds:s.slice(),main:null,cons:null,consOverrides:{}}));rebuildAll();}}
 function removeSeed(t,name){const tr=playoff.tramos[t];tr.seeds=tr.seeds.filter(n=>n!==name);rebuildTramo(t);}
 function addSeed(t,name){const tr=playoff.tramos[t];if(name&&!tr.seeds.includes(name)){tr.seeds.push(name);
 const order=playoff.qualified||[];tr.seeds.sort((a,b)=>{const ia=order.indexOf(a),ib=order.indexOf(b);if(ia<0&&ib<0)return 0;if(ia<0)return 1;if(ib<0)return -1;return ia-ib;});}rebuildTramo(t);}
