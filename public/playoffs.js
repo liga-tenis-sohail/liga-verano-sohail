@@ -125,6 +125,79 @@ function moveMainDownUI(ti,name){
     persist(true);
   }
 }
+// "Compañero de partido" de la posición k: 0<->1, 2<->3, 4<->5... (cada
+// partido de primera ronda ocupa 2 posiciones consecutivas, ver
+// _mainSlotsActuales). Necesario para "elegir rival": mover a alguien a
+// jugar contra un jugador específico significa llevarlo exactamente a
+// esta posición.
+function _posCompañera(k){ return k%2===0 ? k+1 : k-1; }
+// Aplica en un solo paso todas las asignaciones directas elegidas en el
+// modal (BYE o rival específico) — a diferencia de _swapMainOrder (un
+// intercambio simple entre 2 posiciones), acá puede haber VARIAS
+// asignaciones pedidas a la vez, algunas de las cuales se pisan entre sí
+// si se procesaran una por una (mover A a la posición de B, y después
+// mover C a esa misma posición, dejaría a A sin lugar). Se resuelven
+// todas juntas armando el array final de una sola vez.
+//
+// asignaciones: [{jugador, destino}], donde destino es 'bye' o el nombre
+// de otro jugador del cuadro (con quien debe terminar emparejado).
+function _resolverAsignacionesMain(tr,asignaciones){
+  const slots=_mainSlotsActuales(tr).slice();
+  asignaciones.forEach(({jugador,destino})=>{
+    const idxJugador=slots.indexOf(jugador);
+    if(idxJugador<0)return;   // ya no está en el cuadro (se movió con una asignación anterior de este mismo lote)
+    if(destino==='bye'){
+      // Llevar un BYE a la posición COMPAÑERA de este jugador (no a
+      // cualquier posición BYE del cuadro): así es EL JUGADOR quien queda
+      // con BYE, no otro. Se busca cualquier BYE disponible en el resto
+      // del cuadro y se intercambia con quien hoy ocupa la posición
+      // compañera (si hay alguien ahí) — ese rival "libera" el lugar
+      // movíendose a donde estaba el BYE.
+      const idxCompañera=_posCompañera(idxJugador);
+      if(slots[idxCompañera]===null) return;   // ya tiene BYE, nada que hacer
+      const idxBye=slots.indexOf(null);
+      if(idxBye<0) return;   // no hay ningún BYE disponible en el cuadro
+      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxBye];slots[idxBye]=tmp;
+    }else{
+      // Buscar al rival elegido y llevarlo a la posición COMPAÑERA de este
+      // jugador (así terminan enfrentados en el mismo partido de primera
+      // ronda). Si el rival ya se movió por una asignación anterior en
+      // este mismo lote, se lo busca en su posición actual.
+      const idxRival=slots.indexOf(destino);
+      if(idxRival<0)return;
+      const idxCompañera=_posCompañera(idxJugador);
+      if(idxRival===idxCompañera)return;   // ya están enfrentados
+      const tmp=slots[idxCompañera];slots[idxCompañera]=slots[idxRival];slots[idxRival]=tmp;
+    }
+  });
+  return slots;
+}
+function saveMainPositions(ti){
+  const tr=playoff.tramos[ti];if(!tr||!tr.main)return;
+  const slotsActuales=_mainSlotsActuales(tr);
+  const actuales=slotsActuales.filter(Boolean);
+  const asignaciones=[];
+  actuales.forEach(n=>{
+    const sel=document.getElementById('po-main-dest-'+jsq(n));
+    if(!sel)return;
+    const v=sel.value;
+    if(!v)return;   // "mantener" — sin cambios para este jugador
+    asignaciones.push({jugador:n,destino:v});
+  });
+  if(!asignaciones.length){ closeM(); return; }
+  const label=tr.label;
+  if(_poHasResultsInBracket(ti)){
+    if(!confirm(tf('po_reorder_confirm',{l:label}))) return;
+    _poClearBracketResults(ti);
+  }
+  const slotsFinal=_resolverAsignacionesMain(tr,asignaciones);
+  tr.mainOrder=slotsFinal;
+  rebuildTramo(ti);
+  showPlayoffView();
+  closeM();
+  toast(t('po_main_positions_saved'));
+  persist(true);
+}
 function editMainOrderUI(ti){
   if(!esAdmin(currentUser))return;
   const tr=playoff.tramos[ti];
@@ -132,19 +205,35 @@ function editMainOrderUI(ti){
   const slots=_mainSlotsActuales(tr);
   const actuales=slots.filter(Boolean);
   if(!actuales.length)return;
+  const hayBye=slots.includes(null);
   document.getElementById('modal-title').textContent = tf('po_main_edit_title',{l:tr.label});
   const rowsHtml = actuales.map((n,idx)=>{
     const isFirst=idx===0, isLast=idx===actuales.length-1;
     const moveBtns = `<button class="mv" onclick="moveMainUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveMainDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
+    // Selector directo: BYE (solo si hay alguno disponible en el cuadro) +
+    // un "jugar contra X" por cada otro jugador real del cuadro. Esto es
+    // lo que permite elegir DIRECTAMENTE quién tiene BYE y quién juega con
+    // quién, sin tener que ir subiendo/bajando de a un paso hasta llegar
+    // a la posición deseada.
+    const opcionBye = hayBye ? `<option value="bye">${attr(t('po_main_give_bye'))}</option>` : '';
+    const opcionesRivales = actuales.filter(o=>o!==n).map(o=>`<option value="${attr(o)}">${attr(tf('po_main_play_vs',{n:o}))}</option>`).join('');
     return `<div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(n)}</div>
       <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
+    </div>
+    <div style="margin:-.25rem 0 .5rem 0">
+      <select id="po-main-dest-${jsq(n)}" style="font-size:12px;padding:4px 6px;width:100%">
+        <option value="">${attr(t('po_cons_keep'))}</option>
+        ${opcionBye}
+        ${opcionesRivales}
+      </select>
     </div>`;
   }).join('');
   document.getElementById('modal-body').innerHTML = `
     <p class="legend-txt" style="margin-top:0">${t('po_main_edit_hint')}</p>
     ${rowsHtml}`;
   document.getElementById('modal-actions').innerHTML = `
+    <button class="btn btn-primary" onclick="saveMainPositions(${ti})"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
     <button class="btn" onclick="closeM()">${t('close')}</button>`;
   document.getElementById('modal-bg').classList.add('open');
 }
