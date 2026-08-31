@@ -185,19 +185,28 @@ function clearConsOverridesUI(ti){
 // nunca puede coincidir con un nombre de jugador real (ver rebuildTramo en
 // core-estado.js, que la lee y reconcilia con los perdedores reales en
 // cada recálculo).
-function _consOrdenActual(tr){
-  // El orden VIGENTE ahora mismo es el que ya está armado en tr.cons[0]
-  // (después de aplicar reemplazos y cualquier '_order' previo) — es la
-  // fuente de verdad más simple, ya la calculó rebuildTramo().
-  const actuales=[];
-  if(tr.cons) tr.cons[0].forEach(m=>{ if(m.a)actuales.push(m.a); if(m.b)actuales.push(m.b); });
-  return actuales;
+// Devuelve el array de POSICIONES del cuadro tal como está ahora (incluye
+// null en los BYE) — no solo los nombres. Es importante preservar los null
+// en su lugar: si se "aplanaran" (como hacía la versión anterior de esta
+// función, filtrando solo los .a/.b con nombre), se perdía la información
+// de EN QUÉ POSICIÓN va cada BYE, y el próximo armado del cuadro terminaba
+// juntando a todos los jugadores reales al principio y a todos los BYE al
+// final — en vez de repartir los BYE entre los sembrados más altos, como
+// corresponde (ver seedOrder/buildRounds en core-estado.js).
+function _consSlotsActuales(tr){
+  const slots=[];
+  if(tr.cons) tr.cons[0].forEach(m=>{ slots.push(m.a); slots.push(m.b); });
+  return slots;
 }
 function _swapConsOrder(ti,i,j){
   const tr=playoff.tramos[ti];
   if(!tr||!tr.cons)return false;
-  const orden=_consOrdenActual(tr);
-  if(i<0||j<0||i>=orden.length||j>=orden.length)return false;
+  const slots=_consSlotsActuales(tr);
+  if(i<0||j<0||i>=slots.length||j>=slots.length)return false;
+  // No tiene sentido "mover" un BYE — no hay nada que reubicar. El llamador
+  // (moveConsUpUI/moveConsDownUI) ya filtra esto antes de llegar acá, pero
+  // se revalida por las dudas.
+  if(!slots[i]||!slots[j])return false;
   const label=tr.label;
   // Mismo cuidado que _swapSeeds: si ya hay resultados cargados en la
   // consolación de este cuadro, avisar y limpiarlos antes de reordenar —
@@ -208,18 +217,29 @@ function _swapConsOrder(ti,i,j){
     if(!confirm(tf('po_reorder_confirm',{l:label})))return false;
     Object.keys(playoff.results).forEach(k=>{if(k.startsWith(prefix))delete playoff.results[k];});
   }
-  const tmp=orden[i];orden[i]=orden[j];orden[j]=tmp;
+  const tmp=slots[i];slots[i]=slots[j];slots[j]=tmp;
   if(!tr.consOverrides) tr.consOverrides={};
-  tr.consOverrides._order=orden;
+  // Se guarda el array COMPLETO de slots (con null incluidos) — ver el
+  // comentario grande en core-estado.js (rebuildTramo/buildRounds) sobre
+  // por qué esto necesita ser un array posicional de tamaño fijo (el
+  // tamaño del cuadro) y no una lista "solo de nombres".
+  tr.consOverrides._order=slots;
   rebuildTramo(ti);
   return true;
 }
 function moveConsUpUI(ti,name){
   const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
-  const orden=_consOrdenActual(tr);
-  const idx=orden.indexOf(name);
+  const slots=_consSlotsActuales(tr);
+  const idx=slots.indexOf(name);
   if(idx<=0)return;
-  if(_swapConsOrder(ti,idx,idx-1)){
+  // Buscar la posición anterior CON JUGADOR (saltea BYEs intermedios): si
+  // el vecino inmediato de arriba es un BYE, mover ahí no cambiaría nada
+  // visible para el admin — lo que quiere es intercambiar con el próximo
+  // jugador real hacia arriba.
+  let destino=idx-1;
+  while(destino>=0 && !slots[destino]) destino--;
+  if(destino<0)return;
+  if(_swapConsOrder(ti,idx,destino)){
     showPlayoffView();
     // Re-abrir el modal con el orden ya actualizado: el usuario está
     // reordenando desde acá y probablemente quiere seguir ajustando sin
@@ -231,10 +251,13 @@ function moveConsUpUI(ti,name){
 }
 function moveConsDownUI(ti,name){
   const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
-  const orden=_consOrdenActual(tr);
-  const idx=orden.indexOf(name);
-  if(idx<0||idx>=orden.length-1)return;
-  if(_swapConsOrder(ti,idx,idx+1)){
+  const slots=_consSlotsActuales(tr);
+  const idx=slots.indexOf(name);
+  if(idx<0)return;
+  let destino=idx+1;
+  while(destino<slots.length && !slots[destino]) destino++;
+  if(destino>=slots.length)return;
+  if(_swapConsOrder(ti,idx,destino)){
     showPlayoffView();
     editConsOverrideUI(ti);
     toast(tf('po_reorder_ok',{n:name}));
