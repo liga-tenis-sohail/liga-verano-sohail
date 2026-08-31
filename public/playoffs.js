@@ -203,10 +203,15 @@ function _swapConsOrder(ti,i,j){
   if(!tr||!tr.cons)return false;
   const slots=_consSlotsActuales(tr);
   if(i<0||j<0||i>=slots.length||j>=slots.length)return false;
-  // No tiene sentido "mover" un BYE — no hay nada que reubicar. El llamador
-  // (moveConsUpUI/moveConsDownUI) ya filtra esto antes de llegar acá, pero
-  // se revalida por las dudas.
-  if(!slots[i]||!slots[j])return false;
+  // Antes esto bloqueaba el swap si alguna de las dos posiciones era un
+  // BYE (null) — pero eso significaba que un jugador nunca podía moverse
+  // a un lugar donde antes había BYE, ni un BYE podía "moverse" a otro
+  // lugar del cuadro: el admin quedaba atado a reordenar solo entre
+  // jugadores reales, sin poder tocar dónde caían los BYE. Ahora se
+  // permite intercambiar con una posición BYE: eso efectivamente MUEVE el
+  // BYE de lugar (el jugador pasa a tener BYE, y el BYE "libera" la
+  // posición donde antes estaba el jugador) — la cantidad TOTAL de BYE en
+  // el cuadro nunca cambia con este swap, solo su ubicación.
   const label=tr.label;
   // Mismo cuidado que _swapSeeds: si ya hay resultados cargados en la
   // consolación de este cuadro, avisar y limpiarlos antes de reordenar —
@@ -232,13 +237,14 @@ function moveConsUpUI(ti,name){
   const slots=_consSlotsActuales(tr);
   const idx=slots.indexOf(name);
   if(idx<=0)return;
-  // Buscar la posición anterior CON JUGADOR (saltea BYEs intermedios): si
-  // el vecino inmediato de arriba es un BYE, mover ahí no cambiaría nada
-  // visible para el admin — lo que quiere es intercambiar con el próximo
-  // jugador real hacia arriba.
-  let destino=idx-1;
-  while(destino>=0 && !slots[destino]) destino--;
-  if(destino<0)return;
+  // Intercambia con el vecino INMEDIATO de arriba, sea jugador o BYE — a
+  // diferencia de antes, ya no se saltean los BYE buscando "el próximo
+  // jugador real": eso impedía que un jugador pudiera moverse a una
+  // posición donde había BYE (y por lo tanto, que el admin pudiera mover
+  // el BYE de lugar). Ahora, si el vecino es BYE, este jugador pasa a
+  // tener BYE ahí — un movimiento más, en la dirección que sea, lo saca
+  // de esa posición si el admin sigue moviéndolo.
+  const destino=idx-1;
   if(_swapConsOrder(ti,idx,destino)){
     showPlayoffView();
     // Re-abrir el modal con el orden ya actualizado: el usuario está
@@ -253,10 +259,10 @@ function moveConsDownUI(ti,name){
   const tr=playoff.tramos[ti];if(!tr||!tr.cons)return;
   const slots=_consSlotsActuales(tr);
   const idx=slots.indexOf(name);
-  if(idx<0)return;
-  let destino=idx+1;
-  while(destino<slots.length && !slots[destino]) destino++;
-  if(destino>=slots.length)return;
+  if(idx<0||idx>=slots.length-1)return;
+  // Mismo criterio que moveConsUpUI: intercambia con el vecino inmediato,
+  // sea jugador o BYE, sin saltarlo.
+  const destino=idx+1;
   if(_swapConsOrder(ti,idx,destino)){
     showPlayoffView();
     editConsOverrideUI(ti);
