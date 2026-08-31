@@ -119,7 +119,7 @@ function editConsOverrideUI(ti){
     const moveBtns = `<button class="mv" onclick="moveConsUpUI(${ti},'${jsq(n)}')" ${isFirst?'disabled':''} title="${t('po_seed_up')}" aria-label="${t('po_seed_up')}"><i class="ti ti-chevron-up"></i></button><button class="mv" onclick="moveConsDownUI(${ti},'${jsq(n)}')" ${isLast?'disabled':''} title="${t('po_seed_down')}" aria-label="${t('po_seed_down')}"><i class="ti ti-chevron-down"></i></button>`;
     return `<div class="form-row" style="grid-template-columns:1fr auto auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(label)}</div>
-      <div style="display:flex;gap:2px">${moveBtns}</div>
+      <div class="po-cons-move-row" style="display:flex;gap:2px">${moveBtns}</div>
       <div style="display:flex;gap:4px">
         <select id="po-cons-repl-${jsq(n)}" style="font-size:12px;padding:4px 6px">
           <option value="">${attr(t('po_cons_keep'))}</option>
