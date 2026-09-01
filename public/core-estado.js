@@ -121,7 +121,7 @@ playoffs_title:'Play Offs',playoffs_ready:'Todos los ciclos están cerrados. Pre
 cycle_closed_next:'Ciclo {n} cerrado. ¡Ciclo {nx} iniciado con grupos actualizados!',cycle3_closed:'Todos los ciclos cerrados. Ya puedes iniciar los Play Offs desde Admin.',last_cycle_finished:'Último ciclo finalizado. Ya puedes previsualizar los Play Offs.',
 po_preview_banner:'Previsualización — los Play Offs todavía NO están iniciados',po_preview_hint:'Así quedarían los cuadros según la clasificación general. Quita o agrega jugadores (los que no juegan) y ajusta la cantidad de cuadros. Cuando esté todo listo, confirma el inicio. Hasta entonces los jugadores no ven nada.',po_confirm_start:'Iniciar Play Offs definitivamente',
 po_config:'Configuración de Play Offs',po_config_hint:'Al cambiar la cantidad, los cuadros se rearman repartiendo la clasificación general en partes iguales. Puedes también forzar en qué ronda empezar cada cuadro.',po_seeds_title:'Jugadores del Cuadro {l} — quita (✕) o agrega',po_removed:'Retirados: {list}.',po_add_label:'Agregar jugador a este cuadro',po_add_choose:'Elige…',po_add_btn:'Agregar',po_bye_note:'Si quitás a alguien, no se reemplaza: pasa uno más por bye.',
-po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_cons_edit_btn:'Editar jugadores',po_main_edit_btn:'Editar posiciones',po_main_edit_title:'Editar posiciones · Cuadro {l}',po_main_edit_hint:'Movés cualquier jugador dentro del cuadro, incluyendo intercambiar con un BYE — la cantidad total de BYE del cuadro no cambia, solo su ubicación. También podés elegir directamente, con el selector de cada jugador, que le toque BYE o que juegue contra alguien puntual.',po_main_give_bye:'★ Darle BYE',po_main_play_vs:'Jugar contra: {n}',po_main_bring_here:'Traer acá a: {n}',po_main_put_here:'Poner acá a: {n}',po_main_positions_saved:'Posiciones del cuadro actualizadas.',po_cons_clear_btn:'Restaurar',po_cons_none:'Este cuadro todavía no tiene consolación armada.',po_cons_edit_title:'Editar Consolación {l}',po_cons_edit_hint:'Elegí un reemplazo para cualquier jugador de esta consolación, o sacalo sin reemplazo. Los cambios se guardan y sobreviven a nuevos resultados cargados.',po_cons_was:'reemplaza a {n}',po_cons_keep:'— Mantener —',po_cons_remove:'✕ Sacar sin reemplazo',po_cons_saved:'Consolación actualizada.',po_cons_none_to_clear:'No hay ningún cambio manual que restaurar.',po_cons_clear_confirm:'¿Restaurar la consolación a los perdedores reales de la primera ronda? Se pierden todos los reemplazos manuales de este cuadro.',po_cons_cleared:'Consolación restaurada a los perdedores reales.',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
+po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_cons_edit_btn:'Editar jugadores',po_main_edit_btn:'Editar posiciones',po_main_edit_title:'Editar posiciones · Cuadro {l}',po_main_edit_hint:'Movés cualquier jugador dentro del cuadro, incluyendo intercambiar con un BYE — la cantidad total de BYE del cuadro no cambia, solo su ubicación. También podés elegir directamente, con el selector de cada jugador, que le toque BYE o que juegue contra alguien puntual.',po_main_give_bye:'★ Darle BYE',po_main_play_vs:'Jugar contra: {n}',po_main_bring_here:'Traer acá a: {n}',po_main_put_here:'Poner acá a: {n}',po_bye_label:'BYE',hist_view:'Ver historial',po_main_positions_saved:'Posiciones del cuadro actualizadas.',po_cons_clear_btn:'Restaurar',po_cons_none:'Este cuadro todavía no tiene consolación armada.',po_cons_edit_title:'Editar Consolación {l}',po_cons_edit_hint:'Elegí un reemplazo para cualquier jugador de esta consolación, o sacalo sin reemplazo. Los cambios se guardan y sobreviven a nuevos resultados cargados.',po_cons_was:'reemplaza a {n}',po_cons_keep:'— Mantener —',po_cons_remove:'✕ Sacar sin reemplazo',po_cons_saved:'Consolación actualizada.',po_cons_none_to_clear:'No hay ningún cambio manual que restaurar.',po_cons_clear_confirm:'¿Restaurar la consolación a los perdedores reales de la primera ronda? Se pierden todos los reemplazos manuales de este cuadro.',po_cons_cleared:'Consolación restaurada a los perdedores reales.',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
 po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elige jugador…',po_move_here:'Mover aquí',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elige un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',po_form_note:'Partido de Play Offs — {draw} · {round}',
 po_tab_players:'jug.',
 pending_match:'Pendiente de juego',
@@ -260,7 +260,7 @@ playoffs_title:'Play Offs',playoffs_ready:'All cycles closed. Preview brackets t
 cycle_closed_next:'Cycle {n} closed. Cycle {nx} started with updated groups!',cycle3_closed:'All cycles closed. You can now start the Play Offs from Admin.',last_cycle_finished:'Last cycle finished. You can now preview the Play Offs.',
 po_preview_banner:'Preview — Play Offs have NOT started yet',po_preview_hint:'This is how the brackets would look. Remove or add players (those not playing) and adjust the number of brackets. When ready, confirm the start. Until then players see nothing.',po_confirm_start:'Start Play Offs for real',
 po_config:'Play Off settings',po_config_hint:'Changing the number of brackets redistributes the general standings evenly. You can also force the starting round.',po_seeds_title:'Players in Draw {l} — remove (✕) or add',po_removed:'Withdrawn: {list}.',po_add_label:'Add player to this bracket',po_add_choose:'Choose…',po_add_btn:'Add',po_bye_note:'If you remove someone they are not replaced: another player gets a bye instead.',
-po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_cons_edit_btn:'Edit players',po_main_edit_btn:'Edit positions',po_main_edit_title:'Edit positions · Bracket {l}',po_main_edit_hint:'Move any player within the bracket, including swapping with a BYE — the total number of BYEs in the bracket never changes, only where they are. You can also pick directly, with each player\'s selector, that they get a BYE or play against someone specific.',po_main_give_bye:'★ Give BYE',po_main_play_vs:'Play against: {n}',po_main_bring_here:'Bring here: {n}',po_main_put_here:'Put here: {n}',po_main_positions_saved:'Bracket positions updated.',po_cons_clear_btn:'Restore',po_cons_none:'This bracket does not have a consolation draw yet.',po_cons_edit_title:'Edit Consolation {l}',po_cons_edit_hint:'Pick a replacement for any player in this consolation draw, or remove them with no replacement. Changes are saved and survive new results being entered.',po_cons_was:'replacing {n}',po_cons_keep:'— Keep —',po_cons_remove:'✕ Remove, no replacement',po_cons_saved:'Consolation draw updated.',po_cons_none_to_clear:'There are no manual changes to restore.',po_cons_clear_confirm:'Restore the consolation draw to the actual 1st round losers? All manual replacements in this bracket will be lost.',po_cons_cleared:'Consolation draw restored to the actual losers.',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
+po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_cons_edit_btn:'Edit players',po_main_edit_btn:'Edit positions',po_main_edit_title:'Edit positions · Bracket {l}',po_main_edit_hint:'Move any player within the bracket, including swapping with a BYE — the total number of BYEs in the bracket never changes, only where they are. You can also pick directly, with each player\'s selector, that they get a BYE or play against someone specific.',po_main_give_bye:'★ Give BYE',po_main_play_vs:'Play against: {n}',po_main_bring_here:'Bring here: {n}',po_main_put_here:'Put here: {n}',po_bye_label:'BYE',hist_view:'View history',po_main_positions_saved:'Bracket positions updated.',po_cons_clear_btn:'Restore',po_cons_none:'This bracket does not have a consolation draw yet.',po_cons_edit_title:'Edit Consolation {l}',po_cons_edit_hint:'Pick a replacement for any player in this consolation draw, or remove them with no replacement. Changes are saved and survive new results being entered.',po_cons_was:'replacing {n}',po_cons_keep:'— Keep —',po_cons_remove:'✕ Remove, no replacement',po_cons_saved:'Consolation draw updated.',po_cons_none_to_clear:'There are no manual changes to restore.',po_cons_clear_confirm:'Restore the consolation draw to the actual 1st round losers? All manual replacements in this bracket will be lost.',po_cons_cleared:'Consolation draw restored to the actual losers.',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
 po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',po_form_note:'Play Off Match — {draw} · {round}',
 po_tab_players:'players',
 pending_match:'Pending match',
@@ -1003,37 +1003,42 @@ function rebuildTramo(t){
   // DownUI, moviendo posiciones dentro de tr.seeds), pero nunca podía tocar
   // DÓNDE caen los BYE — esos siempre se recalculaban automáticamente según
   // el criterio de siembra estándar (seedOrder), sin ningún control manual.
-  // Se reconcilia con tr.seeds en ambos sentidos, igual que consOverrides._order
-  // se reconcilia con `losers` más abajo: un nombre que ya no está en
-  // tr.seeds se descarta de su slot, uno nuevo se coloca en el primer hueco
-  // libre, y el tamaño se recorta al natural correcto si sobran huecos
-  // (ej. si se sacó un jugador del cuadro después de haber reordenado).
+  //
+  // VALIDACIÓN ESTRICTA, no reconciliación por "rellenar huecos": la
+  // versión anterior intentaba reparar mainOrder cada vez que no coincidía
+  // perfectamente con tr.seeds (metiendo a cualquier jugador "de más" en
+  // el primer hueco null que encontrara) — como rebuildTramo() se llama
+  // constantemente (cada resultado cargado, cada acción del admin), esa
+  // reparación se disparaba todo el tiempo por desajustes menores y
+  // terminaba recolocando jugadores sin ningún criterio reconocible, sin
+  // que el admin hubiera pedido ese movimiento. Ahora: si mainOrder
+  // contiene EXACTAMENTE el mismo conjunto de jugadores que tr.seeds (ni
+  // uno de más, ni uno de menos) se usa tal cual, intacto. Si no coincide
+  // — algo cambió de verdad (un jugador entró o salió del cuadro) — se
+  // descarta el orden manual COMPLETO y se vuelve al armado automático por
+  // ranking; es preferible que el admin tenga que reordenar una vez más
+  // (algo que solo pasa cuando de verdad cambió el cuadro) a que el
+  // sistema mueva gente sin que nadie se lo haya pedido.
   let tieneMainOrderManual=false;
   let seedsParaMain=tr.seeds;
   if(Array.isArray(tr.mainOrder) && tr.mainOrder.length){
-    tieneMainOrderManual=true;
-    const enSeeds=new Set(tr.seeds);
-    let slots=tr.mainOrder.map(n=>(n && enSeeds.has(n))?n:null);
-    const colocados=new Set(slots.filter(Boolean));
-    tr.seeds.forEach(n=>{
-      if(colocados.has(n)) return;
-      const libre=slots.indexOf(null);
-      if(libre>=0){ slots[libre]=n; colocados.add(n); }
-      else slots.push(n);
-    });
-    let tamañoNatural=1;
-    while(tamañoNatural<tr.seeds.length) tamañoNatural*=2;
-    if(tamañoNatural<2) tamañoNatural=2;
-    // El cuadro principal SÍ respeta forcedSize si el admin lo fijó — a
-    // diferencia de consolación. Si forcedSize es mayor al tamaño natural,
-    // el recorte no debe bajar de ahí.
-    if(playoff.forcedSize && playoff.forcedSize>tamañoNatural) tamañoNatural=playoff.forcedSize;
-    while(slots.length>tamañoNatural){
-      const idxHueco=slots.lastIndexOf(null);
-      if(idxHueco<0) break;
-      slots.splice(idxHueco,1);
+    const jugadoresEnOrder=tr.mainOrder.filter(Boolean);
+    const setSeeds=new Set(tr.seeds);
+    const setOrder=new Set(jugadoresEnOrder);
+    const tamañoEsperado = (playoff.forcedSize && playoff.forcedSize>=2) ? playoff.forcedSize : null;
+    const coincideExacto = jugadoresEnOrder.length===tr.seeds.length
+      && tr.seeds.every(n=>setOrder.has(n))
+      && jugadoresEnOrder.every(n=>setSeeds.has(n))
+      && (!tamañoEsperado || tr.mainOrder.length===tamañoEsperado);
+    if(coincideExacto){
+      tieneMainOrderManual=true;
+      seedsParaMain=tr.mainOrder.slice();
+    }else{
+      // El cuadro cambió (jugador agregado/quitado, o el admin cambió el
+      // tamaño forzado) — el orden manual ya no es válido para este
+      // conjunto, se descarta en vez de intentar parchearlo.
+      tr.mainOrder=null;
     }
-    seedsParaMain=slots;
   }
   tr.main=buildRounds(seedsParaMain,false,tieneMainOrderManual);
   if(tieneMainOrderManual){
@@ -1075,48 +1080,41 @@ function rebuildTramo(t){
   // en vez del orden "natural" (el de aparición de los perdedores). '_order'
   // es un array de SLOTS (incluye null en las posiciones BYE, tamaño fijo
   // = tamaño del cuadro EN EL MOMENTO en que se guardó) — no una lista
-  // simple de nombres. Se reconcilia con el conjunto real de `losers` en
-  // varios sentidos:
-  //   - un nombre de '_order' que ya no está en `losers` (por ejemplo, si
-  //     el cuadro principal cambió y ese jugador ya no perdió primera
-  //     ronda) se descarta de su slot (que vuelve a null);
-  //   - cualquier jugador de `losers` que todavía no esté en ningún slot
-  //     de '_order' (por ejemplo, recién llegó vía un reemplazo nuevo) se
-  //     coloca en el primer slot vacío disponible;
-  //   - el TAMAÑO del array se ajusta al tamaño natural correcto para la
-  //     cantidad ACTUAL de jugadores reales — sin este ajuste, si en algún
-  //     momento hubo más jugadores en consolación (ej. 11, cuadro de 16) y
-  //     ahora hay menos (ej. 8, cuadro natural de 8), el `_order` viejo
-  //     seguía teniendo 16 posiciones con 8 huecos de más, que terminaban
-  //     emparejándose entre sí como "BYE vs BYE" — un cruce vacío, sin
-  //     ningún jugador de ningún lado, que se veía como un partido roto en
-  //     el cuadro.
+  // simple de nombres.
+  //
+  // VALIDACIÓN ESTRICTA, no reconciliación por "rellenar huecos": la
+  // versión anterior intentaba reparar '_order' cada vez que no coincidía
+  // perfectamente con `losers` (metiendo a cualquier jugador "de más" en
+  // el primer hueco null que encontrara, y recortando huecos sobrantes al
+  // final) — como rebuildTramo() se llama constantemente, esa reparación
+  // se disparaba todo el tiempo por desajustes menores y terminaba
+  // recolocando jugadores sin ningún criterio reconocible, sin que el
+  // admin hubiera pedido ese movimiento. Ahora: si '_order' contiene
+  // EXACTAMENTE el mismo conjunto de jugadores que `losers`, y el tamaño
+  // del array ya es la potencia de 2 correcta para esa cantidad, se usa
+  // tal cual, intacto. Si no coincide — cambió quién perdió primera ronda
+  // del cuadro principal, por ejemplo — se descarta el orden manual
+  // COMPLETO y se vuelve al armado automático; es preferible que el admin
+  // tenga que reordenar una vez más a que el sistema mueva gente sin que
+  // nadie se lo haya pedido.
   let tieneOrderManual=false;
   if(Array.isArray(ov._order) && ov._order.length){
-    tieneOrderManual=true;
-    const enLosers = new Set(losers);
-    let slots = ov._order.map(n => (n && enLosers.has(n)) ? n : null);
-    const colocados = new Set(slots.filter(Boolean));
-    losers.forEach(n => {
-      if(colocados.has(n)) return;
-      const libre = slots.indexOf(null);
-      if(libre>=0){ slots[libre]=n; colocados.add(n); }
-      else slots.push(n);   // no debería pasar (el array ya cubre todo el cuadro), red de seguridad
-    });
-    // Ajuste de tamaño: si el array (con los BYE de más) es más grande que
-    // el cuadro natural que corresponde a la cantidad real de jugadores,
-    // se recorta — se van sacando huecos (null) de a uno, de atrás hacia
-    // adelante, hasta llegar al tamaño correcto. Nunca se saca un jugador
-    // real, solo huecos sobrantes.
+    const jugadoresEnOrder=ov._order.filter(Boolean);
+    const setLosers=new Set(losers);
+    const setOrder=new Set(jugadoresEnOrder);
     let tamañoNatural=1;
     while(tamañoNatural<losers.length) tamañoNatural*=2;
     if(tamañoNatural<2) tamañoNatural=2;
-    while(slots.length>tamañoNatural){
-      const idxHueco=slots.lastIndexOf(null);
-      if(idxHueco<0) break;   // no debería pasar: si no hay huecos, el array ya es del tamaño justo de jugadores reales
-      slots.splice(idxHueco,1);
+    const coincideExacto = jugadoresEnOrder.length===losers.length
+      && losers.every(n=>setOrder.has(n))
+      && jugadoresEnOrder.every(n=>setLosers.has(n))
+      && ov._order.length===tamañoNatural;
+    if(coincideExacto){
+      tieneOrderManual=true;
+      losers = ov._order.slice();   // incluye null: buildRounds ya sabe tratarlos como BYE
+    }else{
+      tr.consOverrides._order=null;
     }
-    losers = slots;   // incluye null: buildRounds ya sabe tratarlos como BYE
   }
   // ignorarForcedSize=true: consolación SIEMPRE calcula su propio tamaño
   // natural según su cantidad real de jugadores (losers.length), sin

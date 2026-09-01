@@ -155,12 +155,17 @@ button.liga-tab{cursor:pointer}
            jugador se retiró antes de terminar. A diferencia de "No jugado",
            acá SÍ hay sets/games reales que cuentan para el rating — por eso
            se cargan en los mismos campos de arriba, no se descartan. -->
-      <div id="ret-toggle-wrap" style="text-align:center;margin-bottom:.5rem">
-        <button class="btn btn-sm" id="ret-toggle-btn" onclick="toggleRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5"><i class="ti ti-flag"></i> RET (se retiró un jugador)</button>
+      <div id="ret-toggle-wrap" style="text-align:center;margin-bottom:.5rem;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-sm" id="ret-toggle-btn" onclick="toggleRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5"><i class="ti ti-flag"></i> RET (se jugó algo y se retiró)</button>
+        <button class="btn btn-sm" id="wo-toggle-btn" onclick="toggleWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD)"><i class="ti ti-ban"></i> W.O. (no se jugó nada)</button>
       </div>
       <div id="ret-panel" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px">
         <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
         <select id="ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5"><option value="">— ¿Quién se retiró? —</option></select>
+      </div>
+      <div id="wo-panel" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:var(--surface2);border:1px solid var(--priD);border-radius:10px">
+        <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;font-weight:600">W.O. — el partido no se jugó, ¿quién no se presentó?</p>
+        <select id="wo-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--priD)"><option value="">— ¿Quién no se presentó? —</option></select>
       </div>
       <div class="gap-sm mt-sm">
         <button class="btn" id="stb-toggle-btn" onclick="toggleSTB()"><i class="ti ti-plus"></i> Supertiebreak (1-1)</button>

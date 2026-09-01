@@ -457,6 +457,7 @@ function toggleSTB(){const row=document.getElementById('s3-row');const btn=docum
 function toggleRetiro(){
   const panel=document.getElementById('ret-panel');
   const btn=document.getElementById('ret-toggle-btn');
+  const woBtn=document.getElementById('wo-toggle-btn');
   const abrir = panel.style.display==='none'||panel.style.display==='';
   if(abrir){
     const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
@@ -476,10 +477,47 @@ function toggleRetiro(){
       +'<option value="'+attr(rivName)+'">'+attr(rivName)+'</option>';
     panel.style.display='block';
     btn.style.display='none';
+    if(woBtn)woBtn.style.display='none';
   }else{
     panel.style.display='none';
     btn.style.display='inline-flex';
+    if(woBtn)woBtn.style.display='inline-flex';
     document.getElementById('ret-quien').value='';
+  }
+}
+// Panel de W.O. (walkover — no se jugó nada): convive con RET (arriba,
+// para cuando SÍ se jugó algo antes del retiro) como opción separada y
+// más rápida para el caso más simple. Mismo criterio de resolución de
+// nombres que toggleRetiro().
+function toggleWO(){
+  const panel=document.getElementById('wo-panel');
+  const btn=document.getElementById('wo-toggle-btn');
+  const retBtn=document.getElementById('ret-toggle-btn');
+  const abrir = panel.style.display==='none'||panel.style.display==='';
+  if(abrir){
+    const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
+    if(!rv||!iv){ fAlert(t('select_two'),'err'); return; }
+    const isAdmin=esAdmin(currentUser);
+    let repName,rivName;
+    if(currentUser.role==='player' && !isAdmin){
+      repName=currentUser.name;rivName=iv;
+    }else{
+      const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
+      repName=parseSel(repVal).name;rivName=parseSel(iv).name;
+    }
+    if(!repName||!rivName||repName===rivName){ fAlert(t('select_two'),'err'); return; }
+    const sel=document.getElementById('wo-quien');
+    sel.innerHTML='<option value="">— ¿Quién no se presentó? —</option>'
+      +'<option value="'+attr(repName)+'">'+attr(repName)+'</option>'
+      +'<option value="'+attr(rivName)+'">'+attr(rivName)+'</option>';
+    panel.style.display='block';
+    btn.style.display='none';
+    if(retBtn)retBtn.style.display='none';
+  }else{
+    panel.style.display='none';
+    btn.style.display='inline-flex';
+    if(retBtn)retBtn.style.display='inline-flex';
+    document.getElementById('wo-quien').value='';
   }
 }
 function checkAutoSTB(){const s1a=+document.getElementById('s1a').value,s1b=+document.getElementById('s1b').value;const s2a=+document.getElementById('s2a').value,s2b=+document.getElementById('s2b').value;if(!s1a&&!s1b&&!s2a&&!s2b)return;let w1=0,w2=0;if(validSet(s1a,s1b)){if(s1a>s1b)w1++;else w2++;}if(validSet(s2a,s2b)){if(s2a>s2b)w1++;else w2++;}const row=document.getElementById('s3-row');const btn=document.getElementById('stb-toggle-btn');if(w1===1&&w2===1){
@@ -514,6 +552,10 @@ function submitResult(){
   // estén completos ni sean 2-3 sets parejos), y el ganador es
   // directamente "quien no se retiró", no se calcula por sets ganados.
   const retQuien=document.getElementById('ret-quien')?document.getElementById('ret-quien').value:'';
+  // W.O. (walkover): igual que RET pero sin ningún set — el partido
+  // directamente no se jugó. Convive con RET como una opción separada,
+  // más rápida para el caso simple (nadie llegó a jugar nada).
+  const woQuien=document.getElementById('wo-quien')?document.getElementById('wo-quien').value:'';
   // Si hay poContext activo, redirigir a lógica de playoff
   if(poContext){
     if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
@@ -523,7 +565,11 @@ function submitResult(){
     const m=tr[which][ri][mi];if(!m)return;
     const isAdmin=validaAlCargar(m.a,m.b);
     let s,winner;
-    if(retQuien){
+    if(woQuien){
+      if(woQuien!==m.a&&woQuien!==m.b){fAlert('Elegí quién no se presentó entre los dos jugadores de este partido.','err');return;}
+      s=[];
+      winner=woQuien===m.a?m.b:m.a;
+    }else if(retQuien){
       if(retQuien!==m.a&&retQuien!==m.b){fAlert('Elegí quién se retiró entre los dos jugadores de este partido.','err');return;}
       s=readSetsLibre();
       winner=retQuien===m.a?m.b:m.a;
@@ -532,18 +578,19 @@ function submitResult(){
       let w1=0,w2=0;s.forEach(([a,b])=>{if(a>b)w1++;else w2++;});
       winner=w1>w2?m.a:m.b;
     }
+    const esWO=!!(retQuien||woQuien);
     // Guardar resultado en matches igual que submitPo
     matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
-    const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:playoff.tramos[ti].label,poNames:[m.a,m.b],sets:s,wo:!!retQuien,retiroDe:retQuien||undefined,date:fecha,club:formClub||'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,locked:isAdmin};
+    const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:playoff.tramos[ti].label,poNames:[m.a,m.b],sets:s,wo:esWO,retiroDe:retQuien||woQuien||undefined,date:fecha,club:formClub||'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner,locked:isAdmin};
     matches.push(newM);
     if(isAdmin){
-      storePo(ti,which,m.a,m.b,s,winner,!!retQuien);
+      storePo(ti,which,m.a,m.b,s,winner,esWO);
       rebuildTramo(ti);
     } else {
       applyPoPending(newM);
     }
     const _rn=(()=>{const fe=tr[which].length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
-    addLog(isAdmin?'Playoff: validado (admin)':'Playoff: cargado',{a:m.a,b:m.b,sets:s,winner,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn});
+    addLog(isAdmin?'Playoff: validado (admin)':'Playoff: cargado',{a:m.a,b:m.b,sets:s,winner,wo:esWO,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn});
     clearForm();poContext=null;
     fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
     persist(true);
@@ -575,7 +622,11 @@ function submitResult(){
   if(ex&&ex.locked&&!esAdmin(currentUser)){fAlert(t('validated_admin_only'),'err');return;}
   if(ex&&ex.status==='disputed'&&!esAdmin(currentUser)){fAlert('Este resultado está en disputa. El administrador debe resolverlo primero.','err');return;}
   let s,winnerRet;
-  if(retQuien){
+  if(woQuien){
+    if(woQuien!==repName&&woQuien!==rivName){fAlert('Elegí quién no se presentó entre los dos jugadores de este partido.','err');return;}
+    s=[];
+    winnerRet=woQuien===repName?rivName:repName;
+  }else if(retQuien){
     if(retQuien!==repName&&retQuien!==rivName){fAlert('Elegí quién se retiró entre los dos jugadores de este partido.','err');return;}
     s=readSetsLibre();
     winnerRet=retQuien===repName?rivName:repName;
@@ -583,11 +634,12 @@ function submitResult(){
     s=readSets();const v=validMatch(s);
     if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
   }
+  const esWO=!!(retQuien||woQuien);
   
   matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
   const isAdmin=validaAlCargar(repName,rivName);
-  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:!!retQuien,winner:retQuien?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub,locked:isAdmin});
-  addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,wo:!!retQuien,grupo:gid,po:false});
+  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:esWO,winner:esWO?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub,locked:isAdmin});
+  addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,wo:esWO,grupo:gid,po:false});
   clearForm();
   fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
   persist(true);
@@ -635,6 +687,10 @@ function clearForm(){if(esAdmin(currentUser)){const r=document.getElementById('f
   const retPanel=document.getElementById('ret-panel');if(retPanel)retPanel.style.display='none';
   const retBtn=document.getElementById('ret-toggle-btn');if(retBtn)retBtn.style.display='inline-flex';
   const retQuien=document.getElementById('ret-quien');if(retQuien)retQuien.value='';
+  // Mismo criterio para el panel de W.O.
+  const woPanel=document.getElementById('wo-panel');if(woPanel)woPanel.style.display='none';
+  const woBtn=document.getElementById('wo-toggle-btn');if(woBtn)woBtn.style.display='inline-flex';
+  const woQuienEl=document.getElementById('wo-quien');if(woQuienEl)woQuienEl.value='';
 }
 function involvedPend(m){if(esAdmin(currentUser))return true;if(m.po)return m.poNames&&m.poNames.includes(currentUser.name)&&m.reporter!==currentUser.name;return (m.aName===currentUser.name||m.bName===currentUser.name)&&m.reporter!==currentUser.name;}
 function renderPend(){

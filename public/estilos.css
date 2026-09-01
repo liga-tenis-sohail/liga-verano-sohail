@@ -321,6 +321,19 @@ html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
    con el nombre del jugador, que va arriba en su propia línea. */
 .po-pos-inline-sel{width:100%;font-size:10px;padding:2px 4px;margin-top:2px;border-radius:5px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2)}
 .po-pos-inline-sel:hover{border-color:var(--pri)}
+/* .po-pos-inline-name: variante donde el <select> ES el nombre del
+   jugador (reemplaza el texto, no va debajo) — se ve como texto normal en
+   flujo con el resto de la fila (mismo tamaño/peso que .nm-link), con
+   fondo transparente y sin borde, para no distraer del hecho de que ES el
+   nombre. El borde/fondo solo aparecen al pasar el mouse o enfocar, como
+   pista sutil de que es interactivo. */
+.po-pos-inline-name{width:auto;max-width:100%;font-size:12px;font-weight:inherit;margin-top:0;padding:2px 4px;border:1px solid transparent;background:transparent;color:inherit;cursor:pointer}
+.po-pos-inline-name:hover,.po-pos-inline-name:focus{border-color:var(--pri);background:var(--surface2)}
+/* Ícono de "ver historial", aparte del nombre cuando este es editable
+   (select) — chico, al final de la fila, mismo estilo que otros botones
+   ghost pequeños del proyecto (.pts-ajuste-btn). */
+.po-hist-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:2px;border-radius:5px;font-size:12px;line-height:1;flex-shrink:0}
+.po-hist-btn:hover{background:var(--surface2);color:var(--pri)}
 /* Fila resaltada dentro del modal de reacomodo cuando se abrió con foco en
    un jugador puntual (desde el lápiz de la tarjeta) — un fondo suave que
    se desvanece, para llamar la atención sin quedar permanente. */

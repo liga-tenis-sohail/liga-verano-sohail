@@ -277,21 +277,35 @@ function _consSlotsActuales(tr){
 // específico en una posición específica del cuadro sin que el sistema
 // decidiera automáticamente quién quedaba de compañero en el otro extremo
 // del par.
+// Arma el <select> inline de posición para UN slot puntual (jugador o BYE)
+// de la primera ronda. idx es la posición absoluta dentro del cuadro
+// (0-based, mismo espacio que _mainSlotsActuales/_consSlotsActuales).
+// nombreActual es el nombre del jugador ahí, o null si es BYE.
+//
+// El propio NOMBRE del jugador ES el selector: la primera opción es
+// siempre "el valor actual" (nombreActual, o "BYE" si el slot está vacío),
+// preseleccionada — así el <select> reemplaza directamente al texto del
+// nombre en la tarjeta, en vez de ser un control aparte debajo. Elegir
+// cualquier otra opción de la lista pone a esa persona (o BYE) en ESTA
+// posición puntual — libre total, sin ninguna restricción de "con quién
+// queda enfrentado" (ver aplicarPosicionInline).
 function _selectorPosicionInline(ti,which,idx,nombreActual){
   const tr=playoff.tramos[ti];if(!tr)return'';
   const slots = which==='main' ? _mainSlotsActuales(tr) : _consSlotsActuales(tr);
   if(idx>=slots.length)return'';
-  let opciones='<option value="">'+attr(t('po_cons_keep'))+'</option>';
+  const valorActual = nombreActual || '__bye__';
+  const textoActual = nombreActual || t('po_bye_label');
+  let opciones='<option value="'+attr(valorActual)+'" selected>'+attr(textoActual)+'</option>';
   const hayByeEnOtroLado = slots.some((n,i)=>i!==idx&&n===null);
-  if(nombreActual && hayByeEnOtroLado) opciones+='<option value="__bye__">'+attr(t('po_main_give_bye'))+'</option>';
+  if(nombreActual && hayByeEnOtroLado) opciones+='<option value="__bye__">'+attr(t('po_bye_label'))+'</option>';
   // Lista COMPLETA de jugadores del cuadro (menos este mismo slot) — cada
   // uno es "poner a X acá", no "jugar contra X".
   slots.forEach((n,i)=>{
     if(i===idx || !n) return;
-    opciones+='<option value="'+attr(n)+'">'+attr(tf('po_main_put_here',{n:n}))+'</option>';
+    opciones+='<option value="'+attr(n)+'">'+attr(n)+'</option>';
   });
   const selId='po-inline-pos-'+ti+'-'+which+'-'+idx;
-  return '<select id="'+selId+'" class="po-pos-inline-sel" onchange="event.stopPropagation();aplicarPosicionInline('+ti+',\''+which+'\','+idx+',\''+jsq(nombreActual||'')+'\',this.value)" onclick="event.stopPropagation()">'+opciones+'</select>';
+  return '<select id="'+selId+'" class="po-pos-inline-sel po-pos-inline-name" onchange="event.stopPropagation();aplicarPosicionInline('+ti+',\''+which+'\','+idx+',\''+jsq(nombreActual||'')+'\',this.value)" onclick="event.stopPropagation()">'+opciones+'</select>';
 }
 // Aplica el cambio elegido en el <select> inline de una posición puntual
 // del cuadro. Libre total: simplemente pone al elegido en la posición
@@ -303,6 +317,10 @@ function _selectorPosicionInline(ti,which,idx,nombreActual){
 // editor imponga.
 function aplicarPosicionInline(ti,which,idx,nombreActualCrudo,valor){
   if(!valor)return;
+  // Si se "eligió" el mismo valor que ya estaba (el select ahora arranca
+  // mostrando el actual como primera opción), no hay ningún cambio real.
+  const actualComoValor = nombreActualCrudo || '__bye__';
+  if(valor===actualComoValor)return;
   const tr=playoff.tramos[ti];if(!tr)return;
   const esMain = which==='main';
   const slots = (esMain ? _mainSlotsActuales(tr) : _consSlotsActuales(tr)).slice();
@@ -391,23 +409,30 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   const iA=!m.a?'color:var(--text2);font-style:italic;':'';
   const iB=!m.b&&m.a?'color:var(--text2);font-style:italic;':'';
   const nmA=m.a||emptyTxt;const nmB=m.b||(m.a?'BYE':emptyTxt);
-  const clA=m.a?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.a)+'\')">'+nmA+'</span>':nmA;
-  const clB=m.b?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')">'+nmB+'</span>':nmB;
   const seedA=(m.sid&&m.sid[0])||'';const seedB=(m.sid&&m.sid[1])||'';
-  // Lápiz de edición rápida junto al nombre: solo en primera ronda (donde
-  // Selector inline de posición: reemplaza al lápiz + modal separado.
-  // Antes, editar una posición abría un modal aparte con la lista completa
-  // de jugadores — quedaba confuso, con dos selects apilados por fila
-  // (reemplazo + posición) y sin poder tocar directamente a alguien con
-  // BYE. Ahora cada slot (jugador O BYE) de primera ronda tiene su propio
-  // <select> inline, directamente en la tarjeta del cuadro: "Darle BYE" /
-  // "Intercambiar con: X" para un jugador, o "Traer acá a: X" para un BYE.
-  // Solo primera ronda (único lugar donde el concepto de "posición" existe
-  // de forma editable), solo admin, solo sin resultado todavía.
+  // Selector inline de posición: reemplaza al lápiz + modal separado que
+  // había antes. Antes, editar una posición abría un modal aparte con la
+  // lista completa de jugadores — quedaba confuso, con dos selects
+  // apilados por fila (reemplazo + posición) y sin poder tocar
+  // directamente a alguien con BYE, ni elegir libremente "quién va en qué
+  // llave" (estaba atado a intercambios de a pares, "contra quién juega").
+  // Ahora cada slot (jugador O BYE) de primera ronda tiene su propio
+  // <select> inline, y el propio NOMBRE del jugador ES el selector — no
+  // hay un control aparte debajo, el <select> reemplaza directamente al
+  // texto. Solo primera ronda (único lugar donde el concepto de
+  // "posición" existe de forma editable), solo admin, solo sin resultado
+  // todavía.
   const puedeEditarPos = isFirstRound && esAdmin(currentUser) && !m.w;
   const idxA=mi*2, idxB=mi*2+1;
   const selPosA = puedeEditarPos ? _selectorPosicionInline(ti,which,idxA,m.a) : '';
   const selPosB = puedeEditarPos ? _selectorPosicionInline(ti,which,idxB,m.b) : '';
+  const clA = puedeEditarPos ? selPosA : (m.a?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.a)+'\')">'+nmA+'</span>':nmA);
+  const clB = puedeEditarPos ? selPosB : (m.b?'<span class="nm-link" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')">'+nmB+'</span>':nmB);
+  // Cuando el nombre se convierte en <select> (puedeEditarPos), el link a
+  // "ver historial" que tenía adentro se pierde — se agrega como ícono
+  // aparte, chico, junto al select, para no perder esa función.
+  const histA = (puedeEditarPos && m.a) ? '<button class="po-hist-btn" title="'+attr(t('hist_view'))+'" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.a)+'\')"><i class="ti ti-history"></i></button>' : '';
+  const histB = (puedeEditarPos && m.b) ? '<button class="po-hist-btn" title="'+attr(t('hist_view'))+'" onclick="event.stopPropagation();showPlayerHistory(\''+jsq(m.b)+'\')"><i class="ti ti-history"></i></button>' : '';
   function fn(n){return n?n.split(' ')[0]:'';}
   const fA=fn(m.a),fB=fn(m.b);
   const sameFirst=m.a&&m.b&&fA===fB;
@@ -458,8 +483,8 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     bot=esAdmin(currentUser)?'<div style="height:56px"></div>':'<div style="height:22px"></div>';
   }
   return '<div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);width:220px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
-    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;flex-direction:column;padding:5px 10px 6px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><div style="display:flex;align-items:center"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'+selPosA+'</div>'
-    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;flex-direction:column;padding:5px 10px 6px;font-size:12px;min-height:32px;'+sB+iB+'"><div style="display:flex;align-items:center"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span></div>'+selPosB+'</div>'
+    +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+histA+'</div>'
+    +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;font-size:12px;min-height:32px;'+sB+iB+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+histB+'</div>'
     +bot+'</div>';
 }
 

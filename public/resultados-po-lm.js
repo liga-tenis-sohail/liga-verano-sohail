@@ -100,8 +100,9 @@ function openPoForm(m,ti){
 
   ${(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name)?`
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
-    <div id="po-ret-toggle-wrap" style="text-align:center">
-      <button class="btn btn-sm" id="po-ret-toggle-btn" onclick="togglePoRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET (se retiró un jugador)</button>
+    <div id="po-ret-toggle-wrap" style="text-align:center;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+      <button class="btn btn-sm" id="po-ret-toggle-btn" onclick="togglePoRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET (se jugó algo y se retiró)</button>
+      <button class="btn btn-sm" id="po-wo-toggle-btn" onclick="togglePoWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> W.O. (no se jugó nada)</button>
     </div>
     <div id="po-ret-panel" style="display:none">
       <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;text-align:center;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
@@ -111,6 +112,13 @@ function openPoForm(m,ti){
           <option value="${attr(m.a)}">${attr(m.a)}</option>
           <option value="${attr(m.b)}">${attr(m.b)}</option>
         </select>
+      </div>
+    </div>
+    <div id="po-wo-panel" style="display:none">
+      <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;text-align:center;font-weight:600">W.O. — el partido no se jugó, ¿quién no se presentó?</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="confirmarPoWO('${jsq(m.a)}','${jsq(m.b)}')" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> Falta ${attr(m.a)} · avanza ${attr(m.b)}</button>
+        <button class="btn btn-sm" onclick="confirmarPoWO('${jsq(m.b)}','${jsq(m.a)}')" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> Falta ${attr(m.b)} · avanza ${attr(m.a)}</button>
       </div>
     </div>
   </div>`:''}
@@ -149,13 +157,63 @@ function togglePoSTB(){
 // toggleRetiro() en resultados-y-grupos.js: vive dentro del formulario
 // normal, no reemplaza los sets. Reemplaza al viejo flujo (markPoWO con
 // botones directos sin sets).
+// Panel de retiro (RET) dentro del modal de Play Offs — mismo patrón que
+// toggleRetiro() en resultados-y-grupos.js: vive dentro del formulario
+// normal, no reemplaza los sets. Al abrirse, oculta el botón de W.O. (son
+// mutuamente excluyentes: o se carga con sets, o directo sin sets).
 function togglePoRetiro(){
   const panel=document.getElementById('po-ret-panel');
   const btn=document.getElementById('po-ret-toggle-btn');
+  const woBtn=document.getElementById('po-wo-toggle-btn');
   if(!panel||!btn) return;
   const abrir = panel.style.display==='none'||panel.style.display==='';
-  if(abrir){ panel.style.display='block'; btn.style.display='none'; }
-  else{ panel.style.display='none'; btn.style.display='inline-flex'; const sel=document.getElementById('po-ret-quien'); if(sel) sel.value=''; }
+  if(abrir){ panel.style.display='block'; btn.style.display='none'; if(woBtn)woBtn.style.display='none'; }
+  else{ panel.style.display='none'; btn.style.display='inline-flex'; if(woBtn)woBtn.style.display='inline-flex'; const sel=document.getElementById('po-ret-quien'); if(sel) sel.value=''; }
+}
+// Panel de W.O. (walkover — el partido directamente no se jugó, sin
+// ningún set): convive con RET (arriba, para cuando SÍ se jugó algo antes
+// del retiro) como una opción separada y más rápida para el caso más
+// simple. Al abrirse, oculta el botón de RET.
+function togglePoWO(){
+  const panel=document.getElementById('po-wo-panel');
+  const btn=document.getElementById('po-wo-toggle-btn');
+  const retBtn=document.getElementById('po-ret-toggle-btn');
+  if(!panel||!btn) return;
+  const abrir = panel.style.display==='none'||panel.style.display==='';
+  if(abrir){ panel.style.display='block'; btn.style.display='none'; if(retBtn)retBtn.style.display='none'; }
+  else{ panel.style.display='none'; btn.style.display='inline-flex'; if(retBtn)retBtn.style.display='inline-flex'; }
+}
+// Confirma un W.O. directo: sin sets, el ganador avanza inmediato. Mismo
+// comportamiento que el markPoWO original (antes de integrar RET al
+// formulario de sets) — se mantiene como camino corto para cuando
+// directamente no hay nada que cargar. loserName/winnerName ya vienen
+// resueltos desde los botones del panel.
+function confirmarPoWO(loserName,winnerName){
+  if(!poContext)return;
+  const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
+  const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
+  const m=tr[which][ri][mi];if(!m||!m.a||!m.b)return;
+  const isAdmin=esAdmin(currentUser);
+  if(!isAdmin && m.a!==currentUser.name && m.b!==currentUser.name){
+    toast('Solo los jugadores de ese partido (o el admin) pueden reportar un W.O.');
+    return;
+  }
+  if(!confirm(loserName+' no se presentó.\n\n'+winnerName+' avanza por W.O. '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
+  matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
+  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,date:'',club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
+  matches.push(newM);
+  if(isAdmin){
+    storePo(ti,which,m.a,m.b,[],winnerName,true);
+    rebuildTramo(ti);
+  }else{
+    applyPoPending(newM);
+  }
+  addLog(isAdmin?'Playoff: W.O. (admin)':'Playoff: W.O. (reportado)',{a:m.a,b:m.b,winner:winnerName,po:true,cuadro:tr.label,which});
+  closeM();
+  if(typeof showPlayoffView==='function')showPlayoffView();
+  refreshAll();
+  toast(isAdmin?(winnerName+' avanza por W.O.'):'W.O. reportado, pendiente de confirmación.');
+  persist(true);
 }
 // Lectura "libre" de sets del modal de Play Offs para un retiro — mismo
 // criterio que readSetsLibre() en resultados-y-grupos.js: solo incluye los
