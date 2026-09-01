@@ -288,6 +288,52 @@ function toggleLmSTB(){
   }
 }
 
+// Panel de retiro (RET) dentro del modal "+" de grupos. Mismo patrón que
+// togglePoRetiro() (playoff) y toggleRetiro() (pestaña Cargar): mutuamente
+// excluyente con WO — al abrirse esconde el botón de WO, al cerrarse lo
+// vuelve a mostrar. Los selects ya vienen pre-poblados con n1/n2 desde el
+// HTML del modal (openLoadModal los conoce por _lmCtx), no hace falta
+// popularlos acá como en toggleRetiro().
+function toggleLmRetiro(){
+  const panel = document.getElementById('lm-ret-panel');
+  const btn = document.getElementById('lm-ret-toggle-btn');
+  const woBtn = document.getElementById('lm-wo-toggle-btn');
+  if(!panel || !btn) return;
+  const abrir = panel.style.display === 'none' || panel.style.display === '';
+  if(abrir){
+    panel.style.display = 'block';
+    btn.style.display = 'none';
+    if(woBtn) woBtn.style.display = 'none';
+  } else {
+    panel.style.display = 'none';
+    btn.style.display = 'inline-flex';
+    if(woBtn) woBtn.style.display = 'inline-flex';
+    const sel = document.getElementById('lm-ret-quien');
+    if(sel) sel.value = '';
+  }
+}
+
+// Panel de W.O. (walkover) dentro del modal "+" de grupos. Igual a
+// toggleLmRetiro() pero para el otro caso: el partido no se jugó nada.
+function toggleLmWO(){
+  const panel = document.getElementById('lm-wo-panel');
+  const btn = document.getElementById('lm-wo-toggle-btn');
+  const retBtn = document.getElementById('lm-ret-toggle-btn');
+  if(!panel || !btn) return;
+  const abrir = panel.style.display === 'none' || panel.style.display === '';
+  if(abrir){
+    panel.style.display = 'block';
+    btn.style.display = 'none';
+    if(retBtn) retBtn.style.display = 'none';
+  } else {
+    panel.style.display = 'none';
+    btn.style.display = 'inline-flex';
+    if(retBtn) retBtn.style.display = 'inline-flex';
+    const sel = document.getElementById('lm-wo-quien');
+    if(sel) sel.value = '';
+  }
+}
+
 function checkLmAutoSTB(){
   const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
   const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
@@ -364,6 +410,35 @@ function openLoadModal(gid, n1, n2){
   <div style="text-align:center;margin-top:8px">
     <button class="btn btn-sm" id="lm-stb-toggle-btn" onclick="toggleLmSTB()"><i class="ti ti-plus"></i> ${t('add_stb')||'Supertiebreak (1-1)'}</button>
   </div>
+  <!-- RET/WO en el modal del "+" de grupos: mismo patrón que la pestaña
+       Cargar (ret-panel / wo-panel en index.html) pero con IDs 'lm-'
+       para no chocar con el form principal. Los dos selects ya vienen
+       pre-poblados con n1/n2 desde acá (no hace falta popular en el
+       toggle como hace toggleRetiro() en resultados-y-grupos.js, porque
+       el modal ya conoce a los dos jugadores del contexto _lmCtx). Los
+       jugadores pueden usarlos igual que el admin — queda pendiente hasta
+       que el rival lo confirme, como cualquier resultado cargado por un
+       jugador. -->
+  <div id="lm-ret-toggle-wrap" style="text-align:center;margin-top:.75rem;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+    <button class="btn btn-sm" id="lm-ret-toggle-btn" onclick="toggleLmRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET (se jugó algo y se retiró)</button>
+    <button class="btn btn-sm" id="lm-wo-toggle-btn" onclick="toggleLmWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> W.O. (no se jugó nada)</button>
+  </div>
+  <div id="lm-ret-panel" style="display:none;text-align:center;margin-top:.5rem;padding:.6rem;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px">
+    <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
+    <select id="lm-ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5">
+      <option value="">— ¿Quién se retiró? —</option>
+      <option value="${attr(n1)}">${attr(n1)}</option>
+      <option value="${attr(n2)}">${attr(n2)}</option>
+    </select>
+  </div>
+  <div id="lm-wo-panel" style="display:none;text-align:center;margin-top:.5rem;padding:.6rem;background:var(--surface2);border:1px solid var(--priD);border-radius:10px">
+    <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;font-weight:600">W.O. — el partido no se jugó, ¿quién no se presentó?</p>
+    <select id="lm-wo-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--priD)">
+      <option value="">— ¿Quién no se presentó? —</option>
+      <option value="${attr(n1)}">${attr(n1)}</option>
+      <option value="${attr(n2)}">${attr(n2)}</option>
+    </select>
+  </div>
   <p class="lock-note" id="lm-alert" style="margin-top:.5rem"></p>`;
 
   document.getElementById('modal-actions').innerHTML =
@@ -390,6 +465,16 @@ function submitLoadModal(){
     document.getElementById('lm-f-fecha').classList.add('req-empty');
     return;
   }
+  // RET/WO en el modal "+": si están activos, cambia la validación de sets.
+  //  - WO = no se jugó nada → los sets se ignoran (submitResult los pone en []).
+  //  - RET = sets parciales OK → submitResult usa readSetsLibre() que descarta
+  //    cualquier set en 0-0.
+  //  - Ninguno = validación normal de partido completo (validMatch).
+  // Los valores se pasan al form principal (#ret-quien / #wo-quien) más
+  // abajo, así submitResult() los lee del DOM como hace normalmente.
+  const lmRetQuien = document.getElementById('lm-ret-quien') ? document.getElementById('lm-ret-quien').value : '';
+  const lmWoQuien = document.getElementById('lm-wo-quien') ? document.getElementById('lm-wo-quien').value : '';
+  const esRetOWo = !!(lmRetQuien || lmWoQuien);
   // Validar los sets ANTES de cerrar el modal.
   const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
   const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
@@ -399,7 +484,7 @@ function submitLoadModal(){
     const s3a = +document.getElementById('lm-s3a').value, s3b = +document.getElementById('lm-s3b').value;
     sets.push([s3a, s3b]);
   }
-  if(typeof validMatch === 'function'){
+  if(!esRetOWo && typeof validMatch === 'function'){
     const v = validMatch(sets);
     if(!v.ok){ showErr(v.msg); return; }
   }
@@ -438,6 +523,23 @@ function submitLoadModal(){
     document.getElementById('s3a').value = document.getElementById('lm-s3a').value || '';
     document.getElementById('s3b').value = document.getElementById('lm-s3b').value || '';
   }
+  // Copiar el estado de RET/WO al form principal (#ret-quien / #wo-quien).
+  // Hay que poblar las opciones porque el select puede estar vacío si el
+  // usuario nunca abrió el panel RET/WO en la pestaña Cargar. clearForm()
+  // limpia estos selects después del submit, así que no ensucia el form.
+  const setDropdown = (id, val) => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    // Asegurar que las 2 opciones de n1/n2 existen (además del placeholder)
+    [n1, n2].forEach(name => {
+      if(![...el.options].some(op => op.value === name)){
+        el.add(new Option(name, name));
+      }
+    });
+    el.value = val || '';
+  };
+  setDropdown('ret-quien', lmRetQuien);
+  setDropdown('wo-quien', lmWoQuien);
   if(typeof pickClub === 'function') pickClub(lmFormClub);
   document.getElementById('f-fecha').value = fecha;
   closeM();
@@ -587,4 +689,3 @@ function confirmarModal(mensaje, opts){
     if(inp){ inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') cerrar(inp.value); }); }
   });
 }
-
