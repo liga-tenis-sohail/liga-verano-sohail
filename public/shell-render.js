@@ -204,35 +204,36 @@ function groupCardHTML(gid){
           const m=findMatch(viewCycle,gid,p,q);
           if(m&&m.np)return`<td class="cell-club" style="background:${LEAGUE_COLOR_HL};color:${autoTxt(LEAGUE_COLOR_HL)};font-size:10px;font-weight:700" onclick="openModal(${m.id})">NJ</td>`;
           if(m&&m.status==='confirmed'){
-            // WO vs RET vs partido normal (mismo criterio que en playoffs.js):
-            //   - WO (wo:true, sets vacíos) → celda dice "WO" a secas.
-            //   - RET (wo:true, con algún set) → marcador (flip por perspectiva)
-            //     más " RET (XX)" donde XX = iniciales del que se retiró
-            //     (derivado del winner: el que perdió es el retirado).
-            //   - Normal → solo el marcador con flip.
-            let sc;
+            // WO puro (sets vacíos): mismo look destacado que NJ (fondo
+            // amarillo LEAGUE_COLOR_HL, texto chico y bold). Los dos
+            // significan "no se jugó" — la diferencia es que WO SÍ
+            // atribuye la victoria al rival (ver core-estado.js: m.winner
+            // suma .g++ +3pts y el otro .p++ +1pt), mientras que NJ no
+            // atribuye nada.
             if(m.wo && (!m.sets || !m.sets.length)){
-              sc = 'WO';
-            } else {
-              sc = m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');
-              if(m.wo && m.winner){
-                const _retNm = m.aName===m.winner ? m.bName : m.aName;
-                sc = sc + ' RET (' + getInitials(_retNm) + ')';
-              }
+              return`<td class="cell-club" style="background:${LEAGUE_COLOR_HL};color:${autoTxt(LEAGUE_COLOR_HL)};font-size:10px;font-weight:700" onclick="openModal(${m.id})">WO</td>`;
+            }
+            // RET (sets + " RET (XX)") o partido normal: render con flip por
+            // perspectiva de fila. XX = iniciales del que se retiró (el
+            // que perdió, derivado del winner).
+            let sc = m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');
+            if(m.wo && m.winner){
+              const _retNm = m.aName===m.winner ? m.bName : m.aName;
+              sc = sc + ' RET (' + getInitials(_retNm) + ')';
             }
             return`<td class="cell-club" style="${clubStyle(m.club)}" onclick="openModal(${m.id})">${sc}</td>`;
           }
           if(m&&m.status==='pending'){
-            // Mismo criterio WO/RET que en la rama 'confirmed' de arriba.
-            let sc;
+            // Pending WO: mismo criterio que confirmed pero con el look
+            // pending (fondo warn + reloj) — mantiene la señal de "todavía
+            // no validado". Sigue diciendo "WO" en vez de un marcador.
             if(m.wo && (!m.sets || !m.sets.length)){
-              sc = 'WO';
-            } else {
-              sc = m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');
-              if(m.wo && m.winner){
-                const _retNm = m.aName===m.winner ? m.bName : m.aName;
-                sc = sc + ' RET (' + getInitials(_retNm) + ')';
-              }
+              return`<td class="cell-pending" onclick="openModal(${m.id})" style="font-weight:700">WO⏳</td>`;
+            }
+            let sc = m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');
+            if(m.wo && m.winner){
+              const _retNm = m.aName===m.winner ? m.bName : m.aName;
+              sc = sc + ' RET (' + getInitials(_retNm) + ')';
             }
             return`<td class="cell-pending" onclick="openModal(${m.id})">${sc}⏳</td>`;
           }
