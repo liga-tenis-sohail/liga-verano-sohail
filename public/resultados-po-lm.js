@@ -200,7 +200,7 @@ function confirmarPoWO(loserName,winnerName){
   }
   if(!confirm(loserName+' no se presentó.\n\n'+winnerName+' avanza por W.O. '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
   matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
-  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,date:'',club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
+  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,retiroDe:loserName,date:'',club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
   matches.push(newM);
   if(isAdmin){
     storePo(ti,which,m.a,m.b,[],winnerName,true);
@@ -454,7 +454,18 @@ function submitLoadModal(){
   const alert = document.getElementById('lm-alert');
   const showErr = msg => { if(alert) alert.innerHTML = '<span style="color:var(--danger)">✕ ' + msg + '</span>'; };
   if(alert) alert.innerHTML = '';
-  if(!lmFormClub){
+  // RET/WO en el modal "+": afecta validación de sets Y de club.
+  //  - WO = no se jugó nada → sets se ignoran (submitResult los pone en [])
+  //    y NO se exige elegir club (no hubo partido, no hubo cancha).
+  //  - RET = sets parciales OK → submitResult usa readSetsLibre() que descarta
+  //    cualquier set en 0-0. Sí se pide club (hubo partido en algún club).
+  //  - Ninguno = validación normal de partido completo (validMatch) + club.
+  // Los valores se pasan al form principal (#ret-quien / #wo-quien) más
+  // abajo, así submitResult() los lee del DOM como hace normalmente.
+  const lmRetQuien = document.getElementById('lm-ret-quien') ? document.getElementById('lm-ret-quien').value : '';
+  const lmWoQuien = document.getElementById('lm-wo-quien') ? document.getElementById('lm-wo-quien').value : '';
+  const esRetOWo = !!(lmRetQuien || lmWoQuien);
+  if(!lmFormClub && !lmWoQuien){
     showErr(t('select_club')||'Elige el club');
     document.getElementById('lm-club-pick').classList.add('req-empty');
     return;
@@ -465,16 +476,6 @@ function submitLoadModal(){
     document.getElementById('lm-f-fecha').classList.add('req-empty');
     return;
   }
-  // RET/WO en el modal "+": si están activos, cambia la validación de sets.
-  //  - WO = no se jugó nada → los sets se ignoran (submitResult los pone en []).
-  //  - RET = sets parciales OK → submitResult usa readSetsLibre() que descarta
-  //    cualquier set en 0-0.
-  //  - Ninguno = validación normal de partido completo (validMatch).
-  // Los valores se pasan al form principal (#ret-quien / #wo-quien) más
-  // abajo, así submitResult() los lee del DOM como hace normalmente.
-  const lmRetQuien = document.getElementById('lm-ret-quien') ? document.getElementById('lm-ret-quien').value : '';
-  const lmWoQuien = document.getElementById('lm-wo-quien') ? document.getElementById('lm-wo-quien').value : '';
-  const esRetOWo = !!(lmRetQuien || lmWoQuien);
   // Validar los sets ANTES de cerrar el modal.
   const s1a = +document.getElementById('lm-s1a').value, s1b = +document.getElementById('lm-s1b').value;
   const s2a = +document.getElementById('lm-s2a').value, s2b = +document.getElementById('lm-s2b').value;
@@ -621,13 +622,13 @@ function submitPo(){
   
   if(validaAlCargar(m.a, m.b)){
     storePo(ti, which, m.a, m.b, s, winner, !!retQuien);
-    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
+    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, retiroDe: retQuien||undefined, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
     rebuildTramo(ti);
     const _rn2=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
     addLog('Playoff: validado (admin)',{a:m.a,b:m.b,sets:s,winner,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn2});
     closeM(); showPlayoffView(); toast(t('po_validated')); persist(true);
   } else {
-    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
+    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, retiroDe: retQuien||undefined, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
     const _rn3=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
     addLog('Playoff: cargado',{a:m.a,b:m.b,sets:s,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn3});
     closeM(); renderPend(); renderCycleBar(); showPlayoffView(); toast(t('po_sent')); persist(true);
@@ -689,3 +690,4 @@ function confirmarModal(mensaje, opts){
     if(inp){ inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') cerrar(inp.value); }); }
   });
 }
+

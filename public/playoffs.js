@@ -364,7 +364,13 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   // Antes ambos casos se mostraban como "RET", que confundía porque "no se
   // presentó" no es lo mismo que "abandonó jugando".
   const setsStr=m.sets&&m.sets.length?m.sets.map(([a,b])=>a+'-'+b).join(' '):'';
-  const sc=m.np?t('po_not_played'):m.wo?(setsStr?(setsStr+' RET'):'WO'):setsStr;
+  // Iniciales del que se retiró (solo RET, no WO): quien perdió es el que
+  // se retiró — el ganador (m.w) es el otro. Se agregan al final del
+  // marcador como "(XX)" para que se entienda quién abandonó el partido.
+  // getInitials() vive en core-estado.js.
+  const _retNm = (m.wo && setsStr && m.a && m.b && m.w) ? (m.a===m.w?m.b:m.a) : '';
+  const _retIn = _retNm ? getInitials(_retNm) : '';
+  const sc=m.np?t('po_not_played'):m.wo?(setsStr?(setsStr+' RET'+(_retIn?' ('+_retIn+')':'')):'WO'):setsStr;
   // Busca si hay un resultado ya cargado (pending o disputed) en `matches` para
   // este slot del bracket. Sin este chequeo, el rival veía el slot como
   // "Pendiente de juego" y podía cargar OTRO resultado (duplicado).
@@ -466,10 +472,15 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     // (openModal) que ya sabe manejar matches de playoff: el rival puede
     // disputar, el admin puede validar, todos pueden ver el detalle.
     const _pSetsStr = _poPending.sets&&_poPending.sets.length ? _poPending.sets.map(([a,b])=>a+'-'+b).join(' ') : '';
+    // Iniciales del retirado (mismo criterio que en `sc`): en pending el
+    // ganador viene explícito como `_poPending.winner`, no como `m.w`.
+    const _pRetNm = (_poPending.wo && _pSetsStr && _poPending.poNames && _poPending.winner)
+      ? (_poPending.poNames[0]===_poPending.winner?_poPending.poNames[1]:_poPending.poNames[0]) : '';
+    const _pRetIn = _pRetNm ? getInitials(_pRetNm) : '';
     // Misma distinción WO vs RET que en `sc` arriba: con sets = RET (retiro),
     // sin sets = WO (walkover, no se presentó).
     const pSc = _poPending.np ? t('po_not_played')
-              : _poPending.wo ? (_pSetsStr?(_pSetsStr+' RET'):'WO')
+              : _poPending.wo ? (_pSetsStr?(_pSetsStr+' RET'+(_pRetIn?' ('+_pRetIn+')':'')):'WO')
               : _pSetsStr;
     const disputed = _poPending.status === 'disputed';
     // Estilo del row del resultado: fondo warn con reloj para pending,

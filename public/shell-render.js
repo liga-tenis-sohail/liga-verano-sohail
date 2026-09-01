@@ -203,8 +203,39 @@ function groupCardHTML(gid){
           if(i===j)return`<td class="res-black"></td>`;
           const m=findMatch(viewCycle,gid,p,q);
           if(m&&m.np)return`<td class="cell-club" style="background:${LEAGUE_COLOR_HL};color:${autoTxt(LEAGUE_COLOR_HL)};font-size:10px;font-weight:700" onclick="openModal(${m.id})">NJ</td>`;
-          if(m&&m.status==='confirmed'){const sc=m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');return`<td class="cell-club" style="${clubStyle(m.club)}" onclick="openModal(${m.id})">${sc}</td>`;}
-          if(m&&m.status==='pending'){const sc=m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');return`<td class="cell-pending" onclick="openModal(${m.id})">${sc}⏳</td>`;}
+          if(m&&m.status==='confirmed'){
+            // WO vs RET vs partido normal (mismo criterio que en playoffs.js):
+            //   - WO (wo:true, sets vacíos) → celda dice "WO" a secas.
+            //   - RET (wo:true, con algún set) → marcador (flip por perspectiva)
+            //     más " RET (XX)" donde XX = iniciales del que se retiró
+            //     (derivado del winner: el que perdió es el retirado).
+            //   - Normal → solo el marcador con flip.
+            let sc;
+            if(m.wo && (!m.sets || !m.sets.length)){
+              sc = 'WO';
+            } else {
+              sc = m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');
+              if(m.wo && m.winner){
+                const _retNm = m.aName===m.winner ? m.bName : m.aName;
+                sc = sc + ' RET (' + getInitials(_retNm) + ')';
+              }
+            }
+            return`<td class="cell-club" style="${clubStyle(m.club)}" onclick="openModal(${m.id})">${sc}</td>`;
+          }
+          if(m&&m.status==='pending'){
+            // Mismo criterio WO/RET que en la rama 'confirmed' de arriba.
+            let sc;
+            if(m.wo && (!m.sets || !m.sets.length)){
+              sc = 'WO';
+            } else {
+              sc = m.aName===p?m.sets.map(([a,b])=>`${a}-${b}`).join(' '):m.sets.map(([a,b])=>`${b}-${a}`).join(' ');
+              if(m.wo && m.winner){
+                const _retNm = m.aName===m.winner ? m.bName : m.aName;
+                sc = sc + ' RET (' + getInitials(_retNm) + ')';
+              }
+            }
+            return`<td class="cell-pending" onclick="openModal(${m.id})">${sc}⏳</td>`;
+          }
           if(m&&m.status==='disputed')return`<td class="cell-disputed" style="background:${COLOR_DISPUTA};color:${autoTxt(COLOR_DISPUTA)}" onclick="openModal(${m.id})">disp.</td>`;
           if(isActive&&canCreate(gid,p,q))return`<td class="cell-empty" onclick="openLoadModal(${gid},'${jsq(p)}','${jsq(q)}')">+</td>`;
           return`<td class="cell-locked">·</td>`;

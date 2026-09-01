@@ -558,7 +558,9 @@ function submitResult(){
   const woQuien=document.getElementById('wo-quien')?document.getElementById('wo-quien').value:'';
   // Si hay poContext activo, redirigir a lógica de playoff
   if(poContext){
-    if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
+    // Club opcional cuando es WO (no hubo partido → no hubo cancha).
+    // El resto (fecha, etc) sigue siendo obligatorio.
+    if(!formClub && !woQuien){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
     if(!fecha){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
     const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
     const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
@@ -616,7 +618,8 @@ function submitResult(){
     gid=a.g;repName=a.name;rivName=b.name;
   }
   if(repName===rivName){fAlert(t('select_two'),'err');return;}
-  if(!formClub){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
+  // Club opcional cuando es WO (mismo criterio que la rama playoff arriba).
+  if(!formClub && !woQuien){fAlert(t('select_club'),'err');document.getElementById('club-pick').classList.add('req-empty');return;}
   if(!fecha){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
   const ex=findMatch(_cN,gid,repName,rivName);
   if(ex&&ex.locked&&!esAdmin(currentUser)){fAlert(t('validated_admin_only'),'err');return;}
@@ -638,7 +641,7 @@ function submitResult(){
   
   matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
   const isAdmin=validaAlCargar(repName,rivName);
-  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:esWO,winner:esWO?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub,locked:isAdmin});
+  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:esWO,retiroDe:retQuien||woQuien||undefined,winner:esWO?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub||'',locked:isAdmin});
   addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,wo:esWO,grupo:gid,po:false});
   clearForm();
   fAlert(isAdmin?t('result_sent_admin'):t('result_sent_player'),'ok');
