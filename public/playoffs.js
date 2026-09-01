@@ -355,12 +355,16 @@ function aplicarPosicionInline(ti,which,idx,nombreActualCrudo,valor){
 }
 function matchBox(m,ti,which,ri,mi,isFirstRound){
   const realMatch=!!(m.a&&m.b);const aw=realMatch&&m.w&&m.w===m.a,bw=realMatch&&m.w&&m.w===m.b;
-  // Antes: un retiro (m.wo) reemplazaba todo el marcador por "W.O.", sin
-  // importar si había sets reales jugados antes de retirarse. Ahora se
-  // muestran los sets jugados (si los hay) + "RET" como indicador aparte —
-  // un retiro sin ningún set jugado muestra solo "RET".
+  // Distinción WO vs RET (feedback usuario):
+  //   - m.wo CON sets jugados = retiro (RET) → sets + "RET" al lado (partido
+  //     que empezó y el jugador abandonó a mitad — se muestra el resultado
+  //     parcial tal como quedó).
+  //   - m.wo SIN sets jugados = walkover (WO) → solo "WO" (el jugador no se
+  //     presentó, el partido no llegó a empezar).
+  // Antes ambos casos se mostraban como "RET", que confundía porque "no se
+  // presentó" no es lo mismo que "abandonó jugando".
   const setsStr=m.sets&&m.sets.length?m.sets.map(([a,b])=>a+'-'+b).join(' '):'';
-  const sc=m.np?t('po_not_played'):m.wo?(setsStr?(setsStr+' RET'):'RET'):setsStr;
+  const sc=m.np?t('po_not_played'):m.wo?(setsStr?(setsStr+' RET'):'WO'):setsStr;
   // Busca si hay un resultado ya cargado (pending o disputed) en `matches` para
   // este slot del bracket. Sin este chequeo, el rival veía el slot como
   // "Pendiente de juego" y podía cargar OTRO resultado (duplicado).
@@ -422,7 +426,14 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   // texto. Solo primera ronda (único lugar donde el concepto de
   // "posición" existe de forma editable), solo admin, solo sin resultado
   // todavía.
-  const puedeEditarPos = isFirstRound && esAdmin(currentUser) && !m.w;
+  // Antes: `!m.w` bloqueaba la edición de posición apenas había ganador. El
+  // problema: en un slot con BYE, m.w se asigna automáticamente al jugador
+  // que quedó libre — sin haber jugado nada — así que el admin no podía
+  // cambiar a ese jugador de posición ni asignarle rival. Ahora solo se
+  // bloquea cuando REALMENTE hay un partido jugado (m.a && m.b && m.w);
+  // los BYE (uno de los dos slots vacío) siguen siendo editables aunque
+  // m.w esté seteado, porque ese m.w es virtual, no viene de un resultado.
+  const puedeEditarPos = isFirstRound && esAdmin(currentUser) && !(m.a && m.b && m.w);
   const idxA=mi*2, idxB=mi*2+1;
   const selPosA = puedeEditarPos ? _selectorPosicionInline(ti,which,idxA,m.a) : '';
   const selPosB = puedeEditarPos ? _selectorPosicionInline(ti,which,idxB,m.b) : '';
@@ -455,8 +466,10 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     // (openModal) que ya sabe manejar matches de playoff: el rival puede
     // disputar, el admin puede validar, todos pueden ver el detalle.
     const _pSetsStr = _poPending.sets&&_poPending.sets.length ? _poPending.sets.map(([a,b])=>a+'-'+b).join(' ') : '';
+    // Misma distinción WO vs RET que en `sc` arriba: con sets = RET (retiro),
+    // sin sets = WO (walkover, no se presentó).
     const pSc = _poPending.np ? t('po_not_played')
-              : _poPending.wo ? (_pSetsStr?(_pSetsStr+' RET'):'RET')
+              : _poPending.wo ? (_pSetsStr?(_pSetsStr+' RET'):'WO')
               : _pSetsStr;
     const disputed = _poPending.status === 'disputed';
     // Estilo del row del resultado: fondo warn con reloj para pending,
