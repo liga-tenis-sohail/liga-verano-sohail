@@ -69,7 +69,7 @@ function renderGrupos(){
       const clubsLeg = CLUBS.map(c=>
         `<span><span class="dot" style="background:${c.bg}"></span> ${attr(c.name)}</span>`
       ).join('');
-      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
+      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> WO (no se presentó)</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
       document.getElementById('view-grupos').innerHTML=html;
   } catch(e) {
       console.error("Error crítico en renderGrupos:", e);
