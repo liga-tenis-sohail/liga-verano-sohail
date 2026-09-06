@@ -155,29 +155,39 @@ function editConsOverrideUI(ti,focoEnJugador){
   tr.cons[0].forEach(m=>{ if(m.a)actuales.push(m.a); if(m.b)actuales.push(m.b); });
   if(!actuales.length){toast(t('po_cons_none'));return;}
   const overrides=tr.consOverrides||{};
-  // El candidato a reemplazo: SOLO jugadores de ESTE cuadro (tr.seeds — los
-  // sembrados originales del Cuadro A/B/C, no ALLNAMES/catálogo completo de
-  // la liga) que no estén ya en esta consolación. Antes se ofrecía
-  // cualquier jugador de la liga entera, lo cual no tiene mucho sentido:
-  // un reemplazo de consolación normalmente es alguien que también
-  // participa de este mismo cuadro (perdió otro partido, o directamente
-  // ganó primera ronda y el admin igual quiere sumarlo a consolación).
+  const extras = Array.isArray(overrides._extra) ? overrides._extra : [];
+  // El candidato a reemplazo/agregado: SOLO jugadores de ESTE cuadro
+  // (tr.seeds — los sembrados originales del Cuadro A/B/C, no
+  // ALLNAMES/catálogo completo de la liga) que no estén ya en esta
+  // consolación. Un reemplazo o un agregado de consolación normalmente es
+  // alguien que también participa de este mismo cuadro (perdió otro
+  // partido más adelante — octavos, cuartos, etc. — y el admin igual
+  // quiere sumarlo a consolación).
   // Ordenado alfabéticamente ('es' para que las tildes ordenen bien),
   // igual que el resto de los selectores de jugadores del proyecto.
   const disponibles=tr.seeds.filter(n=>!actuales.includes(n)).slice().sort((a,b)=>a.localeCompare(b,'es'));
   document.getElementById('modal-title').textContent = tf('po_cons_edit_title',{l:tr.label});
-  // Este modal ahora es SOLO para reemplazos (traer a alguien de afuera de
-  // esta consolación, o sacar a alguien sin reemplazo) — mover DE POSICIÓN
-  // dentro del cuadro ya se hace desde el selector inline de cada tarjeta
-  // (ver _selectorPosicionInline/aplicarPosicionInline), que permite
-  // ubicar a cualquiera en cualquier posición sin la limitación de pares
-  // que tenía este modal antes.
+  // Este modal tiene DOS mecanismos distintos, uno por sección:
+  //   1) REEMPLAZOS: un select por cada jugador actual de consolación,
+  //      para traer a alguien de afuera EN SU LUGAR o sacarlo sin
+  //      reemplazo. No cambia el tamaño del cuadro.
+  //   2) AGREGAR SIN REEMPLAZAR: un select + botón "+" para sumar a
+  //      alguien que se queda además de (no en lugar de) los jugadores
+  //      actuales — por ejemplo alguien que perdió en cuartos o
+  //      semifinal, no en primera ronda. El cuadro crece a la potencia de
+  //      2 que corresponda (tr.consOverrides._extra, aplicado en
+  //      rebuildTramo/core-estado.js).
+  // Mover DE POSICIÓN dentro del cuadro ya se hace desde el selector
+  // inline de cada tarjeta (ver _selectorPosicionInline/
+  // aplicarPosicionInline), que permite ubicar a cualquiera en cualquier
+  // posición sin limitación de pares.
   const rowsHtml = actuales.map((n)=>{
     // Si n ya es resultado de un override previo, mostramos también quién
     // era el perdedor original entre paréntesis, para que quede claro qué
     // se está reemplazando (y se pueda deshacer con "Restaurar").
-    const original = Object.keys(overrides).filter(k=>k!=='_order').find(k=>overrides[k]===n);
-    const label = original ? (n+' ('+tf('po_cons_was',{n:original})+')') : n;
+    const original = Object.keys(overrides).filter(k=>k!=='_order'&&k!=='_extra').find(k=>overrides[k]===n);
+    const esExtra = extras.includes(n);
+    const label = original ? (n+' ('+tf('po_cons_was',{n:original})+')') : (esExtra ? (n+' (agregado)') : n);
     const esFoco = focoEnJugador && n===focoEnJugador;
     return `<div class="form-row ${esFoco?'po-pos-foco':''}" id="${esFoco?'po-cons-row-foco':''}" style="grid-template-columns:1fr auto;align-items:center;margin-bottom:.4rem;gap:6px">
       <div>${attr(label)}</div>
@@ -188,9 +198,20 @@ function editConsOverrideUI(ti,focoEnJugador){
       </select>
     </div>`;
   }).join('');
+  const addSectionHtml = `
+    <div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-top:4px;gap:6px">
+      <select id="po-cons-add-select" style="font-size:12px;padding:4px 6px">
+        <option value="">— ${attr(t('choose_player')||'Elegí un jugador')} —</option>
+        ${disponibles.map(d=>`<option value="${attr(d)}">${attr(d)}</option>`).join('')}
+      </select>
+      <button class="btn btn-sm" onclick="agregarConsSinReemplazo(${ti})"><i class="ti ti-plus"></i> Agregar</button>
+    </div>`;
   document.getElementById('modal-body').innerHTML = `
     <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')}</p>
-    ${rowsHtml}`;
+    ${rowsHtml}
+    <div class="section-lbl" style="margin-top:1rem">Agregar jugador (sin reemplazar)</div>
+    <p class="legend-txt" style="margin-top:0">Sumá a alguien que perdió en una ronda posterior a la primera (octavos, cuartos, etc.) — se agrega además de los jugadores actuales, sin sacar a nadie.</p>
+    ${disponibles.length ? addSectionHtml : `<p class="legend-txt">No hay más jugadores de este cuadro disponibles para agregar.</p>`}`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn btn-primary" onclick="saveConsOverridesYPosiciones(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
     <button class="btn" onclick="closeM()">${t('close')}</button>`;
@@ -203,6 +224,26 @@ function editConsOverrideUI(ti,focoEnJugador){
       if(sel) sel.focus();
     },80);
   }
+}
+// Agrega un jugador a consolación SIN reemplazar a nadie — se guarda en
+// tr.consOverrides._extra (ver core-estado.js/rebuildTramo) y se aplica de
+// inmediato (rebuild + re-render), a diferencia de los reemplazos del
+// select por fila que solo se aplican al tocar "Guardar". Reabre el modal
+// para que el admin pueda seguir agregando o revisar el resultado.
+function agregarConsSinReemplazo(ti){
+  const tr=playoff.tramos[ti];if(!tr)return;
+  const sel=document.getElementById('po-cons-add-select');
+  const v=sel?sel.value:'';
+  if(!v){toast('Elegí un jugador para agregar.');return;}
+  if(!tr.consOverrides) tr.consOverrides={};
+  if(!Array.isArray(tr.consOverrides._extra)) tr.consOverrides._extra=[];
+  if(tr.consOverrides._extra.includes(v)){toast('Ese jugador ya está agregado.');return;}
+  tr.consOverrides._extra.push(v);
+  rebuildTramo(ti);
+  showPlayoffView();
+  persist(true);
+  toast('Jugador agregado a la consolación.');
+  editConsOverrideUI(ti);
 }
 // Aplica reemplazos de jugador Y asignaciones de posición (BYE/rival) en
 // un solo click — los reemplazos se resuelven PRIMERO (pueden cambiar
@@ -221,7 +262,17 @@ function saveConsOverridesYPosiciones(ti, actuales){
     if(!sel)return;
     const v=sel.value;
     if(!v)return;
-    const original = Object.keys(tr.consOverrides).filter(k=>k!=='_order').find(k=>tr.consOverrides[k]===actual) || actual;
+    // Si el jugador reemplazado era un _extra (agregado sin reemplazo, no
+    // un perdedor real de primera ronda), sacarlo de _extra en vez de (o
+    // además de) tratarlo como un reemplazo de perdedor real — si no,
+    // quedaría un _extra fantasma señalando a alguien que ya no está.
+    if(Array.isArray(tr.consOverrides._extra) && tr.consOverrides._extra.includes(actual)){
+      tr.consOverrides._extra = tr.consOverrides._extra.filter(n=>n!==actual);
+      if(v!=='__remove__') tr.consOverrides._extra.push(v);
+      huboReemplazos=true;
+      return;
+    }
+    const original = Object.keys(tr.consOverrides).filter(k=>k!=='_order'&&k!=='_extra').find(k=>tr.consOverrides[k]===actual) || actual;
     tr.consOverrides[original] = (v==='__remove__') ? null : v;
     huboReemplazos=true;
   });
