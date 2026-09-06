@@ -857,7 +857,12 @@ function addPlayerUI(){
   const gid=+document.getElementById('ap-grp').value;
   const full=(nom+' '+ape).trim();
   if(!nom||!ape){toast(t('add_fill_both'));return;}
-  if(!gid){toast(t('add_choose_group'));return;}
+  // gid=0 → "Sin grupo": alta local (USERS/ALLNAMES) sin ubicarlo en
+  // ningún grupo del ciclo activo. Antes esto se rechazaba con el toast
+  // "elegí un grupo"; ahora el select del form ofrece "Sin grupo" arriba
+  // de todo y ese caso se maneja acá. Cualquier otro valor no numérico
+  // sigue cayendo al toast (defensa contra un DOM manipulado).
+  if(isNaN(gid) || gid<0){toast(t('add_choose_group'));return;}
   // Verificar si ya está en algún grupo activo (no solo en USERS/ALLNAMES)
   const inAnyGroup = cycles.some(c=>c.groups&&c.groups.some(g=>(g.players||[]).includes(full)));
   if(inAnyGroup){toast(t('add_exists'));return;}
@@ -865,8 +870,18 @@ function addPlayerUI(){
   if(USERS[full]) delete USERS[full];
   const idxA = ALLNAMES.indexOf(full);
   if(idxA>=0) ALLNAMES.splice(idxA,1);
-  addPlayerToCycle(full,gid);
-  renderPerfil();toast(tf('add_done',{name:full,g:groupName(gid)}));
+  if(gid > 0){
+    addPlayerToCycle(full,gid);
+    renderPerfil();toast(tf('add_done',{name:full,g:groupName(gid)}));
+  } else {
+    // Alta sin grupo: mismo efecto interno que addPlayerToCycle (registrar
+    // en ALLNAMES + USERS) pero SIN empujarlo a ningún grupo del ciclo
+    // activo. El jugador queda listo para asignarle grupo después a mano
+    // desde Gestión de jugadores.
+    if(ALLNAMES.indexOf(full)<0) ALLNAMES.push(full);
+    if(!USERS[full]) USERS[full] = {role:'player', pass:null, name:full};
+    renderPerfil();toast(full+' — agregado sin grupo asignado.');
+  }
   // Primero guardar, DESPUÉS refrescar la lista: /api/users lee de la base,
   // así que si refrescáramos antes traeríamos la lista sin el jugador nuevo.
   persist(true).then(initLogin);

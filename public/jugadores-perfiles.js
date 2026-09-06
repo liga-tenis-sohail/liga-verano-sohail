@@ -629,7 +629,7 @@ function renderPerfil(){
     h += `<div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end">`;
     h += `<div class="form-group"><label>${t('first_name')}</label><input id="ap-nom" placeholder="${t('first_name')}"></div>`;
     h += `<div class="form-group"><label>${t('last_name')}</label><input id="ap-ape" placeholder="${t('last_name')}"></div>`;
-    h += `<div class="form-group"><label>${t('group')}</label><select id="ap-grp">${grps.map((_,k)=>`<option value="${k+1}">${groupName(k+1)}</option>`).join('')}</select></div>`;
+    h += `<div class="form-group"><label>${t('group')}</label><select id="ap-grp"><option value="0">${t('cl_sin_grupo')}</option>${grps.map((_,k)=>`<option value="${k+1}">${groupName(k+1)}</option>`).join('')}</select></div>`;
     h += `<div class="form-group"><button class="btn btn-primary" onclick="addPlayerUI()"><i class="ti ti-user-plus"></i> ${t('add_btn')}</button></div>`;
     h += `</div></div>`;
 

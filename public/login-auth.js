@@ -695,9 +695,20 @@ function pintarAjFiltrado(){
     const sel=_addLigaSel[j.jugadorId];
     const on=!!sel;
     let grpSel='';
-    if(on && numGrupos>1){
-      const cur=sel.grupo||1;
+    // Antes: el select de grupo solo aparecía si `numGrupos>1`, y no incluía
+    // la opción "Sin grupo" — el jugador quedaba obligado a caer en algún
+    // grupo del ciclo activo. Ahora: si el jugador está seleccionado,
+    // SIEMPRE se muestra el select (aun con un solo grupo) y arriba de
+    // todo va "Sin grupo" (valor 0) — que se maneja como alta local en
+    // USERS/ALLNAMES sin pasar por el endpoint agregarJugadores del
+    // backend (ver agregarJugadoresConfirmar más abajo). Sirve para dar
+    // de alta a alguien que se va a asignar a un grupo después a mano
+    // desde Gestión de jugadores, o para simplemente registrar su
+    // existencia en la liga sin ubicarlo todavía.
+    if(on){
+      const cur = (sel.grupo!==undefined) ? sel.grupo : 1;
       grpSel='<select class="cl-grp-sel" onclick="event.stopPropagation()" onchange="ajSetGrupo(\''+escJsAttr(j.jugadorId)+'\',this.value)">';
+      grpSel+='<option value="0"'+(cur===0?' selected':'')+'>'+t('cl_sin_grupo')+'</option>';
       for(let g=1; g<=numGrupos; g++) grpSel+='<option value="'+g+'"'+(g===cur?' selected':'')+'>'+groupName(g)+'</option>';
       grpSel+='</select>';
     }
@@ -707,7 +718,16 @@ function pintarAjFiltrado(){
   }).join('')||'<div class="cl-hint">'+t('lm_no_match')+'</div>';
 }
 function ajToggle(id){ if(_addLigaSel[id])delete _addLigaSel[id]; else _addLigaSel[id]={grupo:1}; pintarAjFiltrado(); ajActualizarCount(); }
-function ajSetGrupo(id,v){ if(_addLigaSel[id]) _addLigaSel[id].grupo=parseInt(v,10)||1; }
+// parseInt sin fallback a 1: antes `parseInt(v,10)||1` colapsaba el valor 0
+// (opción "Sin grupo") a 1, así que aunque el usuario tocara "Sin grupo" el
+// jugador terminaba yendo al grupo 1 igual. Ahora aceptamos 0 como valor
+// válido y solo caemos a 1 si el parseo devuelve NaN.
+function ajSetGrupo(id,v){
+  if(_addLigaSel[id]){
+    const n=parseInt(v,10);
+    _addLigaSel[id].grupo = isNaN(n) ? 1 : n;
+  }
+}
 function ajActualizarCount(){
   const el=document.getElementById('aj-count'); if(!el)return;
   el.textContent=t('aj_total').replace('{n}', Object.keys(_addLigaSel).length);
@@ -715,19 +735,50 @@ function ajActualizarCount(){
 async function agregarJugadoresConfirmar(){
   const ids=Object.keys(_addLigaSel);
   if(!ids.length){ toast(t('aj_none_sel')); return; }
-  const jugadores=ids.map(jid=>({jugadorId:jid, grupo:_addLigaSel[jid].grupo||1}));
+  // Separación por destino:
+  //   - grupo > 0 → endpoint agregarJugadores del backend (patrón original,
+  //     el backend resuelve jugadorId→nombre, agrega a la liga y ubica en
+  //     el grupo elegido).
+  //   - grupo === 0 → "Sin grupo": alta LOCAL en USERS/ALLNAMES a partir
+  //     del nombre que ya conocemos por _addLigaCat[i].nombre (viene del
+  //     catálogo cargado en abrirAgregarJugadores). No pasa por el
+  //     endpoint porque el endpoint espera un grupo válido — hacerlo así
+  //     evita depender de un cambio de contrato en /api/liga.
+  const jugadoresBackend = [];
+  const jugadoresLocales = [];
+  ids.forEach(jid=>{
+    const g = _addLigaSel[jid].grupo;
+    const j = _addLigaCat.find(x=>x.jugadorId===jid);
+    if(!j) return;
+    if(g > 0) jugadoresBackend.push({jugadorId:jid, grupo:g});
+    else jugadoresLocales.push({nombre: j.nombre});
+  });
   const btn=event&&event.target?event.target.closest('button'):null;
   if(btn){btn.disabled=true;btn.textContent=t('aj_adding');}
   try{
-    // Guardamos primero cualquier cambio local pendiente para no pisarlo,
-    // pedimos al servidor que agregue los jugadores directo sobre la liga,
-    // y después releemos el estado para reflejarlo acá.
+    // Orden importante: primero altas locales, después persist, después
+    // el fetch al backend, y recién ahí loadState. Si el loadState fuera
+    // ANTES del persist local, releería el estado del servidor y pisaría
+    // las altas locales que todavía no habíamos guardado.
+    if(jugadoresLocales.length){
+      jugadoresLocales.forEach(j=>{
+        const full = j.nombre;
+        if(!full) return;
+        if(ALLNAMES.indexOf(full)<0) ALLNAMES.push(full);
+        if(!USERS[full]) USERS[full] = { role:'player', pass:null, name: full };
+      });
+    }
     await persist(true);
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'agregarJugadores', id:_ligaActual, jugadores, ligaId:_ligaActual||undefined})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){ alert(d.error||t('aj_err')); if(btn){btn.disabled=false;btn.textContent=t('aj_add');} return; }
+    let agregadosBackend = [];
+    if(jugadoresBackend.length){
+      const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'agregarJugadores', id:_ligaActual, jugadores: jugadoresBackend, ligaId:_ligaActual||undefined})});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok){ alert(d.error||t('aj_err')); if(btn){btn.disabled=false;btn.textContent=t('aj_add');} return; }
+      agregadosBackend = d.agregados || [];
+    }
     closeM();
-    toast(t('aj_done').replace('{n}', (d.agregados||[]).length));
+    const total = agregadosBackend.length + jugadoresLocales.length;
+    toast(t('aj_done').replace('{n}', total));
     await loadState();
     renderShell();
     showSub('perfil');
@@ -754,7 +805,33 @@ async function renombrarLigaUI(id,nombre){
   const n=nuevo.trim();
   if(!n){ alert(t('lm_rename_empty')); return; }
   if(n===nombre)return;   // sin cambios
-  await accionLiga('renombrar',{id,nombre:n});
+  const ok = await accionLiga('renombrar',{id,nombre:n});
+  if(!ok) return;
+  // FIX del bug "no se guarda el nombre":
+  // El backend SÍ persistía el rename (liga_index + state.LEAGUE_NAME),
+  // pero el cliente no refrescaba nada — así que en pantalla seguía viéndose
+  // el nombre viejo. Peor: el localStorage.lsn (snapshot para evitar el
+  // "flash" del nombre viejo en el próximo reload) tampoco se actualizaba,
+  // así que después de recargar por unos milisegundos volvía a aparecer el
+  // nombre anterior antes de que llegue el state real, reforzando la
+  // sensación de que "no se guardó". Cuando la liga renombrada es la que
+  // está abierta, sincronizamos acá:
+  //   - LEAGUE_NAME / LIGA_NOMBRE_OFICIAL (las lee updateHdr para pintar
+  //     el header y el título del login).
+  //   - updateHdr() → refresca hdr-title, login-title, exit-btn y el
+  //     selector de ligas del header (refreshHdrLigaSwitch).
+  //   - localStorage.lsn (n = nombre oficial) → siguiente reload no muestra
+  //     el nombre viejo antes de que llegue el state.
+  if(id === _ligaActual){
+    if(typeof LEAGUE_NAME !== 'undefined') LEAGUE_NAME = n;
+    if(typeof LIGA_NOMBRE_OFICIAL !== 'undefined') LIGA_NOMBRE_OFICIAL = n;
+    if(typeof updateHdr === 'function') try{ updateHdr(); }catch(_){}
+    try{
+      const prev = JSON.parse(localStorage.getItem('lsn')||'{}');
+      prev.n = n;
+      localStorage.setItem('lsn', JSON.stringify(prev));
+    }catch(_){}
+  }
 }
 async function eliminarLigaUI(id,nombre){
   // Doble confirmación: la segunda pide escribir el nombre exacto.
@@ -768,10 +845,11 @@ async function accionLiga(accion,extra){
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify(Object.assign({accion,ligaId:_ligaActual||undefined},extra))});
     const d=await r.json().catch(()=>({}));
-    if(!r.ok){ alert(d.error||t('lm_err_action')); return; }
+    if(!r.ok){ alert(d.error||t('lm_err_action')); return false; }
     toast(t('lm_action_ok'));
     cargarGestionLigas();
-  }catch(_){ alert(t('lm_err_action')); }
+    return true;
+  }catch(_){ alert(t('lm_err_action')); return false; }
 }
 
 // ==================== ESTADÍSTICAS DEL JUGADOR ====================
