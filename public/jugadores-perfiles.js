@@ -618,7 +618,13 @@ function renderPerfil(){
     const grps = (getActive() && getActive().groups) ? getActive().groups : [];
     h += `<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
       <div class="section-lbl" style="margin:0">${t('add_player')}</div>
-      <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
+      <div class="gap-sm" style="display:flex;flex-wrap:wrap;gap:.35rem">
+        <button class="btn btn-sm" onclick="exportarListaJugadores()" title="Descargá un Excel con Nombre, Apellido y Grupo de todos los jugadores"><i class="ti ti-file-download"></i> Exportar lista</button>
+        <label class="btn btn-sm" style="cursor:pointer;margin:0" title="Importá un Excel con columnas Nombre, Apellido y Grupo (Grupo opcional)"><i class="ti ti-file-upload"></i> Importar lista
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarListaJugadores(this)">
+        </label>
+        <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
+      </div>
     </div>`;
     h += `<div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end">`;
     h += `<div class="form-group"><label>${t('first_name')}</label><input id="ap-nom" placeholder="${t('first_name')}"></div>`;
@@ -1298,5 +1304,167 @@ async function solicitarAccesoUI(ligaId, nombre){
 async function entrarAOtraLiga(ligaId, nombre){
   if(typeof cambiarLigaDesdeMenu === 'function'){
     await cambiarLigaDesdeMenu(ligaId);
+  }
+}
+
+// ==================== IMPORTAR / EXPORTAR LISTA DE JUGADORES ====================
+// Funciones para que el admin pueda descargar la lista actual de jugadores
+// como Excel, editarla afuera (sumar filas, cambiar grupos, etc.) y volver
+// a subirla en batch. Diferente y complementario de las herramientas
+// existentes ("Descargar plantilla" / "Importar jugadores (Excel)" / "Limpiar
+// jugadores") que viven en Gestión de jugadores y son SOLO para superadmin:
+// estas están disponibles para cualquier admin y viven al lado del botón
+// "Agregar de ligas anteriores" — mismo formato (Nombre / Apellido / Grupo)
+// que el formulario manual de arriba, con la particularidad de que "Grupo"
+// puede quedar VACÍO — en ese caso el jugador se da de alta en el catálogo
+// (USERS/ALLNAMES) sin ubicarlo en ningún grupo del ciclo activo, tal como
+// si el admin luego lo asignara a mano desde Gestión de jugadores.
+//
+// Formato Excel: 3 columnas — Nombre (primera palabra), Apellido (el resto),
+// Grupo (número entero 1..N, o vacío). El "nombre completo" internamente es
+// (Nombre + " " + Apellido).trim() — misma convención que addPlayerUI y el
+// resto del proyecto.
+function exportarListaJugadores(){
+  if(typeof XLSX === 'undefined'){ toast('No se pudo cargar el módulo de Excel. Recargá la página.'); return; }
+  // Fuente: todos los nombres del catálogo (ALLNAMES) + los USERS conocidos,
+  // excepto las cuentas de sistema ('admin' y 'superadmin'). Se toma el
+  // UNION para no perder a nadie por si algún alta antigua dejó a alguien
+  // solo en uno de los dos lados.
+  const nombresSet = new Set();
+  (ALLNAMES||[]).forEach(n=>{ if(n) nombresSet.add(n); });
+  Object.keys(USERS||{}).forEach(k=>{ if(k && k!=='admin' && k!=='superadmin' && USERS[k]) nombresSet.add(USERS[k].name || k); });
+  const nombres = Array.from(nombresSet).sort((a,b)=>a.localeCompare(b,'es'));
+  const filas = nombres.map(full=>{
+    const partes = String(full).trim().split(/\s+/);
+    const nom = partes[0] || '';
+    const ape = partes.slice(1).join(' ');
+    const loc = (typeof findLoc==='function') ? findLoc(full, activeN) : null;
+    return { Nombre: nom, Apellido: ape, Grupo: loc ? loc.g : '' };
+  });
+  const ws = XLSX.utils.json_to_sheet(filas, { header: ['Nombre','Apellido','Grupo'] });
+  // Un ancho razonable para las 3 columnas para que se lean sin ajustar a mano.
+  ws['!cols'] = [{ wch: 18 }, { wch: 22 }, { wch: 8 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Jugadores');
+  const hoy = new Date();
+  const yyyy = hoy.getFullYear();
+  const mm = String(hoy.getMonth()+1).padStart(2,'0');
+  const dd = String(hoy.getDate()).padStart(2,'0');
+  XLSX.writeFile(wb, 'jugadores_'+yyyy+'-'+mm+'-'+dd+'.xlsx');
+  toast('Lista de jugadores exportada.');
+}
+
+// Import: lee el archivo, parsea con XLSX, valida cabeceras esperadas, e
+// itera fila por fila reutilizando el patrón de addPlayerUI (chequeo de
+// existencia en el ciclo activo + alta en USERS/ALLNAMES + optionalmente
+// addPlayerToCycle si viene grupo). Al final, un único persist(true) para
+// no golpear /api/save por cada jugador — importar 30 filas hace 1 sola
+// request al server, no 30.
+async function importarListaJugadores(inputEl){
+  if(!inputEl || !inputEl.files || !inputEl.files[0]) return;
+  if(typeof XLSX === 'undefined'){ toast('No se pudo cargar el módulo de Excel. Recargá la página.'); return; }
+  const file = inputEl.files[0];
+  try{
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    if(!ws){ toast('El archivo no tiene ninguna hoja de cálculo.'); inputEl.value=''; return; }
+    // defval:'' para que las celdas vacías vengan como cadena vacía en vez
+    // de undefined — evita chequeos extra en el loop de abajo.
+    const filas = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if(!filas.length){ toast('El archivo está vacío.'); inputEl.value=''; return; }
+    // Detectar las columnas de forma tolerante: acepta cabeceras en ES o EN,
+    // con o sin mayúscula/tildes, para que un Excel copiado a mano no se
+    // rechace por diferencias cosméticas.
+    const norm = s => String(s||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    const primerFila = filas[0];
+    const claves = Object.keys(primerFila);
+    const claveNom = claves.find(k=>{ const n=norm(k); return n==='nombre' || n==='first name' || n==='name'; });
+    const claveApe = claves.find(k=>{ const n=norm(k); return n==='apellido' || n==='last name' || n==='surname'; });
+    const claveGrp = claves.find(k=>{ const n=norm(k); return n==='grupo' || n==='group' || n==='g'; });
+    if(!claveNom || !claveApe){
+      toast('El archivo tiene que tener las columnas Nombre y Apellido (Grupo opcional).');
+      inputEl.value='';
+      return;
+    }
+    // Confirmar antes de aplicar (import puede pisar/duplicar): mostrar
+    // cuántas filas se leyeron y darle una salida al admin si abrió el
+    // archivo equivocado. En Sohail (~60 jugadores) esto tarda un segundo.
+    const totalFilas = filas.length;
+    if(typeof confirmarModal === 'function'){
+      const ok = await confirmarModal('Se van a procesar '+totalFilas+' filas del archivo. Los jugadores que ya estén en un grupo del ciclo activo se omiten (no se duplican). ¿Continuar?', { titulo: 'Importar jugadores', okTxt: 'Importar' });
+      if(!ok){ inputEl.value=''; return; }
+    } else if(!confirm('Se van a procesar '+totalFilas+' filas. Los jugadores que ya estén en un grupo del ciclo activo se omiten. ¿Continuar?')){
+      inputEl.value=''; return;
+    }
+    // Total de grupos válidos en el ciclo activo — se usa para validar el
+    // número que trae la columna Grupo. Fuera de rango se trata como "sin
+    // grupo" (mismo destino que dejar la celda vacía).
+    const nGrupos = (getActive() && getActive().groups) ? getActive().groups.length : 0;
+    let sumConGrupo = 0, sumSinGrupo = 0, sumSaltados = 0, sumInvalidos = 0;
+    const detalleErrores = [];
+    filas.forEach((f, idx)=>{
+      const nom = String(f[claveNom]||'').trim();
+      const ape = String(f[claveApe]||'').trim();
+      const full = (nom+' '+ape).trim();
+      if(!full){ sumInvalidos++; detalleErrores.push('Fila '+(idx+2)+': sin nombre.'); return; }
+      // Duplicado: si ya está en algún grupo de algún ciclo activo, saltar
+      // como hace addPlayerUI. La comparación es exact-match por nombre
+      // completo (no case-insensitive) — igual criterio que el resto.
+      const yaEstaEnGrupo = cycles.some(c=>c.groups && c.groups.some(g=>(g.players||[]).includes(full)));
+      if(yaEstaEnGrupo){ sumSaltados++; return; }
+      // Si figura en USERS pero no en ningún grupo, limpiar antes de re-agregarlo,
+      // mismo patrón que addPlayerUI (evita quedar con USERS antiguos "colgados"
+      // que puedan traer un password default no deseado).
+      if(USERS[full]) delete USERS[full];
+      const idxA = (ALLNAMES||[]).indexOf(full);
+      if(idxA>=0) ALLNAMES.splice(idxA,1);
+      // Grupo: puede venir como número, como string numérico, o vacío.
+      // Cualquier cosa que no sea un entero entre 1..nGrupos cae a "sin grupo".
+      const raw = f[claveGrp];
+      let gid = 0;
+      if(raw !== '' && raw !== null && raw !== undefined){
+        const n = parseInt(String(raw).trim(), 10);
+        if(!isNaN(n) && n>=1 && n<=nGrupos) gid = n;
+      }
+      if(gid){
+        addPlayerToCycle(full, gid);
+        sumConGrupo++;
+      } else {
+        // Alta sin grupo: mismo efecto interno que addPlayerToCycle (registrar
+        // en ALLNAMES + USERS) pero SIN empujarlo a ningún grupo del ciclo
+        // activo. Sirve para dar de alta a alguien que se va a asignar
+        // manualmente después desde Gestión de jugadores.
+        if(ALLNAMES.indexOf(full)<0) ALLNAMES.push(full);
+        if(!USERS[full]) USERS[full] = { role:'player', pass:null, name: full };
+        sumSinGrupo++;
+      }
+    });
+    inputEl.value = '';   // Permitir seleccionar el mismo archivo de nuevo
+    if(sumConGrupo===0 && sumSinGrupo===0){
+      let msg = 'No se agregó ningún jugador nuevo.';
+      if(sumSaltados) msg += ' '+sumSaltados+' ya estaba(n) en el ciclo activo.';
+      if(sumInvalidos) msg += ' '+sumInvalidos+' fila(s) sin nombre.';
+      toast(msg);
+      return;
+    }
+    let resumen = 'Se agregaron '+(sumConGrupo+sumSinGrupo)+' jugadores';
+    const partes = [];
+    if(sumConGrupo) partes.push(sumConGrupo+' con grupo');
+    if(sumSinGrupo) partes.push(sumSinGrupo+' sin grupo');
+    if(partes.length) resumen += ' ('+partes.join(', ')+')';
+    if(sumSaltados) resumen += '. '+sumSaltados+' ya estaba(n) en el ciclo activo';
+    if(sumInvalidos) resumen += '. '+sumInvalidos+' fila(s) sin nombre omitida(s)';
+    resumen += '.';
+    renderPerfil();
+    toast(resumen);
+    // Persistir primero, después refrescar la lista del login (initLogin lee
+    // /api/users, que a su vez lee de la base — si initLogin corriera antes
+    // que persist, no vería a los recién agregados).
+    persist(true).then(()=>{ if(typeof initLogin==='function') initLogin(); });
+  }catch(e){
+    console.error('importarListaJugadores ERROR:', e);
+    toast('No se pudo leer el archivo: '+(e && e.message ? e.message : 'formato inválido'));
+    inputEl.value = '';
   }
 }
