@@ -640,7 +640,68 @@ function bracketHTML(rounds,ti,which){
     });
     cols+='</div>';
   }
-  return `<div style="overflow-x:auto;padding:.5rem 0"><div style="position:relative;width:${totalW}px;height:${svgH}px;flex-shrink:0"><svg style="position:absolute;top:${LABEL_H}px;left:0;width:${totalW}px;height:${totalH}px;overflow:visible;pointer-events:none">${svg}</svg>${cols}</div></div>`;
+  // Zoom por bracket: cada cuadro (main y cons por tramo) tiene su propia
+  // escala persistida en window._poZoom, así showPlayoffView() puede
+  // re-renderizar (carga de un resultado, edit de posición, etc.) sin
+  // resetear el zoom que el usuario eligió. La clave (`key`) es
+  // ti+'-'+which para que main y cons de un mismo tramo NO compartan
+  // zoom — pueden tener tamaños muy distintos y uno puede querer verse
+  // completo mientras el otro se ve al detalle.
+  const key = ti + '-' + which;
+  window._poZoom = window._poZoom || {};
+  const z = window._poZoom[key] || 1;
+  // Wrapper "sizer": tiene el tamaño ESCALADO (para que el contenedor
+  // scrollable exterior sepa cuánto scroll horizontal/vertical hace falta).
+  // Adentro va el content con su tamaño ORIGINAL y transform:scale que
+  // hace el trabajo visual — transform-origin:top-left ancla el escalado
+  // al vértice superior izquierdo para que el layout no se corra.
+  const wrapW = Math.max(1, Math.round(totalW * z));
+  const wrapH = Math.max(1, Math.round(svgH * z));
+  return `<div class="po-bracket-outer" style="position:relative">
+    <div style="display:flex;justify-content:flex-end;gap:4px;padding:4px 4px 0 4px;align-items:center;font-size:12px">
+      <button class="btn btn-sm" onclick="poBracketZoom('${key}',-1)" title="Alejar" style="padding:4px 8px"><i class="ti ti-zoom-out"></i></button>
+      <span id="po-zoom-lbl-${key}" style="min-width:44px;text-align:center;font-weight:600;color:var(--text2)">${Math.round(z*100)}%</span>
+      <button class="btn btn-sm" onclick="poBracketZoom('${key}',1)" title="Acercar" style="padding:4px 8px"><i class="ti ti-zoom-in"></i></button>
+    </div>
+    <div style="overflow-x:auto;padding:.5rem 0">
+      <div id="po-zoom-wrapper-${key}" style="width:${wrapW}px;height:${wrapH}px">
+        <div id="po-zoom-content-${key}" data-orig-w="${totalW}" data-orig-h="${svgH}" style="position:relative;width:${totalW}px;height:${svgH}px;flex-shrink:0;transform:scale(${z});transform-origin:top left"><svg style="position:absolute;top:${LABEL_H}px;left:0;width:${totalW}px;height:${totalH}px;overflow:visible;pointer-events:none">${svg}</svg>${cols}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Aplica delta al zoom del bracket `key` (ti+'-'+which), en pasos de 0.1
+// con clamp entre 0.5x y 1.5x. Zoom-out debajo de 0.5x haría que los
+// nombres queden ilegibles y los botones intocables en móvil; zoom-in por
+// encima de 1.5x no aporta a menos que se quiera hacer captura, y ya la
+// tipografía nativa del navegador cubre eso.
+function poBracketZoom(key, delta){
+  window._poZoom = window._poZoom || {};
+  const cur = window._poZoom[key] || 1;
+  // Redondeo a 1 decimal para no acumular floats raros (0.7000000001).
+  let nz = Math.round((cur + delta * 0.1) * 10) / 10;
+  if(nz < 0.5) nz = 0.5;
+  if(nz > 1.5) nz = 1.5;
+  window._poZoom[key] = nz;
+  applyPoBracketZoom(key);
+}
+// Aplica un zoom ya guardado al DOM del bracket `key`. Se llama desde
+// poBracketZoom() y también podría llamarse post-render si algún día se
+// hidrata el zoom desde otro lado (localStorage, sync entre pestañas).
+function applyPoBracketZoom(key){
+  const z = (window._poZoom && window._poZoom[key]) || 1;
+  const content = document.getElementById('po-zoom-content-' + key);
+  const wrapper = document.getElementById('po-zoom-wrapper-' + key);
+  const label = document.getElementById('po-zoom-lbl-' + key);
+  if(!content || !wrapper) return;
+  content.style.transform = 'scale(' + z + ')';
+  content.style.transformOrigin = 'top left';
+  const w = parseFloat(content.dataset.origW) || 0;
+  const h = parseFloat(content.dataset.origH) || 0;
+  wrapper.style.width = Math.max(1, Math.round(w * z)) + 'px';
+  wrapper.style.height = Math.max(1, Math.round(h * z)) + 'px';
+  if(label) label.textContent = Math.round(z * 100) + '%';
 }
 
 function showPlayoffView(){
