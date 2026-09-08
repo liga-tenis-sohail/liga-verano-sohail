@@ -649,7 +649,16 @@ function bracketHTML(rounds,ti,which){
   // completo mientras el otro se ve al detalle.
   const key = ti + '-' + which;
   window._poZoom = window._poZoom || {};
-  const z = window._poZoom[key] || 1;
+  // Zoom por defecto para brackets que el usuario todavía no tocó. Se puso
+  // en 50% (en vez del 100% original) porque en móvil los cuadros vienen
+  // muy verticales y anchos — al 100% obligan a scrollear mucho para ver
+  // más de un par de matches. 50% permite ver la mitad del bracket (o el
+  // bracket entero si es chico) de un pantallazo, y desde ahí el usuario
+  // acerca con "+" en la esquina del bracket cuando quiere el detalle.
+  // Se usa la misma constante en poBracketZoom y applyPoBracketZoom para
+  // que la primera pulsada del "+"/"-" arranque desde 0.5, no desde 1.
+  const PO_ZOOM_DEFAULT = 0.5;
+  const z = (window._poZoom[key] !== undefined) ? window._poZoom[key] : PO_ZOOM_DEFAULT;
   // Wrapper "sizer": tiene el tamaño ESCALADO (para que el contenedor
   // scrollable exterior sepa cuánto scroll horizontal/vertical hace falta).
   // Adentro va el content con su tamaño ORIGINAL y transform:scale que
@@ -678,7 +687,11 @@ function bracketHTML(rounds,ti,which){
 // tipografía nativa del navegador cubre eso.
 function poBracketZoom(key, delta){
   window._poZoom = window._poZoom || {};
-  const cur = window._poZoom[key] || 1;
+  // Mismo default que bracketHTML (0.5): si el usuario nunca tocó el zoom
+  // de este bracket, la primera pulsada del "+"/"-" arranca desde 50%, no
+  // desde 100% (sería confuso ver 100% pintado en el label y que el
+  // primer click te lleve al 90% en vez de al 60%).
+  const cur = (window._poZoom[key] !== undefined) ? window._poZoom[key] : 0.5;
   // Redondeo a 1 decimal para no acumular floats raros (0.7000000001).
   let nz = Math.round((cur + delta * 0.1) * 10) / 10;
   if(nz < 0.5) nz = 0.5;
@@ -690,7 +703,8 @@ function poBracketZoom(key, delta){
 // poBracketZoom() y también podría llamarse post-render si algún día se
 // hidrata el zoom desde otro lado (localStorage, sync entre pestañas).
 function applyPoBracketZoom(key){
-  const z = (window._poZoom && window._poZoom[key]) || 1;
+  // Mismo default que bracketHTML/poBracketZoom (0.5).
+  const z = (window._poZoom && window._poZoom[key] !== undefined) ? window._poZoom[key] : 0.5;
   const content = document.getElementById('po-zoom-content-' + key);
   const wrapper = document.getElementById('po-zoom-wrapper-' + key);
   const label = document.getElementById('po-zoom-lbl-' + key);
