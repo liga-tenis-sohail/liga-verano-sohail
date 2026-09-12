@@ -79,7 +79,11 @@ function setLang(l){
  if(l!=='es'&&l!=='en')return;
  LANG=l;document.documentElement.lang=l;
  try{localStorage.setItem('liga_lang',l);}catch(_){}
- renderAll();if(typeof applyStaticTranslations==='function')applyStaticTranslations();
+ // Con clave predeterminada, no reconstruir vistas ni consultar acciones
+ // protegidas detrás del modal. Se dibujan al confirmar el cambio de clave.
+ if(document.getElementById('_pwforce'))updateLangUI();else renderAll();
+ if(typeof applyStaticTranslations==='function')applyStaticTranslations();
+ if(typeof updateForcedPasswordLanguage==='function')updateForcedPasswordLanguage();
  if(document.getElementById('sohail-guide'))renderTutorial();
 }
 

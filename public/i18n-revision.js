@@ -157,3 +157,57 @@ Object.assign(TRANSLATIONS.en,{"tab_cargar": "Report result", "tab_cargar_admin"
 
 Object.assign(TRANSLATIONS.es,{fix_not_played:'No jugado',fix_superadmin:'Super administrador'});
 Object.assign(TRANSLATIONS.en,{fix_not_played:'Not played',fix_superadmin:'Super administrator',po_load_result:'Report result',add_stb:'Match tiebreak (1–1)',remove_stb:'Remove match tiebreak'});
+
+// Selector de idioma compartido por los dos diálogos de bienvenida.
+// Reutiliza LANG y liga_lang: cambia la web, sin escribir preferencias en la API.
+Object.assign(TRANSLATIONS.es, {
+ dialog_language: 'Idioma',
+ dialog_language_hint: 'La elección se aplica a toda la web.',
+ pwf_saving: 'Guardando…'
+});
+Object.assign(TRANSLATIONS.en, {
+ dialog_language: 'Language',
+ dialog_language_hint: 'Your choice applies to the whole site.',
+ pwf_saving: 'Saving…'
+});
+
+function createDialogLanguageSwitcher(id){
+ const group=document.createElement('div');
+ group.id=id;group.className='dialog-language';
+ group.setAttribute('role','group');
+ group.setAttribute('aria-labelledby',id+'-label');
+ group.setAttribute('aria-describedby',id+'-hint');
+ const label=document.createElement('span');
+ label.id=id+'-label';label.className='dialog-language-label';
+ label.dataset.dialogLanguageLabel='true';label.textContent=t('dialog_language');
+ const options=document.createElement('div');options.className='dialog-language-options';
+ [['es','Español'],['en','English']].forEach(([language,name])=>{
+  const button=document.createElement('button');
+  button.id=id+'-'+language;button.type='button';button.lang=language;
+  button.className='btn btn-sm dialog-language-button';
+  button.dataset.dialogLang=language;button.textContent=name;
+  button.setAttribute('aria-pressed',String(LANG===language));
+  button.onclick=()=>{
+   if(button.disabled)return;
+   if(LANG!==language)setLang(language);
+   // El tutorial se vuelve a dibujar: devolver el foco al botón elegido.
+   // No guardar ni recrear los inputs de contraseña para traducirlos.
+   const current=document.getElementById(button.id);
+   if(current&&!current.disabled)current.focus({preventScroll:true});
+  };
+  options.appendChild(button);
+ });
+ const hint=document.createElement('p');hint.id=id+'-hint';
+ hint.className='dialog-language-hint';hint.dataset.dialogLanguageHint='true';
+ hint.textContent=t('dialog_language_hint');
+ group.append(label,options,hint);return group;
+}
+
+function updateDialogLanguageSwitchers(root){
+ if(!root)return;
+ root.querySelectorAll('[data-dialog-language-label]').forEach(e=>e.textContent=t('dialog_language'));
+ root.querySelectorAll('[data-dialog-language-hint]').forEach(e=>e.textContent=t('dialog_language_hint'));
+ root.querySelectorAll('button[data-dialog-lang]').forEach(e=>{
+  e.setAttribute('aria-pressed',String(e.dataset.dialogLang===LANG));
+ });
+}

@@ -1924,3 +1924,18 @@ button.liga-tab{cursor:pointer}
 #guide-error{font-size:13px}
 [data-guide-help]{margin:0 0 12px}
 @media(max-width:390px){.guide-dialog{padding:18px}.guide-dialog h2{font-size:20px}.guide-actions{gap:6px}}
+
+/* Idiomas en tutorial y cambio de contraseña (alcance limitado a estos diálogos). */
+.dialog-language{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border2)}
+.dialog-language-label{font-size:12px;font-weight:600;color:var(--text2)}
+.dialog-language-options{display:flex;gap:6px;flex-wrap:wrap;max-width:100%}
+.dialog-language .dialog-language-button{min-height:44px;padding:8px 12px;font-size:13px;line-height:1.2;justify-content:center;border:2px solid var(--border2);background:var(--surface);color:var(--text);font-weight:600}
+.dialog-language .dialog-language-button[aria-pressed="true"]{background:#1B4F9C;color:#fff;border-color:#1B4F9C}
+.dialog-language .dialog-language-button:focus-visible{outline:2px solid var(--text);outline-offset:2px;box-shadow:none}
+.dialog-language .dialog-language-button:disabled{opacity:.6;cursor:wait;transform:none}
+.dialog-language .dialog-language-hint{flex-basis:100%;font-size:11px;line-height:1.4;margin:0;color:var(--text2)}
+#_pwforce .pwforce-dialog{max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;min-width:0}
+#_pwforce .pwforce-dialog input[type="password"]{font-size:16px!important}
+html[data-theme="dark"] .dialog-language .dialog-language-button[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#93c5fd}
+@media(prefers-color-scheme:dark){html:not([data-theme]) .dialog-language .dialog-language-button[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#93c5fd}}
+@media(max-width:360px){.dialog-language{gap:6px}.dialog-language .dialog-language-button{padding:8px 9px}}

@@ -1124,6 +1124,18 @@ async function mostrarResetRequest(){
 // oldPass puede ser null si el usuario entró con Face ID: en ese caso el
 // servidor acepta el cambio sin la clave anterior (el token ya prueba identidad
 // y la clave guardada es de la lista pública POR_DEFECTO_V2).
+// Traducir EN EL MISMO DOM: no se borran contraseñas, checkbox ni validaciones.
+function updateForcedPasswordLanguage(){
+ const ov=document.getElementById('_pwforce');if(!ov)return;
+ const panel=ov.firstElementChild;if(panel)panel.lang=LANG;
+ ov.querySelectorAll('[data-pwf-i18n]').forEach(e=>e.textContent=t(e.dataset.pwfI18n));
+ ov.querySelectorAll('[data-pwf-placeholder]').forEach(e=>e.placeholder=t(e.dataset.pwfPlaceholder));
+ updateDialogLanguageSwitchers(ov);
+ const save=ov.querySelector('#_pwfb');
+ if(save)save.textContent=t(ov.dataset.saving==='true'?'pwf_saving':'pwf_save');
+ if(typeof ov._translateError==='function')ov._translateError();
+}
+
 function forcePwChange(oldPass){
   if(document.getElementById('_pwforce'))return;
   document.getElementById('sohail-guide')?.remove();
@@ -1131,70 +1143,79 @@ function forcePwChange(oldPass){
   const ov=document.createElement('div');
   ov.id='_pwforce';
   ov.style.cssText='position:fixed;inset:0;z-index:100000;background:rgba(15,23,42,.92);display:flex;align-items:center;justify-content:center;padding:16px';
-  // Ofrecemos activar Face ID acá SOLO si el dispositivo lo soporta Y el usuario
-  // no acaba de entrar con Face ID (en ese caso ya está activado, no tiene sentido).
+  // La elección de Face ID no cambia al traducir el diálogo.
   const soporta = (typeof passkeySoportada==='function' && passkeySoportada()) && !viaPasskey;
   const pkCheck = soporta
     ? '<label style="display:flex;gap:8px;align-items:flex-start;margin:2px 0 4px;font-size:12.5px;line-height:1.4;color:var(--text2,#64748b);cursor:pointer">'+
         '<input id="_pwfpk" type="checkbox" checked style="margin-top:2px;flex-shrink:0">'+
-        '<span>'+t('pwf_pk_offer')+'</span>'+
+        '<span data-pwf-i18n="pwf_pk_offer">'+t('pwf_pk_offer')+'</span>'+
       '</label>'+
-      '<p id="_pwfpkhint" style="margin:0 0 12px 26px;font-size:11.5px;line-height:1.35;color:var(--text2,#64748b);opacity:.85">'+t('pwf_pk_offer_after')+'</p>'
+      '<p id="_pwfpkhint" data-pwf-i18n="pwf_pk_offer_after" style="margin:0 0 12px 26px;font-size:11.5px;line-height:1.35;color:var(--text2,#64748b);opacity:.85">'+t('pwf_pk_offer_after')+'</p>'
     : '';
-  ov.innerHTML='<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
-    '<h3 style="margin:0 0 6px;font-size:17px">'+t('pwf_title')+'</h3>'+
-    '<p style="margin:0 0 14px;font-size:13px;line-height:1.45;color:var(--text2,#64748b)">'+t('pwf_why')+'</p>'+
-    '<label class="sr-only" for="_pwf1">'+t('pwf_new')+'</label><input id="_pwf1" type="password" autocomplete="new-password" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
-    '<label class="sr-only" for="_pwf2">'+t('pwf_rep')+'</label><input id="_pwf2" type="password" autocomplete="new-password" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+  ov.innerHTML='<div class="pwforce-dialog" style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
+    '<h3 data-pwf-i18n="pwf_title" style="margin:0 0 6px;font-size:17px">'+t('pwf_title')+'</h3>'+
+    '<p id="pwforce-why" data-pwf-i18n="pwf_why" style="margin:0 0 14px;font-size:13px;line-height:1.45;color:var(--text2,#64748b)">'+t('pwf_why')+'</p>'+
+    '<label class="sr-only" for="_pwf1" data-pwf-i18n="pwf_new">'+t('pwf_new')+'</label><input id="_pwf1" type="password" autocomplete="new-password" data-pwf-placeholder="pwf_new" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<label class="sr-only" for="_pwf2" data-pwf-i18n="pwf_rep">'+t('pwf_rep')+'</label><input id="_pwf2" type="password" autocomplete="new-password" data-pwf-placeholder="pwf_rep" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
     pkCheck +
-    '<div id="_pwfe" style="display:none;font-size:12px;color:var(--danger);margin-bottom:8px"></div>'+
-    '<button id="_pwfb" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
+    '<div id="_pwfe" role="alert" style="display:none;font-size:12px;color:var(--danger);margin-bottom:8px"></div>'+
+    '<button id="_pwfb" type="button" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
   '</div>';
-  const panel=ov.firstElementChild;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','pwforce-title');panel.querySelector('h3').id='pwforce-title';
+  const panel=ov.firstElementChild;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','pwforce-title');panel.setAttribute('aria-describedby','pwforce-why');panel.querySelector('h3').id='pwforce-title';
+  panel.prepend(createDialogLanguageSwitcher('pwforce-language'));
   ov.addEventListener('keydown',e=>{if(e.key==='Tab')trapDialogFocus(e,ov);});
   document.body.appendChild(ov);
-  // Si el usuario desmarca el checkbox de Face ID, ocultamos el hint sobre
-  // el prompt biométrico: ya no aplica y confunde.
   if(soporta){
-    const chk = document.getElementById('_pwfpk');
-    const hintEl = document.getElementById('_pwfpkhint');
+    const chk = ov.querySelector('#_pwfpk');
+    const hintEl = ov.querySelector('#_pwfpkhint');
     if(chk && hintEl){
       chk.addEventListener('change', () => { hintEl.style.display = chk.checked ? '' : 'none'; });
     }
   }
-  const err=m=>{const e=document.getElementById('_pwfe');e.textContent=m;e.style.display='block';};
-  document.getElementById('_pwfb').onclick=async function(){
-    const a=document.getElementById('_pwf1').value, b=document.getElementById('_pwf2').value;
-    if(!a||a.length<6) return err(t('pwf_short'));
-    // No comparar contra oldPass si vinimos por Face ID (no la tenemos, oldPass=null).
-    if(!viaPasskey && a===oldPass) return err(t('pwf_same'));
-    if(a!==b)          return err(t('pwf_nomatch'));
-    this.disabled=true;
+  // Conservar la CLAVE del error (o respuesta de API), no el texto traducido.
+  // No se guardan contraseñas en atributos, logs ni localStorage.
+  let errorKey=null,errorResponse=null;
+  ov._translateError=()=>{
+    const e=ov.querySelector('#_pwfe');
+    if(!errorKey&&!errorResponse){e.textContent='';e.style.display='none';return;}
+    e.textContent=errorResponse?apiError(errorResponse):t(errorKey);e.style.display='block';
+  };
+  const err=(key,response)=>{errorKey=key;errorResponse=response||null;ov._translateError();};
+  const busy=value=>{
+    ov.dataset.saving=String(value);panel.setAttribute('aria-busy',String(value));
+    ov.querySelectorAll('button,input').forEach(e=>e.disabled=value);
+    updateForcedPasswordLanguage();
+  };
+  ov.querySelector('#_pwfb').onclick=async function(){
+    if(ov.dataset.saving==='true')return;
+    const a=ov.querySelector('#_pwf1').value, b=ov.querySelector('#_pwf2').value;
+    if(!a||a.length<6) return err('pwf_short');
+    // No comparar contra oldPass si vinimos por Face ID (no la tenemos).
+    if(!viaPasskey && a===oldPass) return err('pwf_same');
+    if(a!==b) return err('pwf_nomatch');
+    errorKey=null;errorResponse=null;busy(true);
     try{
-      // Body: si entramos por Face ID, no mandamos oldPass. El servidor lo permite
-      // porque la clave actual está en POR_DEFECTO_V2 y ya tenemos token válido.
+      // Se conserva el contrato de autenticación v2 sin cambiar el servidor.
       const payload = { newPass: a, ligaId: _ligaActual || undefined };
       if(!viaPasskey) payload.oldPass = oldPass;
       const r=await fetch('/api/password',{method:'POST',
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
         body:JSON.stringify(payload)});
       const d=await r.json().catch(()=>({}));
-      if(!r.ok){this.disabled=false;return err(apiError(d));}
+      if(!r.ok){busy(false);return err(null,d);}
       if(d.token)_token=d.token;
-      // ¿El usuario pidió activar Face ID/Touch ID? Lo hacemos ahora, antes de cerrar
-      // el modal, para que quede claro qué ventana de biometría le va a aparecer.
-      const wantPk = soporta && document.getElementById('_pwfpk') && document.getElementById('_pwfpk').checked;
+      const wantPk = soporta && ov.querySelector('#_pwfpk') && ov.querySelector('#_pwfpk').checked;
       ov.remove();
       await _refreshAfterCredentialChange(d);
       if(typeof toast==='function')toast(t('pass_changed')||'OK');
       if(wantPk && typeof activarPasskey==='function'){
-        // Pequeña espera para que el toast/re-render no compita con el prompt biométrico.
         try{await activarPasskey();}catch(_){}
       }
       maybeShowTutorial(false);
-    }catch(e){this.disabled=false;err(t('pwf_err'));}
+    }catch(e){busy(false);err('pwf_err');}
   };
-  document.getElementById('_pwf1').focus();
+  updateForcedPasswordLanguage();
+  ov.querySelector('#_pwf1').focus();
 }
 
 async function changePw(){
