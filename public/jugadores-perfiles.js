@@ -20,7 +20,7 @@ const HASHES_PASS_DEFAULT = new Set([
   'v2:e7fd5acfb9cbb0449ad3abe3c0f3436559af8cf74a09cdbee1a29a41bb394d12'    // admin123 (v2)
 ]);
 function tienePasswordDefault(u){
-  return !!(u && u.pass && HASHES_PASS_DEFAULT.has(u.pass));
+  return !!(u && (u.passwordDefault===true || (u.pass && HASHES_PASS_DEFAULT.has(u.pass))));
 }
 
 function renderCargarDisputas(){ }
@@ -611,16 +611,16 @@ function renderPerfil(){
     h += `<div id="pk-body"><p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>`;
     h += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('change_password')}</div><div id="pw-alert"></div>`;
-    h += `<div class="form-row"><div class="form-group"><label>${t('current_pass')}</label><input type="password" id="pw-old"></div>`;
-    h += `<div class="form-group"><label>${t('new_pass')}</label><input type="password" id="pw-new" autocomplete="new-password"></div></div>`;
-    h += `<div class="form-row"><div class="form-group"><label>${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
+    h += `<div class="form-row"><div class="form-group"><label for="pw-old">${t('current_pass')}</label><input type="password" id="pw-old"></div>`;
+    h += `<div class="form-group"><label for="pw-new">${t('new_pass')}</label><input type="password" id="pw-new" autocomplete="new-password"></div></div>`;
+    h += `<div class="form-row"><div class="form-group"><label for="pw-new2">${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
     h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
     const grps = (getActive() && getActive().groups) ? getActive().groups : [];
     h += `<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
       <div class="section-lbl" style="margin:0">${t('add_player')}</div>
       <div class="gap-sm" style="display:flex;flex-wrap:wrap;gap:.35rem">
-        <button class="btn btn-sm" onclick="exportarListaJugadores()" title="Descargá un Excel con Nombre, Apellido y Grupo de todos los jugadores"><i class="ti ti-file-download"></i> Exportar lista</button>
-        <label class="btn btn-sm" style="cursor:pointer;margin:0" title="Importá un Excel con columnas Nombre, Apellido y Grupo (Grupo opcional)"><i class="ti ti-file-upload"></i> Importar lista
+        <button class="btn btn-sm" onclick="exportarListaJugadores()" title="Descargá un Excel con Nombre, Apellido y Grupo de todos los jugadores"><i class="ti ti-file-download"></i> ${t('fix_export_list')}</button>
+        <label class="btn btn-sm" style="cursor:pointer;margin:0" title="Importá un Excel con columnas Nombre, Apellido y Grupo (Grupo opcional)"><i class="ti ti-file-upload"></i> ${t('fix_import_list')}
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarListaJugadores(this)">
         </label>
         <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
@@ -642,11 +642,11 @@ function renderPerfil(){
       </div>
       <p class="legend-txt" style="margin-top:0">${t('player_mgmt_hint')}</p>
       ${(currentUser&&currentUser.role==='superadmin')?`<div class="gap-sm mt-sm" style="flex-wrap:wrap;margin-bottom:.75rem">
-        <button class="btn btn-sm" onclick="descargarPlantillaImport()"><i class="ti ti-file-download"></i> Descargar plantilla</button>
-        <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> Importar jugadores (Excel)
+        <button class="btn btn-sm" onclick="descargarPlantillaImport()"><i class="ti ti-file-download"></i> ${t('fix_template')}</button>
+        <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> ${t('fix_import_players')}
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarJugadoresExcel(this)">
         </label>
-        <button class="btn btn-sm btn-danger" onclick="limpiarJugadoresUI()"><i class="ti ti-eraser"></i> Limpiar jugadores</button>
+        <button class="btn btn-sm btn-danger" onclick="limpiarJugadoresUI()"><i class="ti ti-eraser"></i> ${t('fix_clear_players')}</button>
       </div>`:''}
       ${esAdmin(currentUser) ? `<div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.75rem;background:var(--surface)">
         <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.5rem"><i class="ti ti-shield-check"></i> ${t('admins_section')}</div>
@@ -664,7 +664,7 @@ function renderPerfil(){
       h += `<div class="cj-search"><i class="ti ti-search"></i><input id="cj-search" placeholder="${t('cj_search')}" oninput="filtrarCatJugadores()"></div>`;
       h += `<div id="cat-jugadores-list"><div class="pm-past-load">${t('past_loading')}</div></div></div>`;
     }
-    document.getElementById('view-perfil').innerHTML = h; try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+    document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
     if(u.role==='superadmin') cargarCatJugadores();
   } else {
     const loc = findLoc(u.name, activeN);
@@ -681,12 +681,12 @@ function renderPerfil(){
     h += `<div id="pk-body"><p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_section_hint')}</p>`;
     h += `<button class="btn btn-primary btn-sm" onclick="activarPasskey()"><i class="ti ti-face-id"></i> ${t('pk_activate_btn')}</button></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('change_password')}</div><div id="pw-alert"></div>`;
-    h += `<div class="form-row"><div class="form-group"><label>${t('current_pass')}</label><input type="password" id="pw-old"></div>`;
-    h += `<div class="form-group"><label>${t('new_pass')}</label><input type="password" id="pw-new" autocomplete="new-password"></div></div>`;
-    h += `<div class="form-row"><div class="form-group"><label>${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
+    h += `<div class="form-row"><div class="form-group"><label for="pw-old">${t('current_pass')}</label><input type="password" id="pw-old"></div>`;
+    h += `<div class="form-group"><label for="pw-new">${t('new_pass')}</label><input type="password" id="pw-new" autocomplete="new-password"></div></div>`;
+    h += `<div class="form-row"><div class="form-group"><label for="pw-new2">${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
     h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('my_history')}</div>${playerHistoryHTML(u.name)}</div>`;
-    document.getElementById('view-perfil').innerHTML = h; try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+    document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
     cargarMisLigasHeader();
   }
 }
@@ -875,6 +875,10 @@ function renamePlayerEverywhere(oldName,newName){
   if(!oldName||!newName||oldName===newName)return;
   // USERS (la clave ES el nombre) — conserva pass, email, tel, rol, inactive, etc.
   if(USERS[oldName]){USERS[newName]={...USERS[oldName],name:newName};delete USERS[oldName];}
+  // Referencias deportivas por nombre: nunca perder bonus ni rating al renombrar.
+  [RATING_SEEDS,RATING_OVERRIDES].forEach(map=>{if(map&&Object.prototype.hasOwnProperty.call(map,oldName)){map[newName]=map[oldName];delete map[oldName];}});
+  Object.values(AJUSTES_PUNTOS||{}).forEach(c=>Object.values(c||{}).forEach(g=>{if(g&&Object.prototype.hasOwnProperty.call(g,oldName)){g[newName]=g[oldName];delete g[oldName];}}));
+  if(Array.isArray(JOIN_REQUESTS))JOIN_REQUESTS.forEach(r=>{if(r.nombre===oldName)r.nombre=newName;});
   // ALLNAMES
   const idx=ALLNAMES.indexOf(oldName);if(idx>=0)ALLNAMES[idx]=newName;
   // Grupos de cada ciclo
@@ -886,6 +890,7 @@ function renamePlayerEverywhere(oldName,newName){
     if(m.reporter===oldName)m.reporter=newName;
     if(m.vBy===oldName)m.vBy=newName;  // el validador también se renombra
     if(m.winner===oldName)m.winner=newName;
+    if(m.retiroDe===oldName)m.retiroDe=newName;
     if(m.poNames){if(m.poNames[0]===oldName)m.poNames[0]=newName;if(m.poNames[1]===oldName)m.poNames[1]=newName;}
   });
   // Playoffs
@@ -944,7 +949,7 @@ function _splitNom(full){
   return { nombre: partes[0], apellido: partes.slice(1).join(' ') };
 }
 
-function savePlayerAdmin(oldName){
+async function savePlayerAdmin(oldName){
   if(esCuentaSistema(oldName)){toast('No se puede editar al administrador desde aquí.');return;}
   const nombre=(document.getElementById('pe-nombre-'+oldName).value||'').trim();
   const apellido=(document.getElementById('pe-apellido-'+oldName).value||'').trim();
@@ -956,6 +961,7 @@ function savePlayerAdmin(oldName){
   const newGrp=grpEl?parseInt(grpEl.value):NaN;
   if(!newName){toast(t('name_empty'));return;}
   const u=USERS[oldName];if(!u)return;
+  if(newName!==oldName&&USERS[newName]){toast(t('name_exists'));return;}
   const loc=findLoc(oldName,activeN);
   if(loc&&!isNaN(newGrp)&&loc.g!==newGrp){movePlayer(oldName,loc.g,newGrp);}
   else if(!loc&&!isNaN(newGrp)){addPlayerToCycle(oldName,newGrp);}
@@ -964,17 +970,19 @@ function savePlayerAdmin(oldName){
     if(USERS[newName]){toast('Ya existe un jugador llamado "'+newName+'". Elige otro nombre.');renderPerfil();return;}
     renamePlayerEverywhere(oldName,newName);
   }
-  persist(true);renderPerfil();toast(tf('save_done',{name:newName}));
+  if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
+  renderPerfil();toast(tf('save_done',{name:newName}));
 }
 
-function deletePlayerAdmin(name){
+async function deletePlayerAdmin(name){
   if(esCuentaSistema(name)){toast('No se puede eliminar al administrador.');return;}
   if(!confirm(`¿Seguro que quieres eliminar a ${name} de la liga? Se borrará de los grupos actuales.`))return;
   delete USERS[name];
   const idx=ALLNAMES.indexOf(name);
   if(idx>=0)ALLNAMES.splice(idx,1);
   cycles.forEach(c=>{if(!c.groups)return;c.groups.forEach(g=>{const pi=(g.players||[]).indexOf(name);if(pi>=0)g.players.splice(pi,1);});});
-  persist(true);renderPerfil();toast(name+' ha sido eliminado.');
+  if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
+  renderPerfil();toast(tf('fix_player_deleted',{n:name}));
 }
 
 // Asciende un jugador a administrador o lo devuelve a jugador.
@@ -1004,7 +1012,7 @@ function puedeGestionarAdmins(u){
   return !!u && (u.role==='superadmin' || u.key==='admin');
 }
 
-function toggleAdminRole(name){
+async function toggleAdminRole(name){
   const u=USERS[name];
   if(!u)return;
   if(u.role==='superadmin'||u.role==='admin'){toast(t('reset_not_here'));return;}
@@ -1015,59 +1023,45 @@ function toggleAdminRole(name){
   // clasificación y sus partidos. Es jugador Y administrador a la vez.
   if(sube) u.isAdmin=true; else delete u.isAdmin;
   addLog(sube?'Alta de administrador':'Baja de administrador', name);
-  persist(true);
+  if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
   toast(t('role_done').replace('{n}',name));
   renderPerfil();
 }
 
-async function resetPwd(name){
-  const u=USERS[name];if(!u)return;
-  if(esCuentaSistema(name)){toast(t('reset_not_here')||'No se puede desde aquí.');return;}
-  if(!confirm(t('reset_confirm').replace('{n}',name)))return;
-  // Va por /api/password, NO por /api/save: los hashes ya no viajan en el estado.
-  // El servidor lo hashea y, al ser la clave por defecto, en su próximo login
-  // el jugador queda obligado a cambiarla.
-  try{
-    const r=await fetch('/api/password',{method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
-      body:JSON.stringify({target:name,newPass:'tenis',ligaId:_ligaActual||undefined})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){toast(d.error||t('reset_err'));return;}
-    // Reflejamos el reset en memoria para que el punto verde/rojo de la lista
-    // cambie a rojo al instante, sin esperar a recargar la página. El
-    // servidor guardó exactamente hashV2('tenis'), que ya está en
-    // HASHES_PASS_DEFAULT — usamos ese mismo valor acá.
-    u.pass = 'v2:7afc817d4013c0e9740356ad09b7e4094ee6678df855c5869aaad97dd4d2f3eb';
-    toast(t('reset_ok').replace('{n}',name));
-    refreshPlayerList();
-  }catch(e){toast(t('reset_err'));}
+async function _flushBeforeCredentialChange(){
+  if(_saveConflict)return false;
+  if(_serialize()!==_lastSaved)return await _criticalSave();
+  return true;
 }
-// El admin le pone una contraseña personalizada a un jugador (hasheada con PBKDF2 v2).
-async function setPlayerPwd(name){
-  const u=USERS[name];if(!u){toast('Jugador no encontrado.');return;}
-  if(esCuentaSistema(name)){toast('No se puede cambiar la contraseña del administrador desde aquí.');return;}
-  const inp=document.getElementById('pe-pass-'+name);
-  const pw=inp?(inp.value||'').trim():'';
-  if(!pw||pw.length<4){toast('La contraseña debe tener al menos 4 caracteres.');return;}
-  if(!confirm('¿Cambiar la contraseña de '+name+' a "'+pw+'"?'))return;
+async function _refreshAfterCredentialChange(d){
+  if(d.token)_token=d.token;
+  await loadState();
+  if(currentUser){const k=currentUser.key||currentUser.name;const fresh=USERS[k];if(fresh){currentUser=fresh;currentUser.key=k;}}
+  if(typeof refreshAll==='function')refreshAll();
+}
+async function resetPwd(name){
+  if(!USERS[name]||esCuentaSistema(name))return;
+  if(!confirm(tf('reset_confirm',{n:name})))return;
+  if(!await _flushBeforeCredentialChange()){toast(t('fix_pending_first'));return;}
   try{
-    const r=await fetch('/api/password',{
-      method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
-      body:JSON.stringify({target:name,newPass:pw,ligaId:_ligaActual||undefined})
-    });
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){toast(d.error||'No se pudo cambiar la contraseña.');return;}
-  }catch(e){toast('No se pudo conectar con el servidor.');return;}
-  if(inp)inp.value='';
-  // No conocemos el hash real (PBKDF2 se calcula del lado del servidor), pero
-  // sabemos que YA NO es una contraseña por defecto conocida — salvo que el
-  // admin haya escrito literalmente "tenis" o "admin123" a mano, caso límite
-  // que se deja fuera a propósito. Marcador explícito (no un hash real) para
-  // que tienePasswordDefault() dé false y el punto se pinte verde al instante.
-  u.pass = 'v2:custom';
-  toast(name+': contraseña actualizada.');
-  refreshPlayerList();
+    const r=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({target:name,newPass:'tenis',ligaId:_ligaActual||undefined})});
+    const d=await r.json();if(!r.ok){toast(apiError(d));return;}
+    await _refreshAfterCredentialChange(d);
+    toast(tf('reset_ok',{n:name}));refreshPlayerList();
+  }catch(_){toast(t('reset_err'));}
+}
+async function setPlayerPwd(name){
+  if(!USERS[name]||esCuentaSistema(name))return;
+  const inp=document.getElementById('pe-pass-'+name),pw=inp?inp.value:'';
+  if(pw.length<6||pw.length>128){toast(t('pass_short'));return;}
+  // Nunca mostrar ni registrar la contraseña en una confirmación.
+  if(!confirm(tf('fix_change_password_for',{n:name})))return;
+  if(!await _flushBeforeCredentialChange()){toast(t('fix_pending_first'));return;}
+  try{
+    const rr=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({target:name,newPass:pw,ligaId:_ligaActual||undefined})});
+    const d=await rr.json();if(!rr.ok){toast(apiError(d));return;}
+    if(inp)inp.value='';await _refreshAfterCredentialChange(d);toast(t('pass_changed'));refreshPlayerList();
+  }catch(_){toast(t('fix_network_pending'));}
 }
 function toggleInactive(name){
   const u=USERS[name];if(!u)return;
@@ -1131,6 +1125,8 @@ async function mostrarResetRequest(){
 // servidor acepta el cambio sin la clave anterior (el token ya prueba identidad
 // y la clave guardada es de la lista pública POR_DEFECTO_V2).
 function forcePwChange(oldPass){
+  if(document.getElementById('_pwforce'))return;
+  document.getElementById('sohail-guide')?.remove();
   const viaPasskey = (oldPass === null || oldPass === undefined);
   const ov=document.createElement('div');
   ov.id='_pwforce';
@@ -1148,12 +1144,14 @@ function forcePwChange(oldPass){
   ov.innerHTML='<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
     '<h3 style="margin:0 0 6px;font-size:17px">'+t('pwf_title')+'</h3>'+
     '<p style="margin:0 0 14px;font-size:13px;line-height:1.45;color:var(--text2,#64748b)">'+t('pwf_why')+'</p>'+
-    '<input id="_pwf1" type="password" autocomplete="new-password" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
-    '<input id="_pwf2" type="password" autocomplete="new-password" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<label class="sr-only" for="_pwf1">'+t('pwf_new')+'</label><input id="_pwf1" type="password" autocomplete="new-password" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<label class="sr-only" for="_pwf2">'+t('pwf_rep')+'</label><input id="_pwf2" type="password" autocomplete="new-password" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
     pkCheck +
     '<div id="_pwfe" style="display:none;font-size:12px;color:var(--danger);margin-bottom:8px"></div>'+
     '<button id="_pwfb" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
   '</div>';
+  const panel=ov.firstElementChild;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','pwforce-title');panel.querySelector('h3').id='pwforce-title';
+  ov.addEventListener('keydown',e=>{if(e.key==='Tab')trapDialogFocus(e,ov);});
   document.body.appendChild(ov);
   // Si el usuario desmarca el checkbox de Face ID, ocultamos el hint sobre
   // el prompt biométrico: ya no aplica y confunde.
@@ -1181,16 +1179,19 @@ function forcePwChange(oldPass){
         headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
         body:JSON.stringify(payload)});
       const d=await r.json().catch(()=>({}));
-      if(!r.ok){this.disabled=false;return err(d.error||t('pwf_err'));}
+      if(!r.ok){this.disabled=false;return err(apiError(d));}
+      if(d.token)_token=d.token;
       // ¿El usuario pidió activar Face ID/Touch ID? Lo hacemos ahora, antes de cerrar
       // el modal, para que quede claro qué ventana de biometría le va a aparecer.
       const wantPk = soporta && document.getElementById('_pwfpk') && document.getElementById('_pwfpk').checked;
       ov.remove();
+      await _refreshAfterCredentialChange(d);
       if(typeof toast==='function')toast(t('pass_changed')||'OK');
       if(wantPk && typeof activarPasskey==='function'){
         // Pequeña espera para que el toast/re-render no compita con el prompt biométrico.
-        setTimeout(()=>{ try{ activarPasskey(); }catch(_){} }, 250);
+        try{await activarPasskey();}catch(_){}
       }
+      maybeShowTutorial(false);
     }catch(e){this.disabled=false;err(t('pwf_err'));}
   };
   document.getElementById('_pwf1').focus();
@@ -1199,9 +1200,10 @@ function forcePwChange(oldPass){
 async function changePw(){
   const o=document.getElementById('pw-old').value,n=document.getElementById('pw-new').value,n2=document.getElementById('pw-new2').value,a=document.getElementById('pw-alert');
   function al(m,cl){a.className='alert alert-'+cl;a.textContent=m;}
-  if(!n||n.length<4){al(t('pass_short'),'err');return;}
+  if(!n||n.length<6||n.length>128){al(t('pass_short'),'err');return;}
   if(n!==n2){al(t('pass_no_match'),'err');return;}
-  // La contraseña anterior la verifica el servidor: acá ya no hay ningún hash.
+  // La contraseña anterior la verifica el servidor.
+  if(!await _flushBeforeCredentialChange()){al(t('fix_pending_first'),'err');return;}
   try{
     const r=await fetch('/api/password',{
       method:'POST',
@@ -1209,10 +1211,11 @@ async function changePw(){
       body:JSON.stringify({oldPass:o,newPass:n,ligaId:_ligaActual||undefined})
     });
     const d=await r.json().catch(()=>({}));
-    if(!r.ok){al(d.error||t('pass_wrong'),'err');return;}
+    if(!r.ok){al(apiError(d),'err');return;}
+    await _refreshAfterCredentialChange(d);
   }catch(e){al('No se pudo conectar con el servidor.','err');return;}
   al(t('pass_ok'),'ok');
-  ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id).value='');
+  ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id)&&(document.getElementById(id).value=''));
 }
 
 

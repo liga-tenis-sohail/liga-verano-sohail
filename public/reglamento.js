@@ -30,7 +30,7 @@ function renderReglamento(){
     h+=' <span class="rg-sep"></span>';
     h+=' <button type="button" class="rg-tb" title="'+t('rg_img')+'" onmousedown="rgPickImg(event)"><i class="ti ti-photo"></i></button>';
     h+='</div>';
-    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" data-ph="'+t('rg_placeholder')+'">'+(REGLAMENTO||'')+'</div>';
+    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(REGLAMENTO||'')+'</div>';
     h+='<input type="file" id="rg-file" accept="image/*" style="display:none" onchange="rgInsertFile(this)">';
     h+='<div class="rg-hint">'+t('rg_img_hint')+'</div>';
     h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:10px">';
@@ -117,25 +117,7 @@ function rgOnPaste(ev){
   }
 }
 // Limpia HTML pegado: quita estilos inline, clases, y tamaños de fuente externos.
-function rgLimpiarPegado(html){
-  const tmp=document.createElement('div');
-  tmp.innerHTML=html;
-  const OK={B:1,STRONG:1,I:1,EM:1,U:1,BR:1,P:1,DIV:1,UL:1,OL:1,LI:1,H1:1,H2:1,H3:1,H4:1};
-  (function limpiar(node){
-    Array.prototype.slice.call(node.childNodes).forEach(n=>{
-      if(n.nodeType===1){
-        if(!OK[n.tagName]){
-          // Reemplazar la etiqueta por su contenido (sin perder el texto)
-          while(n.firstChild) node.insertBefore(n.firstChild, n);
-          node.removeChild(n); return;
-        }
-        Array.prototype.slice.call(n.attributes).forEach(a=>n.removeAttribute(a.name));
-        limpiar(n);
-      } else if(n.nodeType===8){ node.removeChild(n); }
-    });
-  })(tmp);
-  return tmp.innerHTML;
-}
+function rgLimpiarPegado(html){return sanitizarReglamento(html,true);}
 // Formatea el texto plano del reglamento a HTML seguro (respeta saltos de línea).
 function formatearReglamento(txt){
   return escPast(txt).replace(/\n/g,'<br>');
@@ -144,64 +126,45 @@ async function guardarReglamento(){
   const ed=document.getElementById('rg-editor');
   if(!ed)return;
   REGLAMENTO=sanitizarReglamento(ed.innerHTML);
+  if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
   _rgEdit=false;
-  persist(true);
   renderReglamento();
   renderSubTabs();   // la pestaña puede aparecer/desaparecer si pasó de vacío a lleno
   toast(t('rg_saved'));
 }
 // Limpia el HTML del reglamento: permite solo etiquetas de formato seguras y quita
 // cualquier script/handler. Así el HTML se puede mostrar sin riesgo de inyección.
-function sanitizarReglamento(html){
-  const tmp=document.createElement('div');
-  tmp.innerHTML=html||'';
-  const OK={B:1,STRONG:1,I:1,EM:1,U:1,BR:1,P:1,DIV:1,SPAN:1,UL:1,OL:1,LI:1,FONT:1,IMG:1,H1:1,H2:1,H3:1,H4:1};
-  // Solo estas propiedades de estilo sobreviven. Nada de font-size gigante,
-  // background, position, width fijos, etc. que rompen el layout de la app.
-  function filtrarStyle(valor, esImg){
-    const permitidas=['font-weight','font-style','text-decoration','text-align'];
-    const out=[];
-    String(valor||'').split(';').forEach(par=>{
-      const idx=par.indexOf(':'); if(idx<0)return;
-      const prop=par.slice(0,idx).trim().toLowerCase();
-      const val=par.slice(idx+1).trim();
-      if(/javascript:|expression|@import|url\(/i.test(val))return;   // nada peligroso
-      if(permitidas.includes(prop)) out.push(prop+':'+val);
-    });
-    if(esImg){ out.push('max-width:100%'); out.push('height:auto'); }   // imagen siempre acotada
-    return out.join(';');
+function sanitizarReglamento(html,pegado){
+  // Documento inerte. Se reconstruyen nodos nuevos: ningún atributo desconocido
+  // puede sobrevivir al desenvolver etiquetas anidadas.
+  const doc=new DOMParser().parseFromString(String(html||''),'text/html');
+  const out=document.createElement('div');
+  const allowed=new Set('B STRONG I EM U BR P DIV SPAN UL OL LI FONT IMG H1 H2 H3 H4'.split(' '));
+  const discard=new Set('SCRIPT STYLE IFRAME OBJECT EMBED SVG MATH TEMPLATE NOSCRIPT'.split(' '));
+  function walk(src,dest,depth){
+    if(depth>60)return;
+    for(const n of Array.from(src.childNodes)){
+      if(n.nodeType===3){dest.appendChild(document.createTextNode(n.textContent));continue;}
+      if(n.nodeType!==1||discard.has(n.tagName)||n.namespaceURI!=='http://www.w3.org/1999/xhtml')continue;
+      if(!allowed.has(n.tagName)){walk(n,dest,depth+1);continue;}
+      if(pegado&&n.tagName==='IMG')continue;
+      const el=document.createElement(n.tagName.toLowerCase());
+      if(n.tagName==='IMG'){
+        const src=n.getAttribute('src')||'';
+        if(!/^data:image\/(?:png|jpeg|gif|webp);base64,[a-zA-Z0-9+/=]+$/.test(src))continue;
+        if(src.length>3*1024*1024)continue;
+        el.src=src;el.alt=(n.getAttribute('alt')||'').slice(0,200);
+        el.style.cssText='max-width:100%;height:auto;border-radius:8px';
+      }
+      if(!pegado&&n.tagName==='FONT'&&/^[2-6]$/.test(n.getAttribute('size')||''))el.setAttribute('size',n.getAttribute('size'));
+      if(!pegado){
+        const rules={'font-weight':/^(normal|bold|[1-9]00)$/,'font-style':/^(normal|italic)$/,'text-decoration':/^(none|underline|line-through)$/,'text-align':/^(left|right|center|justify)$/};
+        for(const [k,re]of Object.entries(rules)){const v=n.style.getPropertyValue(k).trim().toLowerCase();if(re.test(v))el.style.setProperty(k,v);}
+      }
+      walk(n,el,depth+1);dest.appendChild(el);
+    }
   }
-  (function limpiar(node){
-    const hijos=Array.prototype.slice.call(node.childNodes);
-    hijos.forEach(n=>{
-      if(n.nodeType===1){ // elemento
-        if(!OK[n.tagName]){ // etiqueta no permitida: se reemplaza por su contenido
-          while(n.firstChild) node.insertBefore(n.firstChild, n);
-          node.removeChild(n); return;
-        }
-        const esImg=(n.tagName==='IMG');
-        Array.prototype.slice.call(n.attributes).forEach(a=>{
-          const an=a.name.toLowerCase();
-          if(an==='src' && esImg){
-            const v=(a.value||'').trim().toLowerCase();
-            if(!(v.startsWith('data:image/')||v.startsWith('https://'))) n.removeAttribute(a.name);
-            return;
-          }
-          if(an==='style'){
-            const limpio=filtrarStyle(a.value, esImg);
-            if(limpio) n.setAttribute('style', limpio); else n.removeAttribute('style');
-            return;
-          }
-          // FONT size/color: se descartan los tamaños externos gigantes; el formato
-          // va por los botones del editor (que usan etiquetas, no font-size libre).
-          n.removeAttribute(a.name);
-        });
-        // Quitar font-size heredado que quedara en FONT sin size real
-        limpiar(n);
-      } else if(n.nodeType===8){ node.removeChild(n); }
-    });
-  })(tmp);
-  return tmp.innerHTML;
+  walk(doc.body,out,0);return out.innerHTML;
 }
 // Copiar el reglamento de otra liga.
 async function copiarReglamentoUI(){
@@ -228,7 +191,7 @@ async function copiarReglamentoDe(ligaId,nombre){
     if(r.ok){ const d=await r.json().catch(()=>({})); estado=d.estado; }
     else {
       const r2=await fetch(_conLiga2('/api/state',ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-      if(r2.ok){ estado=await r2.json().catch(()=>null); }
+      if(r2.ok){ const d=await r2.json().catch(()=>null); estado=d&&d.state; }
     }
     const regla=estado&&typeof estado.REGLAMENTO==='string'?estado.REGLAMENTO:'';
     if(!regla.trim()){ alert(t('rg_copy_empty').replace('{n}',nombre)); return; }

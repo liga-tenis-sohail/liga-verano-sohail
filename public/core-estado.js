@@ -73,10 +73,19 @@ const _loginAttempts={}; // {username: {count, lockedUntil}}
 // ===== TRADUCCIONES & ESTADO =====
 let demoBackup=null;
 let LANG='es';
-function setLang(l){LANG=l;try{localStorage.setItem('liga_lang',l);}catch(e){}renderAll();}
+try{const saved=localStorage.getItem('liga_lang');if(saved==='es'||saved==='en')LANG=saved;}catch(_){}
+document.documentElement.lang=LANG;
+function setLang(l){
+ if(l!=='es'&&l!=='en')return;
+ LANG=l;document.documentElement.lang=l;
+ try{localStorage.setItem('liga_lang',l);}catch(_){}
+ renderAll();if(typeof applyStaticTranslations==='function')applyStaticTranslations();
+ if(document.getElementById('sohail-guide'))renderTutorial();
+}
+
 function t(k){const v=(TRANSLATIONS[LANG]&&TRANSLATIONS[LANG][k])||TRANSLATIONS['es'][k];return v!==undefined?v:k;}
 function tf(k,vars){let s=t(k);Object.keys(vars||{}).forEach(v=>{s=s.replace(new RegExp('{'+v+'}','g'),vars[v]);});return s;}
-function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'){const pv=document.getElementById('view-playoff');if(pv)pv.style.display='block';showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
+function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'&&subView==='playoff'){showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
 function updateLangUI(){
   ['btn-lang-es','btn-lang-es-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='es');}});
   ['btn-lang-en','btn-lang-en-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='en');}});
@@ -584,9 +593,9 @@ function repairPlayerInCycleGroup(cycN, gid, name){
 function buildUsers(){const u={admin:{role:'admin',pass:ADMIN_PASS_HASH,name:'Organización',email:'',tel:''},superadmin:{role:'superadmin',pass:ADMIN_PASS_HASH,name:'Super Administrador',email:'',tel:''}};ALLNAMES.forEach(n=>u[n]={role:'player',pass:DEFAULT_PASS_HASH,name:n,email:'',tel:''});return u;}
 const USERS=buildUsers();let currentUser=null;
 function groupName(g){return (typeof t==='function'?t('group'):'Grupo')+' '+g;}
-function validSet(a,b){if(a==null||b==null||isNaN(a)||isNaN(b))return false;const hi=Math.max(a,b),lo=Math.min(a,b);if(hi===6&&lo<=4)return true;if(hi===7&&(lo===5||lo===6))return true;return false;}
-function validSTB(a,b){return (a===1&&b===0)||(a===0&&b===1);}
-function validMatch(s){if(s.length<2)return{ok:false,msg:t('valid_need2sets')};if(!validSet(s[0][0],s[0][1]))return{ok:false,msg:t('valid_set1')};if(!validSet(s[1][0],s[1][1]))return{ok:false,msg:t('valid_set2')};let w1=0,w2=0;[s[0],s[1]].forEach(([a,b])=>{if(a>b)w1++;else w2++;});if(w1===w2){if(s.length!==3)return{ok:false,msg:t('valid_need_stb')};if(!validSTB(s[2][0],s[2][1]))return{ok:false,msg:t('valid_stb_only')};}else if(s.length===3)return{ok:false,msg:t('valid_no_stb')};return{ok:true};}
+function validSet(a,b){return SohailScore.validSet(a,b);}
+function validSTB(a,b){return SohailScore.validSTB(a,b);}
+function validMatch(s){const v=SohailScore.validMatch(s);return v.ok?v:{ok:false,msg:t(v.key)};}
 function findLoc(name,cycN){const c=cycles[cycN-1];if(!c||!c.groups)return null;for(let gi=0;gi<c.groups.length;gi++){if(c.groups[gi]&&c.groups[gi].players&&c.groups[gi].players.indexOf(name)>=0)return{g:gi+1};}return null;}
 function getActive(){return cycles[activeN-1];}
 function getInitials(n){if(!n)return'?';return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
@@ -961,7 +970,7 @@ function propagate(r,ladoVacio){
       const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
       if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
       if(ladoVacio){
-        const origenAmbosVacios = !m.a && !m.b;
+        const origenAmbosVacios = !!(ladoVacio[ri]&&ladoVacio[ri][mi]&&ladoVacio[ri][mi].a&&ladoVacio[ri][mi].b);
         if(mi%2===0) ladoVacio[ri+1][Math.floor(mi/2)].a = origenAmbosVacios;
         else ladoVacio[ri+1][Math.floor(mi/2)].b = origenAmbosVacios;
         // Auto-avance: si en ESTE slot un lado tiene jugador y el otro
@@ -985,9 +994,9 @@ function applyStored(key,r){
   // slot no cambia — pero como r[0] son los únicos partidos con a/b fijos
   // desde el principio, alcanza con dejar que se recalcule en cada pasada
   // de propagate(); todas dan el mismo resultado para los mismos slots.
-  const ladoVacio=[ r.map(m=>({a:!m.a,b:!m.b})) ];
+  const ladoVacio=[ (r[0]||[]).map(m=>({a:!m.a,b:!m.b})) ];
   for(let p=0;p<r.length+1;p++){
-    r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));
+    r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];const awaiting=(matches||[]).some(x=>x.po&&String(x.ti)+(x.which==='cons'?'c':'')===String(key)&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)&&x.status!=='confirmed');if(st&&!awaiting){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));
     propagate(r,ladoVacio);
   }
 }
@@ -1306,6 +1315,9 @@ async function cambiarLigaDesdeMenu(ligaId){
   const menu = document.getElementById('hdr-liga-switch-menu');
   if(menu) menu.style.display = 'none';
   if(!ligaId || ligaId === _ligaActual) return;
+  if(_saveInFlight)await _saveInFlight;
+  if(_loadOK&&_serialize()!==_lastSaved&&!await _criticalSave()){toast(t('fix_pending_first'));return;}
+  const sourceKey=_saveSessionKey(),sourceLiga=_ligaActual;
   const liga = (_hdrLigasCache||[]).find(l=>l.id===ligaId);
   const nombre = liga ? liga.nombre : ligaId;
   if(!confirm(t('ml_switch_confirm').replace('{n}', nombre))) return;
@@ -1315,6 +1327,9 @@ async function cambiarLigaDesdeMenu(ligaId){
     });
     const d = await r.json().catch(()=>({}));
     if(!r.ok){ toast((d && d.error) || t('err_hydrate')); return; }
+    if(sourceKey!==_saveSessionKey()||sourceLiga!==_ligaActual)return;
+    if(d.token)_token=d.token;
+    _saveConflict=false;
     _ligaActual = ligaId;
     const ok = _hydrate(d.state);
     if(!ok){ toast(t('err_hydrate')); return; }

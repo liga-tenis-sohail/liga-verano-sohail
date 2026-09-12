@@ -39,7 +39,7 @@ function setNumGroups(val){
       }
     });
   }
-  c.groups.flatMap(g=>g.players).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
+  c.groups.flatMap(g=>g.players||[]).filter(n=>typeof n==='string'&&n.trim()).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
   persist(true); renderAdmin();
   toast(newNum + ' grupos configurados.');
 }

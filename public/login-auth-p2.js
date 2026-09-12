@@ -646,6 +646,7 @@ async function elegirLigaTrasLogin(ligaId){
     const r=await fetch('/api/state?liga='+encodeURIComponent(ligaId)+'&elegir=1',{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
     const d=await r.json().catch(()=>({}));
     if(!r.ok){ if(e){e.textContent=d.error||t('err_hydrate');e.style.display='block';} return; }
+    if(d.token)_token=d.token;
     _ligaActual=ligaId;
     const ok=_hydrate(d.state);
     if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} return; }
@@ -656,7 +657,7 @@ async function elegirLigaTrasLogin(ligaId){
     if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} return; }
     currentUser=u; currentUser.key=d.name;
     if(box) box.style.display='none';
-    if(_pendienteMustChangePw) forcePwChange(_pendientePassPlano);
+    if(d.mustChangePw||_pendienteMustChangePw) forcePwChange(_pendientePassPlano);
     _pendientePassPlano='';
     montarAppTrasLogin();
   }catch(err){
@@ -667,6 +668,8 @@ async function elegirLigaTrasLogin(ligaId){
 // Monta la app tras un login exitoso (con clave o con passkey). currentUser,
 // _token y el estado ya deben estar cargados antes de llamar a esto.
 function montarAppTrasLogin(){
+  _saveConflict=false;
+  setTimeout(()=>maybeShowTutorial(false),500);
   const e=document.getElementById('login-err');
   if(e) e.style.display='none';
   _lastActivity=Date.now();
@@ -744,6 +747,8 @@ function entrarConToken(d){
   return true;
 }
 function doLogout(){
+  document.getElementById('sohail-guide')?.remove();document.getElementById('_pwforce')?.remove();
+  _tutorialRecord=null;_tutorialSeenSession='';_tutorialBusy=false;_saveConflict=false;
   closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;_hdrLigasCache=null;
   document.getElementById('main-app').style.display='none';
   document.getElementById('login-screen').style.display='block';

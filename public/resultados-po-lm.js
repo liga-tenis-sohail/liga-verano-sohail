@@ -188,7 +188,7 @@ function togglePoWO(){
 // formulario de sets) — se mantiene como camino corto para cuando
 // directamente no hay nada que cargar. loserName/winnerName ya vienen
 // resueltos desde los botones del panel.
-function confirmarPoWO(loserName,winnerName){
+async function confirmarPoWO(loserName,winnerName){
   if(!poContext)return;
   const ti=poContext.ti,which=poContext.which,ri=poContext.ri,mi=poContext.mi;
   const tr=playoff.tramos[ti];if(!tr||!tr[which])return;
@@ -200,7 +200,7 @@ function confirmarPoWO(loserName,winnerName){
   }
   if(!confirm(loserName+' no se presentó.\n\n'+winnerName+' avanza por W.O. '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
   matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
-  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,retiroDe:loserName,date:'',club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
+  const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,retiroDe:loserName,date:(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})(),club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
   matches.push(newM);
   if(isAdmin){
     storePo(ti,which,m.a,m.b,[],winnerName,true);
@@ -209,11 +209,11 @@ function confirmarPoWO(loserName,winnerName){
     applyPoPending(newM);
   }
   addLog(isAdmin?'Playoff: W.O. (admin)':'Playoff: W.O. (reportado)',{a:m.a,b:m.b,winner:winnerName,po:true,cuadro:tr.label,which});
+  if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
   closeM();
   if(typeof showPlayoffView==='function')showPlayoffView();
   refreshAll();
   toast(isAdmin?(winnerName+' avanza por W.O.'):'W.O. reportado, pendiente de confirmación.');
-  persist(true);
 }
 // Lectura "libre" de sets del modal de Play Offs para un retiro — mismo
 // criterio que readSetsLibre() en resultados-y-grupos.js: solo incluye los
@@ -556,7 +556,7 @@ function submitLoadModal(){
 // resultado cargado por un jugador, queda 'pending' hasta que el rival lo
 // confirme o el admin lo valide; si lo hace el admin, queda 'confirmed'
 // directo, igual que siempre.
-function deletePoDirect(ti,which,ri,mi){
+async function deletePoDirect(ti,which,ri,mi){
   if(!confirm('¿Eliminar este resultado? El partido vuelve a estar pendiente.')) return;
   const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
   const mRec = matches.find(x=>x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b));
@@ -564,16 +564,16 @@ function deletePoDirect(ti,which,ri,mi){
   const k = (which === 'main' ? ti : ti + 'c') + '#' + [m.a, m.b].sort().join('|');
   delete playoff.results[k];
   matches = matches.filter(x => !(x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a))));
-  rebuildTramo(ti); showPlayoffView(); toast('Resultado eliminado.'); persist(true);
+  rebuildTramo(ti); if(!await _criticalSave()){toast(t('fix_save_failed'));return false;} showPlayoffView(); toast(t('match_deleted')); return true;
 }
 
-function deletePo(){
+async function deletePo(){
   const ti = poContext.ti, which = poContext.which, ri = poContext.ri, mi = poContext.mi;
-  deletePoDirect(ti,which,ri,mi);
-  closeM();
+  if(await deletePoDirect(ti,which,ri,mi))closeM();
 }
 
-function submitPo(){
+async function submitPo(){
+  if(!poContext||!currentUser)return;
   const retQuien = document.getElementById('po-ret-quien') ? document.getElementById('po-ret-quien').value : '';
   const ti = poContext.ti, which = poContext.which, ri = poContext.ri, mi = poContext.mi;
   const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
@@ -583,6 +583,7 @@ function submitPo(){
       const a=document.getElementById('po-alert'); a.textContent='Elegí quién se retiró entre los dos jugadores de este partido.'; a.classList.add('err-txt'); return;
     }
     s=readPoSetsLibre();
+    if(!SohailScore.validRetirement(s)){const a=document.getElementById('po-alert');a.textContent=t('valid_set_count');return;}
     winner=retQuien===m.a?m.b:m.a;
   }else{
     s = [
@@ -622,20 +623,26 @@ function submitPo(){
   
   if(validaAlCargar(m.a, m.b)){
     storePo(ti, which, m.a, m.b, s, winner, !!retQuien);
-    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, retiroDe: retQuien||undefined, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
+    matches.push({id: matchId++, po: true, ti, which, ri, mi, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, retiroDe: retQuien||undefined, status: 'confirmed', reporter: currentUser.name, winner, date: fecha, club: poFormClub, locked: true});
     rebuildTramo(ti);
     const _rn2=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
     addLog('Playoff: validado (admin)',{a:m.a,b:m.b,sets:s,winner,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn2});
-    closeM(); showPlayoffView(); toast(t('po_validated')); persist(true);
+    if(await _criticalSave()){closeM(); showPlayoffView(); toast(t('po_validated'));}else toast(t('fix_save_failed'));
   } else {
-    matches.push({id: matchId++, po: true, ti, which, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, retiroDe: retQuien||undefined, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
+    matches.push({id: matchId++, po: true, ti, which, ri, mi, tLabel: playoff.tramos[ti].label, poNames: [m.a, m.b], sets: s, wo: !!retQuien, retiroDe: retQuien||undefined, status: 'pending', reporter: currentUser.name, winner, date: fecha, club: poFormClub});
     const _rn3=(()=>{const rounds=which==='main'?playoff.tramos[ti].main:playoff.tramos[ti].cons;const fe=rounds.length-1-ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(ri+1);})();
     addLog('Playoff: cargado',{a:m.a,b:m.b,sets:s,wo:!!retQuien,po:true,cuadro:playoff.tramos[ti].label,which,round:_rn3});
-    closeM(); renderPend(); renderCycleBar(); showPlayoffView(); toast(t('po_sent')); persist(true);
+    if(await _criticalSave()){closeM(); renderPend(); renderCycleBar(); showPlayoffView(); toast(t('po_sent'));}else toast(t('fix_save_failed'));
   }
 }
 function storePo(ti,which,a,b,sets,w,wo){const k=(which==='main'?ti:ti+'c')+'#'+[a,b].sort().join('|');playoff.results[k]={sets,w,wo:!!wo};}
-function applyPoPending(rec){storePo(rec.ti,rec.which,rec.poNames[0],rec.poNames[1],rec.sets,rec.winner,rec.wo);rebuildTramo(rec.ti);}
+function applyPoPending(rec){
+  const key=(rec.which==='main'?rec.ti:rec.ti+'c')+'#'+rec.poNames.slice().sort().join('|');
+  // Un resultado reportado no hace avanzar el cuadro antes de validarse.
+  if(rec.status==='confirmed')storePo(rec.ti,rec.which,rec.poNames[0],rec.poNames[1],rec.sets,rec.winner,rec.wo);
+  else delete playoff.results[key];
+  rebuildTramo(rec.ti);
+}
 let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');if(!t){t=document.createElement('div');t.id='_toast';t.className='toast';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';if(_toastTimer)clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.opacity='0';_toastTimer=null;},3800);}
 
 // ============================================================================

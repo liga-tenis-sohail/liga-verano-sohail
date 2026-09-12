@@ -121,7 +121,7 @@ function updateHdr(){
   // el estado, que es información sobre la SESIÓN de navegación (qué ciclo
   // estoy viendo), no del ciclo en sí — coherente con "un poco de aire" pedido
   // para esta zona.
-  const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+(cycles[viewCycle-1]?cycles[viewCycle-1].status:'');
+  const hs=viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle+' · '+(cycles[viewCycle-1]?t('fix_cycle_'+cycles[viewCycle-1].status):'');
   const sub=document.getElementById('hdr-sub');if(sub)sub.textContent=hs;
 // hdr-title y login-title usan el nombre OFICIAL de la liga (el mismo que
 // "Gestión de ligas"), no LEAGUE_NAME — así el nombre visible acá nunca se

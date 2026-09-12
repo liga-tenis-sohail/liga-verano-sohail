@@ -34,7 +34,7 @@
   // Restaurar nombre y subtítulo sin flash (se ejecuta en DOMContentLoaded para tener acceso al DOM)
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn){document.addEventListener('DOMContentLoaded',function(){var lt=document.getElementById('login-title');if(lt){var loginTxt=(lsn.lt&&lsn.lt.trim())?lsn.lt:lsn.n;if(loginTxt)lt.textContent=loginTxt;}var ls=document.getElementById('login-sub');if(ls&&lsn.s)ls.textContent=lsn.s;var ht=document.getElementById('hdr-title');if(ht&&lsn.n)ht.textContent=lsn.n;if(lsn.n)document.title=lsn.n;},false);}
-}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=18"></script><style>
+}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-fixes-20260910"></script><style>
 /* Respaldo inline de "Mis Ligas": si por cualquier motivo estilos.css no
    llegara a cargar con la versión más reciente, estas reglas viven acá
    adentro del HTML mismo y se aplican igual. Duplicadas a propósito respecto
@@ -68,7 +68,7 @@ button.liga-tab{cursor:pointer}
 .msg-compose-row{display:flex;gap:8px;align-items:flex-end;padding:.6rem;background:#EDF1F6;border-top:1px solid #c8d0dc}
 .msg-input{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border-radius:10px;border:1.5px solid #c8d0dc;background:#ffffff;color:#1b2433;font-family:inherit;font-size:14px;line-height:1.4}
 </style>
-<link rel="stylesheet" href="estilos.css?v=18">
+<link rel="stylesheet" href="estilos.css?v=sohail-fixes-20260910">
 
 </head><body>
 <div id="login-screen">
@@ -85,8 +85,8 @@ button.liga-tab{cursor:pointer}
       <div class="ball"><i class="ti ti-ball-tennis"></i></div><h1 id="login-title"></h1><p id="login-sub"></p>
     </div>
     <div class="login-body"><div class="login-err" id="login-err"></div>
-      <label id="lbl-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
-      <label id="lbl-pass">Contraseña</label><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <label id="lbl-user" for="login-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
+      <label id="lbl-pass" for="login-pass">Contraseña</label><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
       <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
       <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
@@ -187,7 +187,7 @@ button.liga-tab{cursor:pointer}
 
 <div id="print-area"></div>
 
-<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeM()"><div class="modal"><h3 id="modal-title">Resultado</h3><div id="modal-body"></div><div class="gap-sm" style="margin-top:1rem" id="modal-actions"></div></div></div>
+<div class="modal-bg" id="modal-bg" onclick="if(event.target===this)closeM()"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" tabindex="-1"><h3 id="modal-title">Resultado</h3><div id="modal-body"></div><div class="gap-sm" style="margin-top:1rem" id="modal-actions"></div></div></div>
 
 <!-- ==================================================================
      Scripts de la app: extraídos del index monolítico anterior.
@@ -196,21 +196,25 @@ button.liga-tab{cursor:pointer}
      bootstrap.js DEBE ser el último de la app (contiene el arranque).
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
-<script src="core-estado.js?v=19"></script>
-<script src="login-auth.js?v=19"></script>
-<script src="jugadores-perfiles-catalogo.js?v=18"></script>
-<script src="reglamento.js?v=18"></script>
-<script src="login-auth-p2.js?v=18"></script>
-<script src="shell-render.js?v=20"></script>
-<script src="resultados-y-grupos.js?v=20"></script>
-<script src="admin-ligas-clubes.js?v=18"></script>
-<script src="admin-ciclos-config.js?v=18"></script>
-<script src="playoffs.js?v=24"></script>
-<script src="jugadores-perfiles.js?v=20"></script>
-<script src="mensajes.js?v=18"></script>
-<script src="resultados-po-lm.js?v=20"></script>
-<script src="persistencia.js?v=18"></script>
-<script src="headers-ui.js?v=18"></script>
-<script src="bootstrap.js?v=18"></script>
-<script src="rating.js?v=18"></script>
+<script src="score-rules.js?v=sohail-fixes-20260910"></script>
+<script src="core-estado.js?v=sohail-fixes-20260910"></script>
+<script src="i18n-revision.js?v=sohail-fixes-20260910"></script>
+<script src="login-auth.js?v=sohail-fixes-20260910"></script>
+<script src="jugadores-perfiles-catalogo.js?v=sohail-fixes-20260910"></script>
+<script src="reglamento.js?v=sohail-fixes-20260910"></script>
+<script src="login-auth-p2.js?v=sohail-fixes-20260910"></script>
+<script src="shell-render.js?v=sohail-fixes-20260910"></script>
+<script src="resultados-y-grupos.js?v=sohail-fixes-20260910"></script>
+<script src="admin-ligas-clubes.js?v=sohail-fixes-20260910"></script>
+<script src="admin-ciclos-config.js?v=sohail-fixes-20260910"></script>
+<script src="playoffs.js?v=sohail-fixes-20260910"></script>
+<script src="jugadores-perfiles.js?v=sohail-fixes-20260910"></script>
+<script src="mensajes.js?v=sohail-fixes-20260910"></script>
+<script src="resultados-po-lm.js?v=sohail-fixes-20260910"></script>
+<script src="persistencia.js?v=sohail-fixes-20260910"></script>
+<script src="headers-ui.js?v=sohail-fixes-20260910"></script>
+<script src="accessibility.js?v=sohail-fixes-20260910"></script>
+<script src="tutorial.js?v=sohail-fixes-20260910"></script>
+<script src="bootstrap.js?v=sohail-fixes-20260910"></script>
+<script src="rating.js?v=sohail-fixes-20260910"></script>
 </body></html>

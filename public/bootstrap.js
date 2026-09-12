@@ -43,89 +43,23 @@
     }
 }
 
-function confirmarVinculacion(nombreActual) {
-    const val = document.getElementById('vincular-sel').value;
-    if (!val) { alert('Selecciona un jugador del catálogo.'); return; }
-    
-    const parts = val.split('|');
-    const jugadorId = parts[0];
-    const nuevoNombre = parts[1];
-
-    if (!confirm(`¿Estás seguro de conectar a "${nombreActual}" con el perfil global de "${nuevoNombre}"?`)) return;
-
-    // Si los nombres son diferentes, renombramos al jugador en la liga actual para que coincida.
-    if (nombreActual !== nuevoNombre) {
-        if (USERS[nuevoNombre]) {
-            alert(`Ya existe un jugador llamado "${nuevoNombre}" en esta liga. No se puede vincular.`);
-            return;
-        }
-        renombrarJugadorEnLiga(nombreActual, nuevoNombre);
-    }
-
-    // Le asignamos el ID del catálogo y guardamos.
-    const nameToUse = (nombreActual !== nuevoNombre) ? nuevoNombre : nombreActual;
-    USERS[nameToUse].jugadorId = jugadorId;
-
-    persist(true);
-    closeM();
-    toast('✅ Jugador conectado exitosamente.');
-    refreshAll();
+async function confirmarVinculacion(nombreActual){
+ const el=document.getElementById('vincular-sel'),value=el&&el.value;
+ if(!value){toast(t('choose_player'));return;}
+ const id=value.split('|')[0];
+ if(!confirm(t('fix_link_confirm')))return;
+ if(_saveInFlight)await _saveInFlight;
+ if(_serialize()!==_lastSaved&&!await _criticalSave()){toast(t('fix_pending_first'));return;}
+ try{
+  const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'vincularJugador',ligaId:_ligaActual,nombre:nombreActual,jugadorId:id,version:_stateV})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||t('fix_save_failed'));
+  await loadState();closeM();refreshAll();toast(t('fix_link_ok'));
+ }catch(e){toast(e.message||t('fix_save_failed'));}
 }
 
 // Función súper robusta que actualiza todo el historial del jugador si su nombre tuvo que cambiar
-function renombrarJugadorEnLiga(oldName, newName) {
-    // 1. Modificar objeto USERS
-    USERS[newName] = USERS[oldName];
-    USERS[newName].name = newName;
-    delete USERS[oldName];
-
-    // 2. Modificar listado global ALLNAMES
-    const idx = ALLNAMES.indexOf(oldName);
-    if (idx >= 0) ALLNAMES[idx] = newName;
-
-    // 3. Modificar Grupos en los Ciclos
-    cycles.forEach(c => {
-        if (c.groups) {
-            c.groups.forEach(g => {
-                const gi = g.players.indexOf(oldName);
-                if (gi >= 0) g.players[gi] = newName;
-            });
-        }
-    });
-
-    // 4. Modificar Historial de Partidos
-    matches.forEach(m => {
-        if (m.aName === oldName) m.aName = newName;
-        if (m.bName === oldName) m.bName = newName;
-        if (m.reporter === oldName) m.reporter = newName;
-        if (m.vBy === oldName) m.vBy = newName;
-        if (m.winner === oldName) m.winner = newName;
-        if (m.po && Array.isArray(m.poNames)) {
-            const pi = m.poNames.indexOf(oldName);
-            if (pi >= 0) m.poNames[pi] = newName;
-        }
-    });
-
-    // 5. Modificar clasificados y seeds de Play Offs
-    if (playoff && playoff.qualified) {
-        const qi = playoff.qualified.indexOf(oldName);
-        if (qi >= 0) playoff.qualified[qi] = newName;
-        playoff.tramos.forEach(tr => {
-            const si = tr.seeds.indexOf(oldName);
-            if (si >= 0) tr.seeds[si] = newName;
-
-            ['main', 'cons'].forEach(which => {
-                if (tr[which]) {
-                    tr[which].forEach(round => {
-                        round.forEach(m => {
-                            if (m.a === oldName) m.a = newName;
-                            if (m.b === oldName) m.b = newName;
-                            if (m.w === oldName) m.w = newName;
-                        });
-                    });
-                }
-            });
-        });
-    }
+function renombrarJugadorEnLiga(oldName,newName){
+  return renamePlayerEverywhere(oldName,newName);
 }
 
+if(typeof applyStaticTranslations==='function')applyStaticTranslations();
