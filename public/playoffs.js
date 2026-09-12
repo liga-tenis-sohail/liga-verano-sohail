@@ -6,6 +6,25 @@
 // ============================================================================
 function setViewT(i){playoff.viewT=i;showPlayoffView();}
 
+function renderChampionShowcase(tr, finalM){
+  const winner = finalM && finalM.w ? finalM.w : '';
+  const pending = !winner;
+  const title = tf('po_champ',{l:tr.label});
+  const subtitle = pending ? t('po_champ_pending_title') : t('po_champ_ready_title');
+  const hint = pending ? t('po_champ_pending_hint') : t('po_champ_ready_hint');
+  const nameHtml = pending
+    ? `<span class="champion-showcase__pending-name">${t('po_champ_pending_name')}</span>`
+    : `<span class="nm-link champion-showcase__winner-link" onclick="showPlayerHistory('${jsq(winner)}')">${winner}</span>`;
+  return `<div class="champion-showcase ${pending?'is-pending':'is-winner'}" aria-live="polite">
+    <div class="champion-showcase__shine"></div>
+    <div class="champion-showcase__topline"></div>
+    <div class="champion-showcase__badge"><i class="ti ti-crown"></i> ${subtitle}</div>
+    <div class="champion-showcase__title">${title}</div>
+    <div class="champion-showcase__name">${nameHtml}</div>
+    <div class="champion-showcase__hint">${hint}</div>
+  </div>`;
+}
+
 function moveSeedUI(toTi){
   const sel=document.getElementById('po-move-'+toTi);
   const name=sel?sel.value:'';
@@ -787,7 +806,7 @@ function showPlayoffView(){
   const mainEditBtns = (isAdmin && hayMainOrder)
     ? '<button class="btn btn-sm" style="margin-left:8px" onclick="clearMainOrderUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>'
     : '';
-  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM&&finalM.w?`<div class="champ-card"><div class="lbl">${tf('po_champ',{l:tr.label})}</div><div class="who"><i class="ti ti-crown"></i> <span class="nm-link" onclick="showPlayerHistory('${jsq(finalM.w)}')">${finalM.w}</span></div></div>`:''}</div>`;
+  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM?renderChampionShowcase(tr,finalM):''}</div>`;
   if(tr.cons){
     const cf=tr.cons[tr.cons.length-1][0];
     const hayOverrides = tr.consOverrides && Object.keys(tr.consOverrides).length;

@@ -73,23 +73,10 @@ const _loginAttempts={}; // {username: {count, lockedUntil}}
 // ===== TRADUCCIONES & ESTADO =====
 let demoBackup=null;
 let LANG='es';
-try{const saved=localStorage.getItem('liga_lang');if(saved==='es'||saved==='en')LANG=saved;}catch(_){}
-document.documentElement.lang=LANG;
-function setLang(l){
- if(l!=='es'&&l!=='en')return;
- LANG=l;document.documentElement.lang=l;
- try{localStorage.setItem('liga_lang',l);}catch(_){}
- // Con clave predeterminada, no reconstruir vistas ni consultar acciones
- // protegidas detrás del modal. Se dibujan al confirmar el cambio de clave.
- if(document.getElementById('_pwforce'))updateLangUI();else renderAll();
- if(typeof applyStaticTranslations==='function')applyStaticTranslations();
- if(typeof updateForcedPasswordLanguage==='function')updateForcedPasswordLanguage();
- if(document.getElementById('sohail-guide'))renderTutorial();
-}
-
+function setLang(l){LANG=l;try{localStorage.setItem('liga_lang',l);}catch(e){}renderAll();}
 function t(k){const v=(TRANSLATIONS[LANG]&&TRANSLATIONS[LANG][k])||TRANSLATIONS['es'][k];return v!==undefined?v:k;}
 function tf(k,vars){let s=t(k);Object.keys(vars||{}).forEach(v=>{s=s.replace(new RegExp('{'+v+'}','g'),vars[v]);});return s;}
-function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'&&subView==='playoff'){showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
+function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'){const pv=document.getElementById('view-playoff');if(pv)pv.style.display='block';showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
 function updateLangUI(){
   ['btn-lang-es','btn-lang-es-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='es');}});
   ['btn-lang-en','btn-lang-en-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='en');}});
@@ -134,7 +121,7 @@ playoffs_title:'Play Offs',playoffs_ready:'Todos los ciclos están cerrados. Pre
 cycle_closed_next:'Ciclo {n} cerrado. ¡Ciclo {nx} iniciado con grupos actualizados!',cycle3_closed:'Todos los ciclos cerrados. Ya puedes iniciar los Play Offs desde Admin.',last_cycle_finished:'Último ciclo finalizado. Ya puedes previsualizar los Play Offs.',
 po_preview_banner:'Previsualización — los Play Offs todavía NO están iniciados',po_preview_hint:'Así quedarían los cuadros según la clasificación general. Quita o agrega jugadores (los que no juegan) y ajusta la cantidad de cuadros. Cuando esté todo listo, confirma el inicio. Hasta entonces los jugadores no ven nada.',po_confirm_start:'Iniciar Play Offs definitivamente',
 po_config:'Configuración de Play Offs',po_config_hint:'Al cambiar la cantidad, los cuadros se rearman repartiendo la clasificación general en partes iguales. Puedes también forzar en qué ronda empezar cada cuadro.',po_seeds_title:'Jugadores del Cuadro {l} — quita (✕) o agrega',po_removed:'Retirados: {list}.',po_add_label:'Agregar jugador a este cuadro',po_add_choose:'Elige…',po_add_btn:'Agregar',po_bye_note:'Si quitás a alguien, no se reemplaza: pasa uno más por bye.',
-po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_cons_edit_btn:'Editar jugadores',po_main_edit_btn:'Editar posiciones',po_main_edit_title:'Editar posiciones · Cuadro {l}',po_main_edit_hint:'Movés cualquier jugador dentro del cuadro, incluyendo intercambiar con un BYE — la cantidad total de BYE del cuadro no cambia, solo su ubicación. También podés elegir directamente, con el selector de cada jugador, que le toque BYE o que juegue contra alguien puntual.',po_main_give_bye:'★ Darle BYE',po_main_play_vs:'Jugar contra: {n}',po_main_bring_here:'Traer acá a: {n}',po_main_put_here:'Poner acá a: {n}',po_bye_label:'BYE',hist_view:'Ver historial',po_main_positions_saved:'Posiciones del cuadro actualizadas.',po_cons_clear_btn:'Restaurar',po_cons_none:'Este cuadro todavía no tiene consolación armada.',po_cons_edit_title:'Editar Consolación {l}',po_cons_edit_hint:'Elegí un reemplazo para cualquier jugador de esta consolación, o sacalo sin reemplazo. Los cambios se guardan y sobreviven a nuevos resultados cargados.',po_cons_was:'reemplaza a {n}',po_cons_keep:'— Mantener —',po_cons_remove:'✕ Sacar sin reemplazo',po_cons_saved:'Consolación actualizada.',po_cons_none_to_clear:'No hay ningún cambio manual que restaurar.',po_cons_clear_confirm:'¿Restaurar la consolación a los perdedores reales de la primera ronda? Se pierden todos los reemplazos manuales de este cuadro.',po_cons_cleared:'Consolación restaurada a los perdedores reales.',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_cons:'Campeón Consolación {l}',
+po_main_title:'Cuadro principal {l}',po_cons_title:'Consolación {l} (perdedores 1ª ronda)',po_cons_edit_btn:'Editar jugadores',po_main_edit_btn:'Editar posiciones',po_main_edit_title:'Editar posiciones · Cuadro {l}',po_main_edit_hint:'Movés cualquier jugador dentro del cuadro, incluyendo intercambiar con un BYE — la cantidad total de BYE del cuadro no cambia, solo su ubicación. También podés elegir directamente, con el selector de cada jugador, que le toque BYE o que juegue contra alguien puntual.',po_main_give_bye:'★ Darle BYE',po_main_play_vs:'Jugar contra: {n}',po_main_bring_here:'Traer acá a: {n}',po_main_put_here:'Poner acá a: {n}',po_bye_label:'BYE',hist_view:'Ver historial',po_main_positions_saved:'Posiciones del cuadro actualizadas.',po_cons_clear_btn:'Restaurar',po_cons_none:'Este cuadro todavía no tiene consolación armada.',po_cons_edit_title:'Editar Consolación {l}',po_cons_edit_hint:'Elegí un reemplazo para cualquier jugador de esta consolación, o sacalo sin reemplazo. Los cambios se guardan y sobreviven a nuevos resultados cargados.',po_cons_was:'reemplaza a {n}',po_cons_keep:'— Mantener —',po_cons_remove:'✕ Sacar sin reemplazo',po_cons_saved:'Consolación actualizada.',po_cons_none_to_clear:'No hay ningún cambio manual que restaurar.',po_cons_clear_confirm:'¿Restaurar la consolación a los perdedores reales de la primera ronda? Se pierden todos los reemplazos manuales de este cuadro.',po_cons_cleared:'Consolación restaurada a los perdedores reales.',po_legend:'Cuadros por tramos de la general. Cada uno con su consolación para los que pierden en primera ronda. El admin agrega/quita jugadores.',po_champ:'Campeón del Cuadro {l}',po_champ_ready_title:'🏆 Campeón',po_champ_ready_hint:'Ganador de la final.',po_champ_pending_title:'🏆 Campeón',po_champ_pending_name:'Por definir',po_champ_pending_hint:'Se mostrará cuando la final tenga un ganador.',po_champ_cons:'Campeón Consolación {l}',
 po_load_result:'Cargar resultado',po_to_play:'A jugar',po_not_available:'El admin todavía no inició los Play Offs.',po_not_yet:'Los Play Offs todavía no están disponibles.',po_match:'Cuadro {l}',po_no_bracket:'Sin cuadro.',po_move_from:'Mover jugador desde otro cuadro',po_choose_player:'Elige jugador…',po_move_here:'Mover aquí',po_move_confirm:'¿Mover a {n} del Cuadro {from} al Cuadro {to}?\n\nEl Cuadro {from} se va a reorganizar sin ese jugador.',po_move_no_player:'Elige un jugador para mover.',po_move_not_found:'No se pudo encontrar al jugador.',po_move_ok:'{n} movido al Cuadro {to}.',po_date_single:'Fecha única',po_date_range:'Rango de fechas',po_not_played:'No jugado',po_delete_btn:'Eliminar',po_seed_up:'Subir posición',po_seed_down:'Bajar posición',po_reorder_confirm:'Reordenar cambia los emparejamientos del Cuadro {l}. Los resultados ya cargados en este cuadro se van a borrar. ¿Continuar?',po_reorder_ok:'Posición de {n} actualizada.',po_form_note:'Partido de Play Offs — {draw} · {round}',
 po_tab_players:'jug.',
 pending_match:'Pendiente de juego',
@@ -273,7 +260,7 @@ playoffs_title:'Play Offs',playoffs_ready:'All cycles closed. Preview brackets t
 cycle_closed_next:'Cycle {n} closed. Cycle {nx} started with updated groups!',cycle3_closed:'All cycles closed. You can now start the Play Offs from Admin.',last_cycle_finished:'Last cycle finished. You can now preview the Play Offs.',
 po_preview_banner:'Preview — Play Offs have NOT started yet',po_preview_hint:'This is how the brackets would look. Remove or add players (those not playing) and adjust the number of brackets. When ready, confirm the start. Until then players see nothing.',po_confirm_start:'Start Play Offs for real',
 po_config:'Play Off settings',po_config_hint:'Changing the number of brackets redistributes the general standings evenly. You can also force the starting round.',po_seeds_title:'Players in Draw {l} — remove (✕) or add',po_removed:'Withdrawn: {list}.',po_add_label:'Add player to this bracket',po_add_choose:'Choose…',po_add_btn:'Add',po_bye_note:'If you remove someone they are not replaced: another player gets a bye instead.',
-po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_cons_edit_btn:'Edit players',po_main_edit_btn:'Edit positions',po_main_edit_title:'Edit positions · Bracket {l}',po_main_edit_hint:'Move any player within the bracket, including swapping with a BYE — the total number of BYEs in the bracket never changes, only where they are. You can also pick directly, with each player\'s selector, that they get a BYE or play against someone specific.',po_main_give_bye:'★ Give BYE',po_main_play_vs:'Play against: {n}',po_main_bring_here:'Bring here: {n}',po_main_put_here:'Put here: {n}',po_bye_label:'BYE',hist_view:'View history',po_main_positions_saved:'Bracket positions updated.',po_cons_clear_btn:'Restore',po_cons_none:'This bracket does not have a consolation draw yet.',po_cons_edit_title:'Edit Consolation {l}',po_cons_edit_hint:'Pick a replacement for any player in this consolation draw, or remove them with no replacement. Changes are saved and survive new results being entered.',po_cons_was:'replacing {n}',po_cons_keep:'— Keep —',po_cons_remove:'✕ Remove, no replacement',po_cons_saved:'Consolation draw updated.',po_cons_none_to_clear:'There are no manual changes to restore.',po_cons_clear_confirm:'Restore the consolation draw to the actual 1st round losers? All manual replacements in this bracket will be lost.',po_cons_cleared:'Consolation draw restored to the actual losers.',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_cons:'Consolation champion {l}',
+po_main_title:'Main Draw {l}',po_cons_title:'Consolation {l} (1st round losers)',po_cons_edit_btn:'Edit players',po_main_edit_btn:'Edit positions',po_main_edit_title:'Edit positions · Bracket {l}',po_main_edit_hint:'Move any player within the bracket, including swapping with a BYE — the total number of BYEs in the bracket never changes, only where they are. You can also pick directly, with each player\'s selector, that they get a BYE or play against someone specific.',po_main_give_bye:'★ Give BYE',po_main_play_vs:'Play against: {n}',po_main_bring_here:'Bring here: {n}',po_main_put_here:'Put here: {n}',po_bye_label:'BYE',hist_view:'View history',po_main_positions_saved:'Bracket positions updated.',po_cons_clear_btn:'Restore',po_cons_none:'This bracket does not have a consolation draw yet.',po_cons_edit_title:'Edit Consolation {l}',po_cons_edit_hint:'Pick a replacement for any player in this consolation draw, or remove them with no replacement. Changes are saved and survive new results being entered.',po_cons_was:'replacing {n}',po_cons_keep:'— Keep —',po_cons_remove:'✕ Remove, no replacement',po_cons_saved:'Consolation draw updated.',po_cons_none_to_clear:'There are no manual changes to restore.',po_cons_clear_confirm:'Restore the consolation draw to the actual 1st round losers? All manual replacements in this bracket will be lost.',po_cons_cleared:'Consolation draw restored to the actual losers.',po_legend:'Brackets by general standings segment. Each has a consolation for 1st-round losers. Admin adds/removes players.',po_champ:'Champion Draw {l}',po_champ_ready_title:'🏆 Champion',po_champ_ready_hint:'Winner of the final.',po_champ_pending_title:'🏆 Champion',po_champ_pending_name:'To be decided',po_champ_pending_hint:'It will appear when the final has a winner.',po_champ_cons:'Consolation champion {l}',
 po_load_result:'Upload result',po_to_play:'To be played',po_not_available:'Admin has not started the Play Offs yet.',po_not_yet:'Play Offs are not available yet.',po_match:'Draw {l}',po_no_bracket:'No draw.',po_move_from:'Move player from another bracket',po_choose_player:'Choose player…',po_move_here:'Move here',po_move_confirm:'Move {n} from Bracket {from} to Bracket {to}?\n\nBracket {from} will be reorganised without that player.',po_move_no_player:'Choose a player to move.',po_move_not_found:'Could not find the player.',po_move_ok:'{n} moved to Bracket {to}.',po_date_single:'Single date',po_date_range:'Date range',po_not_played:'Not played',po_delete_btn:'Delete',po_seed_up:'Move up',po_seed_down:'Move down',po_reorder_confirm:'Reordering changes the pairings in Bracket {l}. Results already loaded in this bracket will be erased. Continue?',po_reorder_ok:'{n}\'s position updated.',po_form_note:'Play Off Match — {draw} · {round}',
 po_tab_players:'players',
 pending_match:'Pending match',
@@ -597,9 +584,9 @@ function repairPlayerInCycleGroup(cycN, gid, name){
 function buildUsers(){const u={admin:{role:'admin',pass:ADMIN_PASS_HASH,name:'Organización',email:'',tel:''},superadmin:{role:'superadmin',pass:ADMIN_PASS_HASH,name:'Super Administrador',email:'',tel:''}};ALLNAMES.forEach(n=>u[n]={role:'player',pass:DEFAULT_PASS_HASH,name:n,email:'',tel:''});return u;}
 const USERS=buildUsers();let currentUser=null;
 function groupName(g){return (typeof t==='function'?t('group'):'Grupo')+' '+g;}
-function validSet(a,b){return SohailScore.validSet(a,b);}
-function validSTB(a,b){return SohailScore.validSTB(a,b);}
-function validMatch(s){const v=SohailScore.validMatch(s);return v.ok?v:{ok:false,msg:t(v.key)};}
+function validSet(a,b){if(a==null||b==null||isNaN(a)||isNaN(b))return false;const hi=Math.max(a,b),lo=Math.min(a,b);if(hi===6&&lo<=4)return true;if(hi===7&&(lo===5||lo===6))return true;return false;}
+function validSTB(a,b){return (a===1&&b===0)||(a===0&&b===1);}
+function validMatch(s){if(s.length<2)return{ok:false,msg:t('valid_need2sets')};if(!validSet(s[0][0],s[0][1]))return{ok:false,msg:t('valid_set1')};if(!validSet(s[1][0],s[1][1]))return{ok:false,msg:t('valid_set2')};let w1=0,w2=0;[s[0],s[1]].forEach(([a,b])=>{if(a>b)w1++;else w2++;});if(w1===w2){if(s.length!==3)return{ok:false,msg:t('valid_need_stb')};if(!validSTB(s[2][0],s[2][1]))return{ok:false,msg:t('valid_stb_only')};}else if(s.length===3)return{ok:false,msg:t('valid_no_stb')};return{ok:true};}
 function findLoc(name,cycN){const c=cycles[cycN-1];if(!c||!c.groups)return null;for(let gi=0;gi<c.groups.length;gi++){if(c.groups[gi]&&c.groups[gi].players&&c.groups[gi].players.indexOf(name)>=0)return{g:gi+1};}return null;}
 function getActive(){return cycles[activeN-1];}
 function getInitials(n){if(!n)return'?';return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();}
@@ -974,7 +961,7 @@ function propagate(r,ladoVacio){
       const winSid = m.w ? (m.w===m.a?m.sid[0]:m.sid[1]) : '';
       if(mi%2===0){sl.a=m.w;sl.sid[0]=winSid;}else{sl.b=m.w;sl.sid[1]=winSid;}
       if(ladoVacio){
-        const origenAmbosVacios = !!(ladoVacio[ri]&&ladoVacio[ri][mi]&&ladoVacio[ri][mi].a&&ladoVacio[ri][mi].b);
+        const origenAmbosVacios = !m.a && !m.b;
         if(mi%2===0) ladoVacio[ri+1][Math.floor(mi/2)].a = origenAmbosVacios;
         else ladoVacio[ri+1][Math.floor(mi/2)].b = origenAmbosVacios;
         // Auto-avance: si en ESTE slot un lado tiene jugador y el otro
@@ -998,9 +985,9 @@ function applyStored(key,r){
   // slot no cambia — pero como r[0] son los únicos partidos con a/b fijos
   // desde el principio, alcanza con dejar que se recalcule en cada pasada
   // de propagate(); todas dan el mismo resultado para los mismos slots.
-  const ladoVacio=[ (r[0]||[]).map(m=>({a:!m.a,b:!m.b})) ];
+  const ladoVacio=[ r.map(m=>({a:!m.a,b:!m.b})) ];
   for(let p=0;p<r.length+1;p++){
-    r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];const awaiting=(matches||[]).some(x=>x.po&&String(x.ti)+(x.which==='cons'?'c':'')===String(key)&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)&&x.status!=='confirmed');if(st&&!awaiting){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));
+    r.forEach(rd=>rd.forEach(m=>{if(m.a&&m.b&&!m.w){const k=key+'#'+[m.a,m.b].sort().join('|');const st=playoff.results[k];if(st){m.sets=st.sets;m.w=st.w;m.wo=st.wo;m.locked=true;}}}));
     propagate(r,ladoVacio);
   }
 }
@@ -1319,9 +1306,6 @@ async function cambiarLigaDesdeMenu(ligaId){
   const menu = document.getElementById('hdr-liga-switch-menu');
   if(menu) menu.style.display = 'none';
   if(!ligaId || ligaId === _ligaActual) return;
-  if(_saveInFlight)await _saveInFlight;
-  if(_loadOK&&_serialize()!==_lastSaved&&!await _criticalSave()){toast(t('fix_pending_first'));return;}
-  const sourceKey=_saveSessionKey(),sourceLiga=_ligaActual;
   const liga = (_hdrLigasCache||[]).find(l=>l.id===ligaId);
   const nombre = liga ? liga.nombre : ligaId;
   if(!confirm(t('ml_switch_confirm').replace('{n}', nombre))) return;
@@ -1331,9 +1315,6 @@ async function cambiarLigaDesdeMenu(ligaId){
     });
     const d = await r.json().catch(()=>({}));
     if(!r.ok){ toast((d && d.error) || t('err_hydrate')); return; }
-    if(sourceKey!==_saveSessionKey()||sourceLiga!==_ligaActual)return;
-    if(d.token)_token=d.token;
-    _saveConflict=false;
     _ligaActual = ligaId;
     const ok = _hydrate(d.state);
     if(!ok){ toast(t('err_hydrate')); return; }
