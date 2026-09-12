@@ -1,15 +1,16 @@
 *{box-sizing:border-box;margin:0;padding:0}
 /* Contiene cualquier desborde horizontal (ej. el bracket de Play Offs, que
-   es intrÃ­nsecamente ancho) para que solo scrollee el componente que lo
+   es intrínsecamente ancho) para que solo scrollee el componente que lo
    necesita (.bracket ya tiene overflow-x:auto propio) en vez de estirar
-   el <body> entero. Sin esto, en mobile Safari comprimÃ­a TODA la pÃ¡gina
-   con zoom automÃ¡tico para que el contenido ancho entrara igual. */
-html,body{overflow-x:hidden;max-width:100%}
+   el <body> entero. Sin esto, en mobile Safari comprimía TODA la página
+   con zoom automático para que el contenido ancho entrara igual. */
+html,
+body{overflow-x:hidden;max-width:100%}
 
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
 --sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B;
-/* Estados semÃ¡nticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
+/* Estados semánticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
 --danger:#c0392b;--dangerBg:#FCEBEB;--dangerT:#791F1F;
 --success:#16a34a;--successBg:#dcfce7;--successT:#166534;
 --warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
@@ -17,23 +18,23 @@ html,body{overflow-x:hidden;max-width:100%}
 --ring:0 0 0 3px rgba(27,79,156,.15);
 /* Tokens agregados post-tanda 3 para arreglar el dark mode:
    - reqBg/reqBorder: fondo cream + borde negro del bloque "Reportar resultado" cuando falta info
-   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo estÃ¡ vacÃ­o
+   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo está vacío
    - meRowText: color del texto en la fila destacada del usuario logueado (era priD hardcoded, invisible en dark)
    - btnLightBg: fondo claro para botoncitos "sobre-blanco" (borrar en playoff bracket, recargar en errores) */
 --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--reqEmptyBorder:var(--danger);
 --meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
-/* Fila destacada del usuario logueado en Rating/ClasificaciÃ³n/Grupos.
+/* Fila destacada del usuario logueado en Rating/Clasificación/Grupos.
    Es DISTINTA de --winrow (que es color del ganador en tabla de grupo y se
    customiza por liga desde localStorage). Al ser variable independiente,
-   ninguna configuraciÃ³n de liga la pisa y el dark mode la controla puro. */
+   ninguna configuración de liga la pisa y el dark mode la controla puro. */
 --meRowBg:#FAEEDA}
 
-/* ==== Toggle manual de tema (data-theme) â€” sobreescribe prefers-color-scheme.
+/* ==== Toggle manual de tema (data-theme) — sobreescribe prefers-color-scheme.
    El script en <head> lee localStorage al inicio y setea data-theme en <html>
-   ANTES del primer paint, asÃ­ no hay flash. */
+   ANTES del primer paint, así no hay flash. */
 
-/* Cuando el usuario elige explÃ­citamente "claro", forzamos light aunque el OS
-   estÃ© en oscuro. */
+/* Cuando el usuario elige explícitamente "claro", forzamos light aunque el OS
+   esté en oscuro. */
 html[data-theme="light"]{
   --bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;
   --border:#e2e7ef;--border2:#c8d0dc;--soft:#E6F1FB;--winrow:#FAEEDA;--hl:#FFEDD5;
@@ -45,10 +46,12 @@ html[data-theme="light"]{
   --cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
   --meRowBg:#FAEEDA;
 }
-html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
 
-/* Cuando el usuario elige "oscuro" explÃ­cito */
-/* Cuando el usuario elige "oscuro" explÃ­cito */
+/* Cuando el usuario elige "oscuro" explícito */
+/* Cuando el usuario elige "oscuro" explícito */
 html[data-theme="dark"]{
   --bg:#111111;--surface:#1a1a1a;--surface2:#242424;
   --text:#ffffff;--text2:#cbd5e1;
@@ -69,44 +72,12 @@ html[data-theme="dark"]{
   --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
 }
 
-/* ============================================================================
-   DARK MODE â€” REGLA MADRE: TODO texto es BLANCO por defecto.
-   
-   FilosofÃ­a: en vez de pelear con 63+ elementos que usan color:var(--pri),
-   forzamos que TODO texto en dark sea blanco. DespuÃ©s, excepciones controladas
-   para los elementos que necesitan color propio (badges, links, headers).
-   ============================================================================ */
 
-/* MADRE: todo elemento en dark tiene texto blanco. Alta especificidad para
-   pisar cualquier color:var(--pri) o color:#111 hardcodeado del CSS legacy. */
-html[data-theme="dark"],
-html[data-theme="dark"] body,
-html[data-theme="dark"] div,
-html[data-theme="dark"] p,
-html[data-theme="dark"] span,
-html[data-theme="dark"] table,
-html[data-theme="dark"] tr,
-html[data-theme="dark"] th,
-html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
-html[data-theme="dark"] label,
-html[data-theme="dark"] h1,
-html[data-theme="dark"] h2,
-html[data-theme="dark"] h3,
-html[data-theme="dark"] h4,
-html[data-theme="dark"] h5,
-html[data-theme="dark"] h6,
-html[data-theme="dark"] li,
-html[data-theme="dark"] strong,
-html[data-theme="dark"] em,
-html[data-theme="dark"] b,
-html[data-theme="dark"] small{color:#ffffff!important}
 
-/* Excepciones a la mother rule para paneles con FONDO CLARO en dark mode.
-   No modificamos la mother rule (aumentar su especificidad rompe muchas otras
-   reglas como .avatar, .badge, .dest, .edit-pts-btn). En su lugar agregamos
-   selectores MÃS especÃ­ficos para los pocos casos donde queremos texto oscuro
-   sobre fondo claro. Usamos `.modal-score p` (0,2,2 > mother rule 0,1,2) y una
-   clase especÃ­fica `.pe-danger-box` para el panel "Estado en la liga". */
+
+
+
+
 html[data-theme="dark"] .modal-score{color:#0f172a!important}
 html[data-theme="dark"] .modal-score p,
 html[data-theme="dark"] .modal-score strong,
@@ -125,7 +96,7 @@ html[data-theme="dark"] .pe-danger-box div:not(.gap-sm):not([style*="display:fle
 
 /* Celdas con colores configurados por el admin (club, pending, disputed):
    respetan el inline style con background y color propios. Los colores del
-   admin son intencionales â€” si Ã©l quiere celeste con azul oscuro, eso queda. */
+   admin son intencionales — si él quiere celeste con azul oscuro, eso queda. */
 html[data-theme="dark"] .cell-pending{background:#FAEEDA;color:#6b5800}
 
 /* Texto secundario (hints, legends): gris claro pero legible */
@@ -144,17 +115,19 @@ html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
 
-/* ==== HEADER SUPERIOR AZUL (.hdr) â€” mantiene azul oscuro con texto blanco ==== */
+/* ==== HEADER SUPERIOR AZUL (.hdr) — mantiene azul oscuro con texto blanco ==== */
 html[data-theme="dark"] .hdr{background:#0E3470!important}
 html[data-theme="dark"] .hdr *{color:#ffffff!important}
-html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
+html[data-theme="dark"] .hdr p,
+html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
 
-/* ==== HEADER DEL LOGIN (.login-head) â€” igual ==== */
+/* ==== HEADER DEL LOGIN (.login-head) — igual ==== */
 html[data-theme="dark"] .login-head{background:#0E3470!important}
 html[data-theme="dark"] .login-head *{color:#ffffff!important}
-html[data-theme="dark"] .login-head p,html[data-theme="dark"] .login-head p *{color:#dce7f6!important}
+html[data-theme="dark"] .login-head p,
+html[data-theme="dark"] .login-head p *{color:#dce7f6!important}
 
-/* ==== HEADERS DE TABLAS â€” fondo --soft (azul oscuro), texto blanco ==== */
+/* ==== HEADERS DE TABLAS — fondo --soft (azul oscuro), texto blanco ==== */
 html[data-theme="dark"] .cls-table th,
 html[data-theme="dark"] .gen-table th,
 html[data-theme="dark"] .rt-table th,
@@ -188,18 +161,15 @@ html[data-theme="dark"] .btn-danger *,
 html[data-theme="dark"] label.btn-danger *{color:#fecaca!important}
 html[data-theme="dark"] .btn-danger:hover:not(:disabled),
 html[data-theme="dark"] label.btn-danger:hover{background:#991b1b!important}
-/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color mÃ¡s oscuro) contra la regla madre del dark */
+/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color más oscuro) contra la regla madre del dark */
 html[data-theme="dark"] .club-opt.club-sel,
 html[data-theme="dark"] .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
-/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila estÃ© sombreada como usuario */
-html[data-theme="dark"] .me-row .pos.p1,
-html[data-theme="dark"] .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
-html[data-theme="dark"] .me-row .pos.p2,
-html[data-theme="dark"] .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
-html[data-theme="dark"] .me-row .pos.p3,
-html[data-theme="dark"] .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
+/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila esté sombreada como usuario */
 
-/* ==== PLAYOFFS â€” contraste garantizado en dark + fila del usuario logueado ==== */
+
+
+
+/* ==== PLAYOFFS — contraste garantizado en dark + fila del usuario logueado ==== */
 /* Botones Editar/Eliminar del admin dentro del box de un partido de playoff.
    Antes usaban var(--soft)+var(--pri) o rosa+rojo hardcodeados: en dark la
    regla madre pintaba el texto blanco sobre fondo claro (ilegible). */
@@ -217,7 +187,7 @@ html[data-theme="dark"] .po-slot-btn.po-slot-del:hover{background:#991b1b!import
 
 /* Slot destacado del jugador logueado en el cuadro del playoff (bg cream #FFF8DC).
    Sobre ese cream, tanto el nombre como el seed number y el chip "yo" deben ir
-   en oscuro incluso en dark mode. Se aplica al div de la lÃ­nea y a todos sus hijos. */
+   en oscuro incluso en dark mode. Se aplica al div de la línea y a todos sus hijos. */
 .po-me-slot,
 .po-me-slot *{color:#0E3470!important}
 .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
@@ -230,7 +200,7 @@ html[data-theme="dark"] .po-me-slot .nm-link{color:#0E3470!important;text-decora
 html[data-theme="dark"] .po-me-slot .po-me-chip,
 html[data-theme="dark"] .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
 
-/* BotÃ³n "Mover acÃ¡" del panel del admin â€” colores fijos para no depender de tokens. */
+/* Botón "Mover acá" del panel del admin — colores fijos para no depender de tokens. */
 .po-move-btn{background:#E6F1FB!important;color:#0E3470!important;border:1px solid #93c5fd!important}
 .po-move-btn:hover{background:#d1e5fb!important}
 html[data-theme="dark"] .po-move-btn,
@@ -238,43 +208,25 @@ html[data-theme="dark"] .po-move-btn *{background:#1e3a5f!important;color:#dbeaf
 html[data-theme="dark"] .po-move-btn:hover{background:#2a4a75!important}
 
 /* Chips de seed en el panel del admin: fondo claro con texto SIEMPRE oscuro
-   (activos e inactivos, en cualquier modo). El botÃ³n âœ• mantiene su rojo. */
+   (activos e inactivos, en cualquier modo). El botón ✕ mantiene su rojo. */
 html[data-theme="dark"] .seed-chip,
 html[data-theme="dark"] .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
 html[data-theme="dark"] .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
 html[data-theme="dark"] .seed-chip .rm:hover{background:#f3c0c0!important}
 
-/* Chip "Cuadro X" en la ClasificaciÃ³n General: en la fila destacada del usuario
-   logueado, texto oscuro sobre fondo claro (mantiene el sombreado del chip).
-   Nota: se prefija con la tabla concreta (.gen-table/.cls-table/.rt-table) para
-   ganarle en specificity a la "mother rule" del dark mode que pinta bg y color
-   de TODOS los hijos del td destacado con var(--meRowBg) + white. Sin eso, el
-   chip se camuflaba con la fila y se veÃ­a como texto blanco sobre el mismo fondo. */
-.me-row .po-chip{color:#0E3470!important;background:#dbeafe!important}
-html[data-theme="dark"] .gen-table .me-row .po-chip,
-html[data-theme="dark"] .gen-table .me-row .po-chip *,
-html[data-theme="dark"] .cls-table .me-row .po-chip,
-html[data-theme="dark"] .cls-table .me-row .po-chip *,
-html[data-theme="dark"] .rt-table tr.me-row .po-chip,
-html[data-theme="dark"] .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
-/* Avatar (cÃ­rculo de iniciales) dentro de la fila destacada del usuario logueado:
-   mismo problema â€” la mother rule pintaba el cÃ­rculo con el mismo bg de la fila y
-   quedaba invisible. Restauramos su look caracterÃ­stico (fondo azul claro + texto
-   azul oscuro) con specificity aumentada. */
-html[data-theme="dark"] .gen-table .me-row .avatar,
-html[data-theme="dark"] .gen-table .me-row .avatar *,
-html[data-theme="dark"] .cls-table .me-row .avatar,
-html[data-theme="dark"] .cls-table .me-row .avatar *,
-html[data-theme="dark"] .rt-table tr.me-row .avatar,
-html[data-theme="dark"] .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
-/* En dark mode, TODOS los chips "Cuadro X" (no sÃ³lo el del usuario) llevan texto
+
+
+
+
+
+/* En dark mode, TODOS los chips "Cuadro X" (no sólo el del usuario) llevan texto
    oscuro sobre fondo claro para mantener contraste sin depender de --pri/--soft
    customizados por la liga. */
 html[data-theme="dark"] .po-chip,
 html[data-theme="dark"] .po-chip *{color:#0E3470!important;background:#dbeafe!important}
 
-/* Banner de previsualizaciÃ³n de Play Offs (admin): antes usaba var(--soft) + var(--priD)
-   con estilos inline; podÃ­a quedar fondo claro + texto claro si la liga customizaba
+/* Banner de previsualización de Play Offs (admin): antes usaba var(--soft) + var(--priD)
+   con estilos inline; podía quedar fondo claro + texto claro si la liga customizaba
    --priD. Ahora clase con colores fijos, safe en light y dark. */
 .po-preview-banner{background:#E6F1FB!important;border-color:#93c5fd!important;border-width:1.5px!important}
 .po-preview-banner .pp-title{color:#0E3470!important;font-weight:600;margin-bottom:.4rem}
@@ -286,10 +238,10 @@ html[data-theme="dark"] .po-preview-banner .pp-title *{color:#dbeafe!important}
 html[data-theme="dark"] .po-preview-banner .legend-txt,
 html[data-theme="dark"] .po-preview-banner .legend-txt *{color:#cbd5e1!important}
 
-/* BotÃ³n "Editar" del puntaje por posiciÃ³n (dentro del header .clg-head).
+/* Botón "Editar" del puntaje por posición (dentro del header .clg-head).
    Antes usaba .btn con colores heredados; el color inherited de
-   .clg-head th:last-child (var(--priD)) mÃ¡s --priD customizado por la liga
-   podÃ­a dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
+   .clg-head th:last-child (var(--priD)) más --priD customizado por la liga
+   podía dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
 .edit-pts-btn{background:#0E3470!important;color:#ffffff!important;border:1px solid #0E3470!important;padding:2px 8px!important;font-size:10px!important;font-weight:600!important;margin-left:5px}
 .edit-pts-btn *{color:#ffffff!important}
 .edit-pts-btn:hover{background:#1B4F9C!important}
@@ -298,15 +250,15 @@ html[data-theme="dark"] .edit-pts-btn *{background:#dbeafe!important;color:#0E34
 html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
 
 /* Ajuste manual de puntos (bonus/penalidad) por jugador, en la tabla de
-   ClasificaciÃ³n. .pts-ajuste-btn es un lÃ¡piz chico y discreto (no tiene el
-   mismo peso visual que el botÃ³n "Editar" de la escala general, porque es
-   una acciÃ³n de uso ocasional, no algo que se toque todo el tiempo).
+   Clasificación. .pts-ajuste-btn es un lápiz chico y discreto (no tiene el
+   mismo peso visual que el botón "Editar" de la escala general, porque es
+   una acción de uso ocasional, no algo que se toque todo el tiempo).
    .pts-ajuste es el indicador "(+3)"/"(-5)" junto al Total, solo visible
-   cuando el jugador tiene un ajuste activo â€” verde para bonus, rojo para
+   cuando el jugador tiene un ajuste activo — verde para bonus, rojo para
    penalidad, coherente con el resto de la paleta de estados de la app.
-   .gen-edit es la columna dedicada al editor en la ClasificaciÃ³n General
-   (al final de la fila, despuÃ©s de Play Off si corresponde) â€” angosta,
-   centrada, sin necesitar mÃ¡s que el ancho del Ã­cono. */
+   .gen-edit es la columna dedicada al editor en la Clasificación General
+   (al final de la fila, después de Play Off si corresponde) — angosta,
+   centrada, sin necesitar más que el ancho del ícono. */
 .pts-ajuste-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:4px;border-radius:5px;font-size:11px;line-height:1;vertical-align:middle}
 .pts-ajuste-btn:hover{background:var(--surface2);color:var(--pri)}
 .pts-ajuste{font-size:11px;font-weight:700;margin-left:3px;white-space:nowrap}
@@ -315,37 +267,41 @@ html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
 .gen-edit{width:1%;white-space:nowrap;text-align:center;padding:0 6px}
 .gen-edit .pts-ajuste-btn{margin-left:0;font-size:13px;padding:4px 6px}
 
-/* Select inline de posiciÃ³n dentro de cada slot de la primera ronda del
-   bracket (Play Offs): reemplaza al lÃ¡piz + modal separado que habÃ­a antes.
-   Chico, discreto, ancho completo del slot â€” no debe competir visualmente
-   con el nombre del jugador, que va arriba en su propia lÃ­nea. */
+/* Select inline de posición dentro de cada slot de la primera ronda del
+   bracket (Play Offs): reemplaza al lápiz + modal separado que había antes.
+   Chico, discreto, ancho completo del slot — no debe competir visualmente
+   con el nombre del jugador, que va arriba en su propia línea. */
 .po-pos-inline-sel{width:100%;font-size:10px;padding:2px 4px;margin-top:2px;border-radius:5px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2)}
 .po-pos-inline-sel:hover{border-color:var(--pri)}
 /* .po-pos-inline-name: variante donde el <select> ES el nombre del
-   jugador (reemplaza el texto, no va debajo) â€” se ve como texto normal en
-   flujo con el resto de la fila (mismo tamaÃ±o/peso que .nm-link), con
+   jugador (reemplaza el texto, no va debajo) — se ve como texto normal en
+   flujo con el resto de la fila (mismo tamaño/peso que .nm-link), con
    fondo transparente y sin borde, para no distraer del hecho de que ES el
    nombre. El borde/fondo solo aparecen al pasar el mouse o enfocar, como
    pista sutil de que es interactivo. */
 .po-pos-inline-name{width:auto;max-width:100%;font-size:12px;font-weight:inherit;margin-top:0;padding:2px 4px;border:1px solid transparent;background:transparent;color:inherit;cursor:pointer}
-.po-pos-inline-name:hover,.po-pos-inline-name:focus{border-color:var(--pri);background:var(--surface2)}
-/* Ãcono de "ver historial", aparte del nombre cuando este es editable
-   (select) â€” chico, al final de la fila, mismo estilo que otros botones
-   ghost pequeÃ±os del proyecto (.pts-ajuste-btn). */
+.po-pos-inline-name:hover,
+.po-pos-inline-name:focus{border-color:var(--pri);background:var(--surface2)}
+/* Ícono de "ver historial", aparte del nombre cuando este es editable
+   (select) — chico, al final de la fila, mismo estilo que otros botones
+   ghost pequeños del proyecto (.pts-ajuste-btn). */
 .po-hist-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:2px;border-radius:5px;font-size:12px;line-height:1;flex-shrink:0}
 .po-hist-btn:hover{background:var(--surface2);color:var(--pri)}
-/* Fila resaltada dentro del modal de reacomodo cuando se abriÃ³ con foco en
-   un jugador puntual (desde el lÃ¡piz de la tarjeta) â€” un fondo suave que
-   se desvanece, para llamar la atenciÃ³n sin quedar permanente. */
+/* Fila resaltada dentro del modal de reacomodo cuando se abrió con foco en
+   un jugador puntual (desde el lápiz de la tarjeta) — un fondo suave que
+   se desvanece, para llamar la atención sin quedar permanente. */
 .po-pos-foco{background:#FFF3C4;border-radius:8px;padding:4px 6px;margin:-4px -6px .4rem -6px!important;animation:po-pos-foco-fade 2.5s ease forwards}
 @keyframes po-pos-foco-fade{0%{background:#FFF3C4}100%{background:transparent}}
 @keyframes po-pos-foco-fade-dark{0%{background:#4a3f1a}100%{background:transparent}}
 html[data-theme="dark"] .po-pos-foco{animation-name:po-pos-foco-fade-dark}
 
-/* Botones â†‘â†“ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
-.seed-chip .mv,.po-cons-move-row .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
-.seed-chip .mv:hover,.po-cons-move-row .mv:hover{background:rgba(0,0,0,.08)}
-.seed-chip .mv:disabled,.po-cons-move-row .mv:disabled{opacity:.3;cursor:not-allowed}
+/* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
+.seed-chip .mv,
+.po-cons-move-row .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
+.seed-chip .mv:hover,
+.po-cons-move-row .mv:hover{background:rgba(0,0,0,.08)}
+.seed-chip .mv:disabled,
+.po-cons-move-row .mv:disabled{opacity:.3;cursor:not-allowed}
 html[data-theme="dark"] .seed-chip .mv,
 html[data-theme="dark"] .seed-chip .mv *,
 html[data-theme="dark"] .po-cons-move-row .mv,
@@ -353,21 +309,41 @@ html[data-theme="dark"] .po-cons-move-row .mv *{color:#0E3470!important;backgrou
 html[data-theme="dark"] .seed-chip .mv:hover,
 html[data-theme="dark"] .po-cons-move-row .mv:hover{background:rgba(14,52,112,.15)!important}
 
-/* ==== BADGES Y ALERTAS (fondo semÃ¡ntico + texto contrastante) ==== */
+/* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
 html[data-theme="dark"] .badge-inact,
 html[data-theme="dark"] .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
-html[data-theme="dark"] .badge-pend,html[data-theme="dark"] .badge-warn,html[data-theme="dark"] .alert-warn,html[data-theme="dark"] .rt-prov,
-html[data-theme="dark"] .badge-pend *,html[data-theme="dark"] .badge-warn *,html[data-theme="dark"] .alert-warn *,html[data-theme="dark"] .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
-html[data-theme="dark"] .badge-ok,html[data-theme="dark"] .alert-ok,html[data-theme="dark"] .dest-up,
-html[data-theme="dark"] .badge-ok *,html[data-theme="dark"] .alert-ok *,html[data-theme="dark"] .dest-up *{background:#14361f!important;color:#86efac!important}
-html[data-theme="dark"] .badge-err,html[data-theme="dark"] .badge-disp,html[data-theme="dark"] .alert-err,html[data-theme="dark"] .dest-down,
-html[data-theme="dark"] .badge-err *,html[data-theme="dark"] .badge-disp *,html[data-theme="dark"] .alert-err *,html[data-theme="dark"] .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
-html[data-theme="dark"] .alert-info,html[data-theme="dark"] .badge-tag,
-html[data-theme="dark"] .alert-info *,html[data-theme="dark"] .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
-html[data-theme="dark"] .rt-manual,html[data-theme="dark"] .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+html[data-theme="dark"] .badge-pend,
+html[data-theme="dark"] .badge-warn,
+html[data-theme="dark"] .alert-warn,
+html[data-theme="dark"] .rt-prov,
+html[data-theme="dark"] .badge-pend *,
+html[data-theme="dark"] .badge-warn *,
+html[data-theme="dark"] .alert-warn *,
+html[data-theme="dark"] .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+html[data-theme="dark"] .badge-ok,
+html[data-theme="dark"] .alert-ok,
+html[data-theme="dark"] .dest-up,
+html[data-theme="dark"] .badge-ok *,
+html[data-theme="dark"] .alert-ok *,
+html[data-theme="dark"] .dest-up *{background:#14361f!important;color:#86efac!important}
+html[data-theme="dark"] .badge-err,
+html[data-theme="dark"] .badge-disp,
+html[data-theme="dark"] .alert-err,
+html[data-theme="dark"] .dest-down,
+html[data-theme="dark"] .badge-err *,
+html[data-theme="dark"] .badge-disp *,
+html[data-theme="dark"] .alert-err *,
+html[data-theme="dark"] .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+html[data-theme="dark"] .alert-info,
+html[data-theme="dark"] .badge-tag,
+html[data-theme="dark"] .alert-info *,
+html[data-theme="dark"] .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+html[data-theme="dark"] .rt-manual,
+html[data-theme="dark"] .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
 
-/* ==== TOAST â€” fondo azul oscuro, texto blanco ==== */
-html[data-theme="dark"] .toast,html[data-theme="dark"] .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+/* ==== TOAST — fondo azul oscuro, texto blanco ==== */
+html[data-theme="dark"] .toast,
+html[data-theme="dark"] .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
 
 /* ==== METRIC TILES ==== */
 html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
@@ -375,19 +351,19 @@ html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
 /* ==== SKELETON LOADER ==== */
 html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
 
-/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores Ã— Jugadores) ==== */
-/* Header (Jugadores, Juan, AdriÃ¡n, ...) â€” fondo azul oscuro, texto blanco */
+/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores × Jugadores) ==== */
+/* Header (Jugadores, Juan, Adrián, ...) — fondo azul oscuro, texto blanco */
 html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table thead th,
 html[data-theme="dark"] .res-table th *{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
 html[data-theme="dark"] .res-table th:first-child{background:var(--soft)!important;color:#ffffff!important}
 /* Nota: la primera columna del tbody (nombres de jugadores en las filas) se
-   estiliza mÃ¡s abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
-   sin sombreado y texto blanco bold, como pidiÃ³ Marcos. */
+   estiliza más abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
+   sin sombreado y texto blanco bold, como pidió Marcos. */
 /* Celdas de resultados: bordes claros para que se vean */
 html[data-theme="dark"] .res-table td{border-color:var(--border2)!important}
 
-/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) â€” versiones oscuras que mantienen identidad ==== */
+/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) — versiones oscuras que mantienen identidad ==== */
 /* En light: --sohail celeste #D6ECFB. En dark: celeste oscuro coherente. */
 html[data-theme="dark"]{
   --sohail:#1e4568;--sohailT:#a5d0f0;
@@ -400,26 +376,25 @@ html[data-theme="dark"] [style*="background:var(--haza)"],
 html[data-theme="dark"] [style*="background: var(--haza)"]{background:#4a2f18!important;color:#f5c896!important}
 
 /* ==== BADGES DE INICIALES (MG, LR, NY, etc.) ==== */
-/* CÃ­rculos con las 2 letras del jugador â€” fondos claros con letras oscuras.
+/* Círculos con las 2 letras del jugador — fondos claros con letras oscuras.
    En dark: fondo azul oscuro con letras blancas. */
 html[data-theme="dark"] .name-badge,
 html[data-theme="dark"] .initial-badge,
 html[data-theme="dark"] [class*="badge-"][style*="background:#"]{background:var(--soft)!important;color:#ffffff!important}
 /* Los badges de iniciales que se generan con estilos inline "background:#XXXX" con color oscuro derivado */
-html[data-theme="dark"] span[style*="background:#"][style*="border-radius:50%"],
-html[data-theme="dark"] span[style*="background:#"][style*="border-radius: 50%"]{background:var(--soft)!important;color:#ffffff!important}
+
 
 /* IMPORTANTE: Las celdas de partidos con inline styles (background y color de
-   club, configurados por el admin) NO se sobreescriben. El admin eligiÃ³ los
-   colores; la funciÃ³n autoTxt() ya calcula el mejor color de texto segÃºn el
+   club, configurados por el admin) NO se sobreescriben. El admin eligió los
+   colores; la función autoTxt() ya calcula el mejor color de texto según el
    fondo. Se leen bien tal cual. */
 
-/* Los inputs de login con clases especÃ­ficas tambiÃ©n */
+/* Los inputs de login con clases específicas también */
 html[data-theme="dark"] .login-body input,
 html[data-theme="dark"] .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
 
 /* ============================================================================
-   MISMO DARK MODE cuando el usuario estÃ¡ en "system" y su OS estÃ¡ en oscuro.
+   MISMO DARK MODE cuando el usuario está en "system" y su OS está en oscuro.
    ============================================================================ */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]){
@@ -441,185 +416,166 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
     --meRowBg:#2d4a7a;--meRowText:#ffffff;--cream:#2a2415;
     --btnLightBg:#3a1a1a;--btnLightBorder:#7f1d1d;--btnLightText:#fca5a5;
   }
-  html:not([data-theme]),
-  html:not([data-theme]) body,
-  html:not([data-theme]) div,
-  html:not([data-theme]) p,
-  html:not([data-theme]) span,
-  html:not([data-theme]) table,
-  html:not([data-theme]) tr,
-  html:not([data-theme]) th,
-  html:not([data-theme]) td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"]),
-  html:not([data-theme]) label,
-  html:not([data-theme]) h1,
-  html:not([data-theme]) h2,
-  html:not([data-theme]) h3,
-  html:not([data-theme]) h4,
-  html:not([data-theme]) h5,
-  html:not([data-theme]) h6,
-  html:not([data-theme]) li,
-  html:not([data-theme]) strong,
-  html:not([data-theme]) em,
-  html:not([data-theme]) b,
-  html:not([data-theme]) small{color:#ffffff!important}
+  
 
-  /* Igual que en modo manual dark: excepciones puntuales con selectores mÃ¡s
-     especÃ­ficos que la mother rule, para paneles con fondo claro. */
+  
   html:not([data-theme]) .modal-score{color:#0f172a!important}
   html:not([data-theme]) .modal-score p,
-  html:not([data-theme]) .modal-score strong,
-  html:not([data-theme]) .modal-score span,
-  html:not([data-theme]) .modal-score em,
-  html:not([data-theme]) .modal-score b{color:inherit!important}
+html:not([data-theme]) .modal-score strong,
+html:not([data-theme]) .modal-score span,
+html:not([data-theme]) .modal-score em,
+html:not([data-theme]) .modal-score b{color:inherit!important}
 
   html:not([data-theme]) .pe-danger-box{color:#b91c1c!important;background:#fdf5f5!important;border-color:#e9b8b8!important}
   html:not([data-theme]) .pe-danger-box .pe-danger-title{color:#b91c1c!important}
   html:not([data-theme]) .pe-danger-box p,
-  html:not([data-theme]) .pe-danger-box span,
-  html:not([data-theme]) .pe-danger-box strong,
-  html:not([data-theme]) .pe-danger-box em,
-  html:not([data-theme]) .pe-danger-box b,
-  html:not([data-theme]) .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
+html:not([data-theme]) .pe-danger-box span,
+html:not([data-theme]) .pe-danger-box strong,
+html:not([data-theme]) .pe-danger-box em,
+html:not([data-theme]) .pe-danger-box b,
+html:not([data-theme]) .pe-danger-box div:not(.gap-sm):not([style*="display:flex"]){color:inherit!important}
   html:not([data-theme]) .legend-txt,
-  html:not([data-theme]) .hint{color:#cbd5e1!important}
+html:not([data-theme]) .hint{color:#cbd5e1!important}
   html:not([data-theme]) a:not(.btn):not(.login-btn):not(.sub-tab):not(.cycle-btn),
-  html:not([data-theme]) .nm-link,
-  html:not([data-theme]) .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
+html:not([data-theme]) .nm-link,
+html:not([data-theme]) .login-forgot{color:#79aeff!important;text-decoration-color:#79aeff!important}
   html:not([data-theme]) body{background:var(--bg)}
   html:not([data-theme]) .card{background:var(--surface);border-color:var(--border)}
   html:not([data-theme]) input,
-  html:not([data-theme]) select,
-  html:not([data-theme]) textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+html:not([data-theme]) select,
+html:not([data-theme]) textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
   html:not([data-theme]) .hdr{background:#0E3470!important}
   html:not([data-theme]) .hdr *{color:#ffffff!important}
-  html:not([data-theme]) .hdr p,html:not([data-theme]) .hdr p *{color:#dce7f6!important}
+  html:not([data-theme]) .hdr p,
+html:not([data-theme]) .hdr p *{color:#dce7f6!important}
   html:not([data-theme]) .login-head{background:#0E3470!important}
   html:not([data-theme]) .login-head *{color:#ffffff!important}
-  html:not([data-theme]) .login-head p,html:not([data-theme]) .login-head p *{color:#dce7f6!important}
+  html:not([data-theme]) .login-head p,
+html:not([data-theme]) .login-head p *{color:#dce7f6!important}
   html:not([data-theme]) .cls-table th,
-  html:not([data-theme]) .gen-table th,
-  html:not([data-theme]) .rt-table th,
-  html:not([data-theme]) .rt-table thead th,
-  html:not([data-theme]) .gen-table thead th,
-  html:not([data-theme]) .clg-head th,
-  html:not([data-theme]) .clg-head th *,
-  html:not([data-theme]) .res-table th,
-  html:not([data-theme]) .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
-  html:not([data-theme]) .gen-table .me-row td,
-  html:not([data-theme]) .gen-table .me-row td *,
-  html:not([data-theme]) .cls-table .me-row td,
-  html:not([data-theme]) .cls-table .me-row td *,
-  html:not([data-theme]) .rt-table tr.me-row td,
-  html:not([data-theme]) .rt-table tr.me-row td *,
-  html:not([data-theme]) .res-table .me-mtx,
-  html:not([data-theme]) .res-table .me-mtx *{background-color:var(--meRowBg)!important;color:#ffffff!important;text-decoration-color:#ffffff!important}
+html:not([data-theme]) .gen-table th,
+html:not([data-theme]) .rt-table th,
+html:not([data-theme]) .rt-table thead th,
+html:not([data-theme]) .gen-table thead th,
+html:not([data-theme]) .clg-head th,
+html:not([data-theme]) .clg-head th *,
+html:not([data-theme]) .res-table th,
+html:not([data-theme]) .res-table thead th{color:#ffffff!important;background:var(--soft)!important}
+  
   html:not([data-theme]) .login-btn:not(.login-btn-pk),
-  html:not([data-theme]) .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
+html:not([data-theme]) .btn-primary{background:#2563eb!important;color:#ffffff!important;border-color:#2563eb!important}
   html:not([data-theme]) .login-btn:not(.login-btn-pk) *,
-  html:not([data-theme]) .btn-primary *{color:#ffffff!important}
+html:not([data-theme]) .btn-primary *{color:#ffffff!important}
   html:not([data-theme]) .btn-primary:hover:not(:disabled){background:#1d4ed8!important}
   html:not([data-theme]) .btn-danger,
-  html:not([data-theme]) label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html:not([data-theme]) label.btn-danger{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
   html:not([data-theme]) .btn-danger *,
-  html:not([data-theme]) label.btn-danger *{color:#fecaca!important}
+html:not([data-theme]) label.btn-danger *{color:#fecaca!important}
   html:not([data-theme]) .btn-danger:hover:not(:disabled),
-  html:not([data-theme]) label.btn-danger:hover{background:#991b1b!important}
+html:not([data-theme]) label.btn-danger:hover{background:#991b1b!important}
   html:not([data-theme]) .club-opt.club-sel,
-  html:not([data-theme]) .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
-  html:not([data-theme]) .me-row .pos.p1,
-  html:not([data-theme]) .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
-  html:not([data-theme]) .me-row .pos.p2,
-  html:not([data-theme]) .me-row .pos-badge.pos-2{background:#D3D1C7!important;color:#2C2C2A!important}
-  html:not([data-theme]) .me-row .pos.p3,
-  html:not([data-theme]) .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
+html:not([data-theme]) .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
+  
+  
+  
   /* PLAYOFFS contraste (auto dark) */
   html:not([data-theme]) .po-slot-btn.po-slot-edit,
-  html:not([data-theme]) .po-slot-btn.po-slot-edit *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+html:not([data-theme]) .po-slot-btn.po-slot-edit *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
   html:not([data-theme]) .po-slot-btn.po-slot-edit:hover{background:#2a4a75!important}
   html:not([data-theme]) .po-slot-btn.po-slot-del,
-  html:not([data-theme]) .po-slot-btn.po-slot-del *{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
+html:not([data-theme]) .po-slot-btn.po-slot-del *{background:#7f1d1d!important;color:#fecaca!important;border-color:#b91c1c!important}
   html:not([data-theme]) .po-slot-btn.po-slot-del:hover{background:#991b1b!important}
   html:not([data-theme]) .po-me-slot,
-  html:not([data-theme]) .po-me-slot *{color:#0E3470!important;background-color:transparent!important}
+html:not([data-theme]) .po-me-slot *{color:#0E3470!important;background-color:transparent!important}
   html:not([data-theme]) .po-me-slot{background-color:#FFF8DC!important}
   html:not([data-theme]) .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
   html:not([data-theme]) .po-me-slot .po-me-chip,
-  html:not([data-theme]) .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
+html:not([data-theme]) .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
   html:not([data-theme]) .po-move-btn,
-  html:not([data-theme]) .po-move-btn *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
+html:not([data-theme]) .po-move-btn *{background:#1e3a5f!important;color:#dbeafe!important;border-color:#3b82f6!important}
   html:not([data-theme]) .po-move-btn:hover{background:#2a4a75!important}
   html:not([data-theme]) .seed-chip,
-  html:not([data-theme]) .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
+html:not([data-theme]) .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
   html:not([data-theme]) .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
   html:not([data-theme]) .seed-chip .rm:hover{background:#f3c0c0!important}
-  html:not([data-theme]) .me-row .po-chip,
-  html:not([data-theme]) .me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
-  html:not([data-theme]) .gen-table .me-row .po-chip,
-  html:not([data-theme]) .gen-table .me-row .po-chip *,
-  html:not([data-theme]) .cls-table .me-row .po-chip,
-  html:not([data-theme]) .cls-table .me-row .po-chip *,
-  html:not([data-theme]) .rt-table tr.me-row .po-chip,
-  html:not([data-theme]) .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
-  html:not([data-theme]) .gen-table .me-row .avatar,
-  html:not([data-theme]) .gen-table .me-row .avatar *,
-  html:not([data-theme]) .cls-table .me-row .avatar,
-  html:not([data-theme]) .cls-table .me-row .avatar *,
-  html:not([data-theme]) .rt-table tr.me-row .avatar,
-  html:not([data-theme]) .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+  
+  
+  
   html:not([data-theme]) .po-chip,
-  html:not([data-theme]) .po-chip *{color:#0E3470!important;background:#dbeafe!important}
+html:not([data-theme]) .po-chip *{color:#0E3470!important;background:#dbeafe!important}
   html:not([data-theme]) .po-preview-banner{background:#1e3a5f!important;border-color:#3b82f6!important}
   html:not([data-theme]) .po-preview-banner .pp-title,
-  html:not([data-theme]) .po-preview-banner .pp-title *{color:#dbeafe!important}
+html:not([data-theme]) .po-preview-banner .pp-title *{color:#dbeafe!important}
   html:not([data-theme]) .po-preview-banner .legend-txt,
-  html:not([data-theme]) .po-preview-banner .legend-txt *{color:#cbd5e1!important}
+html:not([data-theme]) .po-preview-banner .legend-txt *{color:#cbd5e1!important}
   html:not([data-theme]) .edit-pts-btn,
-  html:not([data-theme]) .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
+html:not([data-theme]) .edit-pts-btn *{background:#dbeafe!important;color:#0E3470!important;border-color:#93c5fd!important}
   html:not([data-theme]) .edit-pts-btn:hover{background:#bfdbfe!important}
   html:not([data-theme]) .seed-chip .mv,
-  html:not([data-theme]) .seed-chip .mv *,
-  html:not([data-theme]) .po-cons-move-row .mv,
-  html:not([data-theme]) .po-cons-move-row .mv *{color:#0E3470!important;background:transparent!important}
+html:not([data-theme]) .seed-chip .mv *,
+html:not([data-theme]) .po-cons-move-row .mv,
+html:not([data-theme]) .po-cons-move-row .mv *{color:#0E3470!important;background:transparent!important}
   html:not([data-theme]) .seed-chip .mv:hover,
-  html:not([data-theme]) .po-cons-move-row .mv:hover{background:rgba(14,52,112,.15)!important}
+html:not([data-theme]) .po-cons-move-row .mv:hover{background:rgba(14,52,112,.15)!important}
   html:not([data-theme]) .login-btn-pk{background:transparent!important;color:#79aeff!important;border-color:#79aeff!important}
   html:not([data-theme]) .login-btn-pk *{color:#79aeff!important}
   html:not([data-theme]) .sub-tab.active,
-  html:not([data-theme]) .cycle-btn.active,
-  html:not([data-theme]) .sub-tab.active *,
-  html:not([data-theme]) .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
-  html:not([data-theme]) .badge-inact,html:not([data-theme]) .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
-  html:not([data-theme]) .badge-pend,html:not([data-theme]) .badge-warn,html:not([data-theme]) .alert-warn,html:not([data-theme]) .rt-prov,
-  html:not([data-theme]) .badge-pend *,html:not([data-theme]) .badge-warn *,html:not([data-theme]) .alert-warn *,html:not([data-theme]) .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
-  html:not([data-theme]) .badge-ok,html:not([data-theme]) .alert-ok,html:not([data-theme]) .dest-up,
-  html:not([data-theme]) .badge-ok *,html:not([data-theme]) .alert-ok *,html:not([data-theme]) .dest-up *{background:#14361f!important;color:#86efac!important}
-  html:not([data-theme]) .badge-err,html:not([data-theme]) .badge-disp,html:not([data-theme]) .alert-err,html:not([data-theme]) .dest-down,
-  html:not([data-theme]) .badge-err *,html:not([data-theme]) .badge-disp *,html:not([data-theme]) .alert-err *,html:not([data-theme]) .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
-  html:not([data-theme]) .alert-info,html:not([data-theme]) .badge-tag,
-  html:not([data-theme]) .alert-info *,html:not([data-theme]) .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
-  html:not([data-theme]) .rt-manual,html:not([data-theme]) .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
-  html:not([data-theme]) .toast,html:not([data-theme]) .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
+html:not([data-theme]) .cycle-btn.active,
+html:not([data-theme]) .sub-tab.active *,
+html:not([data-theme]) .cycle-btn.active *{background:#2563eb!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-inact,
+html:not([data-theme]) .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
+  html:not([data-theme]) .badge-pend,
+html:not([data-theme]) .badge-warn,
+html:not([data-theme]) .alert-warn,
+html:not([data-theme]) .rt-prov,
+html:not([data-theme]) .badge-pend *,
+html:not([data-theme]) .badge-warn *,
+html:not([data-theme]) .alert-warn *,
+html:not([data-theme]) .rt-prov *{background:#3d2a10!important;color:#fcd34d!important}
+  html:not([data-theme]) .badge-ok,
+html:not([data-theme]) .alert-ok,
+html:not([data-theme]) .dest-up,
+html:not([data-theme]) .badge-ok *,
+html:not([data-theme]) .alert-ok *,
+html:not([data-theme]) .dest-up *{background:#14361f!important;color:#86efac!important}
+  html:not([data-theme]) .badge-err,
+html:not([data-theme]) .badge-disp,
+html:not([data-theme]) .alert-err,
+html:not([data-theme]) .dest-down,
+html:not([data-theme]) .badge-err *,
+html:not([data-theme]) .badge-disp *,
+html:not([data-theme]) .alert-err *,
+html:not([data-theme]) .dest-down *{background:#4a1d1d!important;color:#fca5a5!important}
+  html:not([data-theme]) .alert-info,
+html:not([data-theme]) .badge-tag,
+html:not([data-theme]) .alert-info *,
+html:not([data-theme]) .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
+  html:not([data-theme]) .rt-manual,
+html:not([data-theme]) .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
+  html:not([data-theme]) .toast,
+html:not([data-theme]) .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
   html:not([data-theme]) .metric-tile .metric-n{color:#79aeff!important}
   html:not([data-theme]) .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
   html:not([data-theme]) .login-body input,
-  html:not([data-theme]) .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
+html:not([data-theme]) .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
 }
 
 /* ==== HEADERS Y CELDAS DE .res-table (matriz de partidos por grupo) ====
-   El CSS legacy usa var(--pri) y var(--priD) como background â€” en dark esos
-   son azul claro y quedan casi blancos. Forzamos oscuro con mÃ¡xima especificidad. */
+   El CSS legacy usa var(--pri) y var(--priD) como background — en dark esos
+   son azul claro y quedan casi blancos. Forzamos oscuro con máxima especificidad. */
 html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table th:first-child,
 html[data-theme="dark"] .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
-/* ==== HEADER "Puntos para la ClasificaciÃ³n General" (.clg-head) ==== */
+/* ==== HEADER "Puntos para la Clasificación General" (.clg-head) ==== */
 html[data-theme="dark"] .clg-head th,
 html[data-theme="dark"] .clg-head th:first-child,
 html[data-theme="dark"] .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
 /* ==== CELDAS DE ESTADOS (matriz) ====
    NO tocamos .cell-club: los colores del club son configurados por el admin
-   y deben respetarse en dark tambiÃ©n (el texto se calcula automÃ¡ticamente
+   y deben respetarse en dark también (el texto se calcula automáticamente
    con autoTxt() para garantizar contraste sobre el fondo del club).
    Solo estilizamos los ESTADOS (pending, empty, locked, res-black). */
 html[data-theme="dark"] .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
@@ -630,8 +586,8 @@ html[data-theme="dark"] .res-black{background:var(--bg)!important}
 
 /* ==== FONDOS CLAROS DE ADMIN, HISTORIAL, H2H, BRACKET DE PLAYOFF ====
    Elementos legacy con fondos pastel + texto oscuro hardcoded que en dark
-   quedaban con texto blanco (por la regla madre) sobre fondo claro â†’ invisibles.
-   Se invierten a fondos oscuros semÃ¡nticos con texto claro coherente. */
+   quedaban con texto blanco (por la regla madre) sobre fondo claro → invisibles.
+   Se invierten a fondos oscuros semánticos con texto claro coherente. */
 html[data-theme="dark"] .pm-wl.w,
 html[data-theme="dark"] .h2h-wl.w,
 html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
@@ -643,16 +599,16 @@ html[data-theme="dark"] .bracket-cons .match-box{background:#3d2a10!important;bo
 html[data-theme="dark"] .bracket-main .match-box *,
 html[data-theme="dark"] .bracket-cons .match-box *{color:#ffffff!important}
 html[data-theme="dark"] .btn-past:hover{background:var(--soft)!important}
-/* .lm-badge (badges en el panel admin de ligas) â€” el .lm-cur (liga actual)
-   tiene fondo primary + color acc (amarillo) â€” se ve bien en dark. Otros badges: */
+/* .lm-badge (badges en el panel admin de ligas) — el .lm-cur (liga actual)
+   tiene fondo primary + color acc (amarillo) — se ve bien en dark. Otros badges: */
 html[data-theme="dark"] .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
 html[data-theme="dark"] .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
 html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
 html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
-/* .rt-manual (rating manual admin) â€” violeta */
+/* .rt-manual (rating manual admin) — violeta */
 html[data-theme="dark"] .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
 
-/* Barrido general: cualquier inline style con hex claro conocido â†’ invertir.
+/* Barrido general: cualquier inline style con hex claro conocido → invertir.
    Cubre elementos que se generan por JS con inline styles hardcoded. */
 html[data-theme="dark"] [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
 html[data-theme="dark"] [style*="background:#fee2e2"],
@@ -667,15 +623,15 @@ html[data-theme="dark"] [style*="background:#d4d9e0"]{background:var(--surface2)
 
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .pm-wl.w,
-  html:not([data-theme]) .h2h-wl.w,
-  html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
+html:not([data-theme]) .h2h-wl.w,
+html:not([data-theme]) .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
   html:not([data-theme]) .pm-wl.l,
-  html:not([data-theme]) .h2h-wl.l,
-  html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
+html:not([data-theme]) .h2h-wl.l,
+html:not([data-theme]) .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
   html:not([data-theme]) .bracket-main .match-box{background:var(--surface2)!important;border-color:var(--border)!important}
   html:not([data-theme]) .bracket-cons .match-box{background:#3d2a10!important;border-color:var(--border)!important}
   html:not([data-theme]) .bracket-main .match-box *,
-  html:not([data-theme]) .bracket-cons .match-box *{color:#ffffff!important}
+html:not([data-theme]) .bracket-cons .match-box *{color:#ffffff!important}
   html:not([data-theme]) .btn-past:hover{background:var(--soft)!important}
   html:not([data-theme]) .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
   html:not([data-theme]) .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
@@ -684,15 +640,15 @@ html[data-theme="dark"] [style*="background:#d4d9e0"]{background:var(--surface2)
   html:not([data-theme]) .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
   html:not([data-theme]) [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
   html:not([data-theme]) [style*="background:#fee2e2"],
-  html:not([data-theme]) [style*="background:#f7d3d3"],
-  html:not([data-theme]) [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
+html:not([data-theme]) [style*="background:#f7d3d3"],
+html:not([data-theme]) [style*="background:#f3c0c0"]{background:#4a1d1d!important;color:#fca5a5!important}
   html:not([data-theme]) [style*="background:#fef3c7"],
-  html:not([data-theme]) [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
+html:not([data-theme]) [style*="background:#FEF3C7"]{background:#3d2a10!important;color:#fcd34d!important}
   html:not([data-theme]) [style*="background:#ede9fe"]{background:#2e1065!important;color:#c4b5fd!important}
   html:not([data-theme]) [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
 }
 
-/* ==== HEADER superior de tabla clasificaciÃ³n ("CLASIFICACIÃ“N GENERAL ACUMULADA") ==== */
+/* ==== HEADER superior de tabla clasificación ("CLASIFICACIÓN GENERAL ACUMULADA") ==== */
 html[data-theme="dark"] .cls-table thead tr:first-child th,
 html[data-theme="dark"] .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
 
@@ -701,36 +657,36 @@ html[data-theme="dark"] .cls-table thead tr th,
 html[data-theme="dark"] .gen-table thead tr th,
 html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
-/* Mismo tratamiento para dark mode automÃ¡tico */
+/* Mismo tratamiento para dark mode automático */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .res-table th,
-  html:not([data-theme]) .res-table th:first-child,
-  html:not([data-theme]) .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+html:not([data-theme]) .res-table th:first-child,
+html:not([data-theme]) .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
   html:not([data-theme]) .clg-head th,
-  html:not([data-theme]) .clg-head th:first-child,
-  html:not([data-theme]) .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+html:not([data-theme]) .clg-head th:first-child,
+html:not([data-theme]) .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
   html:not([data-theme]) .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
   html:not([data-theme]) .cell-empty{background:var(--surface)!important;color:var(--text2)!important;border-color:var(--border)!important}
   html:not([data-theme]) .cell-empty:hover{background:var(--soft)!important;color:#79aeff!important}
   html:not([data-theme]) .cell-locked{background:var(--surface2)!important;color:var(--text2)!important}
   html:not([data-theme]) .res-black{background:var(--bg)!important}
   html:not([data-theme]) .cls-table thead tr:first-child th,
-  html:not([data-theme]) .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
+html:not([data-theme]) .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
   html:not([data-theme]) .cls-table thead tr th,
-  html:not([data-theme]) .gen-table thead tr th,
-  html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
+html:not([data-theme]) .gen-table thead tr th,
+html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 }
 
-/* ==== CÃRCULOS DE INICIALES (.avatar) ==== */
-/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidiÃ³
-   este contraste especÃ­ficamente: fondo claro con letras azules. */
+/* ==== CÍRCULOS DE INICIALES (.avatar) ==== */
+/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidió
+   este contraste específicamente: fondo claro con letras azules. */
 html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
 
 /* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
-/* Marcos pidiÃ³: sin sombreado en la primera columna, y texto igual a los headers
-   de columna (blanco bold, sin subrayado). AsÃ­ los "row labels" y los "column
+/* Marcos pidió: sin sombreado en la primera columna, y texto igual a los headers
+   de columna (blanco bold, sin subrayado). Así los "row labels" y los "column
    labels" se ven unificados como cabeceras del mismo estilo.
-   IMPORTANTE: aplicar bg:transparent tambiÃ©n a los hijos (spans internos del
+   IMPORTANTE: aplicar bg:transparent también a los hijos (spans internos del
    nombre) porque el span dentro del td hereda del CSS legacy. */
 html[data-theme="dark"] .res-table tbody tr td:first-child,
 html[data-theme="dark"] .res-table tbody tr td:first-child *{background:transparent!important}
@@ -739,18 +695,18 @@ html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#fffff
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
   html:not([data-theme]) .res-table tbody tr td:first-child,
-  html:not([data-theme]) .res-table tbody tr td:first-child *{background:transparent!important}
+html:not([data-theme]) .res-table tbody tr td:first-child *{background:transparent!important}
   html:not([data-theme]) .res-table tbody tr td:first-child .nm-link{color:#ffffff!important;font-weight:600!important;text-decoration:none!important}
 }
 
 /* ==== TAB DEL GRUPO ACTIVO (Grupo N) ==== */
 /* .grp-title es el "tab" arriba de la tabla de posiciones. En dark, azul intenso
-   con letras blancas â€” como pidiÃ³ Marcos. */
+   con letras blancas — como pidió Marcos. */
 html[data-theme="dark"] .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
 
 /* ==== BADGE "=Grupo N" (destino igual, se mantiene en el mismo grupo) ==== */
-/* Los â†‘Grupo N (dest-up) y â†“Grupo N (dest-down) ya se ven bien (verde/rojo).
-   El =Grupo N (dest-same) tiene fondo claro por diseÃ±o; en dark le forzamos
+/* Los ↑Grupo N (dest-up) y ↓Grupo N (dest-down) ya se ven bien (verde/rojo).
+   El =Grupo N (dest-same) tiene fondo claro por diseño; en dark le forzamos
    letras azul oscuro para que contraste bien sobre el fondo claro. */
 html[data-theme="dark"] .dest-same,
 html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
@@ -758,55 +714,48 @@ html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
   html:not([data-theme]) .dest-same,
-  html:not([data-theme]) .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
+html:not([data-theme]) .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
 }
 
 /* ==== DEMOS DE COLOR EN EL PERFIL ADMIN ====
    Los "demos" de "No jugado" y "Disputa" tienen background del color que el
-   admin eligiÃ³ (tÃ­picamente claro) + texto var(--priD) que en dark es azul
-   claro â†’ ilegibles. Forzamos texto azul OSCURO para contrastar con el
+   admin eligió (típicamente claro) + texto var(--priD) que en dark es azul
+   claro → ilegibles. Forzamos texto azul OSCURO para contrastar con el
    fondo claro del admin. */
 html[data-theme="dark"] #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
 
-/* Badges del admin ("OrganizaciÃ³n", nombres de admins) con background var(--hl)
-   o inline claro â€” asegurar contraste texto oscuro sobre fondo claro. */
+/* Badges del admin ("Organización", nombres de admins) con background var(--hl)
+   o inline claro — asegurar contraste texto oscuro sobre fondo claro. */
 html[data-theme="dark"] .badge[style*="background:var(--hl)"],
 html[data-theme="dark"] .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
 
-/* Spans con background hardcoded claro (colores custom del admin) â€” 
+/* Spans con background hardcoded claro (colores custom del admin) — 
    texto azul oscuro para leer bien sobre esos fondos claros. Excluimos
-   cÃ­rculos (avatars) que ya estÃ¡n cubiertos por otra regla. */
-html[data-theme="dark"] span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-html[data-theme="dark"] span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-html[data-theme="dark"] span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-html[data-theme="dark"] span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-html[data-theme="dark"] span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-html[data-theme="dark"] span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+   círculos (avatars) que ya están cubiertos por otra regla. */
+
 
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
   html:not([data-theme]) .badge[style*="background:var(--hl)"],
-  html:not([data-theme]) .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
-  html:not([data-theme]) span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-  html:not([data-theme]) span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-  html:not([data-theme]) span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-  html:not([data-theme]) span[style*="background:#e"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-  html:not([data-theme]) span[style*="background:#D"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
-  html:not([data-theme]) span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
+html:not([data-theme]) .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
+  
 }
 
-/* Respeto por accesibilidad: usuarios con preferencia de menos animaciÃ³n
+/* Respeto por accesibilidad: usuarios con preferencia de menos animación
    ven la app sin transitions ni movimientos. */
 @media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+  *,
+*::before,
+*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
-html,body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px}
+html,
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:14px}
 .app{max-width:1040px;margin:0 auto;padding:.75rem}
 .login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
 /* Header editable del login (arriba del recuadro azul). Ancho completo,
-   siempre visible arriba de todo. Los pills usan negrita y borde mÃ¡s
-   marcado, y en pantallas chicas achican padding/tamaÃ±o para caber sin
-   overflow. z-index:10 asegura que quede por encima de cualquier animaciÃ³n
+   siempre visible arriba de todo. Los pills usan negrita y borde más
+   marcado, y en pantallas chicas achican padding/tamaño para caber sin
+   overflow. z-index:10 asegura que quede por encima de cualquier animación
    o elemento posicionado del fondo. */
 .login-header-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem;width:100%;box-sizing:border-box;position:relative;z-index:10;border-bottom:1px solid rgba(0,0,0,.08)}
 .login-header-bar a{text-decoration:none;font-weight:700;font-size:13px;padding:.4rem .85rem;border-width:2px;border-style:solid;border-radius:999px;transition:opacity .15s,transform .15s;opacity:.94;line-height:1;white-space:nowrap}
@@ -820,7 +769,8 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .login-head h1{color:#fff;font-size:17px;font-weight:600}.login-head p{color:#dce7f6;font-size:12px}
 .login-body{padding:1.25rem}
 .login-body label{display:block;font-size:12px;color:var(--text2);margin-bottom:5px;font-weight:600}
-.login-body select,.login-body input{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:.75rem}
+.login-body select,
+.login-body input{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px;margin-bottom:.75rem}
 .login-btn-pk{background:var(--surface2,#eef2f7)!important;color:var(--pri)!important;border:1.5px solid var(--pri)!important;margin-top:8px}.login-btn-pk i{margin-right:4px}
 @keyframes sk-shine{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .cm-ov button:hover{opacity:.9}
@@ -829,9 +779,20 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 /* Todas usan cubic-bezier suave y < 200ms para no molestar. Se anulan
    con prefers-reduced-motion (declarado arriba). */
 html{scroll-behavior:smooth}
-.btn,.btn-sm,.btn-primary,.btn-accent,.btn-warn,.btn-danger,.login-btn,.login-forgot,.pk-device-edit-btn{transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .12s ease,box-shadow .15s ease}
-.btn:hover:not(:disabled),.btn-sm:hover:not(:disabled),.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--shadow-sm)}
-.btn:active:not(:disabled),.btn-sm:active:not(:disabled){transform:translateY(0)}
+.btn,
+.btn-sm,
+.btn-primary,
+.btn-accent,
+.btn-warn,
+.btn-danger,
+.login-btn,
+.login-forgot,
+.pk-device-edit-btn{transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .12s ease,box-shadow .15s ease}
+.btn:hover:not(:disabled),
+.btn-sm:hover:not(:disabled),
+.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.btn:active:not(:disabled),
+.btn-sm:active:not(:disabled){transform:translateY(0)}
 .card{transition:box-shadow .18s ease,border-color .18s ease}
 .metric-tile{transition:background-color .15s ease,transform .12s ease}
 .metric-tile:hover{background:var(--hover)}
@@ -839,12 +800,16 @@ html{scroll-behavior:smooth}
 .view-fade{animation:vf .22s ease}
 @keyframes vf{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 /* Focus ring accesible y coherente en todos los inputs/selects/botones */
-input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,.login-forgot:focus-visible{outline:none;box-shadow:var(--ring)}
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+.login-forgot:focus-visible{outline:none;box-shadow:var(--ring)}
 /* Details (usado en el panel admin de passkeys): abrir suave */
 details>summary{transition:background-color .12s ease}
 details>summary:hover{background:var(--hover)}
 details[open]>summary{border-bottom:1px solid var(--border)}
-/* Toast: entrada + salida mÃ¡s suave */
+/* Toast: entrada + salida más suave */
 .toast{transition:opacity .28s ease,transform .28s ease}
 /* Skeleton hereda animation del keyframe; el shine ya funciona */
 
@@ -892,11 +857,11 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .readonly-banner span{flex:1;min-width:0}
   .readonly-banner button{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .readonly-banner button:hover{background:var(--priD)}
-  /* En modo consulta, se ocultan los controles de ediciÃ³n. Solo se ve/navega. */
+  /* En modo consulta, se ocultan los controles de edición. Solo se ve/navega. */
   body.readonly-mode .user-chip,
-  body.readonly-mode #btn-cargar-tab,
-  body.readonly-mode [data-edit-only],
-  body.readonly-mode .admin-only{display:none !important}
+body.readonly-mode #btn-cargar-tab,
+body.readonly-mode [data-edit-only],
+body.readonly-mode .admin-only{display:none !important}
   .btn-past{background:var(--soft);color:var(--pri);border:1px solid var(--border2)}
   .btn-past:hover{background:#d8e8f7}
   .pm-past-box{margin-top:14px;border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
@@ -913,8 +878,9 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .pm-wl.l{background:#fee2e2;color:#991b1b}
   .pm-res-rival{flex:1;font-size:12.5px;color:var(--text)}
   .pm-res-sc{font-size:12.5px;font-weight:700;color:var(--text2)}
-  .pm-past-load,.pm-past-empty{padding:10px;font-size:12px;color:var(--text2);text-align:center}
-  /* GestiÃ³n de ligas (admin) */
+  .pm-past-load,
+.pm-past-empty{padding:10px;font-size:12px;color:var(--text2);text-align:center}
+  /* Gestión de ligas (admin) */
   .lm-list{display:flex;flex-direction:column;gap:8px}
   .lm-item{border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:var(--surface)}
   .lm-item-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
@@ -954,19 +920,22 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rg-content h3{font-size:16px;font-weight:700;margin:12px 0 6px}
   .rg-content h4{font-size:14px;font-weight:700;margin:10px 0 5px}
   .rg-content p{margin:0 0 10px}
-  .rg-content ul,.rg-content ol{margin:8px 0 12px;padding-left:26px}
+  .rg-content ul,
+.rg-content ol{margin:8px 0 12px;padding-left:26px}
   .rg-content li{margin:3px 0}
-  .rg-content b,.rg-content strong{font-weight:700}
+  .rg-content b,
+.rg-content strong{font-weight:700}
   .rg-content img{max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block}
   .rg-content font[size="6"]{font-size:22px}
   .rg-content font[size="5"]{font-size:18px}
   .rg-content font[size="2"]{font-size:12px}
-  /* El editor comparte el mismo formato para que se vea igual mientras editÃ¡s */
+  /* El editor comparte el mismo formato para que se vea igual mientras editás */
   .rg-editor h1{font-size:22px;font-weight:800;margin:16px 0 8px;line-height:1.25}
   .rg-editor h2{font-size:18px;font-weight:800;margin:14px 0 7px}
   .rg-editor h3{font-size:16px;font-weight:700;margin:12px 0 6px}
   .rg-editor p{margin:0 0 10px}
-  .rg-editor ul,.rg-editor ol{margin:8px 0 12px;padding-left:26px}
+  .rg-editor ul,
+.rg-editor ol{margin:8px 0 12px;padding-left:26px}
   .rg-editor img{max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block}
   .rg-editor{overflow-wrap:break-word;word-break:break-word}
   .rg-toolbar{display:flex;align-items:center;gap:3px;flex-wrap:wrap;padding:7px;border:1px solid var(--border2);border-bottom:none;border-radius:10px 10px 0 0;background:var(--surface2)}
@@ -977,12 +946,16 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rg-editor{width:100%;min-height:300px;padding:12px 14px;border:1px solid var(--border2);border-radius:0 0 10px 10px;background:var(--surface);color:var(--text);font-size:14px;line-height:1.7;box-sizing:border-box;outline:none;overflow-y:auto}
   .rg-editor:empty:before{content:attr(data-ph);color:var(--text2);opacity:.6}
   .rg-editor img{max-width:100%;border-radius:8px;margin:6px 0}
-  .rg-editor ul,.rg-editor ol{margin:8px 0;padding-left:26px}
-  .rg-content ul,.rg-content ol{margin:8px 0;padding-left:26px}
+  .rg-editor ul,
+.rg-editor ol{margin:8px 0;padding-left:26px}
+  .rg-content ul,
+.rg-content ol{margin:8px 0;padding-left:26px}
   .rg-content img{max-width:100%;border-radius:8px;margin:6px 0}
-  .rg-content h1,.rg-content h2,.rg-content h3{margin:12px 0 6px}
+  .rg-content h1,
+.rg-content h2,
+.rg-content h3{margin:12px 0 6px}
   .rg-src-btn{justify-content:flex-start;width:100%;text-align:left}
-  /* EstadÃ­sticas del perfil */
+  /* Estadísticas del perfil */
   .stat-blocks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media(max-width:560px){.stat-blocks{grid-template-columns:1fr}}
   .stat-block{border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
@@ -1001,7 +974,8 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rt-prov{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#b45309;background:#fef3c7;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
   .rt-manual{display:inline-block;margin-left:5px;font-size:9px;font-weight:700;color:#5b21b6;background:#ede9fe;padding:1px 5px;border-radius:4px;vertical-align:middle;text-transform:none}
   .rt-big{font-weight:800;color:var(--pri);font-variant-numeric:tabular-nums}
-  .rt-table th,.rt-table td{vertical-align:middle}
+  .rt-table th,
+.rt-table td{vertical-align:middle}
   .rt-pj{text-align:center}
   .rt-actions{text-align:right}
   .rt-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
@@ -1015,33 +989,37 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rt-gg{color:#166534;font-weight:600}
   .rt-gp{color:#991b1b;font-weight:600}
   .rt-grp{white-space:nowrap;color:var(--pri);font-weight:600}
-  .rt-table tr.me-row td{background:var(--meRowBg);color:var(--meRowText)}
-  .rt-table tr.me-row td:nth-child(2){font-weight:700}
+  
+  
   .rt-howto{background:var(--hover,#f1f5f9);border-radius:10px;padding:12px 14px;margin-top:12px}
   .rt-howto-t{font-size:12.5px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px;margin-bottom:5px}
   .rt-howto-b{font-size:11.5px;color:var(--text2);line-height:1.65}
   .rt-cols-leg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:10px;font-size:11px;color:var(--text2)}
   .rt-cols-leg b{color:var(--text);font-weight:700}
-  /* Header fijo (sticky) para rating y clasificaciÃ³n â€” mismo estilo azul.
-     Funciona en desktop Y mÃ³vil: el contenedor scrollea (x e y) con una
-     altura mÃ¡xima, y el thead se pega al tope de ESE contenedor. */
-  #view-rating .overflow-x, #view-general .overflow-x{
+  /* Header fijo (sticky) para rating y clasificación — mismo estilo azul.
+     Funciona en desktop Y móvil: el contenedor scrollea (x e y) con una
+     altura máxima, y el thead se pega al tope de ESE contenedor. */
+  #view-rating .overflow-x,
+#view-general .overflow-x{
     max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch;
   }
-  .rt-table thead th, .gen-table thead th{
+  .rt-table thead th,
+.gen-table thead th{
     position:-webkit-sticky; position:sticky; top:0; z-index:5;
     background:var(--soft); color:var(--pri); font-weight:700;
   }
-  /* LÃ­nea inferior del header que no desaparece al scrollear */
-  .rt-table thead th, .gen-table thead th{ border-bottom:2px solid var(--soft); }
-  /* El rating hereda TODO de gen-table para ser idÃ©ntico */
+  /* Línea inferior del header que no desaparece al scrollear */
+  .rt-table thead th,
+.gen-table thead th{ border-bottom:2px solid var(--soft); }
+  /* El rating hereda TODO de gen-table para ser idéntico */
   .rt-ficha{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--pri),var(--pri-dark,#1e3a8a));color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px}
   .rt-ficha-num{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
   .rt-ficha-side{flex:1}
   .rt-ficha-lbl{font-size:13px;font-weight:700;opacity:.95}
   .rt-ficha-sub{font-size:11px;opacity:.8;margin-top:2px}
-  .rt-ficha .rt-prov,.rt-ficha .rt-manual{background:rgba(255,255,255,.25);color:#fff}
-  /* H2H Â· Cara a Cara */
+  .rt-ficha .rt-prov,
+.rt-ficha .rt-manual{background:rgba(255,255,255,.25);color:#fff}
+  /* H2H · Cara a Cara */
   .h2h-link{cursor:pointer;color:var(--pri);border-bottom:1px dashed var(--border2)}
   .h2h-link:hover{border-bottom-color:var(--pri)}
   .h2h-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 14px}
@@ -1062,7 +1040,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .h2h-sc{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
   .h2h-list{margin-top:4px}
   .h2h-liga-tag{margin-left:auto;font-size:10px;color:var(--text2);background:var(--hover,#f1f5f9);padding:2px 7px;border-radius:5px;white-space:nowrap}
-  /* CatÃ¡logo de jugadores (superadmin) */
+  /* Catálogo de jugadores (superadmin) */
   .cj-search{display:flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;margin-bottom:10px;background:var(--surface)}
   .cj-search i{color:var(--text2);font-size:14px}
   .cj-search input{flex:1;border:none;background:none;padding:9px 0;font-size:13px;color:var(--text);outline:none;font-family:inherit}
@@ -1088,99 +1066,106 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .cj-fusion-confirm-btns{display:flex;gap:8px;flex-wrap:wrap}
 .login-hint{margin-top:.875rem;padding:.7rem;background:var(--soft);border-radius:8px;font-size:11px;color:var(--priD);line-height:1.5}
 .login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
-/* Header fijo: se queda pegado arriba al scrollear la pÃ¡gina, para que el
-   nombre de la liga, el cambio de liga y el logout siempre estÃ©n a mano sin
+/* Header fijo: se queda pegado arriba al scrollear la página, para que el
+   nombre de la liga, el cambio de liga y el logout siempre estén a mano sin
    tener que volver arriba. z-index alto para quedar por encima de tablas,
-   modales de fondo, etc. El radio inferior se aplana mientras estÃ¡ pegado
-   (sticky no dispara ningÃºn pseudo-clase para esto en CSS puro, asÃ­ que se
-   deja el radio completo siempre â€” visualmente se nota poco al estar pegado
+   modales de fondo, etc. El radio inferior se aplana mientras está pegado
+   (sticky no dispara ningún pseudo-clase para esto en CSS puro, así que se
+   deja el radio completo siempre — visualmente se nota poco al estar pegado
    al borde superior de la pantalla).
    El position:sticky vive en .app-sticky-nav (el wrapper que agrupa .hdr +
-   .cycle-bar + .tabs, ver index.html), NO en .hdr por separado: asÃ­ los tres
+   .cycle-bar + .tabs, ver index.html), NO en .hdr por separado: así los tres
    se mueven y quedan pegados como una sola unidad al hacer scroll, sin tener
    que calcular a mano la altura del header para el `top` del siguiente
-   elemento sticky (que cambia segÃºn el tamaÃ±o de pantalla y si el nombre de
-   la liga ocupa una o dos lÃ­neas). Antes solo .hdr era sticky: al bajar en
+   elemento sticky (que cambia según el tamaño de pantalla y si el nombre de
+   la liga ocupa una o dos líneas). Antes solo .hdr era sticky: al bajar en
    una vista larga (por ejemplo, el cuadro de Play Offs) el nombre de la liga
-   y el usuario quedaban fijos pero la barra de ciclos y las pestaÃ±as se
-   iban con el scroll, perdiendo la referencia de en quÃ© secciÃ³n se estaba. */
+   y el usuario quedaban fijos pero la barra de ciclos y las pestañas se
+   iban con el scroll, perdiendo la referencia de en qué sección se estaba. */
 .app-sticky-nav{position:sticky;top:0;z-index:50;background:var(--bg);padding-top:.1px;margin-top:-.1px}
 .hdr{display:flex;align-items:center;gap:12px;padding:.95rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);flex-wrap:wrap;box-shadow:0 2px 12px rgba(0,0,0,.12)}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
 .hdr-titlebox{min-width:0;flex:1 1 auto;position:relative}
 .hdr h1{font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* margin-top: separa visualmente el subtÃ­tulo ("Ciclo 2 Â· finished") del
-   nombre de la liga arriba â€” sin esto quedaban pegados uno contra el otro,
-   ya que el reset global (*{margin:0}, lÃ­nea 1 del archivo) le saca a <p>
-   cualquier espaciado propio y .hdr-titlebox no define ningÃºn gap entre sus
+/* margin-top: separa visualmente el subtítulo ("Ciclo 2 · finished") del
+   nombre de la liga arriba — sin esto quedaban pegados uno contra el otro,
+   ya que el reset global (*{margin:0}, línea 1 del archivo) le saca a <p>
+   cualquier espaciado propio y .hdr-titlebox no define ningún gap entre sus
    hijos. */
 .hdr p{font-size:12px;color:#dce7f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:6px}
 /* .cycle-bar y .tabs, siendo ahora parte del bloque sticky, necesitan su
    propio respiro para no verse pisados por el borde del header de arriba ni
-   por el contenido que sigue debajo â€” antes ese margen alcanzaba porque todo
-   estaba en flujo normal; ahora que "flota" hace falta un poco mÃ¡s de aire. */
+   por el contenido que sigue debajo — antes ese margen alcanzaba porque todo
+   estaba en flujo normal; ahora que "flota" hace falta un poco más de aire. */
 .app-sticky-nav .cycle-bar{margin-top:.15rem}
 .app-sticky-nav .tabs{margin-bottom:1rem}
 .user-chip{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .user-info{text-align:right}.user-info .name{font-size:13px;color:#fff;font-weight:600}.user-info .role{font-size:11px;color:var(--acc)}
 .logout-btn{background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:8px;padding:6px 9px;font-size:12px;cursor:pointer;flex-shrink:0}.logout-btn:hover{background:rgba(255,255,255,.28)}
 
-.lang-btn { background: rgba(255,255,255,.15);
+.lang-btn{ background: rgba(255,255,255,.15);
 color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; font-weight: 600;
 }
-.lang-btn:hover { background: rgba(255,255,255,.28); }
-.lang-btn.active { background: var(--priD); border-color: var(--acc); color: var(--acc);
+.lang-btn:hover{ background: rgba(255,255,255,.28); }
+.lang-btn.active{ background: var(--priD); border-color: var(--acc); color: var(--acc);
 }
 
 .role-badge{background:var(--acc);color:var(--priD);font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;text-transform:uppercase}
 .cycle-bar{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
-/* Pocas pestaÃ±as (â‰¤3, clase 'few'): se estiran para ocupar todo el ancho
-   disponible â€” es el comportamiento por defecto de .cycle-tab (flex:1).
-   4 o mÃ¡s (clase 'many'): en vez de achicarse todas para entrar en una
+/* Pocas pestañas (≤3, clase 'few'): se estiran para ocupar todo el ancho
+   disponible — es el comportamiento por defecto de .cycle-tab (flex:1).
+   4 o más (clase 'many'): en vez de achicarse todas para entrar en una
    fila, pasan a una sola fila con scroll horizontal, manteniendo un
-   tamaÃ±o legible por pestaÃ±a. Esto vale en cualquier ancho de pantalla;
-   el forzado adicional para mobile estÃ¡ en el @media(max-width:640px). */
+   tamaño legible por pestaña. Esto vale en cualquier ancho de pantalla;
+   el forzado adicional para mobile está en el @media(max-width:640px). */
 .cycle-bar.many{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
 .cycle-bar.many .cycle-tab{flex:0 0 auto}
 .cycle-tab{flex:1;min-width:90px;padding:8px 8px 6px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .cycle-tab-main{display:flex;align-items:center;justify-content:center;gap:5px}
-/* Fecha corta ("Sep 12 - Oct 10") centrada debajo del nombre de la pestaÃ±a.
-   TamaÃ±o chico y color atenuado (hereda el color del texto del botÃ³n vÃ­a
-   opacity, no un color fijo, para que siga leyÃ©ndose bien tanto en el estado
-   normal como en .active, donde el fondo pasa a ser sÃ³lido var(--pri)). */
+/* Fecha corta ("Sep 12 - Oct 10") centrada debajo del nombre de la pestaña.
+   Tamaño chico y color atenuado (hereda el color del texto del botón vía
+   opacity, no un color fijo, para que siga leyéndose bien tanto en el estado
+   normal como en .active, donde el fondo pasa a ser sólido var(--pri)). */
 .cycle-tab-date{font-size:10px;font-weight:500;opacity:.65;line-height:1.1}
 .cycle-tab:hover:not(.locked):not(.active){border-color:var(--pri);background:var(--soft)}
 .cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
 .cycle-tab.locked{opacity:.45;cursor:not-allowed;background:var(--surface2)}.cycle-tab .st{font-size:11px}
-/* Si por algÃºn desfasaje de estado un botÃ³n queda con AMBAS clases a la
-   vez (activo Y bloqueado â€” por ejemplo, playoffs ya visitado pero el
-   render lo evalÃºa momentÃ¡neamente como no disponible), tiene que ganar
-   SIEMPRE el estilo activo: el usuario estÃ¡ parado ahÃ­, asÃ­ que verlo
-   apagado es engaÃ±oso. Antes .locked ganaba por estar declarada despuÃ©s
-   en el archivo (misma especificidad que .active); acÃ¡ se sube la
-   especificidad explÃ­citamente para no depender del orden de las reglas. */
+/* Si por algún desfasaje de estado un botón queda con AMBAS clases a la
+   vez (activo Y bloqueado — por ejemplo, playoffs ya visitado pero el
+   render lo evalúa momentáneamente como no disponible), tiene que ganar
+   SIEMPRE el estilo activo: el usuario está parado ahí, así que verlo
+   apagado es engañoso. Antes .locked ganaba por estar declarada después
+   en el archivo (misma especificidad que .active); acá se sube la
+   especificidad explícitamente para no depender del orden de las reglas. */
 .cycle-tab.active.locked{opacity:1;cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}
 /* BUG DISTINTO: en touch (iOS Safari en particular) el estado :hover queda
-   "pegado" un instante tras el tap, incluso sobre el botÃ³n que acaba de
-   activarse. El selector :hover:not(.locked) tenÃ­a especificidad (0,3,0)
-   â€” mÃ¡s alta que .active (0,2,0) â€” asÃ­ que el celeste de hover le ganaba
-   al azul sÃ³lido de activo apenas se tocaba la pestaÃ±a, mostrando el botÃ³n
-   reciÃ©n elegido como si no estuviera seleccionado. Arreglado arriba
+   "pegado" un instante tras el tap, incluso sobre el botón que acaba de
+   activarse. El selector :hover:not(.locked) tenía especificidad (0,3,0)
+   — más alta que .active (0,2,0) — así que el celeste de hover le ganaba
+   al azul sólido de activo apenas se tocaba la pestaña, mostrando el botón
+   recién elegido como si no estuviera seleccionado. Arreglado arriba
    excluyendo .active del selector de hover (:not(.active) agregado), para
    que ni siquiera compitan. */
 .tabs{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:.75rem;flex-wrap:wrap;align-items:stretch}
-/* Sin min-width fijo: asÃ­ vale el min-width:auto de flex, que impide que la caja
+/* Sin min-width fijo: así vale el min-width:auto de flex, que impide que la caja
    se encoja por debajo de su texto. Y sin nowrap, el texto usa 2 renglones en vez
-   de desbordarse sobre la pestaÃ±a de al lado. */
+   de desbordarse sobre la pestaña de al lado. */
 .tab{flex:1 1 auto;padding:8px 6px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text2);white-space:normal;overflow-wrap:break-word;line-height:1.25;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
-.tab>i,.tab>.tab-n{flex:0 0 auto}
+.tab>i,
+.tab>.tab-n{flex:0 0 auto}
 .tab.active{background:var(--pri);color:#fff;font-weight:600}.tab:hover:not(.active){background:var(--surface)}
 .tab-sm{flex:0 0 auto!important;padding:8px 8px!important;font-size:11px!important;color:var(--text2);opacity:.75}
 .tab-n{background:var(--danger);color:#fff;border-radius:10px;padding:0 5px;font-size:10px;font-weight:700;transition:.3s;margin-left:3px;display:inline-block;min-width:16px;text-align:center;line-height:16px;vertical-align:middle;}
 
-.tabs::-webkit-scrollbar, .cycle-bar::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none;
+.tabs::-webkit-scrollbar,
+.cycle-bar::-webkit-scrollbar,
+.grp-pick::-webkit-scrollbar,
+.overflow-x::-webkit-scrollbar{ display: none;
 }
-.tabs, .cycle-bar, .grp-pick, .overflow-x { -ms-overflow-style: none; scrollbar-width: none; }
+.tabs,
+.cycle-bar,
+.grp-pick,
+.overflow-x{ -ms-overflow-style: none; scrollbar-width: none; }
 
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:.875rem 1rem;margin-bottom:.625rem}
 .grp-sep{height:0;border-top:3px solid #111;margin:0 0 .625rem;border-radius:2px}
@@ -1191,15 +1176,21 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .grp-btn .mine{font-size:9px;color:var(--accD);display:block}.grp-btn.active .mine{color:var(--acc)}
 .grp-title{display:inline-block;background:var(--soft);color:var(--priD);font-size:13px;font-weight:600;padding:5px 14px;border-radius:8px 8px 0 0;border:1px solid var(--pri);border-bottom:none}
 .section-lbl{font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.05em;margin:.875rem 0 .4rem}
-.cls-table,.gen-table{width:100%;border-collapse:collapse;font-size:12px}
-.cls-table th,.gen-table th{font-size:10px;color:var(--pri);padding:5px 4px;border-bottom:2px solid var(--soft);font-weight:700;text-align:center;background:var(--soft)}
-.cls-table th:nth-child(2),.gen-table th:nth-child(2){text-align:left}
+.cls-table,
+.gen-table{width:100%;border-collapse:collapse;font-size:12px}
+.cls-table th,
+.gen-table th{font-size:10px;color:var(--pri);padding:5px 4px;border-bottom:2px solid var(--soft);font-weight:700;text-align:center;background:var(--soft)}
+.cls-table th:nth-child(2),
+.gen-table th:nth-child(2){text-align:left}
 .clg-head th{background:var(--soft);border-bottom:1px solid var(--border2);text-align:center}.clg-head th:first-child{border-right:1px solid var(--border2)}.clg-head th:last-child{border-right:1px solid var(--border2);color:var(--priD)}
-.cls-table td:nth-child(9),.cls-table thead tr:nth-child(2) th:nth-child(9){border-right:1px solid var(--border2)}
-.cls-table td,.gen-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
-.cls-table td:nth-child(2),.gen-table td:nth-child(2){text-align:left;font-weight:600}
+.cls-table td:nth-child(9),
+.cls-table thead tr:nth-child(2) th:nth-child(9){border-right:1px solid var(--border2)}
+.cls-table td,
+.gen-table td{padding:6px 4px;text-align:center;border-bottom:1px solid var(--border)}
+.cls-table td:nth-child(2),
+.gen-table td:nth-child(2){text-align:left;font-weight:600}
 .cls-table tr:last-child td{border-bottom:none}.cls-table .winner-row td{background:var(--winrow)}
-.gen-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.cls-table .me-row td{background:var(--meRowBg);color:var(--meRowText)}.res-table .me-mtx{background:var(--meRowBg)!important;color:var(--meRowText)!important;font-weight:700}
+
 .gen-cyc{font-size:11px;color:var(--text2)}
 .gen-po{white-space:nowrap}
 .gen-dash{color:#c8d0dc}
@@ -1211,7 +1202,8 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .dest{display:inline-flex;align-items:center;gap:2px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
 .dest-up{background:#E1F5EE;color:#085041}.dest-same{background:var(--soft);color:var(--pri)}.dest-down{background:#FCEBEB;color:#791F1F}
 .res-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:.3rem;table-layout:fixed}
-.res-table th,.res-table td{border:1px solid var(--border2);padding:5px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-table th,
+.res-table td{border:1px solid var(--border2);padding:5px 4px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .res-table td:first-child{text-align:left;font-weight:600;width:150px;background:var(--soft);color:var(--pri)}
 .res-table th{background:var(--pri);color:#fff;font-weight:600;border:1px solid var(--border2)}.res-table th:first-child{text-align:left;width:150px;background:var(--priD);color:#fff}
 .res-black{background:#16243d}
@@ -1223,32 +1215,38 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .legend span{display:inline-flex;align-items:center;gap:4px}.dot{width:11px;height:11px;border-radius:3px;display:inline-block}.dot-pend{background:#FAEEDA}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
 /* Cada columna de un .form-row puede tener distinta cantidad de texto de
-   ayuda arriba del input (un label simple vs. label + hint en 2 lÃ­neas,
-   como en el formulario de Apariencia de la liga) â€” sin esto, los inputs de
+   ayuda arriba del input (un label simple vs. label + hint en 2 líneas,
+   como en el formulario de Apariencia de la liga) — sin esto, los inputs de
    columnas vecinas quedaban a alturas distintas, visualmente desalineados
-   entre sÃ­. Acotado a ".form-row .form-group" (no ".form-group" a secas)
-   para no afectar los demÃ¡s usos de la clase fuera de un grid de 2
+   entre sí. Acotado a ".form-row .form-group" (no ".form-group" a secas)
+   para no afectar los demás usos de la clase fuera de un grid de 2
    columnas, donde este ajuste no aplica y no hace falta. flex-direction:
    column + el input empujado al final con margin-top:auto hace que todos
-   los inputs de una misma fila caigan sobre la misma lÃ­nea de base, sin
-   importar cuÃ¡nto texto tenga cada columna arriba. */
+   los inputs de una misma fila caigan sobre la misma línea de base, sin
+   importar cuánto texto tenga cada columna arriba. */
 .form-row .form-group{display:flex;flex-direction:column}
-.form-row .form-group input,.form-row .form-group select,.form-row .form-group textarea{margin-top:auto}
+.form-row .form-group input,
+.form-row .form-group select,
+.form-row .form-group textarea{margin-top:auto}
 .form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
-.form-group select,.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
-.req{border:2px solid var(--reqBorder)!important;background:var(--reqBg)!important}.req-empty,.req-empty input,.req-empty select{border:2px solid var(--reqEmptyBorder)!important;background:var(--reqEmptyBg)!important}
+.form-group select,
+.form-group input{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:13px}
+.req{border:2px solid var(--reqBorder)!important;background:var(--reqBg)!important}.req-empty,
+.req-empty input,
+.req-empty select{border:2px solid var(--reqEmptyBorder)!important;background:var(--reqEmptyBg)!important}
 .reqmark{display:inline-block;color:#fff;background:var(--danger);font-size:9px;font-weight:700;border-radius:10px;padding:1px 7px;margin-left:5px;text-transform:uppercase;letter-spacing:.03em;vertical-align:middle}
 .req-wrap{border:2px dashed var(--reqBorder);border-radius:10px;padding:.6rem .7rem;background:var(--reqBg)}
 .set-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .set-row label{font-size:12px;color:var(--text2);width:64px;flex-shrink:0;font-weight:600}
-.set-row input,.po-in{width:52px;padding:6px;text-align:center;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px}
+.set-row input,
+.po-in{width:52px;padding:6px;text-align:center;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px}
 .sep{color:var(--text2);font-size:15px}.set-hint{font-size:11px;color:var(--text2);margin-left:6px}
-/* Nombre bloqueado (propio) â€” solo texto centrado */
+/* Nombre bloqueado (propio) — solo texto centrado */
 .score-sel-locked{border:none;background:transparent;color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:6px 4px;cursor:default;width:100%;outline:none;-webkit-appearance:none;-moz-appearance:none;appearance:none;pointer-events:none;}
-/* Campo seleccionable (rival/reporter activo) â€” inner box con sombra */
+/* Campo seleccionable (rival/reporter activo) — inner box con sombra */
 .score-sel-pick{border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2,#f8f9fb);box-shadow:0 1px 5px rgba(0,0,0,.08);color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:8px 10px;cursor:pointer;width:100%;outline:none;}
 .score-sel-pick:hover{border-color:var(--pri);box-shadow:0 2px 8px rgba(0,0,0,.12);}
-/* Recuadro sÃ³lido para la secciÃ³n de jugadores */
+/* Recuadro sólido para la sección de jugadores */
 .names-box{border:1.5px solid var(--border2);border-radius:12px;padding:.875rem .75rem;background:var(--surface);margin-bottom:.75rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
 /* Fila de filtro: sin recuadro, solo fondo sutil */
 .filter-row{background:var(--surface2,#f8f9fb);border-radius:10px;padding:.5rem .75rem;margin-bottom:.75rem;display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;}
@@ -1313,11 +1311,11 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .match-box{width:190px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--surface);flex-shrink:0}
 /* Vertical line on right side connecting to next round */
 .connector-right{width:24px;flex-shrink:0;position:relative;align-self:stretch;display:flex;align-items:center}
-.connector-right::before{content:'';position:absolute;left:0;top:50%;width:24px;height:1px;background:var(--border2);}
+.connector-right::before{content:"";position:absolute;left:0;top:50%;width:24px;height:1px;background:var(--border2);}
 /* Vertical bracket lines between pairs */
 .bracket-pair{display:flex;flex-direction:column;position:relative}
 .bracket-pair>.match-group{flex:1}
-.bracket-pair::after{content:'';position:absolute;right:-24px;top:25%;height:50%;width:1px;background:var(--border2);}
+.bracket-pair::after{content:"";position:absolute;right:-24px;top:25%;height:50%;width:1px;background:var(--border2);}
 /* Round column spacing */
 .round+.round{margin-left:24px}
 .slot{display:flex;align-items:center;gap:5px;padding:6px 9px;font-size:12px;border-bottom:1px solid var(--border)}
@@ -1329,24 +1327,36 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .po-load{font-size:10px;border:1px solid var(--border2);background:var(--surface);border-radius:5px;padding:2px 6px;cursor:pointer;color:var(--pri)}.po-load:hover{background:var(--soft)}
 .champ-card{background:var(--winrow);border:1px solid var(--acc);border-radius:10px;padding:.6rem 1rem;text-align:center;margin-top:.5rem}
 .champ-card .lbl{font-size:11px;color:var(--priD);text-transform:uppercase;font-weight:700}.champ-card .who{font-size:15px;font-weight:700;color:var(--priD);margin-top:2px}
-.champ-cons{background:var(--haza);border-color:var(--hazaT)}.champ-cons .lbl,.champ-cons .who{color:var(--hazaT)}
+.champ-cons{background:var(--haza);border-color:var(--hazaT)}.champ-cons .lbl,
+.champ-cons .who{color:var(--hazaT)}
 .po-section-title{font-size:13px;font-weight:600;color:#fff;background:var(--pri);padding:7px 12px;border-radius:8px;margin-bottom:.5rem;display:flex;align-items:center;gap:6px}.po-cons-title{background:#854F0B}
 .seed-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:.5rem}
 .seed-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:20px;background:var(--soft);color:var(--pri);font-size:12px}
 .seed-chip .rm{border:none;background:#FCEBEB;color:var(--danger);cursor:pointer;font-size:13px;padding:1px 6px;border-radius:20px;line-height:1;display:inline-flex;align-items:center}.seed-chip .rm:hover{background:#f3c0c0}
 .toast{position:fixed;bottom:16px;right:16px;background:var(--pri);color:#fff;padding:10px 14px;border-radius:8px;font-size:13px;z-index:999;transition:.3s;max-width:300px;border-bottom:3px solid var(--acc);box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .bracket-main .match-box{background:#EAF3FC}.bracket-cons .match-box{background:#FDF1E6}
-.bracket-main .slot,.bracket-cons .slot{background:transparent}.bracket-main .slot.winner,.bracket-cons .slot.winner{background:var(--winrow)}.bracket-main .slot-foot,.bracket-cons .slot-foot{background:rgba(0,0,0,.04)}
+.bracket-main .slot,
+.bracket-cons .slot{background:transparent}.bracket-main .slot.winner,
+.bracket-cons .slot.winner{background:var(--winrow)}.bracket-main .slot-foot,
+.bracket-cons .slot-foot{background:rgba(0,0,0,.04)}
 
-/* --- REGLAS DE IMPRESIÃ“N PDF --- */
-#print-area { display: none; }
+/* --- REGLAS DE IMPRESIÓN PDF --- */
+#print-area{ display: none; }
 @media print {
-  body * { visibility: hidden; }
-  #print-area, #print-area * { visibility: visible; }
-  #print-area { display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 1rem; }
-  .grp-card, .po-card { break-inside: avoid; page-break-inside: avoid; margin-bottom: 2rem; border: 1px solid #ccc; box-shadow: none; padding: 1rem; border-radius: 8px; }
-  .hdr, .tabs, .cycle-bar, .toast, .modal-bg, .btn, .legend-card { display: none !important; }
-  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body *{ visibility: hidden; }
+  #print-area,
+#print-area *{ visibility: visible; }
+  #print-area{ display: block; position: absolute; left: 0; top: 0; width: 100%; padding: 1rem; }
+  .grp-card,
+.po-card{ break-inside: avoid; page-break-inside: avoid; margin-bottom: 2rem; border: 1px solid #ccc; box-shadow: none; padding: 1rem; border-radius: 8px; }
+  .hdr,
+.tabs,
+.cycle-bar,
+.toast,
+.modal-bg,
+.btn,
+.legend-card{ display: none !important; }
+  *{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 }
 
 @media(max-width:640px){
@@ -1358,62 +1368,79 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .hdr-liga-switch{font-size:15px}
   .user-info .name{font-size:12px}.user-info .role{font-size:10px}
   .logout-btn{padding:5px 7px;font-size:11px}
-  /* Si el tÃ­tulo de la liga es largo y no entra en una sola fila junto al
-     usuario/idioma/logout, .hdr ya hace wrap (ver regla base): acÃ¡ forzamos
+  /* Si el título de la liga es largo y no entra en una sola fila junto al
+     usuario/idioma/logout, .hdr ya hace wrap (ver regla base): acá forzamos
      que .user-chip pase a ocupar toda la fila de abajo en vez de quedar
-     amontonado o cortado â€” asÃ­ "Salir" nunca queda fuera de pantalla. */
+     amontonado o cortado — así "Salir" nunca queda fuera de pantalla. */
   .user-chip{flex-basis:100%;justify-content:flex-end;margin-left:0}
   
-  .tabs, .grp-pick {
+  .tabs,
+.grp-pick{
     flex-wrap: nowrap !important; overflow-x: auto !important;
     justify-content: flex-start !important;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none; 
     padding-bottom: 4px;
   }
-  /* .cycle-bar ya NO se fuerza acÃ¡ de forma incondicional: con 3 pestaÃ±as
-     o menos (clase 'few') se estira a ancho completo; con 4 o mÃ¡s (clase
+  /* .cycle-bar ya NO se fuerza acá de forma incondicional: con 3 pestañas
+     o menos (clase 'few') se estira a ancho completo; con 4 o más (clase
      'many') se comporta igual que antes (scroll horizontal). Ver reglas
-     .cycle-bar.few / .cycle-bar.many mÃ¡s abajo, que valen en cualquier
+     .cycle-bar.few / .cycle-bar.many más abajo, que valen en cualquier
      ancho de pantalla, no solo mobile. */
-  .cycle-bar.many {
+  .cycle-bar.many{
     flex-wrap: nowrap !important; overflow-x: auto !important;
     justify-content: flex-start !important;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
     padding-bottom: 4px;
   }
-  .cycle-bar::-webkit-scrollbar, .tabs::-webkit-scrollbar, .grp-pick::-webkit-scrollbar, .overflow-x::-webkit-scrollbar { display: none; }
+  .cycle-bar::-webkit-scrollbar,
+.tabs::-webkit-scrollbar,
+.grp-pick::-webkit-scrollbar,
+.overflow-x::-webkit-scrollbar{ display: none; }
   
-  .overflow-x { 
+  .overflow-x{ 
     overflow-x: auto !important; -webkit-overflow-scrolling: touch; 
     margin-bottom: 5px; 
     padding-bottom: 5px; 
   }
   
-  .cls-table, .gen-table, .res-table { min-width: max-content !important; width: 100% !important; table-layout: auto !important; }
-  .cls-table th, .gen-table th, .cls-table td, .gen-table td, .res-table th, .res-table td { white-space: nowrap !important; }
+  .cls-table,
+.gen-table,
+.res-table{ min-width: max-content !important; width: 100% !important; table-layout: auto !important; }
+  .cls-table th,
+.gen-table th,
+.cls-table td,
+.gen-table td,
+.res-table th,
+.res-table td{ white-space: nowrap !important; }
 
-  .tab, .grp-btn { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
-  /* .cycle-tab ya NO se fuerza a flex:0 0 auto de forma incondicional acÃ¡:
-     con pocas pestaÃ±as (.cycle-bar.few) debe poder seguir estirÃ¡ndose
+  .tab,
+.grp-btn{ flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
+  /* .cycle-tab ya NO se fuerza a flex:0 0 auto de forma incondicional acá:
+     con pocas pestañas (.cycle-bar.few) debe poder seguir estirándose
      (flex:1, regla base) para ocupar todo el ancho; con 4+ (.cycle-bar.many)
-     sÃ­ se comporta como antes, en fila con scroll horizontal. */
-  .cycle-bar.many .cycle-tab { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
-  .cycle-tab { padding: 8px 14px; font-size: 13px; border-radius: 9px; }
-  .tab { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
-  .grp-btn { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+     sí se comporta como antes, en fila con scroll horizontal. */
+  .cycle-bar.many .cycle-tab{ flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
+  .cycle-tab{ padding: 8px 14px; font-size: 13px; border-radius: 9px; }
+  .tab{ padding: 8px 12px; font-size: 12px; border-radius: 8px; }
+  .grp-btn{ padding: 8px 12px; font-size: 12px; border-radius: 8px; }
   .cycle-tab .st{font-size:10px}
 
   .card{padding:.6rem .6rem;margin-bottom:.45rem;border-radius:10px}
   .form-row{grid-template-columns:1fr}
   
-  .cls-table,.gen-table{font-size:11px}
-  .cls-table th,.gen-table th{font-size:9px;padding:4px 6px}
-  .cls-table td,.gen-table td{padding:5px 6px;font-size:11px}
+  .cls-table,
+.gen-table{font-size:11px}
+  .cls-table th,
+.gen-table th{font-size:9px;padding:4px 6px}
+  .cls-table td,
+.gen-table td{padding:5px 6px;font-size:11px}
   .res-table{font-size:10px}
-  .res-table th,.res-table td{padding:4px 6px;}
-  .res-table th:first-child,.res-table td:first-child{min-width:90px;}
+  .res-table th,
+.res-table td{padding:4px 6px;}
+  .res-table th:first-child,
+.res-table td:first-child{min-width:90px;}
 
   .section-lbl{font-size:10px;margin:.6rem 0 .3rem}
   .btn{padding:7px 10px;font-size:12px}
@@ -1426,7 +1453,8 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .round{min-width:140px}
   .slot{padding:5px 6px;font-size:11px}
   .set-row label{width:54px;font-size:11px}
-  .set-row input,.po-in{width:44px;font-size:13px}
+  .set-row input,
+.po-in{width:44px;font-size:13px}
   .po-tramos{gap:4px}
   .po-tab{min-width:0;flex:1;padding:7px 4px;font-size:11px}
   .clg-head th:last-child{font-size:9px}
@@ -1444,247 +1472,88 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .seed-list{gap:4px}
   .seed-chip{font-size:11px;padding:3px 7px}
 }
-/* â†‘ Cierre del @media(max-width:640px) abierto mÃ¡s arriba. Faltaba esta
+/* ↑ Cierre del @media(max-width:640px) abierto más arriba. Faltaba esta
    llave de cierre: sin ella, TODO lo que sigue en el archivo (incluidas
    las reglas de dark mode y el selector de liga del header) quedaba
-   atrapado dentro del media query mobile-only, aplicÃ¡ndose solo en
+   atrapado dentro del media query mobile-only, aplicándose solo en
    pantallas angostas y rompiendo el layout / posicionamiento en desktop. */
 
 /* ==== FIX DEFINITIVO DE CONTRASTE Y LEGIBILIDAD EN DARK MODE ==== */
-html[data-theme="dark"] .me-row,
-html[data-theme="dark"] .me-row td,
-html[data-theme="dark"] .me-row th,
-html[data-theme="dark"] .me-row *,
-html[data-theme="dark"] .me-mtx,
-html[data-theme="dark"] .me-mtx *,
-html[data-theme="dark"] table.res-table tr.me-row th,
-html[data-theme="dark"] table.res-table tr.me-row th:first-child,
-html[data-theme="dark"] table.res-table tr.me-row td,
-html:not([data-theme]) .me-row,
-html:not([data-theme]) .me-row td,
-html:not([data-theme]) .me-row th,
-html:not([data-theme]) .me-row *,
-html:not([data-theme]) .me-mtx,
-html:not([data-theme]) .me-mtx *,
-html:not([data-theme]) table.res-table tr.me-row th,
-html:not([data-theme]) table.res-table tr.me-row th:first-child,
-html:not([data-theme]) table.res-table tr.me-row td {
-  --text: #0E3470 !important;
-  --text2: #0E3470 !important;
-  background-color: #FFF8DC !important;
-  color: #0E3470 !important;
-  text-decoration-color: #0E3470 !important;
-  opacity: 1 !important;
-}
 
-/* ============================================================================
-   TANDA 5 â€” DARK MODE FIX DEFINITIVO (reemplaza TANDA 4)
-   
-   Historia del problema:
-   1) Mother rule genÃ©rica de dark mode pinta TODO texto blanco. 
-      Selector: html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"])
-      Especificidad: (0, 4, 1) â€” 1 attr theme + 4 clases (3 :not() con clase + 1 :not([attr])) + 1 tag
-   
-   2) TANDA 4 usÃ³ html[data-theme="dark"] .cls-table tr.me-row td:not(.__no)
-      Especificidad: (0, 4, 3) â€” 1 attr theme + 2 clases + 1 :not() con clase + 3 tags
-      El primer campo empata (4=4), gana el que venga despuÃ©s en el CSS.
-      TANDA 4 estaba al final, DEBERÃA ganar. Pero segÃºn el usuario no gana.
-   
-   3) Investigando: hay una regla ADICIONAL en el CSS original en lÃ­nea ~380:
-      html[data-theme="dark"] .res-table th * { background:var(--soft)!important; color:#ffffff!important }
-      Con especificidad (0, 3, 2) + universal. Cubre th, no td, asÃ­ que no aplica acÃ¡.
-      
-   4) Verdadero problema: en la lÃ­nea 165 del CSS original habÃ­a un BLOQUE VIEJO
-      que ponÃ­a background-color:#FFF8DC + color:#0E3470 en .me-row td. Ese bloque
-      estaba ANTES de la mother rule (que estÃ¡ en lÃ­nea ~76). No, al revÃ©s:
-      mother rule estÃ¡ en lÃ­nea 76-96, y el bloque me-row estÃ¡ en lÃ­nea 165.
-      Entonces el bloque me-row DEBERÃA ganar por orden. Pero...
-      
-   5) El bloque me-row viejo tenÃ­a especificidad (0, 3, 2) para td descendientes.
-      La mother rule con td:not():not():not():not() = (0, 4, 1).
-      La mother rule GANA por (4 > 3). El bloque me-row viejo NUNCA funcionÃ³.
-      
-   SOLUCIÃ“N TANDA 5: usar 4 clases mÃ­nimo + mÃ¡s tags. Selector con
-   :is() para agrupar y ganar especificidad limpia:
-     html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z)
-     = (0, 1+2+1+1, 2+1) = (0, 5, 3) â€” GANA (4â†’5 y 1â†’3)
-   
-   FilosofÃ­a: NO tocamos la mother rule (romperÃ­amos otras cosas). Agregamos
-   reglas especÃ­ficas que ganen por especificidad calculada matemÃ¡ticamente.
-   ============================================================================ */
 
-/* ---- Base comÃºn: variables de fila destacada (me-row + me-mtx-row) ---- */
-:root {
+
+
+/* ---- Base común: variables de fila destacada (me-row + me-mtx-row) ---- */
+:root{
   --me-row-bg-light: #FAEEDA;   /* fondo cream en light mode */
-  --me-row-bg-dark:  #FFF8DC;   /* fondo cream un poco mÃ¡s claro en dark */
+  --me-row-bg-dark:  #FFF8DC;   /* fondo cream un poco más claro en dark */
   --me-row-text:     #0E3470;   /* texto azul oscuro sobre cream (funciona en ambos temas) */
 }
 
-/* ==========================================================================
-   FIX #1 â€” Fila destacada del usuario en tablas
-   Tablas afectadas: .cls-table (Grupos), .gen-table (ClasificaciÃ³n General), 
-                     .rt-table (Rating).
-   Usamos selector con 5 clases + 3 tags = (0, 5, 3), gana la mother rule (0, 4, 1).
-   ========================================================================== */
+
 
 /* --- Fondo cream de la fila en dark mode --- */
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z),
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z),
-html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td:not(.__z){
-  background-color: var(--me-row-bg-dark) !important;
-}
+
 
 /* --- Color de texto oscuro sobre el cream --- */
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z),
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z) *,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z),
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z) *,
-html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td:not(.__z),
-html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td:not(.__z) *{
-  color: var(--me-row-text) !important;
-  text-decoration-color: var(--me-row-text) !important;
-}
 
-/* --- Excepciones: elementos con colores semÃ¡nticos propios ---
-   Estos NO se pintan azul oscuro para preservar su semÃ¡ntica visual. */
 
-/* Chip de destino (=Grupo N / â†‘Grupo N / â†“Grupo N): mantiene su fondo propio */
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z) .dest,
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z) .dest *,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z) .dest,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z) .dest *{
-  background-color: inherit !important;
-  color: inherit !important;
-}
+/* --- Excepciones: elementos con colores semánticos propios ---
+   Estos NO se pintan azul oscuro para preservar su semántica visual. */
+
+/* Chip de destino (=Grupo N / ↑Grupo N / ↓Grupo N): mantiene su fondo propio */
+
 /* Y para cada variante de destino: dest-up (verde), dest-down (rojo), 
    dest-same (azul claro). Estos ya tienen sus reglas en el CSS base. 
-   Con selector muy especÃ­fico les devolvemos su fondo semÃ¡ntico. */
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .dest.dest-up,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .dest.dest-up{
-  background-color: #14361f !important; color: #86efac !important;
-}
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .dest.dest-down,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .dest.dest-down{
-  background-color: #4a1d1d !important; color: #fca5a5 !important;
-}
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .dest.dest-same,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .dest.dest-same{
-  background-color: #dbeafe !important; color: #1e3a8a !important;
-}
+   Con selector muy específico les devolvemos su fondo semántico. */
+
+
+
 
 /* Avatar circular con iniciales: mantiene fondo azul claro */
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .avatar,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .avatar,
-html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td .avatar{
-  background-color: #dbeafe !important;
-  color: #1e3a8a !important;
-}
+
 
 /* Badges (.badge-ok, .badge-inact, .badge-err, .rt-prov, etc.): 
    Restauran su fondo propio. La regla base de cada uno ya define su color. */
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .badge,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .badge,
-html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td .badge,
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .rt-prov,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .rt-prov,
-html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td .rt-prov{
-  background-color: revert !important;
-  color: revert !important;
-}
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .badge-ok,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .badge-ok{
-  background-color: #14361f !important; color: #86efac !important;
-}
-html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .badge-inact,
-html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .badge-inact{
-  background-color: #7f1d1d !important; color: #ffffff !important;
-}
+
+
+
 
 /* ---- Mismo pack de reglas para @media (prefers-color-scheme: dark) 
-        cuando el usuario no eligiÃ³ tema manual ---- */
+        cuando el usuario no eligió tema manual ---- */
 @media (prefers-color-scheme: dark){
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td:not(.__z),
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td:not(.__z),
-  html:not([data-theme]) table.rt-table tr.me-row:not(.__z) td:not(.__z){
-    background-color: var(--me-row-bg-dark) !important;
-  }
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td:not(.__z),
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td:not(.__z) *,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td:not(.__z),
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td:not(.__z) *,
-  html:not([data-theme]) table.rt-table tr.me-row:not(.__z) td:not(.__z),
-  html:not([data-theme]) table.rt-table tr.me-row:not(.__z) td:not(.__z) *{
-    color: var(--me-row-text) !important;
-    text-decoration-color: var(--me-row-text) !important;
-  }
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td:not(.__z) .dest,
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td:not(.__z) .dest *,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td:not(.__z) .dest,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td:not(.__z) .dest *{
-    background-color: inherit !important; color: inherit !important;
-  }
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td .dest.dest-up,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td .dest.dest-up{
-    background-color: #14361f !important; color: #86efac !important;
-  }
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td .dest.dest-down,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td .dest.dest-down{
-    background-color: #4a1d1d !important; color: #fca5a5 !important;
-  }
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td .dest.dest-same,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td .dest.dest-same{
-    background-color: #dbeafe !important; color: #1e3a8a !important;
-  }
-  html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td .avatar,
-  html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td .avatar,
-  html:not([data-theme]) table.rt-table tr.me-row:not(.__z) td .avatar{
-    background-color: #dbeafe !important; color: #1e3a8a !important;
-  }
+  
+  
+  
+  
+  
+  
+  
 }
 
 /* ==========================================================================
-   FIX #2 â€” Fila destacada del usuario en la matriz de resultados
+   FIX #2 — Fila destacada del usuario en la matriz de resultados
    Se agrega .me-mtx-row al <tr> del usuario (cambio hecho en shell-render.js).
    ========================================================================== */
-html[data-theme="dark"] table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black){
-  background-color: var(--me-row-bg-dark) !important;
-}
-html[data-theme="dark"] table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black),
-html[data-theme="dark"] table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black) *{
-  color: var(--me-row-text) !important;
-  text-decoration-color: var(--me-row-text) !important;
-}
+
+
 /* Excepciones: club, pending, disputed, res-black mantienen su color */
 
-html[data-theme="dark"] table.res-table tr.me-mtx-row td.cell-pending{
-  background-color: #3d2a10 !important; color: #fcd34d !important;
-}
 
-html[data-theme="dark"] table.res-table tr.me-mtx-row td.res-black{
-  background-color: var(--bg) !important;
-}
+
+
 
 @media (prefers-color-scheme: dark){
-  html:not([data-theme]) table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black){
-    background-color: var(--me-row-bg-dark) !important;
-  }
-  html:not([data-theme]) table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black),
-  html:not([data-theme]) table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black) *{
-    color: var(--me-row-text) !important;
-    text-decoration-color: var(--me-row-text) !important;
-  }
   
-  html:not([data-theme]) table.res-table tr.me-mtx-row td.cell-pending{
-    background-color: #3d2a10 !important; color: #fcd34d !important;
-  }
   
-  html:not([data-theme]) table.res-table tr.me-mtx-row td.res-black{
-    background-color: var(--bg) !important;
-  }
+  
+  
+  
+  
 }
 
 /* ==========================================================================
-   FIX #3 â€” Links del login header respetan color inline (calculado por autoTxt)
+   FIX #3 — Links del login header respetan color inline (calculado por autoTxt)
    ========================================================================== */
 html[data-theme="dark"] .login-header-bar a,
 html[data-theme="dark"] .login-header-bar a:hover,
@@ -1694,16 +1563,16 @@ html[data-theme="dark"] .login-header-bar a:visited{
 }
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .login-header-bar a,
-  html:not([data-theme]) .login-header-bar a:hover,
-  html:not([data-theme]) .login-header-bar a:visited{
+html:not([data-theme]) .login-header-bar a:hover,
+html:not([data-theme]) .login-header-bar a:visited{
     color: unset !important;
     text-decoration-color: unset !important;
   }
 }
 
 /* ==========================================================================
-   FIX #4 â€” BotÃ³n "Editar" dentro del header .clg-head
-   El botÃ³n estÃ¡ dentro de un th del clg-head, que tiene la regla
+   FIX #4 — Botón "Editar" dentro del header .clg-head
+   El botón está dentro de un th del clg-head, que tiene la regla
      html[data-theme=dark] .clg-head th * { color:#fff!important }
    con especificidad (0, 2, 1). Aumentamos la nuestra con :not(.__z)
    para llegar a (0, 4, 3) y ganar por clases (4 > 2) sin depender del orden.
@@ -1717,20 +1586,15 @@ html[data-theme="dark"] .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z)
 }
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z),
-  html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) *,
-  html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) i{
+html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) *,
+html:not([data-theme]) .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z) i{
     color: #0E3470 !important;
     background-color: #dbeafe !important;
     border-color: #93c5fd !important;
   }
 }
 
-/* ==========================================================================
-   FIX #5 â€” Slots del bracket de playoff (me-A / me-B / ganador)
-   El JS pinta con estilo inline background:#FFF8DC + color:#0E3470 pero el 
-   texto interno (span del seed, chip "yo") queda blanco por la mother rule.
-   Aumentamos especificidad para el contenido del div .po-me-slot.
-   ========================================================================== */
+
 html[data-theme="dark"] .po-me-slot:not(.__z),
 html[data-theme="dark"] .po-me-slot:not(.__z) *{
   color: #0E3470 !important;
@@ -1738,7 +1602,7 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 }
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .po-me-slot:not(.__z),
-  html:not([data-theme]) .po-me-slot:not(.__z) *{
+html:not([data-theme]) .po-me-slot:not(.__z) *{
     color: #0E3470 !important;
     background-color: #FFF8DC !important;
   }
@@ -1747,17 +1611,17 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 /* FIN Tanda 5 =============================================================== */
 
 /* ============================================================================
-   BotÃ³n de cambio de liga en el header: AHORA es el propio tÃ­tulo de la liga
-   (reemplaza al <h1> viejo). Por defecto se ve exactamente como el tÃ­tulo de
-   siempre (texto blanco grande, sin fondo, sin cursor pointer) â€” solo cuando
+   Botón de cambio de liga en el header: AHORA es el propio título de la liga
+   (reemplaza al <h1> viejo). Por defecto se ve exactamente como el título de
+   siempre (texto blanco grande, sin fondo, sin cursor pointer) — solo cuando
    el usuario participa en 2+ ligas activas se le agrega la clase .multi:
-   ahÃ­ aparece la flecha y el fondo/cursor de botÃ³n clickeable. El menÃº que
-   despliega cae JUSTO DEBAJO de este mismo botÃ³n (no al costado).
+   ahí aparece la flecha y el fondo/cursor de botón clickeable. El menú que
+   despliega cae JUSTO DEBAJO de este mismo botón (no al costado).
 
-   RediseÃ±o: el nombre de la liga sube de peso (700) y tamaÃ±o (17px), con un
-   leve letter-spacing negativo para que se vea mÃ¡s compacto y "de marca" en
-   vez de texto de UI genÃ©rico. Un sutil text-shadow le da algo de profundidad
-   sobre el fondo sÃ³lido del header sin llegar a verse pesado.
+   Rediseño: el nombre de la liga sube de peso (700) y tamaño (17px), con un
+   leve letter-spacing negativo para que se vea más compacto y "de marca" en
+   vez de texto de UI genérico. Un sutil text-shadow le da algo de profundidad
+   sobre el fondo sólido del header sin llegar a verse pesado.
    ============================================================================ */
 .hdr-liga-switch{
   all:unset;cursor:default;
@@ -1782,9 +1646,9 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 .hdr-liga-switch-menu .liga-sel-btn{font-size:12.5px;padding:8px 10px}
 
 /* ============================================================================
-   "Mis Ligas" â€” selector tipo pestaÃ±as en el perfil de jugador (ligas activas
-   de la plataforma, con su estado: acÃ¡ / participando / pendiente / solicitar).
-   Reutiliza el lenguaje visual de .tabs/.tab (mismo look que "ElegÃ­ el Grupo"
+   "Mis Ligas" — selector tipo pestañas en el perfil de jugador (ligas activas
+   de la plataforma, con su estado: acá / participando / pendiente / solicitar).
+   Reutiliza el lenguaje visual de .tabs/.tab (mismo look que "Elegí el Grupo"
    y los tabs de Ciclo), para que se sienta parte de la misma app y no un
    agregado suelto.
    ============================================================================ */
@@ -1800,16 +1664,16 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
   cursor:default;font-family:inherit;white-space:nowrap;line-height:1.2;
 }
 button.liga-tab{cursor:pointer}
-/* Liga donde estÃ¡ parado ahora: azul sÃ³lido, igual que .tab.active */
+/* Liga donde está parado ahora: azul sólido, igual que .tab.active */
 .liga-tab-here{background:var(--pri);color:#fff;border-color:var(--pri)}
-/* Ya participa en otra liga: relleno VERDE sÃ³lido para que salte a la vista
-   de entrada â€” es la informaciÃ³n mÃ¡s importante de esta lista. */
+/* Ya participa en otra liga: relleno VERDE sólido para que salte a la vista
+   de entrada — es la información más importante de esta lista. */
 .liga-tab-ok{background:#16a34a;color:#fff;border-color:#16a34a}
 .liga-tab-ok:hover{background:#15803d;border-color:#15803d}
-/* Solicitud pendiente de aprobaciÃ³n: relleno naranja sÃ³lido, no clickeable */
+/* Solicitud pendiente de aprobación: relleno naranja sólido, no clickeable */
 .liga-tab-pending{background:#f59e0b;color:#fff;border-color:#f59e0b;cursor:default}
-/* Sin relaciÃ³n todavÃ­a (o rechazada, puede reintentar): la Ãºnica "vacÃ­a",
-   discreta a propÃ³sito porque es la de menor prioridad visual. */
+/* Sin relación todavía (o rechazada, puede reintentar): la única "vacía",
+   discreta a propósito porque es la de menor prioridad visual. */
 .liga-tab-ask{background:var(--surface);color:var(--text2);border:1.5px dashed var(--border2)}
 .liga-tab-ask:hover{background:var(--soft);border-color:var(--pri);color:var(--priD)}
 .liga-tab .liga-tab-cta{
@@ -1822,11 +1686,11 @@ button.liga-tab{cursor:pointer}
 .liga-tab-ask .liga-tab-cta{background:var(--pri);color:#fff}
 
 /* ============================================================================
-   MENSAJERÃA â€” pestaÃ±a "Mensajes"/"Inbox".
-   Las pestaÃ±as internas (AdministraciÃ³n / Grupo N / Cuadro X) reutilizan las
+   MENSAJERÍA — pestaña "Mensajes"/"Inbox".
+   Las pestañas internas (Administración / Grupo N / Cuadro X) reutilizan las
    mismas clases .tabs/.tab que el resto de la app (Ciclo 1/Ciclo 2/Play Offs,
-   Grupos/ClasificaciÃ³n/Rating/...) â€” un solo lenguaje visual para todos los
-   botones y pestaÃ±as, no un estilo aparte para mensajerÃ­a.
+   Grupos/Clasificación/Rating/...) — un solo lenguaje visual para todos los
+   botones y pestañas, no un estilo aparte para mensajería.
 
    La caja de chat (lista + compositor) toma el MISMO lenguaje visual que el
    editor de Reglamento: una caja con bordes redondeados, borde
@@ -1836,7 +1700,7 @@ button.liga-tab{cursor:pointer}
    ============================================================================ */
 .msg-card{ padding-bottom: .75rem; }
 
-/* Caja contenedora Ãºnica: agrupa lista + compositor con un solo borde
+/* Caja contenedora única: agrupa lista + compositor con un solo borde
    redondeado exterior, igual que .rg-toolbar + .rg-editor se combinan en
    una sola caja visual en el Reglamento. overflow:hidden para que los hijos
    respeten las esquinas redondeadas del contenedor. */
@@ -1856,9 +1720,9 @@ button.liga-tab{cursor:pointer}
 .msg-bubble-row{display:flex;justify-content:flex-start}
 .msg-bubble-row.me{justify-content:flex-end}
 /* Cada burbuja recibe su color por JS (inline style), calculado a partir del
-   nombre del autor â€” asÃ­ cada jugador tiene un color propio y consistente
+   nombre del autor — así cada jugador tiene un color propio y consistente
    en toda la app, no solo "yo=celeste, resto=gris". Estas reglas de clase
-   quedan como valor por defecto/fallback si por algÃºn motivo el inline no
+   quedan como valor por defecto/fallback si por algún motivo el inline no
    llegara a aplicarse. */
 .msg-bubble{
   max-width:78%;padding:8px 12px;border-radius:14px;
@@ -1867,15 +1731,15 @@ button.liga-tab{cursor:pointer}
 .msg-bubble-author{font-size:11px;font-weight:700;color:var(--priD);margin-bottom:2px}
 .msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .msg-bubble-time{font-size:10px;color:var(--text2);margin-top:3px;text-align:right}
-/* Imagen adjunta dentro de una burbuja (solo el admin puede mandar una â€”
+/* Imagen adjunta dentro de una burbuja (solo el admin puede mandar una —
    ver imagenValida en api/liga.js). max-width acotado al ancho de la
    burbuja, altura limitada para que una foto no domine todo el chat;
-   cursor pointer + el onclick en el HTML abren el original a tamaÃ±o
-   completo en pestaÃ±a nueva. */
+   cursor pointer + el onclick en el HTML abren el original a tamaño
+   completo en pestaña nueva. */
 .msg-bubble-img{margin:4px 0}
 .msg-bubble-img img{max-width:100%;max-height:220px;border-radius:8px;cursor:pointer;display:block}
 
-/* Franja inferior de composiciÃ³n: pegada a la lista, mismo look que la
+/* Franja inferior de composición: pegada a la lista, mismo look que la
    barra de herramientas del Reglamento (fondo gris clarito, borde arriba). */
 .msg-compose-row{
   display:flex;gap:8px;align-items:flex-end;
@@ -1888,12 +1752,12 @@ button.liga-tab{cursor:pointer}
   line-height:1.4;
 }
 .msg-input:focus{outline:none;border-color:var(--pri)}
-/* BotÃ³n de adjuntar (clip): mismo alto que el botÃ³n de enviar para quedar
+/* Botón de adjuntar (clip): mismo alto que el botón de enviar para quedar
    alineados en la fila del composer (align-items:flex-end del contenedor). */
 .msg-attach-btn{flex-shrink:0;height:42px;width:42px;padding:0;display:flex;align-items:center;justify-content:center}
-/* PrevisualizaciÃ³n de la imagen elegida, ANTES de enviar â€” vive arriba de
-   la fila del composer, dentro del mismo panel gris. BotÃ³n de quitar en la
-   esquina, mismo patrÃ³n visual que un chip removible. */
+/* Previsualización de la imagen elegida, ANTES de enviar — vive arriba de
+   la fila del composer, dentro del mismo panel gris. Botón de quitar en la
+   esquina, mismo patrón visual que un chip removible. */
 .msg-attach-preview{
   position:relative;display:inline-block;margin:.6rem .6rem 0;
   background:var(--surface2);border-top:1px solid var(--border2);padding-top:.6rem;
@@ -1911,7 +1775,7 @@ button.liga-tab{cursor:pointer}
   .msg-bubble-img img{max-height:180px}
 }
 
-/* GuÃ­a accesible; en cualquier ancho conserva acciones y scroll dentro del diÃ¡logo. */
+/* Guía accesible; en cualquier ancho conserva acciones y scroll dentro del diálogo. */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .guide-overlay{position:fixed;inset:0;z-index:3000;background:rgba(5,15,35,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 .guide-dialog{width:100%;max-width:540px;max-height:calc(100dvh - 32px);overflow:auto;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-top:4px solid var(--acc);border-radius:16px;padding:24px;box-shadow:var(--shadow-lg)}
@@ -1923,144 +1787,11 @@ button.liga-tab{cursor:pointer}
 .guide-actions #guide-skip{margin-right:auto}
 
 .guide-help-inline{display:flex;justify-content:flex-end;margin:0 0 .75rem}
-.champion-showcase{position:relative;overflow:hidden;margin-top:.85rem;border-radius:18px;padding:1rem 1rem 1.05rem;text-align:center;border:1px solid #E0BD63;background:linear-gradient(180deg,#FFF5C8 0%,#F9DF88 54%,#EBC25D 100%);box-shadow:0 12px 30px rgba(124,86,8,.18), inset 0 1px 0 rgba(255,255,255,.75);color:#5B4309}
-.champion-showcase__shine{position:absolute;inset:-30% auto auto -18%;width:58%;height:180%;background:linear-gradient(90deg,rgba(255,255,255,0) 0%,rgba(255,255,255,.28) 50%,rgba(255,255,255,0) 100%);transform:rotate(25deg);pointer-events:none}
-.champion-showcase__topline{position:absolute;left:16px;right:16px;top:0;height:4px;border-radius:999px;background:linear-gradient(90deg,#E2B64D 0%,#FFF2B6 50%,#D1A03B 100%)}
-.champion-showcase__badge{display:inline-flex;align-items:center;gap:6px;padding:.34rem .72rem;border-radius:999px;background:rgba(255,255,255,.46);border:1px solid rgba(162,117,12,.22);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#7A5608;position:relative;z-index:1}
-.champion-showcase__title{position:relative;z-index:1;margin-top:.72rem;font-size:17px;line-height:1.2;font-weight:900;color:#5A4107;text-shadow:0 1px 0 rgba(255,255,255,.38)}
-.champion-showcase__subtitle{position:relative;z-index:1;margin-top:.28rem;font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:#7A5608;opacity:.92}
-.champion-showcase__name{position:relative;z-index:1;margin-top:.42rem;font-size:24px;line-height:1.15;font-weight:900;color:#4E3706;text-shadow:0 1px 0 rgba(255,255,255,.38)}
-.champion-showcase__hint{position:relative;z-index:1;margin-top:.4rem;font-size:12px;color:#6A5118}
-.champion-showcase__winner-link{color:#4E3706;text-decoration:none;border-bottom:1px dashed rgba(78,55,6,.28)}
-.champion-showcase__winner-link:hover{text-decoration:none;border-bottom-color:rgba(78,55,6,.55)}
-.champion-showcase__pending-name{display:inline-block;opacity:.78}
-.champion-showcase.is-pending{background:linear-gradient(180deg,#F5F0D8 0%,#E6DAB0 55%,#D8C89B 100%);border-color:#CBB77E;box-shadow:0 8px 20px rgba(72,60,28,.10), inset 0 1px 0 rgba(255,255,255,.65);color:#6B5B2C}
-.champion-showcase.is-pending .champion-showcase__badge{background:rgba(255,255,255,.40);color:#8A7440;border-color:rgba(117,94,31,.18)}
-.champion-showcase.is-pending .champion-showcase__title,.champion-showcase.is-pending .champion-showcase__subtitle,.champion-showcase.is-pending .champion-showcase__hint,.champion-showcase.is-pending .champion-showcase__name{color:#72633A}
-.champion-showcase.is-pending .champion-showcase__shine{opacity:.45}
-.champion-showcase--cons{padding:.82rem .92rem .9rem;border-radius:16px;border-color:#CEB26C;background:linear-gradient(180deg,#FBF3D2 0%,#F1E1A7 52%,#E0C173 100%);box-shadow:0 8px 20px rgba(124,86,8,.12), inset 0 1px 0 rgba(255,255,255,.7)}
-.champion-showcase--cons .champion-showcase__title{font-size:15px}
-.champion-showcase--cons .champion-showcase__name{font-size:20px}
-.champion-showcase--cons .champion-showcase__hint{font-size:11px}
-.champion-showcase--cons .champion-showcase__badge{font-size:10px;padding:.28rem .62rem}
-.champion-showcase--cons .champion-showcase__shine{opacity:.6}
-.champion-showcase--cons.is-pending{background:linear-gradient(180deg,#F3EDDB 0%,#E6DAB5 56%,#D8CBA7 100%);box-shadow:0 6px 14px rgba(72,60,28,.08), inset 0 1px 0 rgba(255,255,255,.62)}
-@media (max-width:640px){
-  .champion-showcase{padding:.92rem .85rem .98rem;border-radius:16px}
-  .champion-showcase__title{font-size:15px}
-  .champion-showcase__name{font-size:20px}
-  .champion-showcase__hint{font-size:11px}
-  .champion-showcase--cons .champion-showcase__title{font-size:14px}
-  .champion-showcase--cons .champion-showcase__name{font-size:18px}
-}
-
-/* ===== Dark mode refinements for champion cards =====
-   The global dark-mode rule paints nearly all text white. Champion cards have
-   warm gold backgrounds, so we need explicit dark-on-gold contrast here. */
-html[data-theme="dark"] .champion-showcase,
-html[data-theme="dark"] .champion-showcase *{color:#3f2c02!important}
-html[data-theme="dark"] .champion-showcase{
-  background:linear-gradient(180deg,#F7E6A5 0%,#EBCB69 52%,#D2A53B 100%)!important;
-  border-color:#B98718!important;
-  box-shadow:0 14px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.55)!important;
-}
-html[data-theme="dark"] .champion-showcase__badge{
-  background:rgba(255,248,220,.58)!important;
-  border-color:rgba(117,82,7,.26)!important;
-  color:#6B4900!important;
-}
-html[data-theme="dark"] .champion-showcase__title{color:#5A3D00!important}
-html[data-theme="dark"] .champion-showcase__subtitle{color:#7A5302!important}
-html[data-theme="dark"] .champion-showcase__name{color:#442F00!important;text-shadow:0 1px 0 rgba(255,255,255,.25)!important}
-html[data-theme="dark"] .champion-showcase__hint{color:#64470B!important}
-html[data-theme="dark"] .champion-showcase__winner-link,
-html[data-theme="dark"] .champion-showcase__winner-link:hover{color:#442F00!important;border-bottom-color:rgba(68,47,0,.45)!important}
-html[data-theme="dark"] .champion-showcase__pending-name{color:#6D5520!important}
-html[data-theme="dark"] .champion-showcase.is-pending,
-html[data-theme="dark"] .champion-showcase.is-pending *{color:#5A4821!important}
-html[data-theme="dark"] .champion-showcase.is-pending{
-  background:linear-gradient(180deg,#E9DFC1 0%,#D6C395 56%,#BDA46B 100%)!important;
-  border-color:#9F8650!important;
-  box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.42)!important;
-}
-html[data-theme="dark"] .champion-showcase.is-pending .champion-showcase__badge{
-  background:rgba(255,250,237,.45)!important;
-  color:#715D2A!important;
-  border-color:rgba(98,77,27,.2)!important;
-}
-html[data-theme="dark"] .champion-showcase--cons,
-html[data-theme="dark"] .champion-showcase--cons *{color:#4C3908!important}
-html[data-theme="dark"] .champion-showcase--cons{
-  background:linear-gradient(180deg,#F1E3B7 0%,#DFC376 54%,#C79D46 100%)!important;
-  border-color:#A77A21!important;
-  box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.5)!important;
-}
-html[data-theme="dark"] .champion-showcase--cons .champion-showcase__badge{
-  background:rgba(255,247,224,.5)!important;
-  color:#6A4A06!important;
-}
-html[data-theme="dark"] .champion-showcase--cons .champion-showcase__title{color:#5A4107!important}
-html[data-theme="dark"] .champion-showcase--cons .champion-showcase__subtitle{color:#79570A!important}
-html[data-theme="dark"] .champion-showcase--cons .champion-showcase__name{color:#4A3603!important}
-html[data-theme="dark"] .champion-showcase--cons .champion-showcase__hint{color:#654A11!important}
-html[data-theme="dark"] .champion-showcase--cons.is-pending,
-html[data-theme="dark"] .champion-showcase--cons.is-pending *{color:#63502A!important}
-html[data-theme="dark"] .champion-showcase--cons.is-pending{
-  background:linear-gradient(180deg,#E5DBC2 0%,#CFBD95 56%,#B8A071 100%)!important;
-  border-color:#917549!important;
-}
-html[data-theme="dark"] .champion-showcase--cons.is-pending .champion-showcase__badge{
-  background:rgba(255,250,237,.42)!important;
-  color:#705C2C!important;
-}
-@media (prefers-color-scheme: dark){
-  html:not([data-theme="light"]) .champion-showcase,
-  html:not([data-theme="light"]) .champion-showcase *{color:#3f2c02!important}
-  html:not([data-theme="light"]) .champion-showcase{
-    background:linear-gradient(180deg,#F7E6A5 0%,#EBCB69 52%,#D2A53B 100%)!important;
-    border-color:#B98718!important;
-    box-shadow:0 14px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.55)!important;
-  }
-  html:not([data-theme="light"]) .champion-showcase__badge{background:rgba(255,248,220,.58)!important;border-color:rgba(117,82,7,.26)!important;color:#6B4900!important}
-  html:not([data-theme="light"]) .champion-showcase__title{color:#5A3D00!important}
-  html:not([data-theme="light"]) .champion-showcase__subtitle{color:#7A5302!important}
-  html:not([data-theme="light"]) .champion-showcase__name{color:#442F00!important;text-shadow:0 1px 0 rgba(255,255,255,.25)!important}
-  html:not([data-theme="light"]) .champion-showcase__hint{color:#64470B!important}
-  html:not([data-theme="light"]) .champion-showcase__winner-link,
-  html:not([data-theme="light"]) .champion-showcase__winner-link:hover{color:#442F00!important;border-bottom-color:rgba(68,47,0,.45)!important}
-  html:not([data-theme="light"]) .champion-showcase__pending-name{color:#6D5520!important}
-  html:not([data-theme="light"]) .champion-showcase.is-pending,
-  html:not([data-theme="light"]) .champion-showcase.is-pending *{color:#5A4821!important}
-  html:not([data-theme="light"]) .champion-showcase.is-pending{background:linear-gradient(180deg,#E9DFC1 0%,#D6C395 56%,#BDA46B 100%)!important;border-color:#9F8650!important;box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.42)!important}
-  html:not([data-theme="light"]) .champion-showcase.is-pending .champion-showcase__badge{background:rgba(255,250,237,.45)!important;color:#715D2A!important;border-color:rgba(98,77,27,.2)!important}
-  html:not([data-theme="light"]) .champion-showcase--cons,
-  html:not([data-theme="light"]) .champion-showcase--cons *{color:#4C3908!important}
-  html:not([data-theme="light"]) .champion-showcase--cons{background:linear-gradient(180deg,#F1E3B7 0%,#DFC376 54%,#C79D46 100%)!important;border-color:#A77A21!important;box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.5)!important}
-  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__badge{background:rgba(255,247,224,.5)!important;color:#6A4A06!important}
-  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__title{color:#5A4107!important}
-  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__subtitle{color:#79570A!important}
-  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__name{color:#4A3603!important}
-  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__hint{color:#654A11!important}
-  html:not([data-theme="light"]) .champion-showcase--cons.is-pending,
-  html:not([data-theme="light"]) .champion-showcase--cons.is-pending *{color:#63502A!important}
-  html:not([data-theme="light"]) .champion-showcase--cons.is-pending{background:linear-gradient(180deg,#E5DBC2 0%,#CFBD95 56%,#B8A071 100%)!important;border-color:#917549!important}
-  html:not([data-theme="light"]) .champion-showcase--cons.is-pending .champion-showcase__badge{background:rgba(255,250,237,.42)!important;color:#705C2C!important}
-}
-@media (max-width:640px){
-  .champion-showcase{margin-top:.72rem;padding:.88rem .8rem .94rem}
-  .champion-showcase__badge{font-size:10px;padding:.3rem .62rem}
-  .champion-showcase__title{font-size:14px;line-height:1.25}
-  .champion-showcase__subtitle{font-size:10px;letter-spacing:.06em}
-  .champion-showcase__name{font-size:18px;line-height:1.12;word-break:break-word}
-  .champion-showcase__hint{font-size:10px;line-height:1.35}
-  .champion-showcase--cons{padding:.78rem .76rem .84rem}
-  .champion-showcase--cons .champion-showcase__name{font-size:17px}
-}
 #guide-error{font-size:13px}
 [data-guide-help]{margin:0 0 12px}
 @media(max-width:390px){.guide-dialog{padding:18px}.guide-dialog h2{font-size:20px}.guide-actions{gap:6px}}
 
-/* Idiomas en tutorial y cambio de contraseÃ±a (alcance limitado a estos diÃ¡logos). */
+/* Idiomas en tutorial y cambio de contraseña (alcance limitado a estos diálogos). */
 .dialog-language{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border2)}
 .dialog-language-label{font-size:12px;font-weight:600;color:var(--text2)}
 .dialog-language-options{display:flex;gap:6px;flex-wrap:wrap;max-width:100%}
@@ -2075,7 +1806,7 @@ html[data-theme="dark"] .dialog-language .dialog-language-button[aria-pressed="t
 @media(prefers-color-scheme:dark){html:not([data-theme]) .dialog-language .dialog-language-button[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#93c5fd}}
 @media(max-width:360px){.dialog-language{gap:6px}.dialog-language .dialog-language-button{padding:8px 9px}}
 
-/* Recorrido dinÃ¡mico v2.4. Aislado: no altera campeÃ³n, contraseÃ±a ni modales normales. */
+/* Recorrido dinámico v2.4. Aislado: no altera campeón, contraseña ni modales normales. */
 body.sohail-tour-active{overscroll-behavior:none}
 #main-app[data-guide-preview]{pointer-events:none;user-select:none}
 #sohail-guide.guide-tour{position:fixed;inset:0;display:block;padding:0;background:transparent;z-index:100010;overflow:hidden;touch-action:none}
@@ -2118,3 +1849,230 @@ body.sohail-tour-active{overscroll-behavior:none}
 @media(prefers-reduced-motion:reduce){#sohail-guide .guide-tour-dialog{animation:none}}
 
 @media(max-height:699px){body.sohail-tour-active #main-app .app-sticky-nav{position:relative}body.sohail-tour-active #main-app{padding-bottom:55vh}}
+
+/* ======================================================================
+   v2.6 · Tema por componentes. Marca ≠ acción ≠ lectura.
+   theme.js resuelve Sistema al MISMO data-theme efectivo que el modo manual.
+   Las reglas heredadas de componentes no migrados se mantienen, sin la regla
+   universal que convertía todo div/span en texto blanco ni capas rivales de me-row.
+   ====================================================================== */
+:root{
+ color-scheme:light;
+ --action:#1b4f9c;--action-hover:#143c77;--on-action:#fff;--link:#1b4f9c;
+ --brand-bg:#1b4f9c;--brand-ink:#fff;--brand-accent:#f5c518;--brand-accent-ink:#302200;
+ --control-border:#798393;--focus:#1b4f9c;--placeholder:#566273;
+ --meRowBg:#faeeda;--meRowText:#183657;--me-row-bg-light:#faeeda;--me-row-bg-dark:#ece0bf;--me-row-text:#183657;
+ --notice-error-bg:#fcebee;--notice-error-ink:#7e1825;--notice-error-border:#b94b59;
+ --notice-warn-bg:#fff0cc;--notice-warn-ink:#624109;
+ --msg-bg-s:68%;--msg-bg-l:93%;--msg-bd-s:45%;--msg-bd-l:62%;--msg-name-s:50%;--msg-name-l:27%;
+ --msg-text:#172033;--msg-meta:#475569;--msg-name-ink:hsl(var(--msg-hue,210) var(--msg-name-s) var(--msg-name-l));
+}
+html[data-theme="light"]{color-scheme:light;--control-border:#798393;--focus:#1b4f9c;--placeholder:#566273}
+html[data-theme="dark"]{
+ color-scheme:dark;
+ --bg:#111418;--surface:#1c2128;--surface2:#272e38;--text:#edf2f7;--text2:#bbc6d6;
+ --border:#3b4350;--border2:#788597;--control-border:#8895a7;--focus:#a9d3ff;--placeholder:#b9c5d6;
+ --pri:#93c5fd;--priD:#bfdbfe;--soft:#20334d;--action:#245edb;--action-hover:#1e4fbb;--link:#9bc7ff;
+ --danger:#ff9fa9;--dangerBg:#481f29;--dangerT:#ffced1;--successBg:#123a2a;--successT:#a7f3d0;--warnBg:#403016;--warnT:#ffe2a8;
+ --notice-error-bg:#481f29;--notice-error-ink:#ffced1;--notice-error-border:#d38491;
+ --notice-warn-bg:#403016;--notice-warn-ink:#ffe2a8;
+ --meRowBg:#ece0bf;--meRowText:#183657;--reqBg:#302b1c;--reqBorder:#e6c865;--reqEmptyBg:#481f29;--reqEmptyBorder:#ff9fa9;
+ --msg-bg-s:30%;--msg-bg-l:19%;--msg-bd-s:32%;--msg-bd-l:39%;--msg-name-s:68%;--msg-name-l:81%;
+ --msg-text:#f1f5fa;--msg-meta:#c4cfde;
+ --shadow-md:0 6px 20px rgba(0,0,0,.22);--shadow-lg:0 18px 48px rgba(0,0,0,.5);
+}
+/* Sin JavaScript se conserva el modo automático básico para los controles nativos. */
+@media(prefers-color-scheme:dark){html:not([data-theme]){color-scheme:dark;--focus:#a9d3ff;--control-border:#8895a7;--placeholder:#b9c5d6}}
+body{line-height:1.45}
+html .card{border-color:var(--border)}
+html :is(.legend-txt,.hint,.lock-note,.set-hint,.section-lbl){line-height:1.5}
+html :is(.legend-txt,.hint,.lock-note,.set-hint){color:var(--text2)!important}
+html .section-lbl{font-size:12px;color:var(--link)!important}
+html :is(.nm-link,.login-forgot){color:var(--link)!important}
+html .nm-link:hover{opacity:1;text-decoration:underline;text-underline-offset:3px}
+html :is(.hdr,.login-head){background:var(--brand-bg)!important;color:var(--brand-ink)!important}
+html :is(.hdr,.login-head) :is(h1,p,span,div,button,i,b,strong){color:var(--brand-ink)!important}
+html :is(.hdr,.login-head) p,html :is(.hdr,.login-head) p *{color:var(--brand-ink)!important;opacity:1}
+html :is(.hdr-logo,.login-head .ball){background:var(--brand-accent)!important;color:var(--brand-accent-ink)!important}
+html :is(.hdr-logo,.login-head .ball) i{color:var(--brand-accent-ink)!important}
+html :is(.role-badge,.user-chip .role-badge),html :is(.role-badge,.user-chip .role-badge) *{background:var(--acc)!important;color:var(--accT)!important}
+html .lang-btn.active{background:var(--action)!important;color:var(--on-action)!important;border-color:var(--control-border)}
+html :is(.btn-primary,.login-btn:not(.login-btn-pk),.tab.active,.sub-tab.active,.cycle-tab.active,.cycle-tab.active.locked,.grp-btn.active,.po-tab.active,.theme-btn.active,.liga-sel-btn.on,.pm-season-btn.on){background:var(--action)!important;color:var(--on-action)!important;border-color:var(--action)!important;opacity:1}
+html :is(.btn-primary,.login-btn:not(.login-btn-pk),.tab.active,.sub-tab.active,.cycle-tab.active,.grp-btn.active,.po-tab.active,.theme-btn.active,.liga-sel-btn.on,.pm-season-btn.on) :is(span,i,b,strong){color:inherit!important;background-color:transparent}
+html .btn-primary:hover:not(:disabled){background:var(--action-hover)!important}
+html .btn-accent,html .btn-accent :is(span,i,b){background:var(--acc)!important;color:var(--accT)!important}
+html .btn-warn,html .btn-warn *{background:var(--notice-error-bg)!important;color:var(--notice-error-ink)!important;border-color:var(--notice-error-border)!important}
+html .btn-success,html .btn-success *{background:var(--successBg)!important;color:var(--successT)!important;border-color:var(--successT)!important}
+html .po-section-title{background:var(--action)!important;color:var(--on-action)!important;flex-wrap:wrap;row-gap:8px}
+html .po-section-title.po-cons-title{background:#6a410c!important;color:#fff4db!important}
+html .po-section-title>i{color:inherit!important}
+html .po-section-title .btn{background:var(--surface)!important;color:var(--text)!important;border-color:var(--control-border)!important}
+.theme-btn{flex:1;min-width:90px;min-height:44px;padding:10px 12px;border:1px solid var(--control-border);border-radius:8px;background:var(--surface2);color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+
+/* Formularios: contorno funcional, placeholders y foco visibles. Sin re-render. */
+html body :is(input:not([type="color"]):not([type="range"]),select,textarea){color:var(--text)!important;background-color:var(--surface)!important;border-color:var(--control-border)!important;color-scheme:inherit}
+html body :is(input,textarea)::placeholder{color:var(--placeholder)!important;opacity:1!important}
+html body :is(input[type="checkbox"],input[type="radio"]){accent-color:var(--action)}
+html body :is(input,select,textarea,button,a,[tabindex]):focus-visible{outline:3px solid var(--focus)!important;outline-offset:3px;box-shadow:none}
+html #sohail-guide button:focus-visible{outline:3px solid var(--focus)!important;outline-offset:2px}
+html body :is(.req,.req-wrap){border-color:var(--reqBorder)!important}
+html body .req-empty,html body .req-empty :is(input,select){border-color:var(--reqEmptyBorder)!important}
+html .login-err,html .result-notice--ret{background:var(--notice-error-bg)!important;color:var(--notice-error-ink)!important;border:1px solid var(--notice-error-border)!important}
+html .login-err *,html .result-notice--ret :is(p,span,strong,b,i,label){color:inherit!important}
+html #ret-toggle-btn,html #ret-toggle-btn *{background:var(--notice-error-bg)!important;color:var(--notice-error-ink)!important;border-color:var(--notice-error-border)!important}
+html :is(.result-notice--wo,#wo-toggle-btn,#btn-nojugado){background:var(--notice-warn-bg)!important;color:var(--notice-warn-ink)!important;border-color:var(--notice-warn-ink)!important}
+html .result-notice--wo :is(p,span,i),html #wo-toggle-btn i,html #btn-nojugado i{color:inherit!important}
+html .login-err{font-size:13px;line-height:1.5;padding:12px}
+html .result-notice p{font-size:13px!important;line-height:1.5}
+html .readonly-banner{background:var(--notice-warn-bg)!important;color:var(--notice-warn-ink)!important}
+html .readonly-banner span{color:inherit!important}
+
+/* Una única fila propia; colorear las celdas, no el fondo de cada descendiente. */
+html table:is(.cls-table,.gen-table,.rt-table) tr.me-row>td{
+ background:var(--meRowBg)!important;color:var(--meRowText)!important;
+}
+html table:is(.cls-table,.gen-table,.rt-table) tr.me-row>td :is(.nm-link,.rt-big,.rt-cell){color:var(--meRowText)!important;background:transparent!important}
+html table:is(.cls-table,.gen-table,.rt-table) tr.me-row>td span:not(.badge):not(.avatar):not(.dest):not(.pos):not(.pos-badge):not(.po-chip):not(.badge-inact):not(.rt-prov):not(.rt-manual):not(.pts-ajuste){color:inherit;background:transparent}
+html table.res-table .me-mtx,html table.res-table .me-mtx *{background:var(--meRowBg)!important;color:var(--meRowText)!important}
+html table.res-table tr.me-mtx-row td:first-child,html table.res-table tr.me-mtx-row td:first-child *{background:var(--meRowBg)!important;color:var(--meRowText)!important}
+html :is(.pos.p1,.pos-badge.pos-1),html :is(.pos.p1,.pos-badge.pos-1) *{background:#f5c518!important;color:#302300!important}
+html :is(.pos.p2,.pos-badge.pos-2),html :is(.pos.p2,.pos-badge.pos-2) *{background:#d4d9e0!important;color:#263140!important}
+html :is(.pos.p3,.pos-badge.pos-3),html :is(.pos.p3,.pos-badge.pos-3) *{background:#e8c9a0!important;color:#472b11!important}
+html .avatar,html .avatar *{background:#dbeafe!important;color:#173e72!important}
+html .po-chip,html .po-chip *{background:#dbeafe!important;color:#173e72!important}
+html .dest-up,html .dest-up *{background:var(--successBg)!important;color:var(--successT)!important}
+html .dest-down,html .dest-down *{background:var(--dangerBg)!important;color:var(--dangerT)!important}
+html .dest-same,html .dest-same *{background:#dbeafe!important;color:#173e72!important}
+html .rt-prov{background:var(--warnBg)!important;color:var(--warnT)!important}
+html .rt-manual{background:#392457!important;color:#e1ccff!important}
+html .rt-ficha{background:linear-gradient(120deg,#174781,#203652)!important;color:#fff!important}
+html .rt-ficha :is(span,div){color:#fff!important}
+html .rt-ficha :is(.rt-prov,.rt-manual){background:#20334d!important;color:#fce5a5!important}
+html .pts-ajuste.pos{color:#1c7138!important;background:transparent}
+html .pts-ajuste.neg{color:#b12732!important;background:transparent}
+html[data-theme="dark"] tr:not(.me-row) .pts-ajuste.pos{color:#9fe3b1!important}
+html[data-theme="dark"] tr:not(.me-row) .pts-ajuste.neg{color:#ffb9c2!important}
+
+/* Colores de club y muestras son autónomos: el texto se calcula por luminancia. */
+html .club-opt.club-sel,html .club-opt.club-sel *{background:var(--cbg)!important;color:var(--ctx)!important;border-color:var(--ctx)!important}
+html :is(.colour-preview,.login-header-bar),html :is(.colour-preview,.login-header-bar) *{color:var(--sample-ink,#172033)!important;opacity:1}
+html .login-header-bar a{border-color:var(--sample-ink)!important;text-decoration-color:var(--sample-ink)!important}
+html .header-colour-previews{background:var(--surface)!important;color:var(--text)!important}
+html :is(#sa-hl-demo,#sa-disp-demo){color:var(--sample-ink,var(--league-highlight-ink))!important}
+html .cell-club[style*="--club-bg"]{background:var(--club-bg)!important;color:var(--club-ink)!important}
+html .cell-club :is(span,b,strong){color:inherit!important}
+html .cell-disputed:not([style*="background:"]){background:var(--notice-warn-bg)!important;color:var(--notice-warn-ink)!important}
+html .cell-pending{background:var(--notice-warn-bg)!important;color:var(--notice-warn-ink)!important}
+html .cell-locked{color:var(--text2)!important}
+html .reqmark{background:#991b35;color:#fff}
+
+/* Desplazamiento interno visible: no forzar las tablas a encoger para entrar. */
+html body .overflow-x,html .po-scroll-area{scrollbar-width:thin;scrollbar-color:var(--control-border) var(--surface2)}
+html body .overflow-x::-webkit-scrollbar,html .po-scroll-area::-webkit-scrollbar{display:block;height:8px;width:8px}
+html body .overflow-x::-webkit-scrollbar-thumb,html .po-scroll-area::-webkit-scrollbar-thumb{background:var(--control-border);border-radius:8px}
+html body .overflow-x::-webkit-scrollbar-track,html .po-scroll-area::-webkit-scrollbar-track{background:var(--surface2)}
+html .overflow-x{padding-bottom:6px;max-width:100%}
+html .po-scroll-area{max-width:100%;overscroll-behavior-x:contain}
+html .po-scroll-hint{font-size:12px;color:var(--text2);margin:5px 4px}
+html .po-zoom-controls .btn{min-width:40px;min-height:40px;justify-content:center;font-size:20px;line-height:1;padding:5px}
+html .po-zoom-controls .btn span{color:var(--text)}
+html .po-match-card{box-sizing:border-box;line-height:1.4}
+html .po-match-card .nm-link{overflow-wrap:anywhere;font-size:13px;font-weight:600}
+html .po-round-header>span{font-size:12px!important}
+html .po-round-header :is(input,select){min-height:32px;font-size:12px!important;min-width:0}
+html .po-match-card .po-load{font-size:12px;min-height:32px;min-width:32px;padding:5px 10px;border-radius:7px;background:var(--action)!important;color:#fff!important;border-color:var(--action)!important}
+html .po-load i{color:inherit!important}
+html .po-match-card :is(.po-slot-btn,.po-hist-btn){min-height:32px;min-width:28px;font-size:12px;padding:5px}
+html .po-match-card .po-pos-inline-name{font-size:13px;max-width:100%;width:100%;min-width:0;min-height:32px}
+html .po-match-card .po-me-slot,html .po-match-card .po-me-slot :is(span,.nm-link){color:#183657!important;background-color:#fff8dc!important}
+html .po-match-card .po-me-slot .po-pos-inline-name{background:#fff8dc!important;color:#183657!important;color-scheme:light;border-color:#64748b!important}
+
+/* Premio: mismos tokens en ambos temas. Atenuar la tarjeta pendiente, NO las letras. */
+html .champion-showcase{
+ --prize-from:#fff1b8;--prize-to:#ebc65f;--prize-edge:#b88a28;--prize-text:#302202;--prize-muted:#4b370d;
+ position:relative;isolation:isolate;overflow:hidden;margin-top:16px;border:1px solid var(--prize-edge);border-radius:18px;
+ padding:22px 20px 24px;text-align:center;background:linear-gradient(145deg,var(--prize-from),var(--prize-to));color:var(--prize-text);
+ box-shadow:0 10px 30px rgba(104,72,8,.15),inset 0 1px 0 rgba(255,255,255,.6);
+}
+html[data-theme="dark"] .champion-showcase{--prize-from:#f3dfa0;--prize-to:#d4ac45;box-shadow:0 10px 28px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.5)}
+html .champion-showcase--cons{--prize-from:#eee2bd;--prize-to:#cfb875;--prize-text:#34270e;--prize-muted:#48391a;--prize-edge:#a08b54;padding:18px 18px 20px;box-shadow:0 6px 18px rgba(72,54,15,.1)}
+html[data-theme="dark"] .champion-showcase--cons{--prize-from:#e6d9ae;--prize-to:#cbb67e;box-shadow:0 6px 18px rgba(0,0,0,.2)}
+html .champion-showcase.is-pending{--prize-from:#ede7d6;--prize-to:#d8ccb0;--prize-text:#3c321e;--prize-muted:#4c4029;--prize-edge:#9a8b67;box-shadow:0 4px 12px rgba(72,54,15,.08)}
+html[data-theme="dark"] .champion-showcase.is-pending{--prize-from:#ddd5c1;--prize-to:#c6bca0}
+html .champion-showcase--cons.is-pending{--prize-from:#e9e5d9;--prize-to:#d8d1bc}
+html[data-theme="dark"] .champion-showcase--cons.is-pending{--prize-from:#dbd6c7;--prize-to:#c7bfa9}
+html .champion-showcase__shine{position:absolute;z-index:-1;inset:-30% auto auto -18%;width:58%;height:180%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.2),transparent);transform:rotate(25deg);pointer-events:none}
+html .champion-showcase__topline{position:absolute;top:0;left:16px;right:16px;height:4px;border-radius:8px;background:linear-gradient(90deg,#a97a20,#fff3bb,#b88728)}
+html .champion-showcase--cons .champion-showcase__topline{height:2px;opacity:.6}
+html .champion-showcase.is-pending .champion-showcase__shine{opacity:.3}
+html .champion-showcase__badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.4);border:1px solid rgba(91,62,4,.3);font-size:12px;line-height:1.4;letter-spacing:.08em;text-transform:uppercase;font-weight:750;color:var(--prize-text)!important}
+html .champion-showcase__badge i{color:inherit!important}
+html .champion-showcase__title{font-size:19px;line-height:1.35;font-weight:750;margin-top:12px;color:var(--prize-text)!important;overflow-wrap:anywhere}
+html .champion-showcase__subtitle{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-top:4px;color:var(--prize-muted)!important;opacity:1}
+html .champion-showcase__name{font-size:30px;font-weight:800;line-height:1.2;margin-top:10px;color:var(--prize-text)!important;overflow-wrap:anywhere}
+html .champion-showcase .champion-showcase__winner-link,html .champion-showcase .champion-showcase__pending-name{color:var(--prize-text)!important;opacity:1!important;text-shadow:none;border-bottom-color:var(--prize-muted);text-decoration-color:var(--prize-text)!important}
+html .champion-showcase .champion-showcase__winner-link:hover{opacity:1!important;text-decoration:underline;text-underline-offset:5px}
+html .champion-showcase__hint{font-size:13px;line-height:1.5;margin-top:8px;color:var(--prize-muted)!important}
+html .champion-showcase--cons .champion-showcase__name{font-size:24px}
+html .champion-showcase--cons .champion-showcase__title{font-size:17px}
+
+/* Mensajes: colores por autor mediante variables; tema nuevo sin refrescar ni leer el hilo. */
+html .msg-bubble{background:hsl(var(--msg-hue,210) var(--msg-bg-s) var(--msg-bg-l))!important;border-color:hsl(var(--msg-hue,210) var(--msg-bd-s) var(--msg-bd-l))!important;color:var(--msg-text)!important}
+html .msg-bubble .msg-bubble-author{color:hsl(var(--msg-hue,210) var(--msg-name-s) var(--msg-name-l))!important;font-size:12px;line-height:1.45;font-weight:700}
+html .msg-bubble .msg-bubble-text{color:var(--msg-text)!important;font-size:14px;line-height:1.55}
+html .msg-bubble .msg-bubble-time{color:var(--msg-meta)!important;font-size:11px;line-height:1.5;font-weight:400}
+html .msg-input{min-width:0}
+html .msg-attach-remove{background:var(--action);color:#fff}
+html .liga-tab-here{background:var(--action);color:#fff;border-color:var(--action)}
+html .liga-tab-ok{background:#166534;color:#fff;border-color:#166534}
+html .liga-tab-pending{background:#713f12;color:#fff3d9;border-color:#b47d42}
+html .liga-tab :is(i,.liga-tab-cta){color:inherit}
+html .liga-tab .liga-tab-cta{background:transparent;border:1px solid currentColor}
+html .liga-tab-ask .liga-tab-cta{background:var(--action);color:#fff;border-color:var(--action)}
+
+@media(max-width:640px){
+ html .champion-showcase{padding:18px 14px 20px;border-radius:16px}
+ html .champion-showcase__title{font-size:17px}html .champion-showcase__name{font-size:25px}
+ html .champion-showcase--cons .champion-showcase__name{font-size:22px}html .champion-showcase--cons .champion-showcase__title{font-size:16px}
+ html .champion-showcase__hint{font-size:12px}
+ html .po-zoom-controls .btn{min-width:44px;min-height:44px}
+ html :is(.login-btn,.logout-btn,.theme-btn){min-height:44px}
+ html .po-match-card :is(.po-load,.po-slot-btn){min-height:36px}
+ html .legend-txt,html .hint,html .lock-note,html .set-hint{font-size:12px}
+ html .form-group input,html .form-group select{font-size:16px}
+ html .hdr-liga-switch-menu{max-width:min(320px,calc(100vw - 32px));min-width:min(220px,calc(100vw - 32px))}
+ html .po-section-title .btn{min-height:36px}
+ html .cl-gc{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(forced-colors:active){
+ html .champion-showcase{background:Canvas!important;border:2px solid CanvasText;box-shadow:none}
+ html .champion-showcase *{color:CanvasText!important}
+ html :is(button,input,select,textarea):focus-visible{outline:3px solid Highlight!important}
+}
+
+/* Revisión del barrido renderizado: texto informativo nunca se atenúa por opacidad. */
+html .cycle-tab.active .cycle-tab-date,html .po-tab .po-rng{opacity:1;color:inherit}
+html .tab-n{background:#a31e38!important;color:#fff!important}
+html .tab-sm{opacity:1;font-size:12px!important}
+html .gen-dash{color:var(--text2)}
+html .score-versus{color:var(--text2)!important}
+html[data-theme="dark"] tr:not(.me-row) .rt-gg{color:var(--successT)!important}
+html[data-theme="dark"] tr:not(.me-row) .rt-gp{color:var(--dangerT)!important}
+html .badge[style*="background:var(--pri)"],html .badge[style*="background: var(--pri)"]{background:var(--action)!important;color:var(--on-action)!important}
+html .po-match-card .po-result-winner{font-size:12px!important;color:var(--successT)!important}
+html #login-header.login-header-bar a,html #login-header.login-header-bar a:hover{color:var(--sample-ink)!important;text-decoration-color:var(--sample-ink)!important}
+html[data-theme="dark"] :is(.stat-w,.stat-cell b.stat-w){color:var(--successT)!important}
+html[data-theme="dark"] :is(.stat-l,.stat-cell b.stat-l){color:var(--dangerT)!important}
+html[data-theme="dark"] .stat-cell b.stat-pct{color:var(--link)!important}
+html[data-theme] table.res-table tbody tr.me-mtx-row td:first-child .nm-link{color:var(--meRowText)!important;background:var(--meRowBg)!important}
+html .history-count-win{color:var(--successT)!important}
+html .history-count-loss{color:var(--dangerT)!important}
+html .po-tramos .po-tab.active .po-mine-marker{background:var(--acc)!important;color:var(--accT)!important;opacity:1;padding:2px 5px!important}
+/* Diálogos heredados que aún dibujan sus botones mediante estilos inline. */
+html #_pwfb,html #_cm-ok{background:var(--action)!important;color:var(--on-action)!important;min-height:44px}
+html #_cm-ok[style*="--danger"]{background:#a31e38!important;color:#fff!important}
+html #_cm-cancel{min-height:44px;border-color:var(--control-border)!important}
+html #_pwfpkhint{opacity:1!important}
+/* El panel inferior del recorrido necesita espacio de desplazamiento también
+   en móviles altos. Solo el clon de consulta, nunca la pantalla original. */
+@media(max-width:759px){body.sohail-tour-active #main-app[data-guide-preview]{padding-bottom:55vh}}

@@ -420,21 +420,15 @@ const _notaCiclo = (g, v, d) => _valorBase(g) + _ajusteCiclo(v, d);
 
 
 function autoTxt(hex){
-  const h = String(hex||'').replace('#','');
-  if(h.length!==6) return '#222222';
-  // 0.30 = conserva 30% del color, 70% a negro. Da contraste ~7.8 (nivel AAA)
-  // sobre fondos claros como los de los clubes, y mantiene el matiz del color.
-  const f = 0.30;
-  const r = Math.round(parseInt(h.slice(0,2),16)*f);
-  const g = Math.round(parseInt(h.slice(2,4),16)*f);
-  const b = Math.round(parseInt(h.slice(4,6),16)*f);
-  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+  // Mantiene un matiz oscuro cuando cumple contraste; si no, elige texto claro.
+  return SohailAppearance.textOn(hex);
 }
 function clubByName(name){ return CLUBS.find(c => c.name === name) || null; }
 function clubStyle(name){
   const c = clubByName(name);
   if(!c) return '';
-  return 'background:'+c.bg+';color:'+autoTxt(c.bg);
+  const bg=SohailAppearance.hex(c.bg,'#edf1f6'),ink=autoTxt(bg);
+  return 'background:'+bg+';color:'+ink+';--club-bg:'+bg+';--club-ink:'+ink;
 }
 
 // Auxiliares de fechas

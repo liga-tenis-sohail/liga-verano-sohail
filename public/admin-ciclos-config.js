@@ -352,7 +352,7 @@ function renderAdmin(){
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <input id="sa-color-hl" type="color" value="${LEAGUE_COLOR_HL}" oninput="syncHex('hl','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
               <input id="sa-hl-hex" type="text" value="${LEAGUE_COLOR_HL}" maxlength="7" spellcheck="false" oninput="syncHex('hl')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
-              <span id="sa-hl-demo" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${LEAGUE_COLOR_HL};color:var(--priD);border:1px solid var(--priD)">No jugado</span>
+              <span id="sa-hl-demo" class="colour-preview" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${LEAGUE_COLOR_HL};--sample-ink:${autoTxt(LEAGUE_COLOR_HL)};color:${autoTxt(LEAGUE_COLOR_HL)};border:1px solid var(--priD)">No jugado</span>
             </div>
           </div>
         </div>
@@ -362,7 +362,7 @@ function renderAdmin(){
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <input id="sa-color-disp" type="color" value="${COLOR_DISPUTA}" oninput="syncHex('disp','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
               <input id="sa-disp-hex" type="text" value="${COLOR_DISPUTA}" maxlength="7" spellcheck="false" oninput="syncHex('disp')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
-              <span id="sa-disp-demo" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${COLOR_DISPUTA};color:${autoTxt(COLOR_DISPUTA)}">${t('dispute_short')}</span>
+              <span id="sa-disp-demo" class="colour-preview" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${COLOR_DISPUTA};--sample-ink:${autoTxt(COLOR_DISPUTA)};color:${autoTxt(COLOR_DISPUTA)}">${t('dispute_short')}</span>
             </div>
           </div>
         </div>
@@ -629,7 +629,7 @@ function renderAdmin(){
       h+=`<div class="form-group"><button class="btn" onclick="addLoginHeaderLink()"><i class="ti ti-plus"></i> ${t('lh_add_link')}</button></div>`;
       h+=`</div>`;
       h+=`<div id="lh-links-list" style="margin-top:.5rem"></div>`;
-      h+=`<div style="margin-top:.75rem;padding:.65rem;background:var(--soft);border-radius:8px;border:1px dashed var(--border2)"><div style="font-size:11px;color:var(--text2);margin-bottom:.35rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${t('preview')}</div><div id="lh-preview" style="border-radius:6px;overflow:hidden"></div></div>`;
+      h+=`<div style="margin-top:.75rem;padding:.65rem;background:var(--soft);border-radius:8px;border:1px dashed var(--border2)"><div style="font-size:11px;color:var(--text2);margin-bottom:.35rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em">${t('preview')}</div><div id="lh-preview" class="header-colour-previews" style="border-radius:6px;overflow:hidden"></div></div>`;
       h+=`</div>`;
     }
 

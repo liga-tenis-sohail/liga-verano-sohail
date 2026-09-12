@@ -1,40 +1,13 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script>(function(){try{
-  // Tema: leer preferencia del usuario y aplicar ANTES del primer paint (sin flash).
-  // Valores: 'light' | 'dark' | 'system'. DEFAULT (sin preferencia guardada) = 'light'.
-  // Antes el default seguía al OS; ahora la liga siempre arranca en modo claro salvo
-  // que el usuario elija explícitamente 'system' o 'dark' desde su perfil.
-  var tm=localStorage.getItem('theme');
-  if(tm==='light'||tm==='dark'){document.documentElement.setAttribute('data-theme',tm);}
-  else if(tm!=='system'){document.documentElement.setAttribute('data-theme','light');tm='light';}
-  // Detectar si estamos en modo oscuro (por preferencia manual o del sistema si eligió 'system').
-  // Se usa abajo para NO pisar las variables de fondo claro (winrow/soft/hl/cream)
-  // que sino sobreescribirían el tema oscuro y dejarían filas cream sobre fondo azul.
-  var isDark = tm==='dark' || (tm==='system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  // Restaurar colores personalizados de la liga sin flash.
-  // Los colores BRAND (pri/acc) son identidad y se aplican siempre.
-  // Los colores de FONDO/HIGHLIGHT (winrow/soft/hl/cream) son claros por diseño;
-  // en dark mode NO se aplican para que los tokens dark del CSS ganen.
-  // TAMBIÉN --pri y --priD: son azul OSCURO para light; en dark el CSS los
-  // redefine a azul CLARO para legibilidad. Si el script los aplica en dark,
-  // pisa esa redefinición y todos los headers y avatars quedan azul oscuro
-  // sobre fondo oscuro (invisibles).
-  var c=JSON.parse(localStorage.getItem('lsc')||'null');
-  if(c&&c.p&&c.a){
-    var r=document.documentElement.style;
-    r.setProperty('--acc',c.a);r.setProperty('--accD',c.ad||c.a);
-    if(!isDark){
-      r.setProperty('--pri',c.p);r.setProperty('--priD',c.pd||c.p);
-      r.setProperty('--accT',c.at||c.p);
-      r.setProperty('--soft',c.s||'#E6F1FB');
-      r.setProperty('--winrow',c.wr||'#FAEEDA');
-      r.setProperty('--cream',c.cr||'#fffbf0');
-      r.setProperty('--hl',c.hl||'#FFEDD5');
-    }
-  }
-  // Restaurar nombre y subtítulo sin flash (se ejecuta en DOMContentLoaded para tener acceso al DOM)
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script src="theme.js?v=sohail-dark-v26-20260912"></script>
+<script>(function(){try{
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
-  if(lsn){document.addEventListener('DOMContentLoaded',function(){var lt=document.getElementById('login-title');if(lt){var loginTxt=(lsn.lt&&lsn.lt.trim())?lsn.lt:lsn.n;if(loginTxt)lt.textContent=loginTxt;}var ls=document.getElementById('login-sub');if(ls&&lsn.s)ls.textContent=lsn.s;var ht=document.getElementById('hdr-title');if(ht&&lsn.n)ht.textContent=lsn.n;if(lsn.n)document.title=lsn.n;},false);}
-}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-tour-v24-20260912"></script><style>
+  if(lsn)document.addEventListener('DOMContentLoaded',function(){
+    var title=document.getElementById('login-title'),sub=document.getElementById('login-sub');
+    if(title)title.textContent=(lsn.lt&&lsn.lt.trim())?lsn.lt:(lsn.n||'');
+    if(sub&&lsn.s)sub.textContent=lsn.s;
+    if(lsn.n)document.title=lsn.n;
+  },false);
+}catch(_){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-dark-v26-20260912"></script><style>
 /* Respaldo inline de "Mis Ligas": si por cualquier motivo estilos.css no
    llegara a cargar con la versión más reciente, estas reglas viven acá
    adentro del HTML mismo y se aplican igual. Duplicadas a propósito respecto
@@ -68,7 +41,7 @@ button.liga-tab{cursor:pointer}
 .msg-compose-row{display:flex;gap:8px;align-items:flex-end;padding:.6rem;background:#EDF1F6;border-top:1px solid #c8d0dc}
 .msg-input{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border-radius:10px;border:1.5px solid #c8d0dc;background:#ffffff;color:#1b2433;font-family:inherit;font-size:14px;line-height:1.4}
 </style>
-<link rel="stylesheet" href="estilos.css?v=sohail-tour-v24-20260912">
+<link rel="stylesheet" href="estilos.css?v=sohail-dark-v26-20260912">
 
 </head><body>
 <div id="login-screen">
@@ -130,7 +103,7 @@ button.liga-tab{cursor:pointer}
       <div class="names-box" id="names-score-wrap">
         <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px">
           <div style="text-align:center"><select id="f-reporter" class="score-name-sel"><option value="">— Jugador —</option></select></div>
-          <div style="color:var(--border2);font-size:13px;font-weight:600;text-align:center">vs</div>
+          <div class="score-versus" style="font-size:13px;font-weight:600;text-align:center">vs</div>
           <div style="text-align:center"><select id="f-rival" class="score-name-sel"><option value="">— Rival —</option></select></div>
         </div>
       </div>
@@ -159,11 +132,11 @@ button.liga-tab{cursor:pointer}
         <button class="btn btn-sm" id="ret-toggle-btn" onclick="toggleRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5"><i class="ti ti-flag"></i> RET (se jugó algo y se retiró)</button>
         <button class="btn btn-sm" id="wo-toggle-btn" onclick="toggleWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD)"><i class="ti ti-ban"></i> W.O. (no se jugó nada)</button>
       </div>
-      <div id="ret-panel" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px">
+      <div id="ret-panel" class="result-notice result-notice--ret" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px">
         <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
         <select id="ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5"><option value="">— ¿Quién se retiró? —</option></select>
       </div>
-      <div id="wo-panel" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:var(--surface2);border:1px solid var(--priD);border-radius:10px">
+      <div id="wo-panel" class="result-notice result-notice--wo" style="display:none;text-align:center;margin-bottom:.75rem;padding:.6rem;background:var(--surface2);border:1px solid var(--priD);border-radius:10px">
         <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;font-weight:600">W.O. — el partido no se jugó, ¿quién no se presentó?</p>
         <select id="wo-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--priD)"><option value="">— ¿Quién no se presentó? —</option></select>
       </div>
@@ -196,25 +169,25 @@ button.liga-tab{cursor:pointer}
      bootstrap.js DEBE ser el último de la app (contiene el arranque).
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
-<script src="score-rules.js?v=sohail-tour-v24-20260912"></script>
-<script src="core-estado.js?v=sohail-tour-v24-20260912"></script>
-<script src="i18n-revision.js?v=sohail-tour-v24-20260912"></script>
-<script src="login-auth.js?v=sohail-tour-v24-20260912"></script>
-<script src="jugadores-perfiles-catalogo.js?v=sohail-tour-v24-20260912"></script>
-<script src="reglamento.js?v=sohail-tour-v24-20260912"></script>
-<script src="login-auth-p2.js?v=sohail-tour-v24-20260912"></script>
-<script src="shell-render.js?v=sohail-tour-v24-20260912"></script>
-<script src="resultados-y-grupos.js?v=sohail-tour-v24-20260912"></script>
-<script src="admin-ligas-clubes.js?v=sohail-tour-v24-20260912"></script>
-<script src="admin-ciclos-config.js?v=sohail-tour-v24-20260912"></script>
-<script src="playoffs.js?v=sohail-tour-v24-20260912"></script>
-<script src="jugadores-perfiles.js?v=sohail-tour-v24-20260912"></script>
-<script src="mensajes.js?v=sohail-tour-v24-20260912"></script>
-<script src="resultados-po-lm.js?v=sohail-tour-v24-20260912"></script>
-<script src="persistencia.js?v=sohail-tour-v24-20260912"></script>
-<script src="headers-ui.js?v=sohail-tour-v24-20260912"></script>
-<script src="accessibility.js?v=sohail-tour-v24-20260912"></script>
-<script src="tutorial.js?v=sohail-tour-v24-20260912"></script>
-<script src="bootstrap.js?v=sohail-tour-v24-20260912"></script>
-<script src="rating.js?v=sohail-tour-v24-20260912"></script>
+<script src="score-rules.js?v=sohail-dark-v26-20260912"></script>
+<script src="core-estado.js?v=sohail-dark-v26-20260912"></script>
+<script src="i18n-revision.js?v=sohail-dark-v26-20260912"></script>
+<script src="login-auth.js?v=sohail-dark-v26-20260912"></script>
+<script src="jugadores-perfiles-catalogo.js?v=sohail-dark-v26-20260912"></script>
+<script src="reglamento.js?v=sohail-dark-v26-20260912"></script>
+<script src="login-auth-p2.js?v=sohail-dark-v26-20260912"></script>
+<script src="shell-render.js?v=sohail-dark-v26-20260912"></script>
+<script src="resultados-y-grupos.js?v=sohail-dark-v26-20260912"></script>
+<script src="admin-ligas-clubes.js?v=sohail-dark-v26-20260912"></script>
+<script src="admin-ciclos-config.js?v=sohail-dark-v26-20260912"></script>
+<script src="playoffs.js?v=sohail-dark-v26-20260912"></script>
+<script src="jugadores-perfiles.js?v=sohail-dark-v26-20260912"></script>
+<script src="mensajes.js?v=sohail-dark-v26-20260912"></script>
+<script src="resultados-po-lm.js?v=sohail-dark-v26-20260912"></script>
+<script src="persistencia.js?v=sohail-dark-v26-20260912"></script>
+<script src="headers-ui.js?v=sohail-dark-v26-20260912"></script>
+<script src="accessibility.js?v=sohail-dark-v26-20260912"></script>
+<script src="tutorial.js?v=sohail-dark-v26-20260912"></script>
+<script src="bootstrap.js?v=sohail-dark-v26-20260912"></script>
+<script src="rating.js?v=sohail-dark-v26-20260912"></script>
 </body></html>

@@ -221,57 +221,20 @@ async function desactivarPasskey(credId, label){
 // - 'system' (default): el navegador respeta prefers-color-scheme del OS.
 // - 'light' o 'dark': override manual vía atributo data-theme en <html>.
 // ============================================================================
-function currentTheme(){
-  // Default sin preferencia guardada = 'light' (antes era 'system').
-  try { return localStorage.getItem('theme') || 'light'; } catch(_){ return 'light'; }
+function currentTheme(){ return SohailAppearance.preference(); }
+
+// Cambiar de tema NO vuelve a ejecutar showSub/renderPerfil ni solicita datos.
+// Contraseñas, borradores, foco, scroll y selecciones mantienen sus nodos originales.
+function _syncThemeControls(){
+  document.querySelectorAll('.theme-btn[data-mode]').forEach(b=>{
+    const selected=b.dataset.mode===currentTheme();
+    b.classList.toggle('active',selected);b.setAttribute('aria-pressed',String(selected));
+  });
+  if(typeof refreshLoginHeaderTheme==='function')refreshLoginHeaderTheme();
 }
-
-// Escuchar cambios del OS en vivo: si el usuario tiene modo 'system' seleccionado
-// y cambia dark/light desde el OS mientras la app está abierta, aplicamos
-// el cambio sin necesidad de recargar. Se dispara sólo si estamos en 'system'
-// (los modos 'light'/'dark' explícitos no dependen del OS).
-try {
-  if(window.matchMedia){
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if(currentTheme() === 'system' && typeof aplicarTema === 'function'){
-        aplicarTema('system');
-      }
-    });
-  }
-} catch(_){}
-
+document.addEventListener('sohail-theme-change',_syncThemeControls);
 function aplicarTema(modo){
-  try {
-    // Guardar la preferencia. El script del <head> la aplica al cargar,
-    // y acá abajo la aplicamos inmediatamente sin recargar la página —
-    // así el usuario no pierde la sesión, el scroll, ni la subvista actual.
-    localStorage.setItem('theme', modo);
-
-    // Aplicar el data-theme al <html> en el momento:
-    //   - 'system' → quitar el atributo para que respete prefers-color-scheme
-    //   - 'light' / 'dark' → setear el atributo explícito
-    if(modo === 'system'){
-      document.documentElement.removeAttribute('data-theme');
-    } else {
-      document.documentElement.setAttribute('data-theme', modo);
-    }
-
-    // La mayoría del contenido usa CSS variables (--surface, --text, --border...)
-    // y se re-pinta solo. Pero algunos componentes tienen inline styles calculados
-    // (rating con clubStyle, pk-body, admin panel con badges de club, WhatsApp
-    // panel con APIKEY enmascarado) que quedaron con los colores del tema anterior.
-    // Los volvemos a renderear disparando la vista actual.
-    try {
-      if(typeof subView === 'string' && typeof showSub === 'function'){
-        showSub(subView);
-      }
-    } catch(_){ /* si algo falla acá, el tema ya cambió, solo puede quedar
-                   algún componente con estilo viejo hasta la próxima navegación */ }
-
-    if(typeof toast === 'function' && typeof t === 'function'){
-      toast(t('theme_saved'));
-    }
-  } catch(e){ console.error('Theme error:', e); }
+  if(SohailAppearance.setPreference(modo)&&typeof toast==='function')toast(t('theme_saved'));
 }
 
 // HTML del card. Se inserta en ambos perfiles (admin y jugador) antes del pk-card.
@@ -279,10 +242,7 @@ function renderThemeCard(){
   const cur = currentTheme();
   const btn = (mode, label, icon) => {
     const active = (mode === cur);
-    const bg = active ? 'var(--pri)' : 'var(--surface2)';
-    const fg = active ? '#fff' : 'var(--text)';
-    const bd = active ? 'var(--pri)' : 'var(--border)';
-    return `<button class="theme-btn" data-mode="${mode}" onclick="aplicarTema('${mode}')" style="flex:1;padding:10px 12px;border:1.5px solid ${bd};border-radius:8px;background:${bg};color:${fg};font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px"><i class="ti ti-${icon}"></i>${label}</button>`;
+    return `<button type="button" class="theme-btn ${active?'active':''}" data-mode="${mode}" aria-pressed="${active}" onclick="aplicarTema('${mode}')"><i class="ti ti-${icon}" aria-hidden="true"></i>${label}</button>`;
   };
   return `<div class="card"><div class="section-lbl"><i class="ti ti-palette"></i> ${t('theme_section')}</div>` +
     `<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('theme_hint')}</p>` +

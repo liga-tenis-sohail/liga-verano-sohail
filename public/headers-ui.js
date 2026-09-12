@@ -270,21 +270,19 @@ function renderLoginHeaderPreview(){
   const links = Array.isArray(cfg.links) ? cfg.links.filter(l => l && l.text && l.url) : [];
 
   // Colores efectivos por tema (con fallback: dark cae a light si no hay override).
-  const bgLight = cfg.color || '#0E3470';
-  const fgLight = (cfg.textColor && String(cfg.textColor).trim())
-    ? cfg.textColor
-    : ((typeof autoTxt === 'function') ? autoTxt(bgLight) : '#fff');
-  const bgDark = cfg.colorDark || bgLight;
-  const fgDark = (cfg.textColorDark && String(cfg.textColorDark).trim())
-    ? cfg.textColorDark
-    : ((typeof autoTxt === 'function') ? autoTxt(bgDark) : '#fff');
+  const bgLight=SohailAppearance.hex(cfg.color,'#0e3470');
+  const bgDark=SohailAppearance.hex(cfg.colorDark,bgLight);
+  const fgLight=SohailAppearance.textOn(bgLight,cfg.textColor);
+  const fgDark=SohailAppearance.textOn(bgDark,cfg.textColorDark);
+  const adjusted=(SohailAppearance.hex(cfg.textColor)&&fgLight!==SohailAppearance.hex(cfg.textColor))||
+    (SohailAppearance.hex(cfg.textColorDark)&&fgDark!==SohailAppearance.hex(cfg.textColorDark));
 
   function pintarPreview(bg, fg, labelTxt){
     let inner = '';
     if(!links.length){
-      inner = '<div style="padding:.5rem;background:'+bg+';color:'+fg+';font-size:11px;text-align:center;opacity:.7">(sin enlaces — la barra no se muestra)</div>';
+      inner = '<div class="colour-preview" style="padding:.5rem;background:'+bg+';--sample-ink:'+fg+';font-size:12px;text-align:center">'+t('theme_no_links')+'</div>';
     } else {
-      inner = '<div style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;padding:.5rem;background:'+bg+';color:'+fg+'">'
+      inner = '<div class="colour-preview" style="display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;padding:.5rem;background:'+bg+';--sample-ink:'+fg+'">'
             + links.map(l => {
                 const txt = String(l.text).replace(/[<>&]/g, ch => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[ch]));
                 return '<span style="font-weight:600;font-size:12px;padding:.25rem .55rem;border:1px solid '+fg+';border-radius:999px">'+txt+'</span>';
@@ -295,8 +293,8 @@ function renderLoginHeaderPreview(){
   }
 
   el.style.cssText = '';
-  el.innerHTML = pintarPreview(bgLight, fgLight, 'Light mode')
-               + pintarPreview(bgDark, fgDark, 'Dark mode');
+  el.innerHTML = pintarPreview(bgLight,fgLight,t('theme_light'))+pintarPreview(bgDark,fgDark,t('theme_dark'))
+    +(adjusted?'<p class="legend-txt theme-contrast-note">'+t('theme_contrast_adjusted')+'</p>':'');
 }
 
 // Vuelve al color de texto automático (basado en el fondo). Vacía el campo

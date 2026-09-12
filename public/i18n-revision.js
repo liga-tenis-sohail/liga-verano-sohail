@@ -267,3 +267,15 @@ Object.assign(TRANSLATIONS.en,{
   "tour_profile_title": "Your profile, always available",
   "tour_profile_body": "Your account, history and sign-in options are here. “View tutorial” starts this tour again. Finish or Skip takes you back to the screen where you started."
 });
+
+// v2.6: ayuda visual, sin alterar la terminología ni las reglas deportivas.
+Object.assign(TRANSLATIONS.es,{
+ theme_contrast_adjusted:'El color del texto se ajusta en pantalla para mantener una lectura clara. El color guardado no se modifica.',
+ theme_no_links:'Sin enlaces: la barra no se muestra.',
+ po_zoom_out:'Alejar',po_zoom_in:'Acercar',po_zoom_readable:'Vista legible',po_scroll_hint:'Deslizá para recorrer el cuadro. Usá − para una vista general.'
+});
+Object.assign(TRANSLATIONS.en,{
+ theme_contrast_adjusted:'Text colour is adjusted on screen to keep it readable. Your saved colour is unchanged.',
+ theme_no_links:'No links: the bar is hidden.',
+ po_zoom_out:'Zoom out',po_zoom_in:'Zoom in',po_zoom_readable:'Readable view',po_scroll_hint:'Scroll to explore the draw. Use − for an overview.'
+});

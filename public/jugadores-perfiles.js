@@ -363,7 +363,7 @@ function _histRow(rival,sc,won,extra,base){
   return `<div class="hist-row" style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">${badge}<span class="avatar">${getInitials(rival)}</span>${rivalCell}<strong style="font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap">${sc}</strong>${extra}</div>`;
 }
 function _histCard(title,g,p,rows){
-  return `<div class="card" style="margin-bottom:.6rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem"><div class="section-lbl" style="margin:0">${title}</div><div style="font-size:13px"><span style="color:#085041;font-weight:700">${g}</span><span style="color:var(--text2)"> – </span><span style="color:#791F1F;font-weight:700">${p}</span></div></div>${rows}</div>`;
+  return `<div class="card" style="margin-bottom:.6rem"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.3rem"><div class="section-lbl" style="margin:0">${title}</div><div style="font-size:13px"><span class="history-count-win" style="font-weight:700">${g}</span><span style="color:var(--text2)"> – </span><span class="history-count-loss" style="font-weight:700">${p}</span></div></div>${rows}</div>`;
 }
 function playerHistoryHTML(name){
   let out='',any=false;

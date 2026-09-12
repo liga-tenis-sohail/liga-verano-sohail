@@ -376,9 +376,10 @@ function _msgBubbleHTML(m){
   const nombre = soyYo ? t('msg_you') : attr(nombreAutor);
   const cuando = attr(_msgFmtFecha(m.fecha));
   const texto = attr(m.texto || '');
-  const c = _msgColorForName(nombreAutor);
-  const estiloBurbuja = 'background:'+c.bg+';border-color:'+c.border+';';
-  const estiloAutor = 'color:'+c.label+';';
+  // El matiz permanece al alternar tema/idioma; CSS define ambas paletas.
+  const hue=_msgHashName(m.autor||nombreAutor)%360;
+  const estiloBurbuja='--msg-hue:'+hue+';';
+  const estiloAutor='';
   // Imagen adjunta (solo la manda el admin — ver imagenValida en liga.js).
   // onclick abre la imagen a tamaño completo en pestaña nueva: window.open
   // con un data URL directo es el patrón estándar del navegador para esto,

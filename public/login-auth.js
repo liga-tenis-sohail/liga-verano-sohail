@@ -96,17 +96,15 @@ function renderLoginHeader(){
               || (themeAttr !== 'light' && window.matchMedia
                   && window.matchMedia('(prefers-color-scheme: dark)').matches);
   // Colores según tema: si dark y hay override dark, usar ese. Si no, cae al color light.
-  const bg = (isDark && cfg.colorDark) ? cfg.colorDark : (cfg.color || '#0E3470');
-  const customFg = isDark ? cfg.textColorDark : cfg.textColor;
-  const fg = (customFg && String(customFg).trim())
-    ? customFg
-    : ((typeof autoTxt === 'function') ? autoTxt(bg) : '#fff');
+  const bg = SohailAppearance.hex((isDark&&cfg.colorDark)?cfg.colorDark:cfg.color,'#0e3470');
+  const customFg=isDark?cfg.textColorDark:cfg.textColor;
+  const fg=SohailAppearance.textOn(bg,customFg);
   // Usa la clase .login-header-bar (definida en el CSS) para heredar padding,
   // gap, media queries móvil, negrita y borde grueso. Los estilos inline solo
   // definen los colores (dinámicos según config del admin). Sin la clase, las
   // media queries no aplicaban y el header se veía roto en móvil.
   el.className = 'login-header-bar';
-  el.style.cssText = 'display:flex;background:' + bg + ';color:' + fg + ';box-shadow:0 1px 3px rgba(0,0,0,.08)';
+  el.style.cssText = 'display:flex;background:' + bg + ';--sample-ink:' + fg + ';color:' + fg + ';box-shadow:0 1px 3px rgba(0,0,0,.08)';
   el.innerHTML = links.map(l => {
     // target=_blank + rel=noopener por seguridad (evita tabnabbing).
     const url = String(l.url).replace(/"/g, '&quot;');
@@ -244,6 +242,16 @@ async function detectarLigaActiva(){
   aplicarNombreLigaLogin();
 }
 // Muestra los botones para elegir entre varias ligas activas.
+function refreshLoginHeaderTheme(){
+  const el=document.getElementById('login-header');if(!el||!LOGIN_HEADER)return;
+  const cfg=LOGIN_HEADER,dark=SohailAppearance.effective()==='dark';
+  const bg=SohailAppearance.hex((dark&&cfg.colorDark)?cfg.colorDark:cfg.color,'#0e3470');
+  const fg=SohailAppearance.textOn(bg,dark?cfg.textColorDark:cfg.textColor);
+  el.style.backgroundColor=bg;el.style.setProperty('--sample-ink',fg);
+  el.style.setProperty('color',fg,'important');
+  el.querySelectorAll('a').forEach(a=>{a.style.setProperty('color',fg,'important');a.style.borderColor=fg;});
+}
+
 function pintarSelectorLigas(){
   let sel=document.getElementById('liga-selector');
   if(!sel){

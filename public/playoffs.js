@@ -544,7 +544,7 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
         +'<button class="po-slot-btn po-slot-del" onclick="deletePoDirect('+ti+',\''+which+'\','+ri+','+mi+')"><i class="ti ti-trash"></i> '+t('po_delete_btn')+'</button>'
         +'</div>'
       :'<div style="height:0"></div>';
-    bot='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:var(--surface2);font-size:11px;border-top:1px solid var(--border)"><span style="color:var(--text2)">'+sc+'</span><span style="color:#085041;font-weight:700">✓ '+m.w+'</span></div>'+editRow;
+    bot='<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;background:var(--surface2);font-size:11px;border-top:1px solid var(--border)"><span style="color:var(--text2)">'+sc+'</span><span class="po-result-winner" style="font-weight:700">✓ '+m.w+'</span></div>'+editRow;
   }else if(_poPending){
     // Resultado cargado esperando validación. Mostramos el marcador + reloj,
     // igual que en la tabla de grupos, y un botón que abre el modal existente
@@ -585,7 +585,7 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   }else{
     bot=esAdmin(currentUser)?'<div style="height:56px"></div>':'<div style="height:22px"></div>';
   }
-  return '<div style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);width:220px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
+  return '<div class="po-match-card" style="border:1px solid var(--border2);border-radius:10px;overflow:hidden;background:var(--surface);width:260px;flex-shrink:0;box-shadow:0 1px 4px rgba(0,0,0,.08)">'
     +hA+'<div class="'+(meA?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;border-bottom:1px solid var(--border);font-size:12px;min-height:32px;'+sA+iA+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedA+'</span><span style="flex:1;font-weight:'+(aw?'700':'400')+'">'+clA+(meA?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+histA+'</div>'
     +hB+'<div class="'+(meB?'po-me-slot':'')+'" style="display:flex;align-items:center;padding:5px 10px 8px;font-size:12px;min-height:32px;'+sB+iB+'"><span style="font-size:10px;color:var(--text2);min-width:22px;font-weight:600">'+seedB+'</span><span style="flex:1;font-weight:'+(bw?'700':'400')+'">'+clB+(meB?' <span class="po-me-chip">'+t('me_label')+'</span>':'')+'</span>'+histB+'</div>'
     +bot+'</div>';
@@ -597,7 +597,7 @@ function bracketHTML(rounds,ti,which){
   // BH = actual rendered box height (must match CSS)
   // 2 name headers (~15px each) + 2 slots (34px each) + result row (22px) + edit row (34px admin) = ~154px
   // Use consistent 160px so SVG always centers correctly
-  const BW=220, BH=160, GAP=24, GX=72, LABEL_H=(currentUser&&currentUser.role==="admin"?90:58);
+  const BW=260, BH=212, GAP=28, GX=56, LABEL_H=(esAdmin(currentUser)?118:58);
   // Slot connect offset: name header(14) + slot(34)/2 = 14+17 = 31 from top (first player slot center)
   // Second player slot center: 14+34+14+17 = 79
   // Mid-box connect point: (31+79)/2 = 55 from top of box
@@ -657,7 +657,7 @@ function bracketHTML(rounds,ti,which){
     } else if(dateStr){
       dateLine='<span style="font-size:11px;font-weight:700;color:var(--pri);letter-spacing:.03em">'+dateStr+'</span>';
     }
-    cols+='<div style="text-align:center;height:'+LABEL_H+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px">'
+    cols+='<div class="po-round-header" style="text-align:center;height:'+LABEL_H+'px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px">'
       +'<span style="font-size:11px;font-weight:700;color:var(--pri);text-transform:uppercase;letter-spacing:.06em">'+rName(ri)+'</span>'
       +dateLine
       +'</div>';
@@ -677,15 +677,8 @@ function bracketHTML(rounds,ti,which){
   // completo mientras el otro se ve al detalle.
   const key = ti + '-' + which;
   window._poZoom = window._poZoom || {};
-  // Zoom por defecto para brackets que el usuario todavía no tocó. Se puso
-  // en 50% (en vez del 100% original) porque en móvil los cuadros vienen
-  // muy verticales y anchos — al 100% obligan a scrollear mucho para ver
-  // más de un par de matches. 50% permite ver la mitad del bracket (o el
-  // bracket entero si es chico) de un pantallazo, y desde ahí el usuario
-  // acerca con "+" en la esquina del bracket cuando quiere el detalle.
-  // Se usa la misma constante en poBracketZoom y applyPoBracketZoom para
-  // que la primera pulsada del "+"/"-" arranque desde 0.5, no desde 1.
-  const PO_ZOOM_DEFAULT = 0.5;
+  // 100% por defecto: nombres y acciones legibles. El zoom elegido se conserva.
+  const PO_ZOOM_DEFAULT = 1;
   const z = (window._poZoom[key] !== undefined) ? window._poZoom[key] : PO_ZOOM_DEFAULT;
   // Wrapper "sizer": tiene el tamaño ESCALADO (para que el contenedor
   // scrollable exterior sepa cuánto scroll horizontal/vertical hace falta).
@@ -695,12 +688,13 @@ function bracketHTML(rounds,ti,which){
   const wrapW = Math.max(1, Math.round(totalW * z));
   const wrapH = Math.max(1, Math.round(svgH * z));
   return `<div class="po-bracket-outer" style="position:relative">
-    <div style="display:flex;justify-content:flex-end;gap:4px;padding:4px 4px 0 4px;align-items:center;font-size:12px">
-      <button class="btn btn-sm" onclick="poBracketZoom('${key}',-1)" title="Alejar" style="padding:4px 8px"><i class="ti ti-zoom-out"></i></button>
+    <div class="po-zoom-controls" style="display:flex;justify-content:flex-end;gap:6px;padding:4px 4px 0 4px;align-items:center;font-size:12px">
+      <button class="btn btn-sm" onclick="poBracketZoom('${key}',-1)" title="${attr(t('po_zoom_out'))}" aria-label="${attr(t('po_zoom_out'))}"><span aria-hidden="true">−</span></button>
       <span id="po-zoom-lbl-${key}" style="min-width:44px;text-align:center;font-weight:600;color:var(--text2)">${Math.round(z*100)}%</span>
-      <button class="btn btn-sm" onclick="poBracketZoom('${key}',1)" title="Acercar" style="padding:4px 8px"><i class="ti ti-zoom-in"></i></button>
+      <button class="btn btn-sm" onclick="poBracketZoom('${key}',1)" title="${attr(t('po_zoom_in'))}" aria-label="${attr(t('po_zoom_in'))}"><span aria-hidden="true">+</span></button>
     </div>
-    <div style="overflow-x:auto;padding:.5rem 0">
+    <p class="po-scroll-hint">${t('po_scroll_hint')}</p>
+    <div class="po-scroll-area" role="region" aria-label="${attr(t('playoffs_title'))}" tabindex="0" style="overflow-x:auto;padding:.5rem 0">
       <div id="po-zoom-wrapper-${key}" style="width:${wrapW}px;height:${wrapH}px">
         <div id="po-zoom-content-${key}" data-orig-w="${totalW}" data-orig-h="${svgH}" style="position:relative;width:${totalW}px;height:${svgH}px;flex-shrink:0;transform:scale(${z});transform-origin:top left"><svg style="position:absolute;top:${LABEL_H}px;left:0;width:${totalW}px;height:${totalH}px;overflow:visible;pointer-events:none">${svg}</svg>${cols}</div>
       </div>
@@ -715,11 +709,8 @@ function bracketHTML(rounds,ti,which){
 // tipografía nativa del navegador cubre eso.
 function poBracketZoom(key, delta){
   window._poZoom = window._poZoom || {};
-  // Mismo default que bracketHTML (0.5): si el usuario nunca tocó el zoom
-  // de este bracket, la primera pulsada del "+"/"-" arranca desde 50%, no
-  // desde 100% (sería confuso ver 100% pintado en el label y que el
-  // primer click te lleve al 90% en vez de al 60%).
-  const cur = (window._poZoom[key] !== undefined) ? window._poZoom[key] : 0.5;
+  // Mismo valor inicial que bracketHTML; nunca reinicia una selección explícita.
+  const cur = (window._poZoom[key] !== undefined) ? window._poZoom[key] : 1;
   // Redondeo a 1 decimal para no acumular floats raros (0.7000000001).
   let nz = Math.round((cur + delta * 0.1) * 10) / 10;
   if(nz < 0.5) nz = 0.5;
@@ -731,8 +722,8 @@ function poBracketZoom(key, delta){
 // poBracketZoom() y también podría llamarse post-render si algún día se
 // hidrata el zoom desde otro lado (localStorage, sync entre pestañas).
 function applyPoBracketZoom(key){
-  // Mismo default que bracketHTML/poBracketZoom (0.5).
-  const z = (window._poZoom && window._poZoom[key] !== undefined) ? window._poZoom[key] : 0.5;
+  // Mismo default (1) que bracketHTML/poBracketZoom.
+  const z = (window._poZoom && window._poZoom[key] !== undefined) ? window._poZoom[key] : 1;
   const content = document.getElementById('po-zoom-content-' + key);
   const wrapper = document.getElementById('po-zoom-wrapper-' + key);
   const label = document.getElementById('po-zoom-lbl-' + key);
@@ -774,7 +765,7 @@ function showPlayoffView(){
 
   html+=`<div class="po-tramos">${playoff.tramos.map((tr,i)=>{
     const hasMe=currentUser&&currentUser.role==='player'&&tr.seeds.includes(currentUser.name);
-    const badge=hasMe?'<span style="font-size:9px;background:var(--acc);color:var(--priD);border-radius:4px;padding:1px 4px;font-weight:700">✓</span>':'';
+    const badge=hasMe?'<span class="po-mine-marker" style="font-size:11px;background:var(--acc);color:var(--accT);border-radius:4px;padding:1px 4px;font-weight:700">✓</span>':'';
     return '<button class="po-tab '+(playoff.viewT===i?'active':'')+'" onclick="setViewT('+i+')">'+tf('po_match',{l:tr.label})+(badge?'&nbsp;'+badge:'')+'<br><span class="po-rng">'+tr.seeds.length+' '+t('po_tab_players')+'</span></button>';
   }).join('')}</div>`;
 

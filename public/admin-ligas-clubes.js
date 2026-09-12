@@ -273,13 +273,13 @@ function syncHex(which,source){
   const demo=document.getElementById('sa-'+which+'-demo');
   if(source==='picker'){
     txt.value=picker.value;txt.style.borderColor='';
-    if(demo){demo.style.background=picker.value; if(which==='disp')demo.style.color=autoTxt(picker.value);}
+    if(demo){demo.style.background=picker.value;demo.style.setProperty('--sample-ink',autoTxt(picker.value));demo.style.setProperty('color',autoTxt(picker.value),'important');}
     return;
   }
   let v=(txt.value||'').trim();
   if(v&&v[0]!=='#')v='#'+v;
-  if(/^#[0-9a-fA-F]{6}$/.test(v)){picker.value=v;txt.style.borderColor='';if(demo)demo.style.background=v;}
-  else if(/^#[0-9a-fA-F]{3}$/.test(v)){const h=v.slice(1);const full='#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2];picker.value=full;txt.style.borderColor='';if(demo)demo.style.background=full;}
+  if(/^#[0-9a-fA-F]{6}$/.test(v)){picker.value=v;txt.style.borderColor='';if(demo){demo.style.background=v;demo.style.setProperty('--sample-ink',autoTxt(v));demo.style.setProperty('color',autoTxt(v),'important');}}
+  else if(/^#[0-9a-fA-F]{3}$/.test(v)){const h=v.slice(1);const full='#'+h[0]+h[0]+h[1]+h[1]+h[2]+h[2];picker.value=full;txt.style.borderColor='';if(demo){demo.style.background=full;demo.style.setProperty('--sample-ink',autoTxt(full));demo.style.setProperty('color',autoTxt(full),'important');}}
   else{txt.style.borderColor='#ef4444';}
 }
 function previewLeagueColors(){
@@ -320,24 +320,9 @@ function applyLeagueColors(pri, acc, hl){
   if(!pri||!/^#[0-9a-fA-F]{6}$/.test(pri))return;
   if(!acc||!/^#[0-9a-fA-F]{6}$/.test(acc))return;
   hl=(hl&&/^#[0-9a-fA-F]{6}$/.test(hl))?hl:((typeof LEAGUE_COLOR_HL!=='undefined'&&LEAGUE_COLOR_HL)||'#FFEDD5');
-  const priD=shadeColor(pri,-20);
-  const soft=tintColor(pri,88);
-  const accD=shadeColor(acc,-15);
-  const accT=shadeColor(pri,-30);
-  const winrow=tintColor(acc,92);
-  const cream=tintColor(acc,95);
-  const root=document.documentElement;
-  root.style.setProperty('--pri',pri);
-  root.style.setProperty('--priD',priD);
-  root.style.setProperty('--soft',soft);
-  root.style.setProperty('--acc',acc);
-  root.style.setProperty('--accD',accD);
-  root.style.setProperty('--accT',accT);
-  root.style.setProperty('--winrow',winrow);
-  root.style.setProperty('--cream',cream);
-  root.style.setProperty('--hl',hl);
-  // Guardar en localStorage para aplicación inmediata en próximo load (evita flash)
-  try{localStorage.setItem('lsc',JSON.stringify({p:pri,pd:priD,s:soft,a:acc,ad:accD,at:accT,wr:winrow,cr:cream,hl:hl}));}catch(e){}
+  // La marca se conserva, pero ya no invade superficies, enlaces y acciones.
+  // Preferencia y color-scheme se resuelven en el módulo sin reconstruir vistas.
+  SohailAppearance.setBrand(pri,acc,hl);
 }
 function shadeColor(hex,pct){
   const n=parseInt(hex.replace('#',''),16);
