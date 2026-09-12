@@ -226,6 +226,8 @@ function _showLoadError(msg){
 function _hideLoadError(){var b=document.getElementById('_loaderr');if(b)b.remove();}
 
 async function loadState(){
+  // Una visita guiada nunca guarda su contexto temporal.
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_token){console.warn('⚠️ loadState sin sesión');return;}
   console.log('🔄 Cargando estado desde el servidor...');
   let d;const requestLiga=_ligaActual,requestSession=_saveSessionKey(),localBefore=_serialize();
@@ -244,6 +246,7 @@ async function loadState(){
     _loadOK=false;_showLoadError('No se pudo leer la base de datos. Para proteger tus datos NO se guardará nada. Recarga en unos segundos.');
     return;
   }
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return;
   if(d&&d.state){
     const ok=_hydrate(d.state);
     if(!ok){console.error('❌ Hydrate falló — autosave BLOQUEADO');_showLoadError('Los datos se leyeron pero no se pudieron aplicar. Para proteger tu información NO se guardará nada. Recarga.');return;}
@@ -279,12 +282,16 @@ function _conflictNotice(){
   const b=document.createElement('button');b.type='button';b.textContent=t('fix_export_pending');b.onclick=exportPendingChanges;bar.appendChild(b);
 }
 async function _criticalSave(){
+  // Una visita guiada nunca guarda su contexto temporal.
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_loadOK||_saveConflict||!_token||_ligaReadOnly)return false;
   _prioritySave=true;
   try{if(_saveInFlight)await _saveInFlight;return await _doPersist();}
   finally{_prioritySave=false;}
 }
 async function _doPersist(){
+  // Una visita guiada nunca guarda su contexto temporal.
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(_saveInFlight)return _saveInFlight;
   if(!_token||!_loadOK||_saveConflict||_ligaReadOnly||document.getElementById('_pwforce'))return false;
   const json=_serialize(),sent=JSON.parse(json),liga=_ligaActual,user=currentUser&&currentUser.name,sessionKey=_saveSessionKey();
@@ -310,6 +317,8 @@ async function _doPersist(){
   try{return await _saveInFlight;}finally{_saveInFlight=null;}
 }
 async function persist(force){
+  // Una visita guiada nunca guarda su contexto temporal.
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_token||!_loadOK||_ligaReadOnly||_saveConflict||document.getElementById('_pwforce'))return false;
   if(_prioritySave)return false;
   if(_saving){_pendingForce=true;return false;}
@@ -323,7 +332,7 @@ async function persist(force){
 if(typeof setInterval!=='undefined')setInterval(()=>persist(false),12000);
 if(typeof window!=='undefined'&&window.addEventListener){
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist(false);});
-  window.addEventListener('beforeunload',event=>{if(_token&&_loadOK&&!_ligaReadOnly&&_serialize()!==_lastSaved){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('beforeunload',event=>{if(_token&&_loadOK&&!_ligaReadOnly&&(typeof isTutorialRunning==='function'&&isTutorialRunning()?tutorialHasUnsavedState():_serialize()!==_lastSaved)){event.preventDefault();event.returnValue='';}});
 }
 
 // ========================================================================

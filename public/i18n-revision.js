@@ -211,3 +211,59 @@ function updateDialogLanguageSwitchers(root){
   e.setAttribute('aria-pressed',String(e.dataset.dialogLang===LANG));
  });
 }
+
+// Recorrido v2.4: español fuente; nunca traduce nombres o contenido de la liga.
+Object.assign(TRANSLATIONS.es,{
+  "tour_label": "Recorrido guiado · solo lectura",
+  "tour_wait_save": "Esperá a que termine el guardado y volvé a abrir el tutorial.",
+  "tour_view_error": "No se pudo mostrar esta sección. Podés seguir con el próximo paso o salir de la guía.",
+  "tour_intro_title": "Tu liga, paso a paso",
+  "tour_intro_body": "Con Siguiente vamos a recorrer las pantallas de tu liga. El recuadro dorado señala qué mirar. Durante la guía no se editan datos; al salir volvés a donde estabas.",
+  "tour_groups_title": "Tu grupo y tus rivales",
+  "tour_groups_body": "Acá ves posiciones, rivales y marcadores del ciclo. La fila resaltada te ayuda a encontrar tus datos. Los ciclos de arriba permiten consultar otras etapas.",
+  "tour_standings_title": "La clasificación general",
+  "tour_standings_body": "Esta tabla reúne los puntos acumulados de los ciclos. Mirá el total y la posición de cada jugador; los criterios de desempate figuran debajo.",
+  "tour_rating_title": "El nivel de los jugadores",
+  "tour_rating_body": "Rating muestra el nivel calculado con los partidos de la liga y su historial. Un valor provisional todavía tiene pocos partidos como referencia.",
+  "tour_results_title": "Así se carga un resultado",
+  "tour_results_body": "Elegí rival, club y fecha y cargá los sets desde tu lado del marcador. El supertiebreak se registra 1–0 o 0–1. Acá solo miramos el formulario: la guía no envía resultados.",
+  "tour_pending_title": "Pendientes y disputas",
+  "tour_pending_body": "Acá aparecen los resultados que todavía requieren revisión. Un marcador pendiente no es definitivo. Las acciones disponibles dependen de tus permisos y de quién jugó el partido.",
+  "tour_playoffs_title": "Tu camino hasta la final",
+  "tour_playoffs_body": "Este es el cuadro disponible en tu liga: partidos, rondas y final. Si existe consolación, la ves debajo. Las tarjetas de campeón muestran el ganador o «Por definir».",
+  "tour_messages_title": "Los mensajes de la liga",
+  "tour_messages_body": "Acá encontrás avisos de la organización y los hilos habilitados para tu grupo o cuadro. Los administradores autorizados también pueden verlos. Esta visita no los marca como leídos.",
+  "tour_rules_title": "Las reglas de esta competición",
+  "tour_rules_body": "Este es el reglamento que configuró la organización. Consultalo antes de cargar partidos o resolver dudas. La guía no crea reglas ni modifica las existentes.",
+  "tour_admin_title": "El panel de administración",
+  "tour_admin_body": "Desde acá se gestionan ciclos y configuración según tus permisos. Antes de cerrar un ciclo, revisá pendientes y disputas. En este recorrido los controles de edición están bloqueados.",
+  "tour_profile_title": "Tu perfil, siempre a mano",
+  "tour_profile_body": "Acá están tu cuenta, historial y opciones de acceso. «Ver tutorial» vuelve a iniciar este recorrido. Finalizar u Omitir te devuelve a la pantalla donde empezaste."
+});
+Object.assign(TRANSLATIONS.en,{
+  "tour_label": "Guided tour · read-only",
+  "tour_wait_save": "Wait for the current save to finish, then open the tutorial again.",
+  "tour_view_error": "This section could not be displayed. You can continue to the next step or leave the tour.",
+  "tour_intro_title": "Your league, step by step",
+  "tour_intro_body": "Select Next to visit your league’s screens. The gold outline shows what to look at. No data can be edited during the tour; leaving it takes you back to where you started.",
+  "tour_groups_title": "Your group and opponents",
+  "tour_groups_body": "Here you can see standings, opponents and scores for the cycle. The highlighted row helps you find your results. Use the cycles above to look at other stages.",
+  "tour_standings_title": "The overall standings",
+  "tour_standings_body": "This table adds up points across the cycles. Check each player’s total and position; the tiebreak criteria are explained below.",
+  "tour_rating_title": "Player ratings",
+  "tour_rating_body": "Rating shows the level calculated from league matches and match history. A provisional rating is still based on a small number of matches.",
+  "tour_results_title": "How to report a result",
+  "tour_results_body": "Choose your opponent, club and date, then enter the sets from your side of the score. A match tiebreak is recorded as 1–0 or 0–1. This is a read-only look at the form: the tour submits no results.",
+  "tour_pending_title": "Pending results and disputes",
+  "tour_pending_body": "Results awaiting review appear here. A pending score is not final. Available actions depend on your permissions and who played the match.",
+  "tour_playoffs_title": "Your path to the final",
+  "tour_playoffs_body": "This is the draw available in your league: matches, rounds and the final. A consolation draw appears below when available. Champion cards show the winner or “To be decided”.",
+  "tour_messages_title": "League messages",
+  "tour_messages_body": "Here you can find announcements and the threads available to your group or draw. Authorised administrators can also read them. This tour does not mark messages as read.",
+  "tour_rules_title": "The rules of this competition",
+  "tour_rules_body": "These are the rules set by the organisers. Check them before reporting matches or resolving questions. The tour does not create or change any rules.",
+  "tour_admin_title": "The administration panel",
+  "tour_admin_body": "Manage cycles and settings here, according to your permissions. Review pending results and disputes before closing a cycle. Editing controls are blocked during this tour.",
+  "tour_profile_title": "Your profile, always available",
+  "tour_profile_body": "Your account, history and sign-in options are here. “View tutorial” starts this tour again. Finish or Skip takes you back to the screen where you started."
+});

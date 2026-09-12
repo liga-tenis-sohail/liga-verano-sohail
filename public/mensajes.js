@@ -51,6 +51,7 @@ function _msgReadStateGet(){
   catch(_){ return {}; }
 }
 function _msgReadStateSetOne(key, id){
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return;
   if(!id) return;
   const st = _msgReadStateGet();
   if((st[key]||0) >= id) return; // nunca retrocede
@@ -212,6 +213,8 @@ function elegirExplorarNivel2(tipo, valor){
 async function cargarMsgHilo(tab, esCargaInicial){
   const body = document.getElementById('msg-body');
   if(!body) return;
+  const requestRoot=document.getElementById('main-app'),requestLiga=_ligaActual,requestSession=_saveSessionKey();
+  const currentRequest=()=>requestRoot===document.getElementById('main-app')&&body===document.getElementById('msg-body')&&requestLiga===_ligaActual&&requestSession===_saveSessionKey();
 
   if(tab === 'grupo' && !_msgGrupoCtx){
     body.innerHTML = `<p class="legend-txt" style="margin:.5rem 0">${t('msg_group_desc')}</p>
@@ -245,6 +248,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
         body: JSON.stringify(payload)
       });
       const d = await r.json().catch(()=>({}));
+      if(!currentRequest())return;
       const list = document.getElementById('msg-list');
       if(!r.ok){ if(list) list.innerHTML = '<div class="legend-txt">'+attr(d.error||t('msg_load_err'))+'</div>'; return; }
       const msgs = Array.isArray(d.mensajes) ? d.mensajes : [];
@@ -255,6 +259,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
       // composer; ahora sí, igual que en los hilos propios.
       _msgPintarComposer('explorar');
     } catch(e){
+    if(!currentRequest())return;
       const list = document.getElementById('msg-list');
       if(list) list.innerHTML = '<div class="legend-txt">'+attr(t('ml_conn_err'))+'</div>';
     }
@@ -282,6 +287,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
       body: JSON.stringify(payload)
     });
     const d = await r.json().catch(()=>({}));
+      if(!currentRequest())return;
     if(!r.ok){
       const list = document.getElementById('msg-list');
       if(list) list.innerHTML = '<div class="legend-txt">'+attr(d.error||t('msg_load_err'))+'</div>';
@@ -297,6 +303,7 @@ async function cargarMsgHilo(tab, esCargaInicial){
       actualizarBadgeMensajes();
     }
   } catch(e){
+    if(!currentRequest())return;
     const list = document.getElementById('msg-list');
     if(list) list.innerHTML = '<div class="legend-txt">'+attr(t('ml_conn_err'))+'</div>';
   }
@@ -519,6 +526,7 @@ async function enviarMensajeUI(tab){
 // ---- Polling liviano del hilo abierto ----
 function reiniciarPollingMensajes(){
   detenerPollingMensajes();
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return;
   _msgPollTimer = setInterval(function(){
     if(!_token || !_ligaActual) return;
     const tab = _msgSubTab;
@@ -556,6 +564,7 @@ function detenerPollingMensajes(){
 // Burbuja de "no leídos" en la pestaña Mensajes.
 // ---------------------------------------------------------------------------
 async function actualizarBadgeMensajes(){
+  if(typeof isTutorialRunning==='function'&&isTutorialRunning())return;
   if(!_token || !_ligaActual || !currentUser) return;
   const badge = document.getElementById('msg-n');
   if(!badge) return;

@@ -34,7 +34,7 @@
   // Restaurar nombre y subtítulo sin flash (se ejecuta en DOMContentLoaded para tener acceso al DOM)
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn){document.addEventListener('DOMContentLoaded',function(){var lt=document.getElementById('login-title');if(lt){var loginTxt=(lsn.lt&&lsn.lt.trim())?lsn.lt:lsn.n;if(loginTxt)lt.textContent=loginTxt;}var ls=document.getElementById('login-sub');if(ls&&lsn.s)ls.textContent=lsn.s;var ht=document.getElementById('hdr-title');if(ht&&lsn.n)ht.textContent=lsn.n;if(lsn.n)document.title=lsn.n;},false);}
-}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-fixes-20260910"></script><style>
+}catch(e){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-tour-v24-20260912"></script><style>
 /* Respaldo inline de "Mis Ligas": si por cualquier motivo estilos.css no
    llegara a cargar con la versión más reciente, estas reglas viven acá
    adentro del HTML mismo y se aplican igual. Duplicadas a propósito respecto
@@ -68,7 +68,7 @@ button.liga-tab{cursor:pointer}
 .msg-compose-row{display:flex;gap:8px;align-items:flex-end;padding:.6rem;background:#EDF1F6;border-top:1px solid #c8d0dc}
 .msg-input{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border-radius:10px;border:1.5px solid #c8d0dc;background:#ffffff;color:#1b2433;font-family:inherit;font-size:14px;line-height:1.4}
 </style>
-<link rel="stylesheet" href="estilos.css?v=sohail-idiomas-20260912">
+<link rel="stylesheet" href="estilos.css?v=sohail-tour-v24-20260912">
 
 </head><body>
 <div id="login-screen">
@@ -196,25 +196,25 @@ button.liga-tab{cursor:pointer}
      bootstrap.js DEBE ser el último de la app (contiene el arranque).
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
-<script src="score-rules.js?v=sohail-fixes-20260910"></script>
-<script src="core-estado.js?v=sohail-idiomas-20260912"></script>
-<script src="i18n-revision.js?v=sohail-idiomas-20260912"></script>
-<script src="login-auth.js?v=sohail-fixes-20260910"></script>
-<script src="jugadores-perfiles-catalogo.js?v=sohail-fixes-20260910"></script>
-<script src="reglamento.js?v=sohail-fixes-20260910"></script>
-<script src="login-auth-p2.js?v=sohail-fixes-20260910"></script>
-<script src="shell-render.js?v=sohail-fixes-20260910"></script>
-<script src="resultados-y-grupos.js?v=sohail-fixes-20260910"></script>
-<script src="admin-ligas-clubes.js?v=sohail-fixes-20260910"></script>
-<script src="admin-ciclos-config.js?v=sohail-fixes-20260910"></script>
-<script src="playoffs.js?v=sohail-fixes-20260910"></script>
-<script src="jugadores-perfiles.js?v=sohail-idiomas-20260912"></script>
-<script src="mensajes.js?v=sohail-fixes-20260910"></script>
-<script src="resultados-po-lm.js?v=sohail-fixes-20260910"></script>
-<script src="persistencia.js?v=sohail-fixes-20260910"></script>
-<script src="headers-ui.js?v=sohail-fixes-20260910"></script>
-<script src="accessibility.js?v=sohail-fixes-20260910"></script>
-<script src="tutorial.js?v=sohail-idiomas-20260912"></script>
-<script src="bootstrap.js?v=sohail-fixes-20260910"></script>
-<script src="rating.js?v=sohail-fixes-20260910"></script>
+<script src="score-rules.js?v=sohail-tour-v24-20260912"></script>
+<script src="core-estado.js?v=sohail-tour-v24-20260912"></script>
+<script src="i18n-revision.js?v=sohail-tour-v24-20260912"></script>
+<script src="login-auth.js?v=sohail-tour-v24-20260912"></script>
+<script src="jugadores-perfiles-catalogo.js?v=sohail-tour-v24-20260912"></script>
+<script src="reglamento.js?v=sohail-tour-v24-20260912"></script>
+<script src="login-auth-p2.js?v=sohail-tour-v24-20260912"></script>
+<script src="shell-render.js?v=sohail-tour-v24-20260912"></script>
+<script src="resultados-y-grupos.js?v=sohail-tour-v24-20260912"></script>
+<script src="admin-ligas-clubes.js?v=sohail-tour-v24-20260912"></script>
+<script src="admin-ciclos-config.js?v=sohail-tour-v24-20260912"></script>
+<script src="playoffs.js?v=sohail-tour-v24-20260912"></script>
+<script src="jugadores-perfiles.js?v=sohail-tour-v24-20260912"></script>
+<script src="mensajes.js?v=sohail-tour-v24-20260912"></script>
+<script src="resultados-po-lm.js?v=sohail-tour-v24-20260912"></script>
+<script src="persistencia.js?v=sohail-tour-v24-20260912"></script>
+<script src="headers-ui.js?v=sohail-tour-v24-20260912"></script>
+<script src="accessibility.js?v=sohail-tour-v24-20260912"></script>
+<script src="tutorial.js?v=sohail-tour-v24-20260912"></script>
+<script src="bootstrap.js?v=sohail-tour-v24-20260912"></script>
+<script src="rating.js?v=sohail-tour-v24-20260912"></script>
 </body></html>

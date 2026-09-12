@@ -79,6 +79,8 @@ function setLang(l){
  if(l!=='es'&&l!=='en')return;
  LANG=l;document.documentElement.lang=l;
  try{localStorage.setItem('liga_lang',l);}catch(_){}
+ // La guía navega sus vistas sin reconstruir el formulario original.
+ if(typeof isTutorialRunning==='function'&&isTutorialRunning()){updateLangUI();renderTutorial(true);return;}
  // Con clave predeterminada, no reconstruir vistas ni consultar acciones
  // protegidas detrás del modal. Se dibujan al confirmar el cambio de clave.
  if(document.getElementById('_pwforce'))updateLangUI();else renderAll();
