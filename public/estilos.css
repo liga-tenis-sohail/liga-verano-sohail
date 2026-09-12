@@ -1813,7 +1813,7 @@ body.sohail-tour-active{overscroll-behavior:none}
 #sohail-guide.guide-tour-no-target{background:rgba(6,16,32,.56)}
 #sohail-guide .guide-spotlight{position:fixed;pointer-events:none;border:2px solid #e5b84a;border-radius:12px;box-shadow:0 0 0 100vmax rgba(6,16,32,.56),0 0 0 5px rgba(245,197,24,.18);z-index:0}
 #sohail-guide .guide-spotlight[hidden]{display:none}
-#sohail-guide .guide-tour-dialog{position:fixed;z-index:1;max-width:none;margin:0;padding:0;border:1px solid var(--border2);border-top:4px solid #d7ae43;border-radius:18px;background:var(--surface);color:var(--text);box-shadow:0 16px 64px rgba(0,0,0,.32);display:flex;flex-direction:column;overflow:hidden;touch-action:pan-y;animation:sohail-guide-enter .16s ease-out}
+#sohail-guide .guide-tour-dialog{position:fixed;z-index:1;max-width:none;margin:0;padding:0;border:1px solid color-mix(in srgb,var(--border2) 78%,#d7ae43 22%);border-top:4px solid #d7ae43;border-radius:18px;background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 94%,#fff 6%) 0%,var(--surface) 100%);color:var(--text);box-shadow:0 16px 64px rgba(0,0,0,.32),0 8px 18px rgba(183,139,32,.12);display:flex;flex-direction:column;overflow:hidden;touch-action:pan-y;animation:sohail-guide-enter .16s ease-out}
 #sohail-guide .guide-tour-header{padding:14px 18px 0;flex:0 0 auto}
 #sohail-guide .guide-tour-label{margin:0 0 10px;font-size:10px;font-weight:750;letter-spacing:.09em;text-transform:uppercase;color:var(--text2)!important}
 #sohail-guide .dialog-language{margin:0;padding:0 0 10px;gap:6px}
@@ -1831,6 +1831,15 @@ body.sohail-tour-active{overscroll-behavior:none}
 #sohail-guide .guide-tour-track{display:flex;gap:4px;height:3px;margin:0 0 12px}
 #sohail-guide .guide-tour-track span{flex:1;border-radius:4px;background:var(--border2)}
 #sohail-guide .guide-tour-track span.is-done{background:#b08a26}
+#sohail-guide .guide-tour-dialog::before{content:"";position:absolute;inset:0 0 auto 0;height:52px;background:linear-gradient(135deg,rgba(215,174,67,.16),rgba(215,174,67,0));pointer-events:none}
+#sohail-guide .guide-tour-dialog[data-placement="bottom"]{transform-origin:top center}
+#sohail-guide .guide-tour-dialog[data-placement="top"]{transform-origin:bottom center}
+#sohail-guide .guide-tour-dialog[data-placement="left"]{transform-origin:center right}
+#sohail-guide .guide-tour-dialog[data-placement="right"]{transform-origin:center left}
+#sohail-guide .guide-tour-dialog[data-placement="side-center"]{transform-origin:center right}
+#sohail-guide .guide-tour-dialog[data-placement="floating"]{transform-origin:bottom right}
+#sohail-guide .guide-tour-label{display:flex;align-items:center;gap:8px}
+#sohail-guide .guide-tour-label::before{content:"";display:inline-block;width:8px;height:8px;border-radius:999px;background:#d7ae43;box-shadow:0 0 0 4px rgba(215,174,67,.15)}
 #sohail-guide .guide-actions{margin:0;gap:7px;flex-wrap:nowrap}
 #sohail-guide .guide-actions .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;font-size:12px;line-height:1.2;transform:none;white-space:normal}
 #sohail-guide .guide-actions .btn-primary{background:#17498c!important;border-color:#17498c!important;color:#fff!important}

@@ -197,26 +197,58 @@ function _guideLayout(){
  const ov=document.getElementById('sohail-guide'),dialog=ov?.querySelector('.guide-dialog'),ring=document.getElementById('guide-spotlight');
  if(!dialog||!ring)return;
  const vv=window.visualViewport,w=vv?.width||innerWidth,h=vv?.height||innerHeight,x=vv?.offsetLeft||0,y=vv?.offsetTop||0;
- const mobile=w<760,margin=mobile?10:22,width=Math.min(mobile?w-20:380,w-20);
- dialog.style.width=width+'px';dialog.style.maxHeight=Math.max(180,h*(mobile?.54:.72))+'px';
+ const mobile=w<760,margin=mobile?10:22,gap=mobile?10:14;
+ const width=Math.min(mobile?Math.max(280,w-20):400,w-20);
+ const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+ dialog.style.width=width+'px';dialog.style.maxHeight=Math.max(180,h*(mobile?0.5:0.72))+'px';
  const dh=dialog.getBoundingClientRect().height;
- // En móvil: panel inferior; en escritorio: esquina inferior derecha.
- const dx=x+w-width-margin,dy=y+h-dh-margin;
- dialog.style.left=dx+'px';dialog.style.top=dy+'px';
+ const fallbackX=clamp(x+w-width-margin,x+margin,x+w-width-margin);
+ const fallbackY=clamp(y+h-dh-margin,y+margin,y+h-dh-margin);
+ let dx=fallbackX,dy=fallbackY,placement='floating';
  const target=_guideTarget(tour.steps[_tutorialStep]);
- if(!target){ring.hidden=true;return;}
- const r=target.getBoundingClientRect(),pad=6;
- let left=Math.max(x+8,r.left-pad),top=Math.max(y+8,r.top-pad),right=Math.min(x+w-8,r.right+pad),bottom=Math.min(y+h-8,r.bottom+pad);
- // No colocar el recuadro por detrás del panel ni marcar una zona fuera de pantalla.
- if(right>dx&&left<dx+width&&bottom>dy-12){
-  if(!mobile&&dy-top<80&&dx-left>100)right=dx-12;
-  else bottom=dy-12;
+ if(target&&target.getClientRects().length){
+  const r=target.getBoundingClientRect();
+  const pad=6;
+  let left=Math.max(x+8,r.left-pad),top=Math.max(y+8,r.top-pad),right=Math.min(x+w-8,r.right+pad),bottom=Math.min(y+h-8,r.bottom+pad);
+  const tW=right-left,tH=bottom-top;
+  const large=tW>w*(mobile?0.86:0.55)||tH>h*(mobile?0.28:0.4);
+  const rightSpace=x+w-right-gap-margin,leftSpace=left-x-gap-margin,belowSpace=y+h-bottom-gap-margin,aboveSpace=top-y-gap-margin;
+  const centeredX=clamp(left+tW/2-width/2,x+margin,x+w-width-margin);
+  const alignedLeft=clamp(left,x+margin,x+w-width-margin);
+  if(mobile){
+   if(!large&&belowSpace>=dh){placement='bottom';dx=alignedLeft;dy=bottom+gap;}
+   else if(!large&&aboveSpace>=dh){placement='top';dx=alignedLeft;dy=top-dh-gap;}
+   else {placement='side-center';dx=clamp(x+w-width-margin,x+margin,x+w-width-margin);dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+  }else{
+   if(rightSpace>=width){placement='right';dx=right+gap;dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+   else if(leftSpace>=width){placement='left';dx=left-width-gap;dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+   else if(!large&&belowSpace>=dh){placement='bottom';dx=centeredX;dy=bottom+gap;}
+   else if(!large&&aboveSpace>=dh){placement='top';dx=centeredX;dy=top-dh-gap;}
+   else {placement='side-center';dx=clamp(x+w-width-margin,x+margin,x+w-width-margin);dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+  }
+  dialog.dataset.placement=placement;
+  // Posición final del panel
+  dx=clamp(dx,x+margin,x+w-width-margin);dy=clamp(dy,y+margin,y+h-dh-margin);
+  dialog.style.left=dx+'px';dialog.style.top=dy+'px';
+  // Highlight: evita superposición fuerte con el panel cuando haga falta.
+  if(right>dx&&left<dx+width&&bottom>dy&&top<dy+dh){
+   if(placement==='right')right=Math.min(right,dx-gap);
+   else if(placement==='left')left=Math.max(left,dx+width+gap);
+   else if(placement==='bottom')bottom=Math.min(bottom,dy-gap);
+   else if(placement==='top')top=Math.max(top,dy+dh+gap);
+   else if(dy>top+tH/2)bottom=Math.min(bottom,dy-gap);
+   else top=Math.max(top,dy+dh+gap);
+  }
+  if(bottom-top<24||right-left<24){
+   ring.hidden=true;ov.classList.add('guide-tour-no-target');return;
+  }
+  ring.hidden=false;ov.classList.remove('guide-tour-no-target');
+  Object.assign(ring.style,{left:left+'px',top:top+'px',width:(right-left)+'px',height:(bottom-top)+'px'});
+  return;
  }
- if(bottom-top<24||right-left<24){
-  ring.hidden=true;ov.classList.add('guide-tour-no-target');return;
- }
- ring.hidden=false;ov.classList.remove('guide-tour-no-target');
- Object.assign(ring.style,{left:left+'px',top:top+'px',width:(right-left)+'px',height:(bottom-top)+'px'});
+ dialog.dataset.placement='floating';
+ dialog.style.left=dx+'px';dialog.style.top=dy+'px';
+ ring.hidden=true;ov.classList.add('guide-tour-no-target');
 }
 // Traduce la pantalla de origen al volver sin perder entradas locales. Los
 // nodos de archivo/contenteditable se conservan; nunca se registran sus valores.

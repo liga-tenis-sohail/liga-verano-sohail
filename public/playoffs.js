@@ -677,8 +677,8 @@ function bracketHTML(rounds,ti,which){
   // completo mientras el otro se ve al detalle.
   const key = ti + '-' + which;
   window._poZoom = window._poZoom || {};
-  // 100% por defecto: nombres y acciones legibles. El zoom elegido se conserva.
-  const PO_ZOOM_DEFAULT = 1;
+  // 50% por defecto para vista general del cuadro. El zoom elegido se conserva.
+  const PO_ZOOM_DEFAULT = 0.5;
   const z = (window._poZoom[key] !== undefined) ? window._poZoom[key] : PO_ZOOM_DEFAULT;
   // Wrapper "sizer": tiene el tamaño ESCALADO (para que el contenedor
   // scrollable exterior sepa cuánto scroll horizontal/vertical hace falta).
@@ -710,7 +710,7 @@ function bracketHTML(rounds,ti,which){
 function poBracketZoom(key, delta){
   window._poZoom = window._poZoom || {};
   // Mismo valor inicial que bracketHTML; nunca reinicia una selección explícita.
-  const cur = (window._poZoom[key] !== undefined) ? window._poZoom[key] : 1;
+  const cur = (window._poZoom[key] !== undefined) ? window._poZoom[key] : 0.5;
   // Redondeo a 1 decimal para no acumular floats raros (0.7000000001).
   let nz = Math.round((cur + delta * 0.1) * 10) / 10;
   if(nz < 0.5) nz = 0.5;
@@ -722,8 +722,8 @@ function poBracketZoom(key, delta){
 // poBracketZoom() y también podría llamarse post-render si algún día se
 // hidrata el zoom desde otro lado (localStorage, sync entre pestañas).
 function applyPoBracketZoom(key){
-  // Mismo default (1) que bracketHTML/poBracketZoom.
-  const z = (window._poZoom && window._poZoom[key] !== undefined) ? window._poZoom[key] : 1;
+  // Mismo default (0.5) que bracketHTML/poBracketZoom.
+  const z = (window._poZoom && window._poZoom[key] !== undefined) ? window._poZoom[key] : 0.5;
   const content = document.getElementById('po-zoom-content-' + key);
   const wrapper = document.getElementById('po-zoom-wrapper-' + key);
   const label = document.getElementById('po-zoom-lbl-' + key);
