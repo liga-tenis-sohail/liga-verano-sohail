@@ -1,15 +1,15 @@
 *{box-sizing:border-box;margin:0;padding:0}
 /* Contiene cualquier desborde horizontal (ej. el bracket de Play Offs, que
-   es intrínsecamente ancho) para que solo scrollee el componente que lo
+   es intrÃ­nsecamente ancho) para que solo scrollee el componente que lo
    necesita (.bracket ya tiene overflow-x:auto propio) en vez de estirar
-   el <body> entero. Sin esto, en mobile Safari comprimía TODA la página
-   con zoom automático para que el contenido ancho entrara igual. */
+   el <body> entero. Sin esto, en mobile Safari comprimÃ­a TODA la pÃ¡gina
+   con zoom automÃ¡tico para que el contenido ancho entrara igual. */
 html,body{overflow-x:hidden;max-width:100%}
 
 :root{--bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;--border:#e2e7ef;--border2:#c8d0dc;
 --pri:#1B4F9C;--priD:#0E3470;--soft:#E6F1FB;--acc:#F5C518;--accD:#D9A800;--accT:#0E3470;--winrow:#FAEEDA;--hl:#FFEDD5;
 --sohail:#D6ECFB;--sohailT:#0C447C;--haza:#FCE6CF;--hazaT:#854F0B;
-/* Estados semánticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
+/* Estados semÃ¡nticos: agregados en Tanda 3 para reemplazar hex hardcodeados */
 --danger:#c0392b;--dangerBg:#FCEBEB;--dangerT:#791F1F;
 --success:#16a34a;--successBg:#dcfce7;--successT:#166534;
 --warn:#d97706;--warnBg:#fef3c7;--warnT:#92400e;
@@ -17,23 +17,23 @@ html,body{overflow-x:hidden;max-width:100%}
 --ring:0 0 0 3px rgba(27,79,156,.15);
 /* Tokens agregados post-tanda 3 para arreglar el dark mode:
    - reqBg/reqBorder: fondo cream + borde negro del bloque "Reportar resultado" cuando falta info
-   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo está vacío
+   - reqEmptyBg/reqEmptyBorder: variante roja cuando un campo estÃ¡ vacÃ­o
    - meRowText: color del texto en la fila destacada del usuario logueado (era priD hardcoded, invisible en dark)
    - btnLightBg: fondo claro para botoncitos "sobre-blanco" (borrar en playoff bracket, recargar en errores) */
 --reqBg:#FFFDF2;--reqBorder:#111;--reqEmptyBg:#fff4f3;--reqEmptyBorder:var(--danger);
 --meRowText:var(--priD);--cream:#fffbf0;--btnLightBg:#fff5f5;--btnLightBorder:#fca5a5;--btnLightText:#dc2626;
-/* Fila destacada del usuario logueado en Rating/Clasificación/Grupos.
+/* Fila destacada del usuario logueado en Rating/ClasificaciÃ³n/Grupos.
    Es DISTINTA de --winrow (que es color del ganador en tabla de grupo y se
    customiza por liga desde localStorage). Al ser variable independiente,
-   ninguna configuración de liga la pisa y el dark mode la controla puro. */
+   ninguna configuraciÃ³n de liga la pisa y el dark mode la controla puro. */
 --meRowBg:#FAEEDA}
 
-/* ==== Toggle manual de tema (data-theme) — sobreescribe prefers-color-scheme.
+/* ==== Toggle manual de tema (data-theme) â€” sobreescribe prefers-color-scheme.
    El script en <head> lee localStorage al inicio y setea data-theme en <html>
-   ANTES del primer paint, así no hay flash. */
+   ANTES del primer paint, asÃ­ no hay flash. */
 
-/* Cuando el usuario elige explícitamente "claro", forzamos light aunque el OS
-   esté en oscuro. */
+/* Cuando el usuario elige explÃ­citamente "claro", forzamos light aunque el OS
+   estÃ© en oscuro. */
 html[data-theme="light"]{
   --bg:#EEF2F7;--surface:#ffffff;--surface2:#EDF1F6;--text:#1b2433;--text2:#5b6675;
   --border:#e2e7ef;--border2:#c8d0dc;--soft:#E6F1FB;--winrow:#FAEEDA;--hl:#FFEDD5;
@@ -47,8 +47,8 @@ html[data-theme="light"]{
 }
 html[data-theme="light"] input,html[data-theme="light"] select,html[data-theme="light"] textarea{background:var(--surface)!important;color:var(--text)!important;border-color:var(--border)!important}
 
-/* Cuando el usuario elige "oscuro" explícito */
-/* Cuando el usuario elige "oscuro" explícito */
+/* Cuando el usuario elige "oscuro" explÃ­cito */
+/* Cuando el usuario elige "oscuro" explÃ­cito */
 html[data-theme="dark"]{
   --bg:#111111;--surface:#1a1a1a;--surface2:#242424;
   --text:#ffffff;--text2:#cbd5e1;
@@ -70,10 +70,10 @@ html[data-theme="dark"]{
 }
 
 /* ============================================================================
-   DARK MODE — REGLA MADRE: TODO texto es BLANCO por defecto.
+   DARK MODE â€” REGLA MADRE: TODO texto es BLANCO por defecto.
    
-   Filosofía: en vez de pelear con 63+ elementos que usan color:var(--pri),
-   forzamos que TODO texto en dark sea blanco. Después, excepciones controladas
+   FilosofÃ­a: en vez de pelear con 63+ elementos que usan color:var(--pri),
+   forzamos que TODO texto en dark sea blanco. DespuÃ©s, excepciones controladas
    para los elementos que necesitan color propio (badges, links, headers).
    ============================================================================ */
 
@@ -104,9 +104,9 @@ html[data-theme="dark"] small{color:#ffffff!important}
 /* Excepciones a la mother rule para paneles con FONDO CLARO en dark mode.
    No modificamos la mother rule (aumentar su especificidad rompe muchas otras
    reglas como .avatar, .badge, .dest, .edit-pts-btn). En su lugar agregamos
-   selectores MÁS específicos para los pocos casos donde queremos texto oscuro
+   selectores MÃS especÃ­ficos para los pocos casos donde queremos texto oscuro
    sobre fondo claro. Usamos `.modal-score p` (0,2,2 > mother rule 0,1,2) y una
-   clase específica `.pe-danger-box` para el panel "Estado en la liga". */
+   clase especÃ­fica `.pe-danger-box` para el panel "Estado en la liga". */
 html[data-theme="dark"] .modal-score{color:#0f172a!important}
 html[data-theme="dark"] .modal-score p,
 html[data-theme="dark"] .modal-score strong,
@@ -125,7 +125,7 @@ html[data-theme="dark"] .pe-danger-box div:not(.gap-sm):not([style*="display:fle
 
 /* Celdas con colores configurados por el admin (club, pending, disputed):
    respetan el inline style con background y color propios. Los colores del
-   admin son intencionales — si él quiere celeste con azul oscuro, eso queda. */
+   admin son intencionales â€” si Ã©l quiere celeste con azul oscuro, eso queda. */
 html[data-theme="dark"] .cell-pending{background:#FAEEDA;color:#6b5800}
 
 /* Texto secundario (hints, legends): gris claro pero legible */
@@ -144,17 +144,17 @@ html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] textarea{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
 
-/* ==== HEADER SUPERIOR AZUL (.hdr) — mantiene azul oscuro con texto blanco ==== */
+/* ==== HEADER SUPERIOR AZUL (.hdr) â€” mantiene azul oscuro con texto blanco ==== */
 html[data-theme="dark"] .hdr{background:#0E3470!important}
 html[data-theme="dark"] .hdr *{color:#ffffff!important}
 html[data-theme="dark"] .hdr p,html[data-theme="dark"] .hdr p *{color:#dce7f6!important}
 
-/* ==== HEADER DEL LOGIN (.login-head) — igual ==== */
+/* ==== HEADER DEL LOGIN (.login-head) â€” igual ==== */
 html[data-theme="dark"] .login-head{background:#0E3470!important}
 html[data-theme="dark"] .login-head *{color:#ffffff!important}
 html[data-theme="dark"] .login-head p,html[data-theme="dark"] .login-head p *{color:#dce7f6!important}
 
-/* ==== HEADERS DE TABLAS — fondo --soft (azul oscuro), texto blanco ==== */
+/* ==== HEADERS DE TABLAS â€” fondo --soft (azul oscuro), texto blanco ==== */
 html[data-theme="dark"] .cls-table th,
 html[data-theme="dark"] .gen-table th,
 html[data-theme="dark"] .rt-table th,
@@ -188,10 +188,10 @@ html[data-theme="dark"] .btn-danger *,
 html[data-theme="dark"] label.btn-danger *{color:#fecaca!important}
 html[data-theme="dark"] .btn-danger:hover:not(:disabled),
 html[data-theme="dark"] label.btn-danger:hover{background:#991b1b!important}
-/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color más oscuro) contra la regla madre del dark */
+/* club-opt seleccionado: preservar var(--ctx) (autoTxt = mismo color mÃ¡s oscuro) contra la regla madre del dark */
 html[data-theme="dark"] .club-opt.club-sel,
 html[data-theme="dark"] .club-opt.club-sel *{color:var(--ctx)!important;background:var(--cbg)!important;border-color:var(--ctx)!important}
-/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila esté sombreada como usuario */
+/* Badges puesto 1-2-3: mantener oro/plata/bronce aunque la fila estÃ© sombreada como usuario */
 html[data-theme="dark"] .me-row .pos.p1,
 html[data-theme="dark"] .me-row .pos-badge.pos-1{background:#F5C518!important;color:#0E3470!important}
 html[data-theme="dark"] .me-row .pos.p2,
@@ -199,7 +199,7 @@ html[data-theme="dark"] .me-row .pos-badge.pos-2{background:#D3D1C7!important;co
 html[data-theme="dark"] .me-row .pos.p3,
 html[data-theme="dark"] .me-row .pos-badge.pos-3{background:#F0997B!important;color:#4A1B0C!important}
 
-/* ==== PLAYOFFS — contraste garantizado en dark + fila del usuario logueado ==== */
+/* ==== PLAYOFFS â€” contraste garantizado en dark + fila del usuario logueado ==== */
 /* Botones Editar/Eliminar del admin dentro del box de un partido de playoff.
    Antes usaban var(--soft)+var(--pri) o rosa+rojo hardcodeados: en dark la
    regla madre pintaba el texto blanco sobre fondo claro (ilegible). */
@@ -217,7 +217,7 @@ html[data-theme="dark"] .po-slot-btn.po-slot-del:hover{background:#991b1b!import
 
 /* Slot destacado del jugador logueado en el cuadro del playoff (bg cream #FFF8DC).
    Sobre ese cream, tanto el nombre como el seed number y el chip "yo" deben ir
-   en oscuro incluso en dark mode. Se aplica al div de la línea y a todos sus hijos. */
+   en oscuro incluso en dark mode. Se aplica al div de la lÃ­nea y a todos sus hijos. */
 .po-me-slot,
 .po-me-slot *{color:#0E3470!important}
 .po-me-slot .nm-link{color:#0E3470!important;text-decoration-color:#0E3470!important}
@@ -230,7 +230,7 @@ html[data-theme="dark"] .po-me-slot .nm-link{color:#0E3470!important;text-decora
 html[data-theme="dark"] .po-me-slot .po-me-chip,
 html[data-theme="dark"] .po-me-slot .po-me-chip *{background:#F5C518!important;color:#0E3470!important}
 
-/* Botón "Mover acá" del panel del admin — colores fijos para no depender de tokens. */
+/* BotÃ³n "Mover acÃ¡" del panel del admin â€” colores fijos para no depender de tokens. */
 .po-move-btn{background:#E6F1FB!important;color:#0E3470!important;border:1px solid #93c5fd!important}
 .po-move-btn:hover{background:#d1e5fb!important}
 html[data-theme="dark"] .po-move-btn,
@@ -238,18 +238,18 @@ html[data-theme="dark"] .po-move-btn *{background:#1e3a5f!important;color:#dbeaf
 html[data-theme="dark"] .po-move-btn:hover{background:#2a4a75!important}
 
 /* Chips de seed en el panel del admin: fondo claro con texto SIEMPRE oscuro
-   (activos e inactivos, en cualquier modo). El botón ✕ mantiene su rojo. */
+   (activos e inactivos, en cualquier modo). El botÃ³n âœ• mantiene su rojo. */
 html[data-theme="dark"] .seed-chip,
 html[data-theme="dark"] .seed-chip > span{color:#0E3470!important;background:#dbeafe!important}
 html[data-theme="dark"] .seed-chip .rm{background:#FCEBEB!important;color:#7f1d1d!important;border-color:#f3c0c0!important}
 html[data-theme="dark"] .seed-chip .rm:hover{background:#f3c0c0!important}
 
-/* Chip "Cuadro X" en la Clasificación General: en la fila destacada del usuario
+/* Chip "Cuadro X" en la ClasificaciÃ³n General: en la fila destacada del usuario
    logueado, texto oscuro sobre fondo claro (mantiene el sombreado del chip).
    Nota: se prefija con la tabla concreta (.gen-table/.cls-table/.rt-table) para
    ganarle en specificity a la "mother rule" del dark mode que pinta bg y color
    de TODOS los hijos del td destacado con var(--meRowBg) + white. Sin eso, el
-   chip se camuflaba con la fila y se veía como texto blanco sobre el mismo fondo. */
+   chip se camuflaba con la fila y se veÃ­a como texto blanco sobre el mismo fondo. */
 .me-row .po-chip{color:#0E3470!important;background:#dbeafe!important}
 html[data-theme="dark"] .gen-table .me-row .po-chip,
 html[data-theme="dark"] .gen-table .me-row .po-chip *,
@@ -257,9 +257,9 @@ html[data-theme="dark"] .cls-table .me-row .po-chip,
 html[data-theme="dark"] .cls-table .me-row .po-chip *,
 html[data-theme="dark"] .rt-table tr.me-row .po-chip,
 html[data-theme="dark"] .rt-table tr.me-row .po-chip *{color:#0E3470!important;background:#dbeafe!important}
-/* Avatar (círculo de iniciales) dentro de la fila destacada del usuario logueado:
-   mismo problema — la mother rule pintaba el círculo con el mismo bg de la fila y
-   quedaba invisible. Restauramos su look característico (fondo azul claro + texto
+/* Avatar (cÃ­rculo de iniciales) dentro de la fila destacada del usuario logueado:
+   mismo problema â€” la mother rule pintaba el cÃ­rculo con el mismo bg de la fila y
+   quedaba invisible. Restauramos su look caracterÃ­stico (fondo azul claro + texto
    azul oscuro) con specificity aumentada. */
 html[data-theme="dark"] .gen-table .me-row .avatar,
 html[data-theme="dark"] .gen-table .me-row .avatar *,
@@ -267,14 +267,14 @@ html[data-theme="dark"] .cls-table .me-row .avatar,
 html[data-theme="dark"] .cls-table .me-row .avatar *,
 html[data-theme="dark"] .rt-table tr.me-row .avatar,
 html[data-theme="dark"] .rt-table tr.me-row .avatar *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
-/* En dark mode, TODOS los chips "Cuadro X" (no sólo el del usuario) llevan texto
+/* En dark mode, TODOS los chips "Cuadro X" (no sÃ³lo el del usuario) llevan texto
    oscuro sobre fondo claro para mantener contraste sin depender de --pri/--soft
    customizados por la liga. */
 html[data-theme="dark"] .po-chip,
 html[data-theme="dark"] .po-chip *{color:#0E3470!important;background:#dbeafe!important}
 
-/* Banner de previsualización de Play Offs (admin): antes usaba var(--soft) + var(--priD)
-   con estilos inline; podía quedar fondo claro + texto claro si la liga customizaba
+/* Banner de previsualizaciÃ³n de Play Offs (admin): antes usaba var(--soft) + var(--priD)
+   con estilos inline; podÃ­a quedar fondo claro + texto claro si la liga customizaba
    --priD. Ahora clase con colores fijos, safe en light y dark. */
 .po-preview-banner{background:#E6F1FB!important;border-color:#93c5fd!important;border-width:1.5px!important}
 .po-preview-banner .pp-title{color:#0E3470!important;font-weight:600;margin-bottom:.4rem}
@@ -286,10 +286,10 @@ html[data-theme="dark"] .po-preview-banner .pp-title *{color:#dbeafe!important}
 html[data-theme="dark"] .po-preview-banner .legend-txt,
 html[data-theme="dark"] .po-preview-banner .legend-txt *{color:#cbd5e1!important}
 
-/* Botón "Editar" del puntaje por posición (dentro del header .clg-head).
+/* BotÃ³n "Editar" del puntaje por posiciÃ³n (dentro del header .clg-head).
    Antes usaba .btn con colores heredados; el color inherited de
-   .clg-head th:last-child (var(--priD)) más --priD customizado por la liga
-   podía dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
+   .clg-head th:last-child (var(--priD)) mÃ¡s --priD customizado por la liga
+   podÃ­a dejarlo con fondo claro + texto claro. Ahora hardcodeado. */
 .edit-pts-btn{background:#0E3470!important;color:#ffffff!important;border:1px solid #0E3470!important;padding:2px 8px!important;font-size:10px!important;font-weight:600!important;margin-left:5px}
 .edit-pts-btn *{color:#ffffff!important}
 .edit-pts-btn:hover{background:#1B4F9C!important}
@@ -298,15 +298,15 @@ html[data-theme="dark"] .edit-pts-btn *{background:#dbeafe!important;color:#0E34
 html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
 
 /* Ajuste manual de puntos (bonus/penalidad) por jugador, en la tabla de
-   Clasificación. .pts-ajuste-btn es un lápiz chico y discreto (no tiene el
-   mismo peso visual que el botón "Editar" de la escala general, porque es
-   una acción de uso ocasional, no algo que se toque todo el tiempo).
+   ClasificaciÃ³n. .pts-ajuste-btn es un lÃ¡piz chico y discreto (no tiene el
+   mismo peso visual que el botÃ³n "Editar" de la escala general, porque es
+   una acciÃ³n de uso ocasional, no algo que se toque todo el tiempo).
    .pts-ajuste es el indicador "(+3)"/"(-5)" junto al Total, solo visible
-   cuando el jugador tiene un ajuste activo — verde para bonus, rojo para
+   cuando el jugador tiene un ajuste activo â€” verde para bonus, rojo para
    penalidad, coherente con el resto de la paleta de estados de la app.
-   .gen-edit es la columna dedicada al editor en la Clasificación General
-   (al final de la fila, después de Play Off si corresponde) — angosta,
-   centrada, sin necesitar más que el ancho del ícono. */
+   .gen-edit es la columna dedicada al editor en la ClasificaciÃ³n General
+   (al final de la fila, despuÃ©s de Play Off si corresponde) â€” angosta,
+   centrada, sin necesitar mÃ¡s que el ancho del Ã­cono. */
 .pts-ajuste-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:4px;border-radius:5px;font-size:11px;line-height:1;vertical-align:middle}
 .pts-ajuste-btn:hover{background:var(--surface2);color:var(--pri)}
 .pts-ajuste{font-size:11px;font-weight:700;margin-left:3px;white-space:nowrap}
@@ -315,34 +315,34 @@ html[data-theme="dark"] .edit-pts-btn:hover{background:#bfdbfe!important}
 .gen-edit{width:1%;white-space:nowrap;text-align:center;padding:0 6px}
 .gen-edit .pts-ajuste-btn{margin-left:0;font-size:13px;padding:4px 6px}
 
-/* Select inline de posición dentro de cada slot de la primera ronda del
-   bracket (Play Offs): reemplaza al lápiz + modal separado que había antes.
-   Chico, discreto, ancho completo del slot — no debe competir visualmente
-   con el nombre del jugador, que va arriba en su propia línea. */
+/* Select inline de posiciÃ³n dentro de cada slot de la primera ronda del
+   bracket (Play Offs): reemplaza al lÃ¡piz + modal separado que habÃ­a antes.
+   Chico, discreto, ancho completo del slot â€” no debe competir visualmente
+   con el nombre del jugador, que va arriba en su propia lÃ­nea. */
 .po-pos-inline-sel{width:100%;font-size:10px;padding:2px 4px;margin-top:2px;border-radius:5px;border:1px solid var(--border2);background:var(--surface2);color:var(--text2)}
 .po-pos-inline-sel:hover{border-color:var(--pri)}
 /* .po-pos-inline-name: variante donde el <select> ES el nombre del
-   jugador (reemplaza el texto, no va debajo) — se ve como texto normal en
-   flujo con el resto de la fila (mismo tamaño/peso que .nm-link), con
+   jugador (reemplaza el texto, no va debajo) â€” se ve como texto normal en
+   flujo con el resto de la fila (mismo tamaÃ±o/peso que .nm-link), con
    fondo transparente y sin borde, para no distraer del hecho de que ES el
    nombre. El borde/fondo solo aparecen al pasar el mouse o enfocar, como
    pista sutil de que es interactivo. */
 .po-pos-inline-name{width:auto;max-width:100%;font-size:12px;font-weight:inherit;margin-top:0;padding:2px 4px;border:1px solid transparent;background:transparent;color:inherit;cursor:pointer}
 .po-pos-inline-name:hover,.po-pos-inline-name:focus{border-color:var(--pri);background:var(--surface2)}
-/* Ícono de "ver historial", aparte del nombre cuando este es editable
-   (select) — chico, al final de la fila, mismo estilo que otros botones
-   ghost pequeños del proyecto (.pts-ajuste-btn). */
+/* Ãcono de "ver historial", aparte del nombre cuando este es editable
+   (select) â€” chico, al final de la fila, mismo estilo que otros botones
+   ghost pequeÃ±os del proyecto (.pts-ajuste-btn). */
 .po-hist-btn{border:none;background:transparent;color:var(--text2);cursor:pointer;padding:2px 4px;margin-left:2px;border-radius:5px;font-size:12px;line-height:1;flex-shrink:0}
 .po-hist-btn:hover{background:var(--surface2);color:var(--pri)}
-/* Fila resaltada dentro del modal de reacomodo cuando se abrió con foco en
-   un jugador puntual (desde el lápiz de la tarjeta) — un fondo suave que
-   se desvanece, para llamar la atención sin quedar permanente. */
+/* Fila resaltada dentro del modal de reacomodo cuando se abriÃ³ con foco en
+   un jugador puntual (desde el lÃ¡piz de la tarjeta) â€” un fondo suave que
+   se desvanece, para llamar la atenciÃ³n sin quedar permanente. */
 .po-pos-foco{background:#FFF3C4;border-radius:8px;padding:4px 6px;margin:-4px -6px .4rem -6px!important;animation:po-pos-foco-fade 2.5s ease forwards}
 @keyframes po-pos-foco-fade{0%{background:#FFF3C4}100%{background:transparent}}
 @keyframes po-pos-foco-fade-dark{0%{background:#4a3f1a}100%{background:transparent}}
 html[data-theme="dark"] .po-pos-foco{animation-name:po-pos-foco-fade-dark}
 
-/* Botones ↑↓ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
+/* Botones â†‘â†“ para reordenar seeds dentro del mismo cuadro (admin, panel Play Offs) */
 .seed-chip .mv,.po-cons-move-row .mv{border:none;background:transparent;color:var(--pri);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:6px;line-height:1;display:inline-flex;align-items:center}
 .seed-chip .mv:hover,.po-cons-move-row .mv:hover{background:rgba(0,0,0,.08)}
 .seed-chip .mv:disabled,.po-cons-move-row .mv:disabled{opacity:.3;cursor:not-allowed}
@@ -353,7 +353,7 @@ html[data-theme="dark"] .po-cons-move-row .mv *{color:#0E3470!important;backgrou
 html[data-theme="dark"] .seed-chip .mv:hover,
 html[data-theme="dark"] .po-cons-move-row .mv:hover{background:rgba(14,52,112,.15)!important}
 
-/* ==== BADGES Y ALERTAS (fondo semántico + texto contrastante) ==== */
+/* ==== BADGES Y ALERTAS (fondo semÃ¡ntico + texto contrastante) ==== */
 html[data-theme="dark"] .badge-inact,
 html[data-theme="dark"] .badge-inact *{background:#7f1d1d!important;color:#ffffff!important}
 html[data-theme="dark"] .badge-pend,html[data-theme="dark"] .badge-warn,html[data-theme="dark"] .alert-warn,html[data-theme="dark"] .rt-prov,
@@ -366,7 +366,7 @@ html[data-theme="dark"] .alert-info,html[data-theme="dark"] .badge-tag,
 html[data-theme="dark"] .alert-info *,html[data-theme="dark"] .badge-tag *{background:#1e3a5f!important;color:#93c5fd!important}
 html[data-theme="dark"] .rt-manual,html[data-theme="dark"] .rt-manual *{background:#2e1065!important;color:#c4b5fd!important}
 
-/* ==== TOAST — fondo azul oscuro, texto blanco ==== */
+/* ==== TOAST â€” fondo azul oscuro, texto blanco ==== */
 html[data-theme="dark"] .toast,html[data-theme="dark"] .toast *{background:#1e3a5f!important;color:#ffffff!important;border-bottom:none!important}
 
 /* ==== METRIC TILES ==== */
@@ -375,19 +375,19 @@ html[data-theme="dark"] .metric-tile .metric-n{color:#79aeff!important}
 /* ==== SKELETON LOADER ==== */
 html[data-theme="dark"] .skeleton-row{background:linear-gradient(90deg,#1e293b 25%,#334155 50%,#1e293b 75%)!important;background-size:200% 100%!important}
 
-/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores × Jugadores) ==== */
-/* Header (Jugadores, Juan, Adrián, ...) — fondo azul oscuro, texto blanco */
+/* ==== TABLA DE RESULTADOS DE GRUPO (matriz Jugadores Ã— Jugadores) ==== */
+/* Header (Jugadores, Juan, AdriÃ¡n, ...) â€” fondo azul oscuro, texto blanco */
 html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table thead th,
 html[data-theme="dark"] .res-table th *{background:var(--soft)!important;color:#ffffff!important;border-color:var(--border2)!important}
 html[data-theme="dark"] .res-table th:first-child{background:var(--soft)!important;color:#ffffff!important}
 /* Nota: la primera columna del tbody (nombres de jugadores en las filas) se
-   estiliza más abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
-   sin sombreado y texto blanco bold, como pidió Marcos. */
+   estiliza mÃ¡s abajo (ver bloque "PRIMERA COLUMNA de la matriz de resultados"),
+   sin sombreado y texto blanco bold, como pidiÃ³ Marcos. */
 /* Celdas de resultados: bordes claros para que se vean */
 html[data-theme="dark"] .res-table td{border-color:var(--border2)!important}
 
-/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) — versiones oscuras que mantienen identidad ==== */
+/* ==== COLORES DE CLUB EN DARK (Sohail, Haza) â€” versiones oscuras que mantienen identidad ==== */
 /* En light: --sohail celeste #D6ECFB. En dark: celeste oscuro coherente. */
 html[data-theme="dark"]{
   --sohail:#1e4568;--sohailT:#a5d0f0;
@@ -400,7 +400,7 @@ html[data-theme="dark"] [style*="background:var(--haza)"],
 html[data-theme="dark"] [style*="background: var(--haza)"]{background:#4a2f18!important;color:#f5c896!important}
 
 /* ==== BADGES DE INICIALES (MG, LR, NY, etc.) ==== */
-/* Círculos con las 2 letras del jugador — fondos claros con letras oscuras.
+/* CÃ­rculos con las 2 letras del jugador â€” fondos claros con letras oscuras.
    En dark: fondo azul oscuro con letras blancas. */
 html[data-theme="dark"] .name-badge,
 html[data-theme="dark"] .initial-badge,
@@ -410,16 +410,16 @@ html[data-theme="dark"] span[style*="background:#"][style*="border-radius:50%"],
 html[data-theme="dark"] span[style*="background:#"][style*="border-radius: 50%"]{background:var(--soft)!important;color:#ffffff!important}
 
 /* IMPORTANTE: Las celdas de partidos con inline styles (background y color de
-   club, configurados por el admin) NO se sobreescriben. El admin eligió los
-   colores; la función autoTxt() ya calcula el mejor color de texto según el
+   club, configurados por el admin) NO se sobreescriben. El admin eligiÃ³ los
+   colores; la funciÃ³n autoTxt() ya calcula el mejor color de texto segÃºn el
    fondo. Se leen bien tal cual. */
 
-/* Los inputs de login con clases específicas también */
+/* Los inputs de login con clases especÃ­ficas tambiÃ©n */
 html[data-theme="dark"] .login-body input,
 html[data-theme="dark"] .login-body select{background:var(--surface)!important;color:#ffffff!important;border-color:var(--border)!important}
 
 /* ============================================================================
-   MISMO DARK MODE cuando el usuario está en "system" y su OS está en oscuro.
+   MISMO DARK MODE cuando el usuario estÃ¡ en "system" y su OS estÃ¡ en oscuro.
    ============================================================================ */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]){
@@ -463,8 +463,8 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
   html:not([data-theme]) b,
   html:not([data-theme]) small{color:#ffffff!important}
 
-  /* Igual que en modo manual dark: excepciones puntuales con selectores más
-     específicos que la mother rule, para paneles con fondo claro. */
+  /* Igual que en modo manual dark: excepciones puntuales con selectores mÃ¡s
+     especÃ­ficos que la mother rule, para paneles con fondo claro. */
   html:not([data-theme]) .modal-score{color:#0f172a!important}
   html:not([data-theme]) .modal-score p,
   html:not([data-theme]) .modal-score strong,
@@ -606,20 +606,20 @@ html[data-theme="dark"] .login-body select{background:var(--surface)!important;c
 }
 
 /* ==== HEADERS Y CELDAS DE .res-table (matriz de partidos por grupo) ====
-   El CSS legacy usa var(--pri) y var(--priD) como background — en dark esos
-   son azul claro y quedan casi blancos. Forzamos oscuro con máxima especificidad. */
+   El CSS legacy usa var(--pri) y var(--priD) como background â€” en dark esos
+   son azul claro y quedan casi blancos. Forzamos oscuro con mÃ¡xima especificidad. */
 html[data-theme="dark"] .res-table th,
 html[data-theme="dark"] .res-table th:first-child,
 html[data-theme="dark"] .res-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
-/* ==== HEADER "Puntos para la Clasificación General" (.clg-head) ==== */
+/* ==== HEADER "Puntos para la ClasificaciÃ³n General" (.clg-head) ==== */
 html[data-theme="dark"] .clg-head th,
 html[data-theme="dark"] .clg-head th:first-child,
 html[data-theme="dark"] .clg-head th:last-child{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
 /* ==== CELDAS DE ESTADOS (matriz) ====
    NO tocamos .cell-club: los colores del club son configurados por el admin
-   y deben respetarse en dark también (el texto se calcula automáticamente
+   y deben respetarse en dark tambiÃ©n (el texto se calcula automÃ¡ticamente
    con autoTxt() para garantizar contraste sobre el fondo del club).
    Solo estilizamos los ESTADOS (pending, empty, locked, res-black). */
 html[data-theme="dark"] .cell-pending{background:#3d2a10!important;color:#fcd34d!important}
@@ -630,8 +630,8 @@ html[data-theme="dark"] .res-black{background:var(--bg)!important}
 
 /* ==== FONDOS CLAROS DE ADMIN, HISTORIAL, H2H, BRACKET DE PLAYOFF ====
    Elementos legacy con fondos pastel + texto oscuro hardcoded que en dark
-   quedaban con texto blanco (por la regla madre) sobre fondo claro → invisibles.
-   Se invierten a fondos oscuros semánticos con texto claro coherente. */
+   quedaban con texto blanco (por la regla madre) sobre fondo claro â†’ invisibles.
+   Se invierten a fondos oscuros semÃ¡nticos con texto claro coherente. */
 html[data-theme="dark"] .pm-wl.w,
 html[data-theme="dark"] .h2h-wl.w,
 html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
@@ -643,16 +643,16 @@ html[data-theme="dark"] .bracket-cons .match-box{background:#3d2a10!important;bo
 html[data-theme="dark"] .bracket-main .match-box *,
 html[data-theme="dark"] .bracket-cons .match-box *{color:#ffffff!important}
 html[data-theme="dark"] .btn-past:hover{background:var(--soft)!important}
-/* .lm-badge (badges en el panel admin de ligas) — el .lm-cur (liga actual)
-   tiene fondo primary + color acc (amarillo) — se ve bien en dark. Otros badges: */
+/* .lm-badge (badges en el panel admin de ligas) â€” el .lm-cur (liga actual)
+   tiene fondo primary + color acc (amarillo) â€” se ve bien en dark. Otros badges: */
 html[data-theme="dark"] .lm-badge{background:var(--surface2)!important;color:var(--text)!important}
 html[data-theme="dark"] .lm-badge.lm-cur{background:#1e40af!important;color:#ffffff!important}
 html[data-theme="dark"] .lm-badge.lm-on{background:#14361f!important;color:#86efac!important}
 html[data-theme="dark"] .lm-badge.lm-off{background:#4a1d1d!important;color:#fca5a5!important}
-/* .rt-manual (rating manual admin) — violeta */
+/* .rt-manual (rating manual admin) â€” violeta */
 html[data-theme="dark"] .rt-manual{background:#2e1065!important;color:#c4b5fd!important}
 
-/* Barrido general: cualquier inline style con hex claro conocido → invertir.
+/* Barrido general: cualquier inline style con hex claro conocido â†’ invertir.
    Cubre elementos que se generan por JS con inline styles hardcoded. */
 html[data-theme="dark"] [style*="background:#dcfce7"]{background:#14361f!important;color:#86efac!important}
 html[data-theme="dark"] [style*="background:#fee2e2"],
@@ -692,7 +692,7 @@ html[data-theme="dark"] [style*="background:#d4d9e0"]{background:var(--surface2)
   html:not([data-theme]) [style*="background:#d4d9e0"]{background:var(--surface2)!important;color:var(--text)!important}
 }
 
-/* ==== HEADER superior de tabla clasificación ("CLASIFICACIÓN GENERAL ACUMULADA") ==== */
+/* ==== HEADER superior de tabla clasificaciÃ³n ("CLASIFICACIÃ“N GENERAL ACUMULADA") ==== */
 html[data-theme="dark"] .cls-table thead tr:first-child th,
 html[data-theme="dark"] .gen-table thead tr:first-child th{background:#1a2f4d!important;color:#ffffff!important}
 
@@ -701,7 +701,7 @@ html[data-theme="dark"] .cls-table thead tr th,
 html[data-theme="dark"] .gen-table thead tr th,
 html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 
-/* Mismo tratamiento para dark mode automático */
+/* Mismo tratamiento para dark mode automÃ¡tico */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) .res-table th,
   html:not([data-theme]) .res-table th:first-child,
@@ -721,16 +721,16 @@ html[data-theme="dark"] .rt-table thead tr th{background:#1a2f4d!important;color
   html:not([data-theme]) .rt-table thead tr th{background:#1a2f4d!important;color:#ffffff!important;border-color:var(--border2)!important}
 }
 
-/* ==== CÍRCULOS DE INICIALES (.avatar) ==== */
-/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidió
-   este contraste específicamente: fondo claro con letras azules. */
+/* ==== CÃRCULOS DE INICIALES (.avatar) ==== */
+/* En dark: fondo claro/celeste como en light + letras azul OSCURO. Marcos pidiÃ³
+   este contraste especÃ­ficamente: fondo claro con letras azules. */
 html[data-theme="dark"] .avatar{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
 
 /* ==== PRIMERA COLUMNA de la matriz de resultados (nombres de jugadores) ==== */
-/* Marcos pidió: sin sombreado en la primera columna, y texto igual a los headers
-   de columna (blanco bold, sin subrayado). Así los "row labels" y los "column
+/* Marcos pidiÃ³: sin sombreado en la primera columna, y texto igual a los headers
+   de columna (blanco bold, sin subrayado). AsÃ­ los "row labels" y los "column
    labels" se ven unificados como cabeceras del mismo estilo.
-   IMPORTANTE: aplicar bg:transparent también a los hijos (spans internos del
+   IMPORTANTE: aplicar bg:transparent tambiÃ©n a los hijos (spans internos del
    nombre) porque el span dentro del td hereda del CSS legacy. */
 html[data-theme="dark"] .res-table tbody tr td:first-child,
 html[data-theme="dark"] .res-table tbody tr td:first-child *{background:transparent!important}
@@ -745,12 +745,12 @@ html[data-theme="dark"] .res-table tbody tr td:first-child .nm-link{color:#fffff
 
 /* ==== TAB DEL GRUPO ACTIVO (Grupo N) ==== */
 /* .grp-title es el "tab" arriba de la tabla de posiciones. En dark, azul intenso
-   con letras blancas — como pidió Marcos. */
+   con letras blancas â€” como pidiÃ³ Marcos. */
 html[data-theme="dark"] .grp-title{background:#1e40af!important;color:#ffffff!important;border-color:#2563eb!important}
 
 /* ==== BADGE "=Grupo N" (destino igual, se mantiene en el mismo grupo) ==== */
-/* Los ↑Grupo N (dest-up) y ↓Grupo N (dest-down) ya se ven bien (verde/rojo).
-   El =Grupo N (dest-same) tiene fondo claro por diseño; en dark le forzamos
+/* Los â†‘Grupo N (dest-up) y â†“Grupo N (dest-down) ya se ven bien (verde/rojo).
+   El =Grupo N (dest-same) tiene fondo claro por diseÃ±o; en dark le forzamos
    letras azul oscuro para que contraste bien sobre el fondo claro. */
 html[data-theme="dark"] .dest-same,
 html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!important;font-weight:700!important}
@@ -763,19 +763,19 @@ html[data-theme="dark"] .dest-same *{background:#dbeafe!important;color:#1e3a8a!
 
 /* ==== DEMOS DE COLOR EN EL PERFIL ADMIN ====
    Los "demos" de "No jugado" y "Disputa" tienen background del color que el
-   admin eligió (típicamente claro) + texto var(--priD) que en dark es azul
-   claro → ilegibles. Forzamos texto azul OSCURO para contrastar con el
+   admin eligiÃ³ (tÃ­picamente claro) + texto var(--priD) que en dark es azul
+   claro â†’ ilegibles. Forzamos texto azul OSCURO para contrastar con el
    fondo claro del admin. */
 html[data-theme="dark"] #sa-hl-demo{color:#1e3a8a!important;border-color:#1e3a8a!important}
 
-/* Badges del admin ("Organización", nombres de admins) con background var(--hl)
-   o inline claro — asegurar contraste texto oscuro sobre fondo claro. */
+/* Badges del admin ("OrganizaciÃ³n", nombres de admins) con background var(--hl)
+   o inline claro â€” asegurar contraste texto oscuro sobre fondo claro. */
 html[data-theme="dark"] .badge[style*="background:var(--hl)"],
 html[data-theme="dark"] .badge[style*="background: var(--hl)"]{color:#1e3a8a!important}
 
-/* Spans con background hardcoded claro (colores custom del admin) — 
+/* Spans con background hardcoded claro (colores custom del admin) â€” 
    texto azul oscuro para leer bien sobre esos fondos claros. Excluimos
-   círculos (avatars) que ya están cubiertos por otra regla. */
+   cÃ­rculos (avatars) que ya estÃ¡n cubiertos por otra regla. */
 html[data-theme="dark"] span[style*="background:#F"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
 html[data-theme="dark"] span[style*="background:#f"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
 html[data-theme="dark"] span[style*="background:#E"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]),
@@ -795,7 +795,7 @@ html[data-theme="dark"] span[style*="background:#d"]:not([style*="border-radius:
   html:not([data-theme]) span[style*="background:#d"]:not([style*="border-radius:50%"]):not([style*="border-radius: 50%"]){color:#1e3a8a!important}
 }
 
-/* Respeto por accesibilidad: usuarios con preferencia de menos animación
+/* Respeto por accesibilidad: usuarios con preferencia de menos animaciÃ³n
    ven la app sin transitions ni movimientos. */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
@@ -804,9 +804,9 @@ html,body{background:var(--bg);color:var(--text);font-family:-apple-system,Blink
 .app{max-width:1040px;margin:0 auto;padding:.75rem}
 .login-wrap{max-width:380px;margin:2rem auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,.08)}
 /* Header editable del login (arriba del recuadro azul). Ancho completo,
-   siempre visible arriba de todo. Los pills usan negrita y borde más
-   marcado, y en pantallas chicas achican padding/tamaño para caber sin
-   overflow. z-index:10 asegura que quede por encima de cualquier animación
+   siempre visible arriba de todo. Los pills usan negrita y borde mÃ¡s
+   marcado, y en pantallas chicas achican padding/tamaÃ±o para caber sin
+   overflow. z-index:10 asegura que quede por encima de cualquier animaciÃ³n
    o elemento posicionado del fondo. */
 .login-header-bar{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.5rem;padding:.75rem 1rem;width:100%;box-sizing:border-box;position:relative;z-index:10;border-bottom:1px solid rgba(0,0,0,.08)}
 .login-header-bar a{text-decoration:none;font-weight:700;font-size:13px;padding:.4rem .85rem;border-width:2px;border-style:solid;border-radius:999px;transition:opacity .15s,transform .15s;opacity:.94;line-height:1;white-space:nowrap}
@@ -844,7 +844,7 @@ input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-vis
 details>summary{transition:background-color .12s ease}
 details>summary:hover{background:var(--hover)}
 details[open]>summary{border-bottom:1px solid var(--border)}
-/* Toast: entrada + salida más suave */
+/* Toast: entrada + salida mÃ¡s suave */
 .toast{transition:opacity .28s ease,transform .28s ease}
 /* Skeleton hereda animation del keyframe; el shine ya funciona */
 
@@ -892,7 +892,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .readonly-banner span{flex:1;min-width:0}
   .readonly-banner button{background:var(--pri);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .readonly-banner button:hover{background:var(--priD)}
-  /* En modo consulta, se ocultan los controles de edición. Solo se ve/navega. */
+  /* En modo consulta, se ocultan los controles de ediciÃ³n. Solo se ve/navega. */
   body.readonly-mode .user-chip,
   body.readonly-mode #btn-cargar-tab,
   body.readonly-mode [data-edit-only],
@@ -914,7 +914,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .pm-res-rival{flex:1;font-size:12.5px;color:var(--text)}
   .pm-res-sc{font-size:12.5px;font-weight:700;color:var(--text2)}
   .pm-past-load,.pm-past-empty{padding:10px;font-size:12px;color:var(--text2);text-align:center}
-  /* Gestión de ligas (admin) */
+  /* GestiÃ³n de ligas (admin) */
   .lm-list{display:flex;flex-direction:column;gap:8px}
   .lm-item{border:1px solid var(--border);border-radius:10px;padding:11px 13px;background:var(--surface)}
   .lm-item-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px}
@@ -961,7 +961,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rg-content font[size="6"]{font-size:22px}
   .rg-content font[size="5"]{font-size:18px}
   .rg-content font[size="2"]{font-size:12px}
-  /* El editor comparte el mismo formato para que se vea igual mientras editás */
+  /* El editor comparte el mismo formato para que se vea igual mientras editÃ¡s */
   .rg-editor h1{font-size:22px;font-weight:800;margin:16px 0 8px;line-height:1.25}
   .rg-editor h2{font-size:18px;font-weight:800;margin:14px 0 7px}
   .rg-editor h3{font-size:16px;font-weight:700;margin:12px 0 6px}
@@ -982,7 +982,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rg-content img{max-width:100%;border-radius:8px;margin:6px 0}
   .rg-content h1,.rg-content h2,.rg-content h3{margin:12px 0 6px}
   .rg-src-btn{justify-content:flex-start;width:100%;text-align:left}
-  /* Estadísticas del perfil */
+  /* EstadÃ­sticas del perfil */
   .stat-blocks{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media(max-width:560px){.stat-blocks{grid-template-columns:1fr}}
   .stat-block{border:1px solid var(--border);border-radius:11px;padding:12px;background:var(--surface2)}
@@ -1022,9 +1022,9 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .rt-howto-b{font-size:11.5px;color:var(--text2);line-height:1.65}
   .rt-cols-leg{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:10px;font-size:11px;color:var(--text2)}
   .rt-cols-leg b{color:var(--text);font-weight:700}
-  /* Header fijo (sticky) para rating y clasificación — mismo estilo azul.
-     Funciona en desktop Y móvil: el contenedor scrollea (x e y) con una
-     altura máxima, y el thead se pega al tope de ESE contenedor. */
+  /* Header fijo (sticky) para rating y clasificaciÃ³n â€” mismo estilo azul.
+     Funciona en desktop Y mÃ³vil: el contenedor scrollea (x e y) con una
+     altura mÃ¡xima, y el thead se pega al tope de ESE contenedor. */
   #view-rating .overflow-x, #view-general .overflow-x{
     max-height:70vh; overflow:auto; -webkit-overflow-scrolling:touch;
   }
@@ -1032,16 +1032,16 @@ details[open]>summary{border-bottom:1px solid var(--border)}
     position:-webkit-sticky; position:sticky; top:0; z-index:5;
     background:var(--soft); color:var(--pri); font-weight:700;
   }
-  /* Línea inferior del header que no desaparece al scrollear */
+  /* LÃ­nea inferior del header que no desaparece al scrollear */
   .rt-table thead th, .gen-table thead th{ border-bottom:2px solid var(--soft); }
-  /* El rating hereda TODO de gen-table para ser idéntico */
+  /* El rating hereda TODO de gen-table para ser idÃ©ntico */
   .rt-ficha{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,var(--pri),var(--pri-dark,#1e3a8a));color:#fff;border-radius:12px;padding:14px 16px;margin-bottom:14px}
   .rt-ficha-num{font-size:32px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
   .rt-ficha-side{flex:1}
   .rt-ficha-lbl{font-size:13px;font-weight:700;opacity:.95}
   .rt-ficha-sub{font-size:11px;opacity:.8;margin-top:2px}
   .rt-ficha .rt-prov,.rt-ficha .rt-manual{background:rgba(255,255,255,.25);color:#fff}
-  /* H2H · Cara a Cara */
+  /* H2H Â· Cara a Cara */
   .h2h-link{cursor:pointer;color:var(--pri);border-bottom:1px dashed var(--border2)}
   .h2h-link:hover{border-bottom-color:var(--pri)}
   .h2h-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 14px}
@@ -1062,7 +1062,7 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .h2h-sc{font-size:13px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
   .h2h-list{margin-top:4px}
   .h2h-liga-tag{margin-left:auto;font-size:10px;color:var(--text2);background:var(--hover,#f1f5f9);padding:2px 7px;border-radius:5px;white-space:nowrap}
-  /* Catálogo de jugadores (superadmin) */
+  /* CatÃ¡logo de jugadores (superadmin) */
   .cj-search{display:flex;align-items:center;gap:7px;border:1px solid var(--border2);border-radius:8px;padding:0 10px;margin-bottom:10px;background:var(--surface)}
   .cj-search i{color:var(--text2);font-size:14px}
   .cj-search input{flex:1;border:none;background:none;padding:9px 0;font-size:13px;color:var(--text);outline:none;font-family:inherit}
@@ -1088,37 +1088,37 @@ details[open]>summary{border-bottom:1px solid var(--border)}
   .cj-fusion-confirm-btns{display:flex;gap:8px;flex-wrap:wrap}
 .login-hint{margin-top:.875rem;padding:.7rem;background:var(--soft);border-radius:8px;font-size:11px;color:var(--priD);line-height:1.5}
 .login-err{background:#FCEBEB;color:#791F1F;padding:.55rem;border-radius:8px;font-size:12px;margin-bottom:.75rem;display:none}
-/* Header fijo: se queda pegado arriba al scrollear la página, para que el
-   nombre de la liga, el cambio de liga y el logout siempre estén a mano sin
+/* Header fijo: se queda pegado arriba al scrollear la pÃ¡gina, para que el
+   nombre de la liga, el cambio de liga y el logout siempre estÃ©n a mano sin
    tener que volver arriba. z-index alto para quedar por encima de tablas,
-   modales de fondo, etc. El radio inferior se aplana mientras está pegado
-   (sticky no dispara ningún pseudo-clase para esto en CSS puro, así que se
-   deja el radio completo siempre — visualmente se nota poco al estar pegado
+   modales de fondo, etc. El radio inferior se aplana mientras estÃ¡ pegado
+   (sticky no dispara ningÃºn pseudo-clase para esto en CSS puro, asÃ­ que se
+   deja el radio completo siempre â€” visualmente se nota poco al estar pegado
    al borde superior de la pantalla).
    El position:sticky vive en .app-sticky-nav (el wrapper que agrupa .hdr +
-   .cycle-bar + .tabs, ver index.html), NO en .hdr por separado: así los tres
+   .cycle-bar + .tabs, ver index.html), NO en .hdr por separado: asÃ­ los tres
    se mueven y quedan pegados como una sola unidad al hacer scroll, sin tener
    que calcular a mano la altura del header para el `top` del siguiente
-   elemento sticky (que cambia según el tamaño de pantalla y si el nombre de
-   la liga ocupa una o dos líneas). Antes solo .hdr era sticky: al bajar en
+   elemento sticky (que cambia segÃºn el tamaÃ±o de pantalla y si el nombre de
+   la liga ocupa una o dos lÃ­neas). Antes solo .hdr era sticky: al bajar en
    una vista larga (por ejemplo, el cuadro de Play Offs) el nombre de la liga
-   y el usuario quedaban fijos pero la barra de ciclos y las pestañas se
-   iban con el scroll, perdiendo la referencia de en qué sección se estaba. */
+   y el usuario quedaban fijos pero la barra de ciclos y las pestaÃ±as se
+   iban con el scroll, perdiendo la referencia de en quÃ© secciÃ³n se estaba. */
 .app-sticky-nav{position:sticky;top:0;z-index:50;background:var(--bg);padding-top:.1px;margin-top:-.1px}
 .hdr{display:flex;align-items:center;gap:12px;padding:.95rem 1rem;background:var(--pri);border-radius:14px;margin-bottom:.6rem;border-top:4px solid var(--acc);flex-wrap:wrap;box-shadow:0 2px 12px rgba(0,0,0,.12)}
 .hdr-logo{width:36px;height:36px;background:var(--acc);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--priD);font-size:18px;flex-shrink:0}
 .hdr-titlebox{min-width:0;flex:1 1 auto;position:relative}
 .hdr h1{font-size:15px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* margin-top: separa visualmente el subtítulo ("Ciclo 2 · finished") del
-   nombre de la liga arriba — sin esto quedaban pegados uno contra el otro,
-   ya que el reset global (*{margin:0}, línea 1 del archivo) le saca a <p>
-   cualquier espaciado propio y .hdr-titlebox no define ningún gap entre sus
+/* margin-top: separa visualmente el subtÃ­tulo ("Ciclo 2 Â· finished") del
+   nombre de la liga arriba â€” sin esto quedaban pegados uno contra el otro,
+   ya que el reset global (*{margin:0}, lÃ­nea 1 del archivo) le saca a <p>
+   cualquier espaciado propio y .hdr-titlebox no define ningÃºn gap entre sus
    hijos. */
 .hdr p{font-size:12px;color:#dce7f6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:6px}
 /* .cycle-bar y .tabs, siendo ahora parte del bloque sticky, necesitan su
    propio respiro para no verse pisados por el borde del header de arriba ni
-   por el contenido que sigue debajo — antes ese margen alcanzaba porque todo
-   estaba en flujo normal; ahora que "flota" hace falta un poco más de aire. */
+   por el contenido que sigue debajo â€” antes ese margen alcanzaba porque todo
+   estaba en flujo normal; ahora que "flota" hace falta un poco mÃ¡s de aire. */
 .app-sticky-nav .cycle-bar{margin-top:.15rem}
 .app-sticky-nav .tabs{margin-bottom:1rem}
 .user-chip{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
@@ -1134,44 +1134,44 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 
 .role-badge{background:var(--acc);color:var(--priD);font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;text-transform:uppercase}
 .cycle-bar{display:flex;gap:6px;margin-bottom:.6rem;flex-wrap:wrap}
-/* Pocas pestañas (≤3, clase 'few'): se estiran para ocupar todo el ancho
-   disponible — es el comportamiento por defecto de .cycle-tab (flex:1).
-   4 o más (clase 'many'): en vez de achicarse todas para entrar en una
+/* Pocas pestaÃ±as (â‰¤3, clase 'few'): se estiran para ocupar todo el ancho
+   disponible â€” es el comportamiento por defecto de .cycle-tab (flex:1).
+   4 o mÃ¡s (clase 'many'): en vez de achicarse todas para entrar en una
    fila, pasan a una sola fila con scroll horizontal, manteniendo un
-   tamaño legible por pestaña. Esto vale en cualquier ancho de pantalla;
-   el forzado adicional para mobile está en el @media(max-width:640px). */
+   tamaÃ±o legible por pestaÃ±a. Esto vale en cualquier ancho de pantalla;
+   el forzado adicional para mobile estÃ¡ en el @media(max-width:640px). */
 .cycle-bar.many{flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch}
 .cycle-bar.many .cycle-tab{flex:0 0 auto}
 .cycle-tab{flex:1;min-width:90px;padding:8px 8px 6px;border:1px solid var(--border);background:var(--surface);border-radius:11px;cursor:pointer;font-size:14px;font-weight:600;text-align:center;color:var(--text);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
 .cycle-tab-main{display:flex;align-items:center;justify-content:center;gap:5px}
-/* Fecha corta ("Sep 12 - Oct 10") centrada debajo del nombre de la pestaña.
-   Tamaño chico y color atenuado (hereda el color del texto del botón vía
-   opacity, no un color fijo, para que siga leyéndose bien tanto en el estado
-   normal como en .active, donde el fondo pasa a ser sólido var(--pri)). */
+/* Fecha corta ("Sep 12 - Oct 10") centrada debajo del nombre de la pestaÃ±a.
+   TamaÃ±o chico y color atenuado (hereda el color del texto del botÃ³n vÃ­a
+   opacity, no un color fijo, para que siga leyÃ©ndose bien tanto en el estado
+   normal como en .active, donde el fondo pasa a ser sÃ³lido var(--pri)). */
 .cycle-tab-date{font-size:10px;font-weight:500;opacity:.65;line-height:1.1}
 .cycle-tab:hover:not(.locked):not(.active){border-color:var(--pri);background:var(--soft)}
 .cycle-tab.active{background:var(--pri);color:#fff;border-color:var(--pri)}
 .cycle-tab.locked{opacity:.45;cursor:not-allowed;background:var(--surface2)}.cycle-tab .st{font-size:11px}
-/* Si por algún desfasaje de estado un botón queda con AMBAS clases a la
-   vez (activo Y bloqueado — por ejemplo, playoffs ya visitado pero el
-   render lo evalúa momentáneamente como no disponible), tiene que ganar
-   SIEMPRE el estilo activo: el usuario está parado ahí, así que verlo
-   apagado es engañoso. Antes .locked ganaba por estar declarada después
-   en el archivo (misma especificidad que .active); acá se sube la
-   especificidad explícitamente para no depender del orden de las reglas. */
+/* Si por algÃºn desfasaje de estado un botÃ³n queda con AMBAS clases a la
+   vez (activo Y bloqueado â€” por ejemplo, playoffs ya visitado pero el
+   render lo evalÃºa momentÃ¡neamente como no disponible), tiene que ganar
+   SIEMPRE el estilo activo: el usuario estÃ¡ parado ahÃ­, asÃ­ que verlo
+   apagado es engaÃ±oso. Antes .locked ganaba por estar declarada despuÃ©s
+   en el archivo (misma especificidad que .active); acÃ¡ se sube la
+   especificidad explÃ­citamente para no depender del orden de las reglas. */
 .cycle-tab.active.locked{opacity:1;cursor:pointer;background:var(--pri);color:#fff;border-color:var(--pri)}
 /* BUG DISTINTO: en touch (iOS Safari en particular) el estado :hover queda
-   "pegado" un instante tras el tap, incluso sobre el botón que acaba de
-   activarse. El selector :hover:not(.locked) tenía especificidad (0,3,0)
-   — más alta que .active (0,2,0) — así que el celeste de hover le ganaba
-   al azul sólido de activo apenas se tocaba la pestaña, mostrando el botón
-   recién elegido como si no estuviera seleccionado. Arreglado arriba
+   "pegado" un instante tras el tap, incluso sobre el botÃ³n que acaba de
+   activarse. El selector :hover:not(.locked) tenÃ­a especificidad (0,3,0)
+   â€” mÃ¡s alta que .active (0,2,0) â€” asÃ­ que el celeste de hover le ganaba
+   al azul sÃ³lido de activo apenas se tocaba la pestaÃ±a, mostrando el botÃ³n
+   reciÃ©n elegido como si no estuviera seleccionado. Arreglado arriba
    excluyendo .active del selector de hover (:not(.active) agregado), para
    que ni siquiera compitan. */
 .tabs{display:flex;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px;margin-bottom:.75rem;flex-wrap:wrap;align-items:stretch}
-/* Sin min-width fijo: así vale el min-width:auto de flex, que impide que la caja
+/* Sin min-width fijo: asÃ­ vale el min-width:auto de flex, que impide que la caja
    se encoja por debajo de su texto. Y sin nowrap, el texto usa 2 renglones en vez
-   de desbordarse sobre la pestaña de al lado. */
+   de desbordarse sobre la pestaÃ±a de al lado. */
 .tab{flex:1 1 auto;padding:8px 6px;border:none;background:transparent;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text2);white-space:normal;overflow-wrap:break-word;line-height:1.25;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
 .tab>i,.tab>.tab-n{flex:0 0 auto}
 .tab.active{background:var(--pri);color:#fff;font-weight:600}.tab:hover:not(.active){background:var(--surface)}
@@ -1223,15 +1223,15 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .legend span{display:inline-flex;align-items:center;gap:4px}.dot{width:11px;height:11px;border-radius:3px;display:inline-block}.dot-pend{background:#FAEEDA}
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem}
 /* Cada columna de un .form-row puede tener distinta cantidad de texto de
-   ayuda arriba del input (un label simple vs. label + hint en 2 líneas,
-   como en el formulario de Apariencia de la liga) — sin esto, los inputs de
+   ayuda arriba del input (un label simple vs. label + hint en 2 lÃ­neas,
+   como en el formulario de Apariencia de la liga) â€” sin esto, los inputs de
    columnas vecinas quedaban a alturas distintas, visualmente desalineados
-   entre sí. Acotado a ".form-row .form-group" (no ".form-group" a secas)
-   para no afectar los demás usos de la clase fuera de un grid de 2
+   entre sÃ­. Acotado a ".form-row .form-group" (no ".form-group" a secas)
+   para no afectar los demÃ¡s usos de la clase fuera de un grid de 2
    columnas, donde este ajuste no aplica y no hace falta. flex-direction:
    column + el input empujado al final con margin-top:auto hace que todos
-   los inputs de una misma fila caigan sobre la misma línea de base, sin
-   importar cuánto texto tenga cada columna arriba. */
+   los inputs de una misma fila caigan sobre la misma lÃ­nea de base, sin
+   importar cuÃ¡nto texto tenga cada columna arriba. */
 .form-row .form-group{display:flex;flex-direction:column}
 .form-row .form-group input,.form-row .form-group select,.form-row .form-group textarea{margin-top:auto}
 .form-group label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:600}
@@ -1243,12 +1243,12 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .set-row label{font-size:12px;color:var(--text2);width:64px;flex-shrink:0;font-weight:600}
 .set-row input,.po-in{width:52px;padding:6px;text-align:center;border-radius:8px;border:1px solid var(--border2);background:var(--surface);color:var(--text);font-size:14px}
 .sep{color:var(--text2);font-size:15px}.set-hint{font-size:11px;color:var(--text2);margin-left:6px}
-/* Nombre bloqueado (propio) — solo texto centrado */
+/* Nombre bloqueado (propio) â€” solo texto centrado */
 .score-sel-locked{border:none;background:transparent;color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:6px 4px;cursor:default;width:100%;outline:none;-webkit-appearance:none;-moz-appearance:none;appearance:none;pointer-events:none;}
-/* Campo seleccionable (rival/reporter activo) — inner box con sombra */
+/* Campo seleccionable (rival/reporter activo) â€” inner box con sombra */
 .score-sel-pick{border:1.5px solid var(--border2);border-radius:10px;background:var(--surface2,#f8f9fb);box-shadow:0 1px 5px rgba(0,0,0,.08);color:var(--pri);font-weight:400;font-size:15px;text-align:center;text-align-last:center;-moz-text-align-last:center;padding:8px 10px;cursor:pointer;width:100%;outline:none;}
 .score-sel-pick:hover{border-color:var(--pri);box-shadow:0 2px 8px rgba(0,0,0,.12);}
-/* Recuadro sólido para la sección de jugadores */
+/* Recuadro sÃ³lido para la secciÃ³n de jugadores */
 .names-box{border:1.5px solid var(--border2);border-radius:12px;padding:.875rem .75rem;background:var(--surface);margin-bottom:.75rem;box-shadow:0 1px 4px rgba(0,0,0,.04);}
 /* Fila de filtro: sin recuadro, solo fondo sutil */
 .filter-row{background:var(--surface2,#f8f9fb);border-radius:10px;padding:.5rem .75rem;margin-bottom:.75rem;display:flex;align-items:center;gap:8px;width:100%;box-sizing:border-box;}
@@ -1338,7 +1338,7 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
 .bracket-main .match-box{background:#EAF3FC}.bracket-cons .match-box{background:#FDF1E6}
 .bracket-main .slot,.bracket-cons .slot{background:transparent}.bracket-main .slot.winner,.bracket-cons .slot.winner{background:var(--winrow)}.bracket-main .slot-foot,.bracket-cons .slot-foot{background:rgba(0,0,0,.04)}
 
-/* --- REGLAS DE IMPRESIÓN PDF --- */
+/* --- REGLAS DE IMPRESIÃ“N PDF --- */
 #print-area { display: none; }
 @media print {
   body * { visibility: hidden; }
@@ -1358,10 +1358,10 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .hdr-liga-switch{font-size:15px}
   .user-info .name{font-size:12px}.user-info .role{font-size:10px}
   .logout-btn{padding:5px 7px;font-size:11px}
-  /* Si el título de la liga es largo y no entra en una sola fila junto al
-     usuario/idioma/logout, .hdr ya hace wrap (ver regla base): acá forzamos
+  /* Si el tÃ­tulo de la liga es largo y no entra en una sola fila junto al
+     usuario/idioma/logout, .hdr ya hace wrap (ver regla base): acÃ¡ forzamos
      que .user-chip pase a ocupar toda la fila de abajo en vez de quedar
-     amontonado o cortado — así "Salir" nunca queda fuera de pantalla. */
+     amontonado o cortado â€” asÃ­ "Salir" nunca queda fuera de pantalla. */
   .user-chip{flex-basis:100%;justify-content:flex-end;margin-left:0}
   
   .tabs, .grp-pick {
@@ -1371,10 +1371,10 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
     scrollbar-width: none; 
     padding-bottom: 4px;
   }
-  /* .cycle-bar ya NO se fuerza acá de forma incondicional: con 3 pestañas
-     o menos (clase 'few') se estira a ancho completo; con 4 o más (clase
+  /* .cycle-bar ya NO se fuerza acÃ¡ de forma incondicional: con 3 pestaÃ±as
+     o menos (clase 'few') se estira a ancho completo; con 4 o mÃ¡s (clase
      'many') se comporta igual que antes (scroll horizontal). Ver reglas
-     .cycle-bar.few / .cycle-bar.many más abajo, que valen en cualquier
+     .cycle-bar.few / .cycle-bar.many mÃ¡s abajo, que valen en cualquier
      ancho de pantalla, no solo mobile. */
   .cycle-bar.many {
     flex-wrap: nowrap !important; overflow-x: auto !important;
@@ -1395,10 +1395,10 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .cls-table th, .gen-table th, .cls-table td, .gen-table td, .res-table th, .res-table td { white-space: nowrap !important; }
 
   .tab, .grp-btn { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
-  /* .cycle-tab ya NO se fuerza a flex:0 0 auto de forma incondicional acá:
-     con pocas pestañas (.cycle-bar.few) debe poder seguir estirándose
+  /* .cycle-tab ya NO se fuerza a flex:0 0 auto de forma incondicional acÃ¡:
+     con pocas pestaÃ±as (.cycle-bar.few) debe poder seguir estirÃ¡ndose
      (flex:1, regla base) para ocupar todo el ancho; con 4+ (.cycle-bar.many)
-     sí se comporta como antes, en fila con scroll horizontal. */
+     sÃ­ se comporta como antes, en fila con scroll horizontal. */
   .cycle-bar.many .cycle-tab { flex: 0 0 auto !important; min-width: max-content !important; white-space: nowrap !important; }
   .cycle-tab { padding: 8px 14px; font-size: 13px; border-radius: 9px; }
   .tab { padding: 8px 12px; font-size: 12px; border-radius: 8px; }
@@ -1444,10 +1444,10 @@ color: #fff; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px
   .seed-list{gap:4px}
   .seed-chip{font-size:11px;padding:3px 7px}
 }
-/* ↑ Cierre del @media(max-width:640px) abierto más arriba. Faltaba esta
+/* â†‘ Cierre del @media(max-width:640px) abierto mÃ¡s arriba. Faltaba esta
    llave de cierre: sin ella, TODO lo que sigue en el archivo (incluidas
    las reglas de dark mode y el selector de liga del header) quedaba
-   atrapado dentro del media query mobile-only, aplicándose solo en
+   atrapado dentro del media query mobile-only, aplicÃ¡ndose solo en
    pantallas angostas y rompiendo el layout / posicionamiento en desktop. */
 
 /* ==== FIX DEFINITIVO DE CONTRASTE Y LEGIBILIDAD EN DARK MODE ==== */
@@ -1478,51 +1478,51 @@ html:not([data-theme]) table.res-table tr.me-row td {
 }
 
 /* ============================================================================
-   TANDA 5 — DARK MODE FIX DEFINITIVO (reemplaza TANDA 4)
+   TANDA 5 â€” DARK MODE FIX DEFINITIVO (reemplaza TANDA 4)
    
    Historia del problema:
-   1) Mother rule genérica de dark mode pinta TODO texto blanco. 
+   1) Mother rule genÃ©rica de dark mode pinta TODO texto blanco. 
       Selector: html[data-theme="dark"] td:not(.cell-club):not(.cell-pending):not(.cell-disputed):not([style*="color:"])
-      Especificidad: (0, 4, 1) — 1 attr theme + 4 clases (3 :not() con clase + 1 :not([attr])) + 1 tag
+      Especificidad: (0, 4, 1) â€” 1 attr theme + 4 clases (3 :not() con clase + 1 :not([attr])) + 1 tag
    
-   2) TANDA 4 usó html[data-theme="dark"] .cls-table tr.me-row td:not(.__no)
-      Especificidad: (0, 4, 3) — 1 attr theme + 2 clases + 1 :not() con clase + 3 tags
-      El primer campo empata (4=4), gana el que venga después en el CSS.
-      TANDA 4 estaba al final, DEBERÍA ganar. Pero según el usuario no gana.
+   2) TANDA 4 usÃ³ html[data-theme="dark"] .cls-table tr.me-row td:not(.__no)
+      Especificidad: (0, 4, 3) â€” 1 attr theme + 2 clases + 1 :not() con clase + 3 tags
+      El primer campo empata (4=4), gana el que venga despuÃ©s en el CSS.
+      TANDA 4 estaba al final, DEBERÃA ganar. Pero segÃºn el usuario no gana.
    
-   3) Investigando: hay una regla ADICIONAL en el CSS original en línea ~380:
+   3) Investigando: hay una regla ADICIONAL en el CSS original en lÃ­nea ~380:
       html[data-theme="dark"] .res-table th * { background:var(--soft)!important; color:#ffffff!important }
-      Con especificidad (0, 3, 2) + universal. Cubre th, no td, así que no aplica acá.
+      Con especificidad (0, 3, 2) + universal. Cubre th, no td, asÃ­ que no aplica acÃ¡.
       
-   4) Verdadero problema: en la línea 165 del CSS original había un BLOQUE VIEJO
-      que ponía background-color:#FFF8DC + color:#0E3470 en .me-row td. Ese bloque
-      estaba ANTES de la mother rule (que está en línea ~76). No, al revés:
-      mother rule está en línea 76-96, y el bloque me-row está en línea 165.
-      Entonces el bloque me-row DEBERÍA ganar por orden. Pero...
+   4) Verdadero problema: en la lÃ­nea 165 del CSS original habÃ­a un BLOQUE VIEJO
+      que ponÃ­a background-color:#FFF8DC + color:#0E3470 en .me-row td. Ese bloque
+      estaba ANTES de la mother rule (que estÃ¡ en lÃ­nea ~76). No, al revÃ©s:
+      mother rule estÃ¡ en lÃ­nea 76-96, y el bloque me-row estÃ¡ en lÃ­nea 165.
+      Entonces el bloque me-row DEBERÃA ganar por orden. Pero...
       
-   5) El bloque me-row viejo tenía especificidad (0, 3, 2) para td descendientes.
+   5) El bloque me-row viejo tenÃ­a especificidad (0, 3, 2) para td descendientes.
       La mother rule con td:not():not():not():not() = (0, 4, 1).
-      La mother rule GANA por (4 > 3). El bloque me-row viejo NUNCA funcionó.
+      La mother rule GANA por (4 > 3). El bloque me-row viejo NUNCA funcionÃ³.
       
-   SOLUCIÓN TANDA 5: usar 4 clases mínimo + más tags. Selector con
+   SOLUCIÃ“N TANDA 5: usar 4 clases mÃ­nimo + mÃ¡s tags. Selector con
    :is() para agrupar y ganar especificidad limpia:
      html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z)
-     = (0, 1+2+1+1, 2+1) = (0, 5, 3) — GANA (4→5 y 1→3)
+     = (0, 1+2+1+1, 2+1) = (0, 5, 3) â€” GANA (4â†’5 y 1â†’3)
    
-   Filosofía: NO tocamos la mother rule (romperíamos otras cosas). Agregamos
-   reglas específicas que ganen por especificidad calculada matemáticamente.
+   FilosofÃ­a: NO tocamos la mother rule (romperÃ­amos otras cosas). Agregamos
+   reglas especÃ­ficas que ganen por especificidad calculada matemÃ¡ticamente.
    ============================================================================ */
 
-/* ---- Base común: variables de fila destacada (me-row + me-mtx-row) ---- */
+/* ---- Base comÃºn: variables de fila destacada (me-row + me-mtx-row) ---- */
 :root {
   --me-row-bg-light: #FAEEDA;   /* fondo cream en light mode */
-  --me-row-bg-dark:  #FFF8DC;   /* fondo cream un poco más claro en dark */
+  --me-row-bg-dark:  #FFF8DC;   /* fondo cream un poco mÃ¡s claro en dark */
   --me-row-text:     #0E3470;   /* texto azul oscuro sobre cream (funciona en ambos temas) */
 }
 
 /* ==========================================================================
-   FIX #1 — Fila destacada del usuario en tablas
-   Tablas afectadas: .cls-table (Grupos), .gen-table (Clasificación General), 
+   FIX #1 â€” Fila destacada del usuario en tablas
+   Tablas afectadas: .cls-table (Grupos), .gen-table (ClasificaciÃ³n General), 
                      .rt-table (Rating).
    Usamos selector con 5 clases + 3 tags = (0, 5, 3), gana la mother rule (0, 4, 1).
    ========================================================================== */
@@ -1545,10 +1545,10 @@ html[data-theme="dark"] table.rt-table tr.me-row:not(.__z) td:not(.__z) *{
   text-decoration-color: var(--me-row-text) !important;
 }
 
-/* --- Excepciones: elementos con colores semánticos propios ---
-   Estos NO se pintan azul oscuro para preservar su semántica visual. */
+/* --- Excepciones: elementos con colores semÃ¡nticos propios ---
+   Estos NO se pintan azul oscuro para preservar su semÃ¡ntica visual. */
 
-/* Chip de destino (=Grupo N / ↑Grupo N / ↓Grupo N): mantiene su fondo propio */
+/* Chip de destino (=Grupo N / â†‘Grupo N / â†“Grupo N): mantiene su fondo propio */
 html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z) .dest,
 html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td:not(.__z) .dest *,
 html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z) .dest,
@@ -1558,7 +1558,7 @@ html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td:not(.__z) .dest *
 }
 /* Y para cada variante de destino: dest-up (verde), dest-down (rojo), 
    dest-same (azul claro). Estos ya tienen sus reglas en el CSS base. 
-   Con selector muy específico les devolvemos su fondo semántico. */
+   Con selector muy especÃ­fico les devolvemos su fondo semÃ¡ntico. */
 html[data-theme="dark"] table.cls-table tr.me-row:not(.__z) td .dest.dest-up,
 html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .dest.dest-up{
   background-color: #14361f !important; color: #86efac !important;
@@ -1601,7 +1601,7 @@ html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .badge-inact{
 }
 
 /* ---- Mismo pack de reglas para @media (prefers-color-scheme: dark) 
-        cuando el usuario no eligió tema manual ---- */
+        cuando el usuario no eligiÃ³ tema manual ---- */
 @media (prefers-color-scheme: dark){
   html:not([data-theme]) table.cls-table tr.me-row:not(.__z) td:not(.__z),
   html:not([data-theme]) table.gen-table tr.me-row:not(.__z) td:not(.__z),
@@ -1643,7 +1643,7 @@ html[data-theme="dark"] table.gen-table tr.me-row:not(.__z) td .badge-inact{
 }
 
 /* ==========================================================================
-   FIX #2 — Fila destacada del usuario en la matriz de resultados
+   FIX #2 â€” Fila destacada del usuario en la matriz de resultados
    Se agrega .me-mtx-row al <tr> del usuario (cambio hecho en shell-render.js).
    ========================================================================== */
 html[data-theme="dark"] table.res-table tr.me-mtx-row:not(.__z) td:not(.__z):not(.cell-club):not(.cell-pending):not(.cell-disputed):not(.res-black){
@@ -1684,7 +1684,7 @@ html[data-theme="dark"] table.res-table tr.me-mtx-row td.res-black{
 }
 
 /* ==========================================================================
-   FIX #3 — Links del login header respetan color inline (calculado por autoTxt)
+   FIX #3 â€” Links del login header respetan color inline (calculado por autoTxt)
    ========================================================================== */
 html[data-theme="dark"] .login-header-bar a,
 html[data-theme="dark"] .login-header-bar a:hover,
@@ -1702,8 +1702,8 @@ html[data-theme="dark"] .login-header-bar a:visited{
 }
 
 /* ==========================================================================
-   FIX #4 — Botón "Editar" dentro del header .clg-head
-   El botón está dentro de un th del clg-head, que tiene la regla
+   FIX #4 â€” BotÃ³n "Editar" dentro del header .clg-head
+   El botÃ³n estÃ¡ dentro de un th del clg-head, que tiene la regla
      html[data-theme=dark] .clg-head th * { color:#fff!important }
    con especificidad (0, 2, 1). Aumentamos la nuestra con :not(.__z)
    para llegar a (0, 4, 3) y ganar por clases (4 > 2) sin depender del orden.
@@ -1726,7 +1726,7 @@ html[data-theme="dark"] .clg-head:not(.__z) th:not(.__z) .edit-pts-btn:not(.__z)
 }
 
 /* ==========================================================================
-   FIX #5 — Slots del bracket de playoff (me-A / me-B / ganador)
+   FIX #5 â€” Slots del bracket de playoff (me-A / me-B / ganador)
    El JS pinta con estilo inline background:#FFF8DC + color:#0E3470 pero el 
    texto interno (span del seed, chip "yo") queda blanco por la mother rule.
    Aumentamos especificidad para el contenido del div .po-me-slot.
@@ -1747,17 +1747,17 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 /* FIN Tanda 5 =============================================================== */
 
 /* ============================================================================
-   Botón de cambio de liga en el header: AHORA es el propio título de la liga
-   (reemplaza al <h1> viejo). Por defecto se ve exactamente como el título de
-   siempre (texto blanco grande, sin fondo, sin cursor pointer) — solo cuando
+   BotÃ³n de cambio de liga en el header: AHORA es el propio tÃ­tulo de la liga
+   (reemplaza al <h1> viejo). Por defecto se ve exactamente como el tÃ­tulo de
+   siempre (texto blanco grande, sin fondo, sin cursor pointer) â€” solo cuando
    el usuario participa en 2+ ligas activas se le agrega la clase .multi:
-   ahí aparece la flecha y el fondo/cursor de botón clickeable. El menú que
-   despliega cae JUSTO DEBAJO de este mismo botón (no al costado).
+   ahÃ­ aparece la flecha y el fondo/cursor de botÃ³n clickeable. El menÃº que
+   despliega cae JUSTO DEBAJO de este mismo botÃ³n (no al costado).
 
-   Rediseño: el nombre de la liga sube de peso (700) y tamaño (17px), con un
-   leve letter-spacing negativo para que se vea más compacto y "de marca" en
-   vez de texto de UI genérico. Un sutil text-shadow le da algo de profundidad
-   sobre el fondo sólido del header sin llegar a verse pesado.
+   RediseÃ±o: el nombre de la liga sube de peso (700) y tamaÃ±o (17px), con un
+   leve letter-spacing negativo para que se vea mÃ¡s compacto y "de marca" en
+   vez de texto de UI genÃ©rico. Un sutil text-shadow le da algo de profundidad
+   sobre el fondo sÃ³lido del header sin llegar a verse pesado.
    ============================================================================ */
 .hdr-liga-switch{
   all:unset;cursor:default;
@@ -1782,9 +1782,9 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
 .hdr-liga-switch-menu .liga-sel-btn{font-size:12.5px;padding:8px 10px}
 
 /* ============================================================================
-   "Mis Ligas" — selector tipo pestañas en el perfil de jugador (ligas activas
-   de la plataforma, con su estado: acá / participando / pendiente / solicitar).
-   Reutiliza el lenguaje visual de .tabs/.tab (mismo look que "Elegí el Grupo"
+   "Mis Ligas" â€” selector tipo pestaÃ±as en el perfil de jugador (ligas activas
+   de la plataforma, con su estado: acÃ¡ / participando / pendiente / solicitar).
+   Reutiliza el lenguaje visual de .tabs/.tab (mismo look que "ElegÃ­ el Grupo"
    y los tabs de Ciclo), para que se sienta parte de la misma app y no un
    agregado suelto.
    ============================================================================ */
@@ -1800,16 +1800,16 @@ html[data-theme="dark"] .po-me-slot:not(.__z) *{
   cursor:default;font-family:inherit;white-space:nowrap;line-height:1.2;
 }
 button.liga-tab{cursor:pointer}
-/* Liga donde está parado ahora: azul sólido, igual que .tab.active */
+/* Liga donde estÃ¡ parado ahora: azul sÃ³lido, igual que .tab.active */
 .liga-tab-here{background:var(--pri);color:#fff;border-color:var(--pri)}
-/* Ya participa en otra liga: relleno VERDE sólido para que salte a la vista
-   de entrada — es la información más importante de esta lista. */
+/* Ya participa en otra liga: relleno VERDE sÃ³lido para que salte a la vista
+   de entrada â€” es la informaciÃ³n mÃ¡s importante de esta lista. */
 .liga-tab-ok{background:#16a34a;color:#fff;border-color:#16a34a}
 .liga-tab-ok:hover{background:#15803d;border-color:#15803d}
-/* Solicitud pendiente de aprobación: relleno naranja sólido, no clickeable */
+/* Solicitud pendiente de aprobaciÃ³n: relleno naranja sÃ³lido, no clickeable */
 .liga-tab-pending{background:#f59e0b;color:#fff;border-color:#f59e0b;cursor:default}
-/* Sin relación todavía (o rechazada, puede reintentar): la única "vacía",
-   discreta a propósito porque es la de menor prioridad visual. */
+/* Sin relaciÃ³n todavÃ­a (o rechazada, puede reintentar): la Ãºnica "vacÃ­a",
+   discreta a propÃ³sito porque es la de menor prioridad visual. */
 .liga-tab-ask{background:var(--surface);color:var(--text2);border:1.5px dashed var(--border2)}
 .liga-tab-ask:hover{background:var(--soft);border-color:var(--pri);color:var(--priD)}
 .liga-tab .liga-tab-cta{
@@ -1822,11 +1822,11 @@ button.liga-tab{cursor:pointer}
 .liga-tab-ask .liga-tab-cta{background:var(--pri);color:#fff}
 
 /* ============================================================================
-   MENSAJERÍA — pestaña "Mensajes"/"Inbox".
-   Las pestañas internas (Administración / Grupo N / Cuadro X) reutilizan las
+   MENSAJERÃA â€” pestaÃ±a "Mensajes"/"Inbox".
+   Las pestaÃ±as internas (AdministraciÃ³n / Grupo N / Cuadro X) reutilizan las
    mismas clases .tabs/.tab que el resto de la app (Ciclo 1/Ciclo 2/Play Offs,
-   Grupos/Clasificación/Rating/...) — un solo lenguaje visual para todos los
-   botones y pestañas, no un estilo aparte para mensajería.
+   Grupos/ClasificaciÃ³n/Rating/...) â€” un solo lenguaje visual para todos los
+   botones y pestaÃ±as, no un estilo aparte para mensajerÃ­a.
 
    La caja de chat (lista + compositor) toma el MISMO lenguaje visual que el
    editor de Reglamento: una caja con bordes redondeados, borde
@@ -1836,7 +1836,7 @@ button.liga-tab{cursor:pointer}
    ============================================================================ */
 .msg-card{ padding-bottom: .75rem; }
 
-/* Caja contenedora única: agrupa lista + compositor con un solo borde
+/* Caja contenedora Ãºnica: agrupa lista + compositor con un solo borde
    redondeado exterior, igual que .rg-toolbar + .rg-editor se combinan en
    una sola caja visual en el Reglamento. overflow:hidden para que los hijos
    respeten las esquinas redondeadas del contenedor. */
@@ -1856,9 +1856,9 @@ button.liga-tab{cursor:pointer}
 .msg-bubble-row{display:flex;justify-content:flex-start}
 .msg-bubble-row.me{justify-content:flex-end}
 /* Cada burbuja recibe su color por JS (inline style), calculado a partir del
-   nombre del autor — así cada jugador tiene un color propio y consistente
+   nombre del autor â€” asÃ­ cada jugador tiene un color propio y consistente
    en toda la app, no solo "yo=celeste, resto=gris". Estas reglas de clase
-   quedan como valor por defecto/fallback si por algún motivo el inline no
+   quedan como valor por defecto/fallback si por algÃºn motivo el inline no
    llegara a aplicarse. */
 .msg-bubble{
   max-width:78%;padding:8px 12px;border-radius:14px;
@@ -1867,15 +1867,15 @@ button.liga-tab{cursor:pointer}
 .msg-bubble-author{font-size:11px;font-weight:700;color:var(--priD);margin-bottom:2px}
 .msg-bubble-text{font-size:14px;line-height:1.4;white-space:pre-wrap;word-break:break-word}
 .msg-bubble-time{font-size:10px;color:var(--text2);margin-top:3px;text-align:right}
-/* Imagen adjunta dentro de una burbuja (solo el admin puede mandar una —
+/* Imagen adjunta dentro de una burbuja (solo el admin puede mandar una â€”
    ver imagenValida en api/liga.js). max-width acotado al ancho de la
    burbuja, altura limitada para que una foto no domine todo el chat;
-   cursor pointer + el onclick en el HTML abren el original a tamaño
-   completo en pestaña nueva. */
+   cursor pointer + el onclick en el HTML abren el original a tamaÃ±o
+   completo en pestaÃ±a nueva. */
 .msg-bubble-img{margin:4px 0}
 .msg-bubble-img img{max-width:100%;max-height:220px;border-radius:8px;cursor:pointer;display:block}
 
-/* Franja inferior de composición: pegada a la lista, mismo look que la
+/* Franja inferior de composiciÃ³n: pegada a la lista, mismo look que la
    barra de herramientas del Reglamento (fondo gris clarito, borde arriba). */
 .msg-compose-row{
   display:flex;gap:8px;align-items:flex-end;
@@ -1888,12 +1888,12 @@ button.liga-tab{cursor:pointer}
   line-height:1.4;
 }
 .msg-input:focus{outline:none;border-color:var(--pri)}
-/* Botón de adjuntar (clip): mismo alto que el botón de enviar para quedar
+/* BotÃ³n de adjuntar (clip): mismo alto que el botÃ³n de enviar para quedar
    alineados en la fila del composer (align-items:flex-end del contenedor). */
 .msg-attach-btn{flex-shrink:0;height:42px;width:42px;padding:0;display:flex;align-items:center;justify-content:center}
-/* Previsualización de la imagen elegida, ANTES de enviar — vive arriba de
-   la fila del composer, dentro del mismo panel gris. Botón de quitar en la
-   esquina, mismo patrón visual que un chip removible. */
+/* PrevisualizaciÃ³n de la imagen elegida, ANTES de enviar â€” vive arriba de
+   la fila del composer, dentro del mismo panel gris. BotÃ³n de quitar en la
+   esquina, mismo patrÃ³n visual que un chip removible. */
 .msg-attach-preview{
   position:relative;display:inline-block;margin:.6rem .6rem 0;
   background:var(--surface2);border-top:1px solid var(--border2);padding-top:.6rem;
@@ -1911,7 +1911,7 @@ button.liga-tab{cursor:pointer}
   .msg-bubble-img img{max-height:180px}
 }
 
-/* Guía accesible; en cualquier ancho conserva acciones y scroll dentro del diálogo. */
+/* GuÃ­a accesible; en cualquier ancho conserva acciones y scroll dentro del diÃ¡logo. */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .guide-overlay{position:fixed;inset:0;z-index:3000;background:rgba(5,15,35,.72);display:flex;align-items:center;justify-content:center;padding:16px}
 .guide-dialog{width:100%;max-width:540px;max-height:calc(100dvh - 32px);overflow:auto;background:var(--surface);color:var(--text);border:1px solid var(--border2);border-top:4px solid var(--acc);border-radius:16px;padding:24px;box-shadow:var(--shadow-lg)}
@@ -1953,11 +1953,114 @@ button.liga-tab{cursor:pointer}
   .champion-showcase--cons .champion-showcase__title{font-size:14px}
   .champion-showcase--cons .champion-showcase__name{font-size:18px}
 }
+
+/* ===== Dark mode refinements for champion cards =====
+   The global dark-mode rule paints nearly all text white. Champion cards have
+   warm gold backgrounds, so we need explicit dark-on-gold contrast here. */
+html[data-theme="dark"] .champion-showcase,
+html[data-theme="dark"] .champion-showcase *{color:#3f2c02!important}
+html[data-theme="dark"] .champion-showcase{
+  background:linear-gradient(180deg,#F7E6A5 0%,#EBCB69 52%,#D2A53B 100%)!important;
+  border-color:#B98718!important;
+  box-shadow:0 14px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.55)!important;
+}
+html[data-theme="dark"] .champion-showcase__badge{
+  background:rgba(255,248,220,.58)!important;
+  border-color:rgba(117,82,7,.26)!important;
+  color:#6B4900!important;
+}
+html[data-theme="dark"] .champion-showcase__title{color:#5A3D00!important}
+html[data-theme="dark"] .champion-showcase__subtitle{color:#7A5302!important}
+html[data-theme="dark"] .champion-showcase__name{color:#442F00!important;text-shadow:0 1px 0 rgba(255,255,255,.25)!important}
+html[data-theme="dark"] .champion-showcase__hint{color:#64470B!important}
+html[data-theme="dark"] .champion-showcase__winner-link,
+html[data-theme="dark"] .champion-showcase__winner-link:hover{color:#442F00!important;border-bottom-color:rgba(68,47,0,.45)!important}
+html[data-theme="dark"] .champion-showcase__pending-name{color:#6D5520!important}
+html[data-theme="dark"] .champion-showcase.is-pending,
+html[data-theme="dark"] .champion-showcase.is-pending *{color:#5A4821!important}
+html[data-theme="dark"] .champion-showcase.is-pending{
+  background:linear-gradient(180deg,#E9DFC1 0%,#D6C395 56%,#BDA46B 100%)!important;
+  border-color:#9F8650!important;
+  box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.42)!important;
+}
+html[data-theme="dark"] .champion-showcase.is-pending .champion-showcase__badge{
+  background:rgba(255,250,237,.45)!important;
+  color:#715D2A!important;
+  border-color:rgba(98,77,27,.2)!important;
+}
+html[data-theme="dark"] .champion-showcase--cons,
+html[data-theme="dark"] .champion-showcase--cons *{color:#4C3908!important}
+html[data-theme="dark"] .champion-showcase--cons{
+  background:linear-gradient(180deg,#F1E3B7 0%,#DFC376 54%,#C79D46 100%)!important;
+  border-color:#A77A21!important;
+  box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.5)!important;
+}
+html[data-theme="dark"] .champion-showcase--cons .champion-showcase__badge{
+  background:rgba(255,247,224,.5)!important;
+  color:#6A4A06!important;
+}
+html[data-theme="dark"] .champion-showcase--cons .champion-showcase__title{color:#5A4107!important}
+html[data-theme="dark"] .champion-showcase--cons .champion-showcase__subtitle{color:#79570A!important}
+html[data-theme="dark"] .champion-showcase--cons .champion-showcase__name{color:#4A3603!important}
+html[data-theme="dark"] .champion-showcase--cons .champion-showcase__hint{color:#654A11!important}
+html[data-theme="dark"] .champion-showcase--cons.is-pending,
+html[data-theme="dark"] .champion-showcase--cons.is-pending *{color:#63502A!important}
+html[data-theme="dark"] .champion-showcase--cons.is-pending{
+  background:linear-gradient(180deg,#E5DBC2 0%,#CFBD95 56%,#B8A071 100%)!important;
+  border-color:#917549!important;
+}
+html[data-theme="dark"] .champion-showcase--cons.is-pending .champion-showcase__badge{
+  background:rgba(255,250,237,.42)!important;
+  color:#705C2C!important;
+}
+@media (prefers-color-scheme: dark){
+  html:not([data-theme="light"]) .champion-showcase,
+  html:not([data-theme="light"]) .champion-showcase *{color:#3f2c02!important}
+  html:not([data-theme="light"]) .champion-showcase{
+    background:linear-gradient(180deg,#F7E6A5 0%,#EBCB69 52%,#D2A53B 100%)!important;
+    border-color:#B98718!important;
+    box-shadow:0 14px 34px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.55)!important;
+  }
+  html:not([data-theme="light"]) .champion-showcase__badge{background:rgba(255,248,220,.58)!important;border-color:rgba(117,82,7,.26)!important;color:#6B4900!important}
+  html:not([data-theme="light"]) .champion-showcase__title{color:#5A3D00!important}
+  html:not([data-theme="light"]) .champion-showcase__subtitle{color:#7A5302!important}
+  html:not([data-theme="light"]) .champion-showcase__name{color:#442F00!important;text-shadow:0 1px 0 rgba(255,255,255,.25)!important}
+  html:not([data-theme="light"]) .champion-showcase__hint{color:#64470B!important}
+  html:not([data-theme="light"]) .champion-showcase__winner-link,
+  html:not([data-theme="light"]) .champion-showcase__winner-link:hover{color:#442F00!important;border-bottom-color:rgba(68,47,0,.45)!important}
+  html:not([data-theme="light"]) .champion-showcase__pending-name{color:#6D5520!important}
+  html:not([data-theme="light"]) .champion-showcase.is-pending,
+  html:not([data-theme="light"]) .champion-showcase.is-pending *{color:#5A4821!important}
+  html:not([data-theme="light"]) .champion-showcase.is-pending{background:linear-gradient(180deg,#E9DFC1 0%,#D6C395 56%,#BDA46B 100%)!important;border-color:#9F8650!important;box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.42)!important}
+  html:not([data-theme="light"]) .champion-showcase.is-pending .champion-showcase__badge{background:rgba(255,250,237,.45)!important;color:#715D2A!important;border-color:rgba(98,77,27,.2)!important}
+  html:not([data-theme="light"]) .champion-showcase--cons,
+  html:not([data-theme="light"]) .champion-showcase--cons *{color:#4C3908!important}
+  html:not([data-theme="light"]) .champion-showcase--cons{background:linear-gradient(180deg,#F1E3B7 0%,#DFC376 54%,#C79D46 100%)!important;border-color:#A77A21!important;box-shadow:0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.5)!important}
+  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__badge{background:rgba(255,247,224,.5)!important;color:#6A4A06!important}
+  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__title{color:#5A4107!important}
+  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__subtitle{color:#79570A!important}
+  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__name{color:#4A3603!important}
+  html:not([data-theme="light"]) .champion-showcase--cons .champion-showcase__hint{color:#654A11!important}
+  html:not([data-theme="light"]) .champion-showcase--cons.is-pending,
+  html:not([data-theme="light"]) .champion-showcase--cons.is-pending *{color:#63502A!important}
+  html:not([data-theme="light"]) .champion-showcase--cons.is-pending{background:linear-gradient(180deg,#E5DBC2 0%,#CFBD95 56%,#B8A071 100%)!important;border-color:#917549!important}
+  html:not([data-theme="light"]) .champion-showcase--cons.is-pending .champion-showcase__badge{background:rgba(255,250,237,.42)!important;color:#705C2C!important}
+}
+@media (max-width:640px){
+  .champion-showcase{margin-top:.72rem;padding:.88rem .8rem .94rem}
+  .champion-showcase__badge{font-size:10px;padding:.3rem .62rem}
+  .champion-showcase__title{font-size:14px;line-height:1.25}
+  .champion-showcase__subtitle{font-size:10px;letter-spacing:.06em}
+  .champion-showcase__name{font-size:18px;line-height:1.12;word-break:break-word}
+  .champion-showcase__hint{font-size:10px;line-height:1.35}
+  .champion-showcase--cons{padding:.78rem .76rem .84rem}
+  .champion-showcase--cons .champion-showcase__name{font-size:17px}
+}
 #guide-error{font-size:13px}
 [data-guide-help]{margin:0 0 12px}
 @media(max-width:390px){.guide-dialog{padding:18px}.guide-dialog h2{font-size:20px}.guide-actions{gap:6px}}
 
-/* Idiomas en tutorial y cambio de contraseña (alcance limitado a estos diálogos). */
+/* Idiomas en tutorial y cambio de contraseÃ±a (alcance limitado a estos diÃ¡logos). */
 .dialog-language{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border2)}
 .dialog-language-label{font-size:12px;font-weight:600;color:var(--text2)}
 .dialog-language-options{display:flex;gap:6px;flex-wrap:wrap;max-width:100%}
@@ -1972,7 +2075,7 @@ html[data-theme="dark"] .dialog-language .dialog-language-button[aria-pressed="t
 @media(prefers-color-scheme:dark){html:not([data-theme]) .dialog-language .dialog-language-button[aria-pressed="true"]{background:#2563eb;color:#fff;border-color:#93c5fd}}
 @media(max-width:360px){.dialog-language{gap:6px}.dialog-language .dialog-language-button{padding:8px 9px}}
 
-/* Recorrido dinámico v2.4. Aislado: no altera campeón, contraseña ni modales normales. */
+/* Recorrido dinÃ¡mico v2.4. Aislado: no altera campeÃ³n, contraseÃ±a ni modales normales. */
 body.sohail-tour-active{overscroll-behavior:none}
 #main-app[data-guide-preview]{pointer-events:none;user-select:none}
 #sohail-guide.guide-tour{position:fixed;inset:0;display:block;padding:0;background:transparent;z-index:100010;overflow:hidden;touch-action:none}
