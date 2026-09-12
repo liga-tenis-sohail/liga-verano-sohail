@@ -7,7 +7,7 @@
 //   { accion: 'eliminar', id, confirmar }     -> borra la liga (admin)
 // =====================================================================
 const {
-  auth, envOK, sesionEsAdmin, readState, writeState,
+  auth, envOK, sesionEsAdmin, blockedUser, readState, writeState,
   readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
   ligaIdOK, hashV2, logAudit, clientIP,
@@ -153,20 +153,12 @@ module.exports = async function handler(req, res){
     let estado;
     try { estado = await readState(vid); } catch(e){ return res.status(503).json({ error: 'No se pudo leer la liga.' }); }
     if(!estado) return res.status(404).json({ error: 'Esa liga no tiene datos.' });
-    if(estado.users){
-      const limpios = {};
-      for(const k of Object.keys(estado.users)){
-        const u = estado.users[k] || {};
-        const { pass, ...resto } = u; 
-        limpios[k] = resto;
-      }
-      estado.users = limpios;
-    }
+    estado = require('./_lib').filterPublicState(estado);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({ ok: true, id: vid, nombre: entry.nombre, estado });
   }
 
-  const session = auth(req);
+  const session = await auth(req);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   // ================= ACCIONES DE JUGADOR (no requieren ser admin) =================
@@ -180,7 +172,7 @@ module.exports = async function handler(req, res){
     if(!ligaIdOK(ligaOrigen)) return res.status(400).json({ error: 'Falta indicar tu liga actual.' });
     let origenState;
     try { origenState = await readState(ligaOrigen); } catch(e){ return res.status(503).json({ error: 'No se pudo leer tu liga.' }); }
-    if(!origenState || !origenState.users || !origenState.users[session.u]){
+    if(!origenState || blockedUser(origenState,session)){
       return res.status(403).json({ error: 'Tu sesión no corresponde a esa liga.' });
     }
     let idx;
@@ -195,7 +187,7 @@ module.exports = async function handler(req, res){
       let est;
       try { est = await readState(l.id); } catch(e){ continue; }
       if(!est) continue;
-      const participo = !!(est.users && est.users[session.u]);
+      const participo = !!(est.users && est.users[session.u] && !blockedUser(est,session));
       let solicitudEstado = null;
       if(Array.isArray(est.JOIN_REQUESTS)){
         const propia = est.JOIN_REQUESTS
@@ -221,7 +213,7 @@ module.exports = async function handler(req, res){
     let origenState;
     try { origenState = await readState(ligaOrigen); } catch(e){ return res.status(503).json({ error: 'No se pudo leer tu liga.' }); }
     const yo = origenState && origenState.users && origenState.users[session.u];
-    if(!yo){
+    if(!yo || blockedUser(origenState,session)){
       return res.status(403).json({ error: 'Tu sesión no corresponde a esa liga.' });
     }
 
@@ -282,6 +274,8 @@ module.exports = async function handler(req, res){
   if(!stateMsg || !stateMsg.users || !stateMsg.users[session.u]){
     return res.status(403).json({ error: 'Tu sesión no corresponde a esta liga.' });
   }
+  const blockedMsg=require('./_lib').blockedUser(stateMsg,session);
+  if(blockedMsg)return res.status(403).json({error:blockedMsg});
   const esAdminMsg = sesionEsAdmin(session, stateMsg.users);
 
   // ---- Lectura del hilo admin (cualquiera logueado en la liga) ----
@@ -494,7 +488,7 @@ module.exports = async function handler(req, res){
 
   // ================= A PARTIR DE ACÁ: solo administradores =================
   let sesionState, sesionStateErr = null;
-  try { sesionState = await readState(body.ligaId || session.ligaId || undefined); }
+  try { sesionState = await readState(body.ligaId || session.src || undefined); }
   catch(e){ sesionState = null; sesionStateErr = e; }
   const esAdmin = sesionEsAdmin(session, sesionState && sesionState.users);
   if(!esAdmin) return res.status(403).json({ error: 'Solo un administrador puede gestionar ligas.' });
@@ -538,10 +532,9 @@ module.exports = async function handler(req, res){
     if(!(session && session.r === 'superadmin')) return res.status(403).json({ error: 'Solo el super administrador puede eliminar jugadores de la base.' });
     const jid = String(body.jugadorId || '');
     if(!jid) return res.status(400).json({ error: 'Falta el jugador.' });
-    let nombreJug = null;
-    try { const cat = await readCatalogo(); nombreJug = cat[jid] && cat[jid].nombre; } catch(_){}
-    try { await borrarJugador(jid); } catch(e){ return res.status(503).json({ error: 'No se pudo eliminar: ' + e.message }); }
-    if(nombreJug){ try { await borrarPasskeysDeUsuario(nombreJug); } catch(_){} }
+    const result=await require('./_lib').rpc('sohail_delete_profile_if_unused',{p_id:jid});
+    if(!result.ok)return res.status(409).json({error:'El perfil todavía está vinculado a una liga. No se eliminó. Conservá el historial y revisá sus vínculos.'});
+    const nombreJug=result.name;
     logAudit(session.u, 'jugador.eliminar', jid, { nombre: nombreJug }, clientIP(req));
     return res.status(200).json({ ok: true, jugadorId: jid });
   }
@@ -556,6 +549,26 @@ module.exports = async function handler(req, res){
   // usuario de cada liga NO se toca (sigue siendo "Juan Pérez" en una y
   // "jperez" en la otra) — solo se unifica la identidad/contraseña, que
   // es lo que hacía falta para el login único.
+  if(accion === 'vincularJugador'){
+    if(session.r!=='superadmin')return res.status(403).json({error:'Solo el super administrador puede vincular identidades.'});
+    const name=String(body.nombre||''),id=String(body.jugadorId||'');
+    const u=sesionState.users&&sesionState.users[name];
+    if(!u||name==='admin'||name==='superadmin')return res.status(400).json({error:'Jugador inválido.'});
+    if(body.version!==sesionState._v)return res.status(409).json({error:'La liga cambió. Recargá antes de vincular.'});
+    const catalog=await readCatalogo(),profile=catalog[id];
+    if(!profile)return res.status(404).json({error:'El perfil global no existe.'});
+    if(Object.entries(sesionState.users).some(([n,p])=>n!==name&&p.jugadorId===id))return res.status(409).json({error:'Ese perfil ya está vinculado a otro jugador de la liga.'});
+    const account=await require('./_lib').readAccount('g:'+id);
+    // Un dispositivo de la identidad anterior no hereda acceso al perfil vinculado.
+    // Si falla esta revocación no se aplica el vínculo.
+    await borrarPasskeysDeUsuario(name,true);
+    u.jugadorId=id;u.pass=(account&&account.pass_hash)||profile.pass||hashV2('tenis');
+    // El nombre deportivo se conserva, al igual que todas las referencias históricas.
+    await writeState(body.ligaId||session.src,sesionState);
+    await logAudit(session.u,'jugador.vincular',id,{liga:body.ligaId||session.src,nombre:name},clientIP(req));
+    return res.status(200).json({ok:true,version:sesionState._v});
+  }
+
   if(accion === 'fusionarJugadores'){
     if(!(session && session.r === 'superadmin')) return res.status(403).json({ error: 'Solo el super administrador puede fusionar jugadores.' });
     const mantener   = String(body.jugadorIdMantener || '');
@@ -563,50 +576,10 @@ module.exports = async function handler(req, res){
     if(!mantener || !descartar) return res.status(400).json({ error: 'Faltan los dos jugadores a fusionar.' });
     if(mantener === descartar) return res.status(400).json({ error: 'Elegí dos jugadores distintos.' });
 
-    let cat = {};
-    try { cat = await readCatalogo(); } catch(e){ return res.status(503).json({ error: 'No se pudo leer el catálogo.' }); }
-    const jMantener  = cat[mantener];
-    const jDescartar = cat[descartar];
-    if(!jMantener || !jDescartar) return res.status(404).json({ error: 'Alguno de los dos jugadores no existe en el catálogo.' });
-
-    // La contraseña que sobrevive es la del que se mantiene. Si no tiene
-    // (nunca la cambió) pero el descartado sí, se hereda esa — mejor que
-    // perder una contraseña que la persona ya conoce.
-    if(!jMantener.pass && jDescartar.pass){
-      jMantener.pass = jDescartar.pass;
-      try { await upsertJugador(jMantener); } catch(e){ return res.status(503).json({ error: 'No se pudo actualizar la contraseña unificada.' }); }
-    }
-
-    let idx = [];
-    try { idx = await readLigaIndex(); } catch(e){ idx = []; }
-
-    const ligasTocadas = [];
-    for(const l of idx){
-      let est;
-      try { est = await readState(l.id); } catch(e){ continue; }
-      if(!est || !est.users) continue;
-      let tocada = false;
-      for(const nombre of Object.keys(est.users)){
-        const u = est.users[nombre];
-        if(u && u.jugadorId === descartar){
-          u.jugadorId = mantener;
-          tocada = true;
-        }
-      }
-      if(tocada){
-        try { await writeState(l.id, est); ligasTocadas.push(l.id); }
-        catch(e){ return res.status(503).json({ error: 'Se fusionó parcialmente: falló al guardar la liga ' + l.id + '. Volvé a intentar.' }); }
-      }
-    }
-
-    try { await borrarJugador(descartar); }
-    catch(e){ return res.status(503).json({ error: 'Se re-vincularon las ligas pero no se pudo borrar el perfil sobrante: ' + e.message }); }
-    if(jDescartar.nombre && jDescartar.nombre !== jMantener.nombre){
-      try { await borrarPasskeysDeUsuario(jDescartar.nombre); } catch(_){}
-    }
-
-    logAudit(session.u, 'jugador.fusionar', mantener, { descartado: descartar, nombreDescartado: jDescartar.nombre, ligas: ligasTocadas }, clientIP(req));
-    return res.status(200).json({ ok: true, jugadorId: mantener, ligasActualizadas: ligasTocadas });
+    const result=await require('./_lib').rpc('sohail_merge_profiles',{p_keep:mantener,p_drop:descartar});
+    if(!result.ok)return res.status(409).json({error:'No se pudo completar la fusión. No se eliminó ningún perfil.'});
+    await logAudit(session.u,'jugador.fusionar',mantener,{descartado:descartar,ligas:result.leagues},clientIP(req));
+    return res.status(200).json({ok:true,jugadorId:mantener,ligasActualizadas:result.leagues});
   }
 
   const id = String(body.id || '');
@@ -898,3 +871,5 @@ module.exports = async function handler(req, res){
 
   return res.status(400).json({ error: 'Acción desconocida: ' + accion });
 };
+
+module.exports = require('./_http').wrap(module.exports);

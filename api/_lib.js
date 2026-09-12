@@ -42,7 +42,7 @@ function signToken(payload){
 }
 
 function verifyToken(tok){
-  if(!tok || typeof tok !== 'string') return null;
+  if(!tok || typeof tok !== 'string'||tok.length>8192) return null;
   const i = tok.indexOf('.');
   if(i < 1) return null;
   const body = tok.slice(0, i), sig = tok.slice(i + 1);
@@ -53,51 +53,79 @@ function verifyToken(tok){
   let p;
   try { p = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')); }
   catch(e){ return null; }
-  if(!p || !p.exp || Date.now() > p.exp) return null;
+  if(!p||!Number.isSafeInteger(p.exp)||Date.now()>=p.exp||typeof p.u!=='string'||p.u.length>120)return null;
   return p;
 }
 
-function auth(req){
-  const h = req.headers['authorization'] || '';
-  return verifyToken(h.startsWith('Bearer ') ? h.slice(7) : '');
+function principalKey(name,u){
+  return u&&u.jugadorId?'g:'+u.jugadorId:u&&u._credentialId?'i:'+u._credentialId:'n:'+name;
 }
-
-// Sesión deslizante: si al token le queda menos de la mitad de vida, se emite
-// uno nuevo. Sin esto, un admin trabajando 2 horas seguidas veía cómo los
-// guardados empezaban a fallar aunque el cliente creyera la sesión viva.
+function defaultStored(p){return POR_DEFECTO_V2.has(p)||['tenis','admin123',hashV1('tenis'),hashV1('admin123')].includes(p);}
+async function readAccount(key){
+  const r=await fetch(SUPA_URL+'/rest/v1/sohail_account_security?id=eq.'+encodeURIComponent(key)+'&select=*',{headers:supaHeaders(),signal:AbortSignal.timeout(15000)});
+  if(!r.ok){const e=new Error('No se pudo leer la seguridad de la cuenta. Comprobá la instalación del SQL.');e.status=503;e.code='SCHEMA_REQUIRED';throw e;}
+  const rows=await r.json();return rows[0]||null;
+}
+async function securityFor(name,state){
+  const u=state&&state.users&&state.users[name];
+  if(!u){const e=new Error('Usuario no encontrado.');e.status=403;e.code='FORBIDDEN';throw e;}
+  const key=principalKey(name,u), existing=await readAccount(key);if(existing)return existing;
+  let stored=u.pass;
+  if(u.jugadorId){
+    const cat=await readCatalogo();const j=cat[u.jugadorId];
+    if(!j)throw Object.assign(new Error('No se pudo comprobar el perfil global.'),{status:503,code:'IDENTITY_UNAVAILABLE'});
+    stored=j.pass||u.pass;
+  }
+  if(!stored){
+    if((u.role||'player')!=='player')throw Object.assign(new Error('Cuenta administrativa sin credencial.'),{status:503,code:'IDENTITY_UNAVAILABLE'});
+    stored=hashV2('tenis');
+  }
+  const body={id:key,pass_hash:stored,must_change:defaultStored(stored)};
+  const q=await fetch(SUPA_URL+'/rest/v1/sohail_account_security',{method:'POST',headers:supaHeaders({'Content-Type':'application/json',Prefer:'resolution=ignore-duplicates,return=representation'}),body:JSON.stringify(body)});
+  if(!q.ok)throw Object.assign(new Error('No se pudo preparar la sesión.'),{status:503,code:'SCHEMA_REQUIRED'});
+  const rows=await q.json();return rows[0]||await readAccount(key);
+}
+function makeSession(name,role,ligaId,state,record){
+  if(!record)throw new Error('Falta la versión de credenciales verificada.');
+  return {u:name,r:role,src:ligaId,pk:record.id,sv:Number(record.epoch),m:!!record.must_change,exp:Date.now()+SESSION_MIN*60000};
+}
+async function auth(req,allowDefault){
+  const h=req.headers&&req.headers.authorization||'';
+  const session=verifyToken(h.startsWith('Bearer ')?h.slice(7):'');
+  // Los tokens de la versión anterior se invalidan en este despliegue.
+  if(!session||!session.pk||!Number.isSafeInteger(session.sv)||!ligaIdOK(session.src))return null;
+  const account=await readAccount(session.pk);
+  if(!account||Number(account.epoch)!==session.sv)return null;
+  const source=await readState(session.src),u=source&&source.users&&source.users[session.u];
+  if(!u||u.inactive||principalKey(session.u,u)!==session.pk)return null;
+  session.r=u.role||'player';session.m=!!account.must_change;
+  if(session.m&&!allowDefault)throw Object.assign(new Error('Primero cambiá la contraseña predeterminada.'),{status:403,code:'PASSWORD_CHANGE_REQUIRED'});
+  return session;
+}
 function renewIfStale(session){
-  const total = SESSION_MIN * 60 * 1000;
-  if(session.exp - Date.now() > total / 2) return null;   // todavía fresco
-  // El campo 'a' se eliminó a propósito: el permiso de admin se lee de la base en
-  // cada pedido (ver sesionEsAdmin). Si viajara en el token, renovarlo lo
-  // perpetuaría y quitarle el rol a alguien no surtiría efecto nunca.
-  return signToken({ u: session.u, r: session.r, exp: Date.now() + total });
+  if(!session)return null;
+  const total=SESSION_MIN*60000;if(session.exp-Date.now()>total/2)return null;
+  return signToken({...session,exp:Date.now()+total});
 }
 
 // Una cuenta dada de baja pierde el acceso aunque tenga un token vivo.
 function blockedUser(state, session){
   const u = (state.users || {})[session.u];
   if(!u) return 'Tu usuario ya no existe en la liga.';
-  if(u.inactive && (u.role || 'player') === 'player') return 'Tu cuenta está inactiva. Contactá al administrador.';
+  if(session.pk&&principalKey(session.u,u)!==session.pk)return 'Tu sesión corresponde a otra identidad.';
+  if(u.inactive) return 'Tu cuenta está inactiva. Contactá al administrador.';
   return null;
 }
 
 function isAdminRole(r){ return r === 'admin' || r === 'superadmin'; }
 
-// ¿La sesión puede administrar? El rol dice QUÉ es en la liga; el flag 'a' del
-// token dice si PUEDE ADMINISTRARLA. Un jugador ascendido es role:'player' + a:true.
-// El fallback a isAdminRole mantiene vivos los tokens emitidos antes de este cambio.
+// Autorización desde el estado actual de la liga y su identidad verificada.
+// No se confía en permisos administrativos heredados de un token antiguo.
 function sesionEsAdmin(session, users){
-  if(!session) return false;
-  // Las cuentas del sistema mandan por rol: eso no cambia nunca.
-  if(isAdminRole(session.r)) return true;
-  // El flag de un jugador ascendido se lee de la BASE, no del token. Si se leyera
-  // del token, quitarle el rol no surtiría efecto hasta que expirara su sesión —
-  // y como renewIfStale copia el flag hacia adelante, un jugador activo se
-  // quedaba de administrador para siempre.
-  if(users && users[session.u]) return users[session.u].isAdmin === true;
-  // Sin la base a mano no se asume nada: se niega.
-  return false;
+  if(!session)return false;
+  const u=users&&users[session.u];
+  if(!u||u.inactive||(session.pk&&principalKey(session.u,u)!==session.pk))return false;
+  return isAdminRole(u.role)||u.isAdmin===true;
 }
 
 // Solo la cuenta original 'admin' y el super admin reparten el rol de administrador.
@@ -111,31 +139,26 @@ function puedeGestionarAdmins(session){
 // copiarlo porque readState() devuelve uno nuevo en cada request, y clonar 222 KB
 // en cada login costaba tiempo y memoria para nada.
 function filterForSession(state, session){
-  const admin = sesionEsAdmin(session, state && state.users);
-  const users = state.users || {};
-  for(const name of Object.keys(users)){
-    const u = users[name];
-    if(!u || typeof u !== 'object') continue;
-    if(!admin){
-      // Un jugador NO recibe el hash de nadie (ni el suyo): el login es del servidor.
-      delete u.pass;
-      // Ni los datos de contacto de los demás. Los propios sí.
-      if(name !== session.u){
-        delete u.email;
-        delete u.tel;
-      }
-    }
-    // El admin sí recibe los hashes: los necesita para el panel de contraseñas.
+  const admin=sesionEsAdmin(session,state.users);
+  for(const [name,u] of Object.entries(state.users||{})){
+    if(!u||typeof u!=='object')continue;
+    u.passwordDefault=POR_DEFECTO_V2.has(u.pass||'')||['tenis','admin123',hashV1('tenis'),hashV1('admin123')].includes(u.pass);
+    if(admin)u.identityRef=require('./_validation').identityRef(name,u);
+    delete u.pass;
+    if(!admin&&(!session||name!==session.u)){delete u.email;delete u.tel;delete u._credentialId;}
   }
-  // JOIN_REQUESTS trae nombre + email/tel de gente que pidió entrar a ESTA
-  // liga desde otra. Es información sensible de contacto: solo el admin de
-  // la liga la necesita para gestionar la solicitud. Un jugador común la ve
-  // vacía (su propio estado de solicitud lo consulta por separado, vía la
-  // acción 'misLigas', que no expone la lista completa de otros).
-  if(!admin && Array.isArray(state.JOIN_REQUESTS)){
-    state.JOIN_REQUESTS = [];
-  }
+  if(!admin){state.JOIN_REQUESTS=[];state.LOG=[];}
   return state;
+}
+function filterPublicState(state){
+  const allowed=['_v','cycles','matches','matchId','activeN','playoff','DESTINO','FECHAS','PO_FECHAS','ALLNAMES','PUNTOS','AJUSTES_PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE','LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON','RATING_SEEDS','RATING_OVERRIDES','REGLAMENTO'];
+  const out={};for(const k of allowed)if(k in state)out[k]=state[k];
+  out.users={};for(const [name,u] of Object.entries(state.users||{})){
+    out.users[name]={name:u.name||name,role:u.role||'player',inactive:!!u.inactive};
+    // ID de enlace deportivo: necesario para sumar estadísticas entre ligas.
+    if(u.jugadorId)out.users[name].jugadorId=u.jugadorId;
+  }
+  return out;
 }
 
 // --- Acceso a Supabase con la clave secreta (se salta RLS) ---
@@ -160,6 +183,7 @@ function ligaIdOK(id){
   return typeof id === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(id);
 }
 
+const _readVersions = new WeakMap();
 async function readState(ligaId){
   const id = ligaId || LIGA_DEFAULT;
   if(!ligaIdOK(id)) throw new Error('ligaId inválido');
@@ -170,28 +194,33 @@ async function readState(ligaId){
   const rows = await r.json();
   if(!Array.isArray(rows) || !rows.length || rows[0].data == null) return null;
   const d = rows[0].data;
-  return typeof d === 'string' ? JSON.parse(d) : d;
+  const obj=typeof d === 'string' ? JSON.parse(d) : d;
+  if(!obj||typeof obj!=='object'||Array.isArray(obj))throw new Error('Estado almacenado inválido');
+  _readVersions.set(obj,Number.isSafeInteger(obj._v)?obj._v:0);
+  return obj;
 }
 
 // Se guarda igual que antes: la columna `data` recibe el JSON como texto.
 // Ahora la fila destino la define ligaId (default: la liga histórica).
-async function writeState(ligaId, obj){
-  // Compatibilidad: si llega un solo argumento (el objeto), es una llamada vieja
-  // que apunta a la liga por defecto. Detectamos por tipo.
-  if(obj === undefined && ligaId && typeof ligaId === 'object'){
-    obj = ligaId; ligaId = LIGA_DEFAULT;
-  }
-  const id = ligaId || LIGA_DEFAULT;
-  if(!ligaIdOK(id)) throw new Error('ligaId inválido');
-  const r = await fetch(SUPA_URL + '/rest/v1/liga_state', {
-    method: 'POST',
-    headers: supaHeaders({
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates,return=minimal'
-    }),
-    body: JSON.stringify({ id: id, data: JSON.stringify(obj) })
+async function rpc(name, body){
+  const r=await fetch(SUPA_URL+'/rest/v1/rpc/'+name,{
+    method:'POST',headers:supaHeaders({'Content-Type':'application/json'}),body:JSON.stringify(body),signal:AbortSignal.timeout(20000)
   });
-  if(!r.ok) throw new Error('Supabase write ' + r.status + ' ' + (await r.text()));
+  if(!r.ok){
+    const e=new Error(r.status===404?'Falta instalar el SQL de correcciones.':'No se pudo completar la operación de base de datos.');
+    e.status=503;e.code=r.status===404?'SCHEMA_REQUIRED':'DATABASE_UNAVAILABLE';throw e;
+  }
+  return r.json();
+}
+async function writeState(ligaId,obj,options){
+  if(obj===undefined&&ligaId&&typeof ligaId==='object'){obj=ligaId;ligaId=LIGA_DEFAULT;}
+  const id=ligaId||LIGA_DEFAULT;
+  if(!ligaIdOK(id)||!obj||typeof obj!=='object')throw new Error('Estado o liga inválidos');
+  const expected=options&&Number.isSafeInteger(options.expectedVersion)?options.expectedVersion:
+    _readVersions.has(obj)?_readVersions.get(obj):Number.isSafeInteger(obj._v)?obj._v:-1;
+  const d=await rpc('sohail_write_state',{p_liga:id,p_expected:expected,p_data:obj});
+  if(!d||!d.ok){const e=new Error('Otra persona modificó la liga. Tus cambios siguen pendientes.');e.status=409;e.code='CONFLICT';e.currentV=d&&d.currentV;throw e;}
+  obj._v=d.version;_readVersions.set(obj,d.version);return d.version;
 }
 
 function envOK(res){
@@ -272,7 +301,7 @@ async function borrarJugador(jugadorId){
 // Borra TODAS las passkeys de un usuario. Se llama al eliminar un jugador para
 // que no queden credenciales huérfanas: si mañana se crea otro jugador con el
 // mismo nombre, no debería heredar los Face ID del anterior.
-async function borrarPasskeysDeUsuario(userName){
+async function borrarPasskeysDeUsuario(userName,strict=false){
   if(!userName) return;
   const r = await fetch(SUPA_URL + '/rest/v1/passkeys?user_name=eq.' + encodeURIComponent(userName), {
     method: 'DELETE',
@@ -280,7 +309,7 @@ async function borrarPasskeysDeUsuario(userName){
   });
   // No lanzamos si falla: es limpieza, no debería bloquear la eliminación del
   // jugador. El admin ve el error del jugador en primer plano si aplica.
-  if(!r.ok){ /* silent, best-effort cleanup */ }
+  if(!r.ok&&strict)throw Object.assign(new Error('No se pudieron revocar los dispositivos. No se aplicó el vínculo.'),{status:503,code:'DATABASE_UNAVAILABLE'});
 }
 
 // ============================================================================
@@ -388,8 +417,8 @@ async function insertarMensaje({ ligaId, tipo, ciclo, grupo, autor, texto, image
   const row = {
     liga_id: ligaId,
     tipo,
-    ciclo: (tipo === 'grupo') ? ciclo : null,
-    grupo: (tipo === 'grupo') ? grupo : null,
+    ciclo: (tipo === 'grupo' || tipo === 'playoff') ? ciclo : null,
+    grupo: (tipo === 'grupo' || tipo === 'playoff') ? grupo : null,
     autor: String(autor || '').slice(0, 80),
     texto: String(texto || '').slice(0, 2000)
   };
@@ -419,8 +448,11 @@ async function insertarMensaje({ ligaId, tipo, ciclo, grupo, autor, texto, image
 async function leerMensajes({ ligaId, tipo, ciclo, grupo, limite }){
   let url = SUPA_URL + '/rest/v1/mensajes?liga_id=eq.' + encodeURIComponent(ligaId)
           + '&tipo=eq.' + encodeURIComponent(tipo);
-  if(tipo === 'grupo'){
-    url += '&ciclo=eq.' + encodeURIComponent(ciclo) + '&grupo=eq.' + encodeURIComponent(grupo);
+  if(tipo === 'grupo' || tipo === 'playoff'){
+    // PostgREST: NULL necesita IS NULL; eq.null no es un filtro válido para integer.
+    // Conservamos el cuadro (incluido el índice 0) y el ciclo numérico de los grupos.
+    url += '&ciclo=' + (ciclo === null ? 'is.null' : 'eq.' + encodeURIComponent(ciclo))
+         + '&grupo=eq.' + encodeURIComponent(grupo);
   }
   url += '&order=id.desc&limit=' + (limite || 200);
   const r = await fetch(url, { headers: supaHeaders({ select: undefined }) });
@@ -436,8 +468,11 @@ async function leerMensajesDesde({ ligaId, tipo, ciclo, grupo, desdeId }){
   let url = SUPA_URL + '/rest/v1/mensajes?liga_id=eq.' + encodeURIComponent(ligaId)
           + '&tipo=eq.' + encodeURIComponent(tipo)
           + '&id=gt.' + encodeURIComponent(desdeId || 0);
-  if(tipo === 'grupo'){
-    url += '&ciclo=eq.' + encodeURIComponent(ciclo) + '&grupo=eq.' + encodeURIComponent(grupo);
+  if(tipo === 'grupo' || tipo === 'playoff'){
+    // PostgREST: NULL necesita IS NULL; eq.null no es un filtro válido para integer.
+    // Conservamos el cuadro (incluido el índice 0) y el ciclo numérico de los grupos.
+    url += '&ciclo=' + (ciclo === null ? 'is.null' : 'eq.' + encodeURIComponent(ciclo))
+         + '&grupo=eq.' + encodeURIComponent(grupo);
   }
   url += '&order=id.asc&limit=200';
   const r = await fetch(url, { headers: supaHeaders() });
@@ -560,8 +595,8 @@ async function borrarLiga(ligaId){
 }
 
 module.exports = {
-  hashV1, hashV2, POR_DEFECTO_V2, signToken, verifyToken, auth, isAdminRole, sesionEsAdmin, puedeGestionarAdmins, filterForSession, renewIfStale, blockedUser, blockedUserCached,
-  readState, writeState, envOK, SESSION_MIN, SUPER_HASH,
+  principalKey, defaultStored, readAccount, securityFor, makeSession, hashV1, hashV2, POR_DEFECTO_V2, signToken, verifyToken, auth, isAdminRole, sesionEsAdmin, puedeGestionarAdmins, filterForSession, filterPublicState, renewIfStale, blockedUser, blockedUserCached,
+  readState, writeState, rpc, envOK, SESSION_MIN, SUPER_HASH,
   // Rate limiting compartido, audit log, helpers de request:
   rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP,
   // Acceso directo a Supabase (para endpoints que necesitan queries custom):

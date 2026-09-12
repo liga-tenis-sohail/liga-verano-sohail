@@ -190,3 +190,5 @@ async function handlerGlobal(req, res){
 function normNombre(n){
   return String(n).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
 }
+
+module.exports = require('./_http').wrap(module.exports);

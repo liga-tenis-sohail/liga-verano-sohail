@@ -1,105 +1,30 @@
-// =====================================================================
-// POST /api/password   (Authorization: Bearer <token>)
-//   { oldPass, newPass }            -> el usuario cambia SU contraseña
-//   { target, newPass }             -> un admin le fija la contraseña a otro
-//
-// Existe porque el jugador ya no recibe ningún hash: la verificación de la
-// contraseña anterior tiene que ocurrir del lado del servidor.
-// =====================================================================
-const { hashV1, hashV2, POR_DEFECTO_V2, auth, readState, writeState, envOK, isAdminRole, sesionEsAdmin, SUPER_HASH,
-        readCatalogo, upsertJugador, ligaIdOK, LIGA_DEFAULT, logAudit, clientIP } = require('./_lib');
-
-module.exports = async function handler(req, res){
-  if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
-  if(!envOK(res)) return;
-
-  const session = auth(req);
-  if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
-
-  const body    = (req.body && typeof req.body === 'object') ? req.body : {};
-  const newPass = String(body.newPass || '');
-  const target  = body.target ? String(body.target) : null;
-
-  if(newPass.length < 4) return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres.' });
-
-  // Qué liga: viene en el body. Si no, la liga por defecto.
-  const ligaId = ligaIdOK(body.ligaId) ? body.ligaId : LIGA_DEFAULT;
-
-  let state;
-  try { state = await readState(ligaId); }
-  catch(e){ return res.status(503).json({ error: 'No se pudo leer la base de datos.' }); }
-
-  if(!state || !state.users) return res.status(503).json({ error: 'La base de datos no tiene datos.' });
-
-  // Se decide DESPUÉS de leer la base: el permiso sale del estado, no del token.
-  const admin = sesionEsAdmin(session, state.users);
-
-  // Este chequeo TIENE que ir después de declarar admin. Estuvo arriba y, como
-  // 'target && !admin' cortocircuita, solo reventaba cuando había target: o sea,
-  // justo en el reset del administrador. node --check no lo ve porque la sintaxis
-  // es válida; es un ReferenceError de runtime (temporal dead zone).
-  if(target && !admin) return res.status(403).json({ error: 'No tenés permiso para cambiar la contraseña de otro jugador.' });
-
-  const name = target || session.u;
-  const u = state.users[name];
-  if(!u) return res.status(404).json({ error: 'No se encontró ese usuario.' });
-
-  // La contraseña del super administrador solo la cambia él mismo. Antes acá
-  // solo se chequeaba que quien pedía fuera admin, no A QUIÉN apuntaba: un
-  // admin podía fijarle la clave al super y entrar como él.
-  if(u.role === 'superadmin' && session.u !== name){
-    return res.status(403).json({ error: 'La contraseña del super administrador solo la puede cambiar él mismo.' });
-  }
-
-  // ¿El jugador tiene perfil en el catálogo global? Entonces su contraseña vive
-  // ahí y es única para todas sus ligas. Se cambia en el catálogo, no en la liga.
-  let jugGlobal = null;
-  if(u.jugadorId){
-    try {
-      const cat = await readCatalogo();
-      jugGlobal = cat[u.jugadorId] || null;
-    } catch(e){ /* si el catálogo falla, cae al método viejo (la liga) */ }
-  }
-
-  // De dónde sale la contraseña actual: el catálogo si hay perfil, si no la liga.
-  const passActual = (jugGlobal && jugGlobal.pass != null) ? jugGlobal.pass : (u.pass || '');
-
-  // Cambiando la propia: hay que probar que sabés la anterior.
-  // Excepción: si la clave actual es una PÚBLICA (POR_DEFECTO_V2), el token ya
-  // demuestra que la persona es el dueño de la cuenta. Se permite el cambio sin
-  // oldPass. Esto habilita el flujo "entré con Face ID y tenía clave por defecto":
-  // el cliente muestra el modal pwf sin pedir la anterior, y el server acepta.
-  if(!target){
-    const oldPass  = String(body.oldPass || '');
-    const stored   = passActual;
-    // Si la clave guardada es pública, no hace falta pedirla.
-    if(POR_DEFECTO_V2.has(stored)){
-      // OK, seguimos. La verificación es implícita: hay token válido + clave pública.
-    } else {
-      if(!oldPass) return res.status(400).json({ error: 'Falta la contraseña actual.' });
-      const isLegacy = !/^v[12]:/.test(stored);
-      const oldV2    = hashV2(oldPass);
-      const oldOK    = (SUPER_HASH && oldV2 === SUPER_HASH)
-                    || (isLegacy ? stored === oldPass : (stored === oldV2 || stored === hashV1(oldPass)));
-      if(!oldOK) return res.status(401).json({ error: 'La contraseña actual no es correcta.' });
-    }
-  }
-
-  // Guardar la contraseña nueva en la fuente correcta.
-  if(jugGlobal){
-    // Catálogo global: afecta TODAS las ligas de esa persona.
-    jugGlobal.pass = hashV2(newPass);
-    try { await upsertJugador(jugGlobal); }
-    catch(e){ return res.status(503).json({ error: 'No se pudo guardar la contraseña nueva.' }); }
-  } else {
-    // Sin perfil global (jugador sin migrar, o admin/superadmin): en la liga.
-    u.pass = hashV2(newPass);
-    try { await writeState(ligaId, state); }
-    catch(e){ return res.status(503).json({ error: 'No se pudo guardar la contraseña nueva.' }); }
-  }
-
-  // Audit: cambio de contraseña. Distingue self-change de admin-reset.
-  logAudit(session.u, target ? 'pass.admin_reset' : 'pass.self_change', name, null, clientIP(req));
-
-  return res.status(200).json({ ok: true });
-};
+// Cambio de contraseña y revocación: SOLO servidor; ninguna base se edita desde el cliente.
+const lib=require('./_lib');
+module.exports=require('./_http').wrap(async function(req,res){
+ if(req.query&&req.query.accion==='tutorial')return require('./_tutorial')(req,res);
+ if(req.method!=='POST')return res.status(405).json({error:'Método no permitido'});
+ if(!lib.envOK(res))return;
+ const session=await lib.auth(req,true);
+ if(!session)return res.status(401).json({error:'Sesión inválida o expirada.',code:'SESSION_EXPIRED'});
+ const body=req.body||{},name=body.target?String(body.target):session.u,newPass=String(body.newPass||'');
+ const liga=lib.ligaIdOK(body.ligaId)?body.ligaId:lib.LIGA_DEFAULT;
+ const state=await lib.readState(liga);
+ if(!state||lib.blockedUser(state,session))return res.status(403).json({error:'No tenés acceso a esta liga.',code:'FORBIDDEN'});
+ const target=state.users[name];if(!target)return res.status(404).json({error:'Usuario no encontrado.'});
+ const other=name!==session.u;
+ if(other&&(!lib.sesionEsAdmin(session,state.users)||session.m))return res.status(403).json({error:'No tenés permiso para cambiar esa contraseña.',code:'FORBIDDEN'});
+ if(other&&(target.role==='superadmin'||(!lib.puedeGestionarAdmins(session)&&(name==='admin'||target.role==='admin'||target.isAdmin))))return res.status(403).json({error:'No tenés permiso para administrar esa cuenta.',code:'FORBIDDEN'});
+ const reset=other&&newPass==='tenis';
+ if((newPass.length<6&&!reset)||newPass.length>128||(!reset&&lib.defaultStored(lib.hashV2(newPass))))return res.status(400).json({error:'Elegí una contraseña no predeterminada de entre 6 y 128 caracteres.',code:'PASSWORD_POLICY'});
+ const account=await lib.securityFor(name,state),stored=account.pass_hash;
+ if(!other&&!account.must_change){
+   const old=String(body.oldPass||'');
+   const valid=old&&(stored===old||stored===lib.hashV1(old)||stored===lib.hashV2(old)||(name==='superadmin'&&lib.SUPER_HASH&&lib.hashV2(old)===lib.SUPER_HASH));
+   if(!valid)return res.status(400).json({error:'La contraseña actual no es correcta.',code:'WRONG_PASSWORD'});
+ }
+ const result=await lib.rpc('sohail_change_password',{p_principal:account.id,p_epoch:Number(account.epoch),p_hash:lib.hashV2(newPass),p_reset:reset,p_user:name,p_jugador:target.jugadorId||null});
+ if(!result.ok)return res.status(409).json({error:'La contraseña cambió durante la operación. Volvé a entrar.',code:'CREDENTIAL_CONFLICT'});
+ await lib.logAudit(session.u,other?'pass.admin_reset':'pass.self_change',name,{defaultReset:reset},lib.clientIP(req));
+ const record=result.account;
+ return res.status(200).json({ok:true,passwordDefault:reset,tutorialPending:!!reset,token:other?undefined:lib.signToken(lib.makeSession(name,target.role||'player',liga,state,record)),version:result.version});
+});

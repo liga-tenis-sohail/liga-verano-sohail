@@ -32,3 +32,5 @@ module.exports = async function handler(req, res){
     at: new Date().toISOString()
   });
 };
+
+module.exports = require('./_http').wrap(module.exports);

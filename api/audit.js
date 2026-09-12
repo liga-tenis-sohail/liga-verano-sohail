@@ -10,7 +10,7 @@ const { SUPA_URL, supaHeaders, auth, envOK } = require('./_lib');
 module.exports = async function handler(req, res){
   if(!envOK(res)) return;
 
-  const session = auth(req);
+  const session = await auth(req);
   if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
   if(session.r !== 'superadmin') return res.status(403).json({ error: 'Solo el super administrador puede ver el log.' });
 
@@ -35,3 +35,5 @@ module.exports = async function handler(req, res){
     return res.status(503).json({ error: 'Error de lectura.' });
   }
 };
+
+module.exports = require('./_http').wrap(module.exports);

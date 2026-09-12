@@ -24,12 +24,13 @@
 // que ese nombre visible no dependa de lo que haya quedado guardado en
 // LEAGUE_NAME desde el formulario de "Apariencia de la liga".
 // =====================================================================
-const { auth, readState, readLigaIndex, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
+const { securityFor, makeSession, signToken, principalKey, filterPublicState, auth, readState, readLigaIndex, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
 
 module.exports = async function handler(req, res){
+  if(req.method!=='GET')return res.status(405).json({error:'Método no permitido'});
   if(!envOK(res)) return;
 
-  const session = auth(req);
+  const session = await auth(req,true);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   // Qué liga: viene por query (?liga=anual-2026). Si no, la liga por defecto.
@@ -73,6 +74,14 @@ module.exports = async function handler(req, res){
     }
   }
 
+  let selectedToken;
+  if(req.query&&req.query.elegir){
+    if(principalKey(session.u,uEnEstaLiga)!==session.pk)return res.status(403).json({error:'Esa liga pertenece a otra identidad.'});
+    const record=await securityFor(session.u,state);
+    Object.assign(session,makeSession(session.u,uEnEstaLiga.role||'player',ligaId,state,record));
+    selectedToken=signToken(session);
+  }
+
   let ligaNombre = '';
   try {
     const idx = await readLigaIndex();
@@ -82,11 +91,14 @@ module.exports = async function handler(req, res){
 
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
-    state: filterForSession(state, session),
+    state: uEnEstaLiga?filterForSession(state, session):filterPublicState(state),
     role: session.r,
     name: session.u,
     ligaId,
     ligaNombre,
-    token: renewIfStale(session) || undefined
+    mustChangePw:!!session.m,
+    token: selectedToken || renewIfStale(session) || undefined
   });
 };
+
+module.exports = require('./_http').wrap(module.exports);

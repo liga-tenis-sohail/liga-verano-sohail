@@ -143,7 +143,7 @@ module.exports = async (req, res) => {
     // 1) REGISTRO — iniciar. Requiere estar logueado con clave (token).
     // =================================================================
     if(accion === 'reg-start'){
-      const session = lib.auth(req);   // valida el token del login con clave
+      const session = await lib.auth(req);   // valida el token del login con clave
       if(!session) return res.status(401).json({ error: 'Iniciá sesión con tu clave antes de activar el ingreso con Face ID.' });
       const userName = session.u;
       const existentes = await passkeysDeUsuario(userName);
@@ -169,7 +169,7 @@ module.exports = async (req, res) => {
     // 2) REGISTRO — completar. Guarda la passkey verificada.
     // =================================================================
     if(accion === 'reg-finish'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida. Volvé a entrar con tu clave.' });
       const saved = leerChallenge(readCookie(req, 'pk_reg'));
       clearCookie(res, 'pk_reg');
@@ -270,8 +270,10 @@ module.exports = async (req, res) => {
         const role = u.role || 'player';
         const puedeAdmin = role === 'admin' || role === 'superadmin' || u.isAdmin === true;
         const exp = Date.now() + lib.SESSION_MIN * 60 * 1000;
-        const session = { u: userName, r: role, exp };
-        const mustChangePw = lib.POR_DEFECTO_V2.has(u.pass || '');
+        if(u.inactive)return res.status(403).json({error:'Cuenta inactiva.'});
+        const authRecord=await lib.securityFor(userName,state);
+        const session=lib.makeSession(userName,role,ligaId,state,authRecord);
+        const mustChangePw=!!authRecord.must_change;
         return res.status(200).json({
           token: lib.signToken(session),
           isAdmin: puedeAdmin,
@@ -314,21 +316,11 @@ module.exports = async (req, res) => {
       // cliente con mustChangePw=true para que muestre el modal obligatorio.
       // Sin esto, un jugador con "tenis" que activa Face ID nunca más pasa por
       // el modal de cambio de clave y se queda con la clave pública para siempre.
-      let mustChangePw = false;
-      try {
-        const primerU = disponibles[0].u;
-        let storedPass = primerU.pass || '';
-        if(primerU.jugadorId){
-          const cat = await lib.readCatalogo();
-          const jugGlobal = cat[primerU.jugadorId];
-          if(jugGlobal && jugGlobal.pass) storedPass = jugGlobal.pass;
-        }
-        mustChangePw = lib.POR_DEFECTO_V2.has(storedPass);
-      } catch(_){ /* si falla el chequeo, no bloqueamos el login por Face ID */ }
-
+      const authRecord=await lib.securityFor(userName,disponibles[0].state);
+      const mustChangePw=!!authRecord.must_change;
       if(disponibles.length === 1){
         const d = disponibles[0];
-        const session = { u: userName, r: 'player', exp };
+        const session=lib.makeSession(userName,'player',d.ligaId,d.state,authRecord);
         return res.status(200).json({
           token: lib.signToken(session),
           isAdmin: false,
@@ -343,7 +335,7 @@ module.exports = async (req, res) => {
 
       // 2+ ligas activas: la passkey ya verificó identidad, pero falta
       // elegir a qué liga entrar. Mismo contrato que /api/login.
-      const session = { u: userName, r: 'player', exp };
+      const session=lib.makeSession(userName,'player',disponibles[0].ligaId,disponibles[0].state,authRecord);
       return res.status(200).json({
         token: lib.signToken(session),
         isAdmin: false,
@@ -360,7 +352,7 @@ module.exports = async (req, res) => {
     // 5) LIST — devuelve las passkeys del usuario (para mostrarlas en el perfil).
     // =================================================================
     if(accion === 'list'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const blocked = await lib.blockedUserCached(session, body.ligaId);
       if(blocked) return res.status(403).json({ error: blocked });
@@ -379,7 +371,7 @@ module.exports = async (req, res) => {
     // 6) DELETE — desactiva una passkey del propio usuario.
     // =================================================================
     if(accion === 'delete'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const credId = String(body.credentialId || '');
       if(!credId || !/^[A-Za-z0-9_-]{16,512}$/.test(credId)){
@@ -397,7 +389,7 @@ module.exports = async (req, res) => {
     //    afecta la criptografía, solo la etiqueta que ve en el perfil.
     // =================================================================
     if(accion === 'rename'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const credId = String(body.credentialId || '');
       const label  = String(body.deviceLabel || '').trim().slice(0, 60);
@@ -422,12 +414,14 @@ module.exports = async (req, res) => {
     //    cuando alguien pierde el dispositivo y no puede loguearse.
     // =================================================================
     if(accion === 'admin-list-user'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const state = await lib.readState(body.ligaId || lib.LIGA_DEFAULT);
       if(!lib.sesionEsAdmin(session, state && state.users)) return res.status(403).json({ error: 'Solo un administrador.' });
       const target = String(body.userName || '').trim();
       if(!target) return res.status(400).json({ error: 'Falta el usuario.' });
+      const targetUser=state&&state.users&&state.users[target];
+      if(!targetUser||(targetUser.role==='superadmin'&&session.u!==target)||(!lib.puedeGestionarAdmins(session)&&(target==='admin'||targetUser.role==='admin'||targetUser.isAdmin)))return res.status(403).json({error:'No tenés permiso para administrar esa cuenta.'});
       const rows = await passkeysDeUsuario(target);
       const passkeys = rows.map(p => ({
         credentialId: p.credential_id,
@@ -443,13 +437,15 @@ module.exports = async (req, res) => {
     // 9) ADMIN-DELETE-USER — admin borra una passkey de OTRO jugador.
     // =================================================================
     if(accion === 'admin-delete-user'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const state = await lib.readState(body.ligaId || lib.LIGA_DEFAULT);
       if(!lib.sesionEsAdmin(session, state && state.users)) return res.status(403).json({ error: 'Solo un administrador.' });
       const target = String(body.userName || '').trim();
       const credId = String(body.credentialId || '');
       if(!target) return res.status(400).json({ error: 'Falta el usuario.' });
+      const targetUser=state&&state.users&&state.users[target];
+      if(!targetUser||(targetUser.role==='superadmin'&&session.u!==target)||(!lib.puedeGestionarAdmins(session)&&(target==='admin'||targetUser.role==='admin'||targetUser.isAdmin)))return res.status(403).json({error:'No tenés permiso para administrar esa cuenta.'});
       if(!credId || !/^[A-Za-z0-9_-]{16,512}$/.test(credId)){
         return res.status(400).json({ error: 'Identificador de passkey inválido.' });
       }
@@ -463,7 +459,7 @@ module.exports = async (req, res) => {
     //     Solo agregado, no expone credenciales.
     // =================================================================
     if(accion === 'admin-stats'){
-      const session = lib.auth(req);
+      const session = await lib.auth(req);
       if(!session) return res.status(401).json({ error: 'Sesión inválida.' });
       const state = await lib.readState(body.ligaId || lib.LIGA_DEFAULT);
       if(!lib.sesionEsAdmin(session, state && state.users)) return res.status(403).json({ error: 'Solo un administrador.' });
@@ -486,6 +482,6 @@ module.exports = async (req, res) => {
 
     return res.status(400).json({ error: 'Acción desconocida.' });
   }catch(e){
-    return res.status(500).json({ error: 'Error en el servidor de passkeys: ' + (e.message || 'desconocido') });
+    return res.status(e.status||500).json({error:e.status?e.message:'No se pudo completar la operación con la passkey.',code:e.code||'PASSKEY_ERROR'});
   }
 };

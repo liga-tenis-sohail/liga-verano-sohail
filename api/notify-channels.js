@@ -20,7 +20,7 @@ module.exports = async function handler(req, res){
   } catch(err){
     console.error('❌ notify-channels crash:', err && err.stack ? err.stack : err);
     if(!res.headersSent){
-      return res.status(500).json({ error: 'Error interno: ' + (err && err.message ? err.message : String(err)) });
+      return res.status(err.status||500).json({error:err.status?err.message:'Error interno.',code:err.code||'INTERNAL_ERROR'});
     }
   }
 };
@@ -28,7 +28,7 @@ module.exports = async function handler(req, res){
 async function _handler(req, res){
   if(!envOK(res)) return;
 
-  const session = auth(req);
+  const session = await auth(req);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   // La restricción a admin original / superadmin es intencional (ver cabecera).

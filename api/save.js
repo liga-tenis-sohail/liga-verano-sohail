@@ -4,6 +4,7 @@
 // tampoco lo puede pisar: se reinyecta desde la base.
 // =====================================================================
 const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex, upsertLigaIndex } = require('./_lib');
+const { protectState, AppError } = require('./_validation');
 const { notifyAdmins, fmtFecha, fmtSets } = require('./_lib_whatsapp');
 
 module.exports = async function handler(req, res){
@@ -12,7 +13,7 @@ module.exports = async function handler(req, res){
   } catch(err){
     console.error('❌ save.js crash:', err && err.stack ? err.stack : err);
     if(!res.headersSent){
-      return res.status(500).json({ error: 'Error interno al guardar: ' + (err && err.message ? err.message : String(err)) });
+      return res.status(err.status || 500).json({ error: err.status ? err.message : 'No se pudo completar el guardado.', code:err.code || 'INTERNAL_ERROR' });
     }
   }
 };
@@ -21,7 +22,7 @@ async function _handlerSave(req, res){
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
   if(!envOK(res)) return;
 
-  const session = auth(req);
+  const session = await auth(req);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   const incoming = req.body && req.body.state;
@@ -101,7 +102,7 @@ async function _handlerSave(req, res){
     if(ligaEntry && ligaEntry.estado === 'finalizada'){
       return res.status(403).json({ error: 'Esta liga está finalizada: es de solo lectura. Reabrila para poder cargar resultados.' });
     }
-  } catch(e){ }
+  } catch(e){ return res.status(503).json({error:'No se pudo comprobar si la liga está abierta.'}); }
 
   const blocked = blockedUser(current, session);
   if(blocked) return res.status(403).json({ error: blocked });
@@ -120,167 +121,14 @@ async function _handlerSave(req, res){
   const curUsers = current.users || {};
   const admin    = sesionEsAdmin(session, curUsers);
 
-  const supers = o => Object.keys(o || {})
-    .filter(n => o[n] && o[n].role === 'superadmin')
-    .sort().join('|');
-
-  const superAntes = supers(curUsers), superAhora = supers(incoming.users);
-  if(superAntes !== superAhora){
-    const esMigracion = superAntes === '' && superAhora === 'superadmin';
-    if(!esMigracion){
-      return res.status(403).json({
-        error: 'El super administrador es único: no se puede crear, duplicar, transferir ni eliminar.'
-      });
-    }
-  }
-
-  for(const n of Object.keys(incoming.users)){
-    const cu = curUsers[n];
-    if(cu && incoming.users[n]) incoming.users[n].pass = cu.pass;
-  }
-
-  for(const n of Object.keys(incoming.users)){
-    const r = incoming.users[n] && incoming.users[n].role;
-    if(r !== 'player' && r !== 'admin' && r !== 'superadmin'){
-      return res.status(400).json({ error: 'Rol inválido para "' + n.slice(0, 40) + '".' });
-    }
-  }
-
-  const flags = o => Object.keys(o || {}).filter(n => o[n] && o[n].isAdmin === true).sort().join('|');
-  if(flags(curUsers) !== flags(incoming.users) && !puedeGestionarAdmins(session)){
-    const borrados = Object.keys(curUsers).filter(n => curUsers[n] && curUsers[n].isAdmin === true && !incoming.users[n]);
-    if(borrados.length){
-      return res.status(403).json({ error: 'No podés eliminar a ' + borrados[0].slice(0, 40) + ': tiene rol de administrador. Quitáselo primero, o pedíselo al administrador original.' });
-    }
-    return res.status(403).json({ error: 'Solo el administrador original y el super admin pueden repartir el rol de administrador.' });
-  }
-
-  const cuentaAdmins = o => Object.keys(o || {}).filter(n => o[n] && (o[n].role === 'admin' || o[n].isAdmin === true)).length;
-  if(cuentaAdmins(curUsers) > 0 && cuentaAdmins(incoming.users) === 0){
-    return res.status(403).json({ error: 'Tiene que quedar al menos un administrador.' });
-  }
-
-  // JOIN_REQUESTS: aceptar/rechazar solicitudes de acceso es una decisión de
-  // administración. Un jugador común nunca las ve — filterForSession se las
-  // vacía al cargar el estado — así que su copia local SIEMPRE va a diferir
-  // de la real si hay alguna pendiente en la base. Por eso NO se compara
-  // (comparar rompería el guardado de cualquier jugador común apenas hubiera
-  // una solicitud pendiente): directamente se reconcilia con lo que ya había,
-  // igual que se hace con "pass" más arriba. Solo un admin (que sí ve el
-  // array completo) puede efectivamente cambiarlo.
-  if(!admin){
-    incoming.JOIN_REQUESTS = current.JOIN_REQUESTS || [];
-  }
-
-  if(!admin){
-    const COSMETICO = ['LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE','LEAGUE_COLOR_PRI',
-                       'LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','CLUBS','COLOR_DISPUTA','RATING_ON',
-                         'RATING_SEEDS','RATING_OVERRIDES'];
-    for(const k of COSMETICO){
-      if(JSON.stringify(incoming[k]) !== JSON.stringify(current[k])){
-        return res.status(403).json({ error: 'Solo un administrador puede cambiar la apariencia de la liga.' });
-      }
-    }
-  }
-
-  if(!puedeGestionarAdmins(session)){
-    const CONFIG = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
-                    'ALLNAMES','PUNTOS'];
-    for(const k of CONFIG){
-      if(JSON.stringify(incoming[k]) !== JSON.stringify(current[k])){
-        return res.status(403).json({ error: 'La configuración estructural (puntos, grupos, ciclos, playoff) solo la cambia el administrador original o el super admin.' });
-      }
-    }
-  }
-
-  if(!admin){
-    const before = Object.keys(curUsers).sort().join('|');
-    const after  = Object.keys(incoming.users).sort().join('|');
-    if(before !== after){
-      return res.status(403).json({ error: 'No tenés permiso para modificar los jugadores.' });
-    }
-    for(const name of Object.keys(incoming.users)){
-      const inU = incoming.users[name], curU = curUsers[name];
-      if(!inU || !curU) continue;
-      inU.role = curU.role;
-      if('email' in curU) inU.email = curU.email; else delete inU.email;
-      if('tel'   in curU) inU.tel   = curU.tel;   else delete inU.tel;
-    }
-
-    // CONGELADO: campos cosméticos/estructurales que un jugador SIEMPRE
-    // recibe tal cual están en el servidor, nunca lo que traiga su copia
-    // local. Sin esto, un jugador con el estado desactualizado (por
-    // ejemplo, todavía no recargó la página después de que el admin
-    // cambió el título del login) pisaba silenciosamente el valor nuevo
-    // en cada autosave — pasó justo con LOGIN_TITLE: el admin lo guardaba
-    // bien, pero el próximo autosave de cualquier jugador (cada 12s) lo
-    // devolvía a como estaba antes.
-    const CONGELADO = ['cycles','activeN','DESTINO','FECHAS','PO_FECHAS',
-                       'ALLNAMES','PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE',
-                       'LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL'];
-    for(const k of CONGELADO){
-      if(k in current) incoming[k] = current[k]; else delete incoming[k];
-    }
-
-    if(!admin){
-      const poOld = JSON.stringify(current.playoff || {});
-      const poNew = JSON.stringify(incoming.playoff || {});
-      if(poOld !== poNew) incoming.playoff = current.playoff;
-    }
-
-    const _norm = s => String(s || '')
-      .trim()
-      .toLocaleLowerCase('es')
-      .normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const _me = _norm(session.u);
-    const soyYo = m => {
-      if(!m) return false;
-      if(_norm(m.aName) === _me) return true;
-      if(_norm(m.bName) === _me) return true;
-      if(Array.isArray(m.poNames) && m.poNames.some(n => _norm(n) === _me)) return true;
-      if(m.reporter && _norm(m.reporter) === _me) return true;
-      return false;
-    };
-    const curM  = new Map((current.matches  || []).map(m => [m.id, m]));
-    const inM   = new Map((incoming.matches || []).map(m => [m.id, m]));
-
-    for(const [id, m] of curM){
-      if(inM.has(id)) continue;
-      if(!soyYo(m)) return res.status(403).json({ error: 'No podés borrar partidos de otros jugadores.' });
-      if(m.status === 'confirmed'){
-        return res.status(403).json({ error: 'No podés borrar un resultado ya confirmado. Pedíselo al administrador.' });
-      }
-    }
-
-    for(const [id, m] of inM){
-      const antes = curM.get(id);
-      if(!antes){
-        if(!soyYo(m)) return res.status(403).json({ error: 'No podés cargar partidos de otros jugadores.' });
-        if(m.status === 'confirmed') return res.status(403).json({ error: 'Solo el administrador confirma resultados.' });
-        continue;
-      }
-      if(JSON.stringify(antes) === JSON.stringify(m)) continue;
-      if(!soyYo(antes) || !soyYo(m)){
-        return res.status(403).json({ error: 'No podés modificar partidos de otros jugadores.' });
-      }
-      if(antes.status === 'confirmed'){
-        const soloDisputa = m.status === 'disputed' &&
-          JSON.stringify(Object.assign({}, antes, { status: 0 })) ===
-          JSON.stringify(Object.assign({}, m,    { status: 0 }));
-        if(!soloDisputa){
-          return res.status(403).json({ error: 'Un resultado confirmado solo lo cambia el administrador. Podés disputarlo.' });
-        }
-      }else if(m.status === 'confirmed'){
-        return res.status(403).json({ error: 'Solo el administrador confirma resultados.' });
-      }
-    }
-  }
+  try { protectState(current, incoming, session, admin, puedeGestionarAdmins(session)); }
+  catch(e){ return res.status(e.status || 400).json({ error:e.message, code:e.code || 'INVALID_STATE' }); }
 
   // 1. PRIMERO guardamos en la base de datos para asegurar el partido
   try { 
-    await writeState(ligaId, incoming); 
+    await writeState(ligaId, incoming, {expectedVersion:curV}); 
   } catch(e) { 
-    return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); 
+    return res.status(e.status||503).json({error:e.message,code:e.code||'DATABASE_UNAVAILABLE',conflict:e.status===409,currentV:e.currentV}); 
   }
 
   // 1.5. Si el admin cambió LEAGUE_NAME (por ejemplo desde "Apariencia de la
@@ -308,7 +156,7 @@ async function _handlerSave(req, res){
   await _dispararNotificaciones(current, incoming, session).catch(() => {});
 
   // 3. FINALMENTE devolvemos la respuesta al cliente
-  return res.status(200).json({ ok: true, token: renewIfStale(session) || undefined });
+  return res.status(200).json({ ok: true, version:incoming._v, token: renewIfStale(session) || undefined });
 };
 
 async function _dispararNotificaciones(current, incoming, session){

@@ -22,14 +22,24 @@ const { SUPA_URL, supaHeaders, envOK, logAudit } = require('./_lib');
 const BUCKET = 'backups';
 const RETENTION_DAYS = 90;
 
-async function fetchAll(tabla, extra){
-  const q = extra ? '?' + extra : '';
-  const r = await fetch(SUPA_URL + '/rest/v1/' + tabla + q, { headers: supaHeaders() });
-  if(!r.ok) throw new Error('Supabase read ' + tabla + ' ' + r.status);
-  return r.json();
+async function fetchAll(tabla,extra){
+ const rows=[],size=500;let offset=0;
+ for(;;){
+  const q=(extra||'order=id.asc')+'&limit='+size+'&offset='+offset;
+  const r=await fetch(SUPA_URL+'/rest/v1/'+tabla+'?'+q,{headers:supaHeaders(),signal:AbortSignal.timeout(20000)});
+  if(!r.ok)throw new Error('No se pudo exportar '+tabla+' ('+r.status+').');
+  const page=await r.json();if(!Array.isArray(page))throw new Error('Respuesta de tabla inválida: '+tabla);
+  rows.push(...page);if(!page.length)break;
+  offset+=page.length;
+  // A smaller server-side max_rows is not a signal of EOF: continue until empty.
+  if(offset>1000000)throw new Error('La copia excede el límite seguro. Usá un backup nativo de Postgres.');
+ }
+ return rows;
 }
 
 module.exports = async function handler(req, res){
+  if(req.method!=='GET')return res.status(405).json({error:'Método no permitido'});
+  res.setHeader('Cache-Control','no-store');
   if(!envOK(res)) return;
 
   // Autorización: aceptamos DOS mecanismos:
@@ -51,22 +61,13 @@ module.exports = async function handler(req, res){
 
   const started = Date.now();
   try {
-    // 1) Leer todas las tablas relevantes. audit_log solo últimos 180 días para
-    //    que no crezca el backup indefinidamente.
-    const hace180 = new Date(Date.now() - 180 * 24 * 3600 * 1000).toISOString();
-    const [liga_state, liga_index, jugadores, passkeys, audit_log] = await Promise.all([
-      fetchAll('liga_state'),
-      fetchAll('liga_index', 'order=orden.asc'),
-      fetchAll('jugadores'),
-      fetchAll('passkeys'),
-      fetchAll('audit_log', 'at=gte.' + encodeURIComponent(hace180) + '&order=at.desc')
-    ]);
-
-    const snapshot = {
-      version: 1,
-      generated_at: new Date().toISOString(),
-      tables: { liga_state, liga_index, jugadores, passkeys, audit_log }
-    };
+    // 1) Exportación paginada de datos persistentes, incluyendo todo audit_log.
+    // rate_limits es efímero. Este JSON no es un snapshot transaccional de Postgres.
+    const exports=[['liga_state','order=id.asc'],['liga_index','order=id.asc'],['jugadores','order=id.asc'],['passkeys','order=credential_id.asc'],['audit_log','order=id.asc'],['mensajes','order=id.asc'],['admin_notify_channels','order=id.asc'],['sohail_account_security','order=id.asc']];
+    const tables={};
+    // Sequential to reduce memory pressure and avoid a burst of concurrent queries.
+    for(const [name,query]of exports)tables[name]=await fetchAll(name,query);
+    const snapshot={version:2,generated_at:new Date().toISOString(),started_at:new Date(started).toISOString(),consistency:'logical-export-not-transactional',tables};
 
     const json = JSON.stringify(snapshot);
     const gz = await gzip(Buffer.from(json, 'utf8'));
@@ -76,12 +77,7 @@ module.exports = async function handler(req, res){
     const fname = 'backup-' + now.toISOString().replace(/[:.]/g, '-') + '.json.gz';
     const upR = await fetch(SUPA_URL + '/storage/v1/object/' + BUCKET + '/' + fname, {
       method: 'POST',
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_KEY,
-        Authorization: 'Bearer ' + process.env.SUPABASE_SERVICE_KEY,
-        'Content-Type': 'application/gzip',
-        'x-upsert': 'false'
-      },
+      headers:supaHeaders({'Content-Type':'application/gzip','x-upsert':'false'}),
       body: gz
     });
     if(!upR.ok){
@@ -94,11 +90,7 @@ module.exports = async function handler(req, res){
     try {
       const listR = await fetch(SUPA_URL + '/storage/v1/object/list/' + BUCKET, {
         method: 'POST',
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_KEY,
-          Authorization: 'Bearer ' + process.env.SUPABASE_SERVICE_KEY,
-          'Content-Type': 'application/json'
-        },
+        headers:supaHeaders({'Content-Type':'application/json'}),
         body: JSON.stringify({ limit: 1000, sortBy: { column: 'name', order: 'desc' } })
       });
       if(listR.ok){
@@ -116,11 +108,7 @@ module.exports = async function handler(req, res){
         if(toDelete.length){
           await fetch(SUPA_URL + '/storage/v1/object/' + BUCKET, {
             method: 'DELETE',
-            headers: {
-              apikey: process.env.SUPABASE_SERVICE_KEY,
-              Authorization: 'Bearer ' + process.env.SUPABASE_SERVICE_KEY,
-              'Content-Type': 'application/json'
-            },
+            headers:supaHeaders({'Content-Type':'application/json'}),
             body: JSON.stringify({ prefixes: toDelete })
           }).catch(()=>{});
         }
@@ -141,3 +129,5 @@ module.exports = async function handler(req, res){
     return res.status(500).json({ error: 'Backup failed: ' + (e.message || 'desconocido') });
   }
 };
+
+module.exports = require('./_http').wrap(module.exports);
