@@ -6,20 +6,29 @@
 // ============================================================================
 function setViewT(i){playoff.viewT=i;showPlayoffView();}
 
-function renderChampionShowcase(tr, finalM){
+function championLeagueName(){
+  const v=(typeof LEAGUE_NAME==='string'&&LEAGUE_NAME.trim())?LEAGUE_NAME.trim():'';
+  return v||t('app_title')||'Liga';
+}
+function renderChampionShowcase(tr, finalM, mode){
   const winner = finalM && finalM.w ? finalM.w : '';
   const pending = !winner;
-  const title = tf('po_champ',{l:tr.label});
-  const subtitle = pending ? t('po_champ_pending_title') : t('po_champ_ready_title');
-  const hint = pending ? t('po_champ_pending_hint') : t('po_champ_ready_hint');
+  const isCons = mode==='cons';
+  const badge = isCons ? t('po_champ_badge_cons') : t('po_champ_badge_main');
+  const leagueName = championLeagueName();
+  const bracketLabel = isCons ? tf('po_champ_cons',{l:tr.label}) : tf('po_champ',{l:tr.label});
+  const hint = pending
+    ? t(isCons?'po_champ_pending_hint_cons':'po_champ_pending_hint_main')
+    : t(isCons?'po_champ_ready_hint_cons':'po_champ_ready_hint_main');
   const nameHtml = pending
     ? `<span class="champion-showcase__pending-name">${t('po_champ_pending_name')}</span>`
     : `<span class="nm-link champion-showcase__winner-link" onclick="showPlayerHistory('${jsq(winner)}')">${winner}</span>`;
-  return `<div class="champion-showcase ${pending?'is-pending':'is-winner'}" aria-live="polite">
+  return `<div class="champion-showcase ${isCons?'champion-showcase--cons':''} ${pending?'is-pending':'is-winner'}" aria-live="polite">
     <div class="champion-showcase__shine"></div>
     <div class="champion-showcase__topline"></div>
-    <div class="champion-showcase__badge"><i class="ti ti-crown"></i> ${subtitle}</div>
-    <div class="champion-showcase__title">${title}</div>
+    <div class="champion-showcase__badge"><i class="ti ${isCons?'ti-rosette-discount-check':'ti-crown'}"></i> ${badge}</div>
+    <div class="champion-showcase__title">${leagueName}</div>
+    <div class="champion-showcase__subtitle">${bracketLabel}</div>
     <div class="champion-showcase__name">${nameHtml}</div>
     <div class="champion-showcase__hint">${hint}</div>
   </div>`;
@@ -806,7 +815,7 @@ function showPlayoffView(){
   const mainEditBtns = (isAdmin && hayMainOrder)
     ? '<button class="btn btn-sm" style="margin-left:8px" onclick="clearMainOrderUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>'
     : '';
-  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM?renderChampionShowcase(tr,finalM):''}</div>`;
+  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM?renderChampionShowcase(tr,finalM,'main'):''}</div>`;
   if(tr.cons){
     const cf=tr.cons[tr.cons.length-1][0];
     const hayOverrides = tr.consOverrides && Object.keys(tr.consOverrides).length;
@@ -820,7 +829,7 @@ function showPlayoffView(){
       ? '<button class="btn btn-sm" style="margin-left:8px" onclick="editConsOverrideUI('+ti+')"><i class="ti ti-edit"></i> '+t('po_cons_edit_btn')+'</button>'
         + (hayOverrides ? '<button class="btn btn-sm" style="margin-left:4px" onclick="clearConsOverridesUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>' : '')
       : '';
-    html+=`<div class="card"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}${consEditBtns}</div>${bracketHTML(tr.cons,ti,'cons')}${cf&&cf.w?`<div class="champ-card champ-cons"><div class="lbl">${tf('po_champ_cons',{l:tr.label})}</div><div class="who"><span class="nm-link" onclick="showPlayerHistory('${jsq(cf.w)}')">${cf.w}</span></div></div>`:''}</div>`;
+    html+=`<div class="card"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}${consEditBtns}</div>${bracketHTML(tr.cons,ti,'cons')}${cf?renderChampionShowcase(tr,cf,'cons'):''}</div>`;
   }
 
   html+=`<div class="card legend-card"><p class="legend-txt">${t('po_legend')}</p></div>`;

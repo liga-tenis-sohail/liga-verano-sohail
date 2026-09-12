@@ -71,5 +71,14 @@ function trapDialogFocus(event,root){
 }
 function guideHelpButton(container){
  if(!container||container.querySelector('[data-guide-help]')||!currentUser)return;
- const b=document.createElement('button');b.type='button';b.className='btn btn-sm';b.dataset.guideHelp='true';b.textContent=t('guide_view');b.onclick=()=>maybeShowTutorial(true);container.prepend(b);
+ const wrap=document.createElement('div');wrap.className='guide-help-inline';wrap.dataset.guideHelp='true';const b=document.createElement('button');b.type='button';b.className='btn btn-sm';b.textContent=t('guide_view');b.onclick=()=>openTutorialPopupFromHelp();wrap.appendChild(b);container.prepend(wrap);
+}
+
+
+function openTutorialPopupFromHelp(){
+ const existing=document.getElementById('sohail-guide');
+ if(existing) existing.remove();
+ _tutorialBusy=false;
+ _tutorialStep=0;
+ maybeShowTutorial(true);
 }
