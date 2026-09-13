@@ -1838,6 +1838,7 @@ body.sohail-tour-active{overscroll-behavior:none}
 #sohail-guide .guide-tour-dialog[data-placement="right"]{transform-origin:center left}
 #sohail-guide .guide-tour-dialog[data-placement="side-center"]{transform-origin:center right}
 #sohail-guide .guide-tour-dialog[data-placement="floating"]{transform-origin:bottom right}
+#sohail-guide .guide-tour-dialog[data-placement="sheet"]{transform-origin:bottom center}
 #sohail-guide .guide-tour-label{display:flex;align-items:center;gap:8px}
 #sohail-guide .guide-tour-label::before{content:"";display:inline-block;width:8px;height:8px;border-radius:999px;background:#d7ae43;box-shadow:0 0 0 4px rgba(215,174,67,.15)}
 #sohail-guide .guide-actions{margin:0;gap:7px;flex-wrap:nowrap}
@@ -1848,12 +1849,30 @@ body.sohail-tour-active{overscroll-behavior:none}
 @keyframes sohail-guide-enter{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:759px){
  #sohail-guide .guide-tour-dialog{border-radius:16px}
- #sohail-guide .guide-tour-header{padding:11px 14px 0}
+ #sohail-guide .guide-tour-header{padding:10px 12px 0}
  #sohail-guide .guide-tour-label{margin-bottom:5px}
- #sohail-guide .guide-tour-content{padding:10px 14px 0}
- #sohail-guide #guide-title{font-size:19px}
- #sohail-guide .guide-tour-footer{padding:4px 14px max(12px,env(safe-area-inset-bottom))}
- #sohail-guide .dialog-language{padding-bottom:7px}
+ #sohail-guide .guide-tour-content{padding:9px 12px 0}
+ #sohail-guide #guide-title{font-size:18px}
+ #sohail-guide #guide-copy{font-size:12px;line-height:1.45}
+ #sohail-guide .guide-progress{font-size:10px}
+ #sohail-guide .guide-tour-footer{padding:4px 12px max(10px,env(safe-area-inset-bottom))}
+ #sohail-guide .dialog-language{padding-bottom:7px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+ #sohail-guide .dialog-language-button{width:100%;min-height:40px;padding:6px 10px;font-size:12px}
+ #sohail-guide .guide-tour-track{margin:0 0 10px}
+ #sohail-guide .guide-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch}
+ #sohail-guide #guide-skip{grid-column:1/-1;justify-self:start;min-height:32px;padding:0 2px;margin-right:0}
+ #sohail-guide #guide-back,#sohail-guide #guide-next{width:100%;min-width:0}
+ #sohail-guide .guide-actions .btn{min-height:42px;padding:8px 10px;font-size:12px}
+}
+@media(max-width:390px){
+ #sohail-guide .guide-tour-dialog{border-radius:14px}
+ #sohail-guide .guide-tour-header{padding:9px 10px 0}
+ #sohail-guide .guide-tour-content{padding:8px 10px 0}
+ #sohail-guide .guide-tour-footer{padding:4px 10px max(10px,env(safe-area-inset-bottom))}
+ #sohail-guide #guide-title{font-size:17px}
+ #sohail-guide #guide-copy{font-size:11.5px;line-height:1.4}
+ #sohail-guide .dialog-language-button{min-height:38px;font-size:11px}
+ #sohail-guide .guide-actions .btn{min-height:40px;font-size:11.5px}
 }
 @media(prefers-reduced-motion:reduce){#sohail-guide .guide-tour-dialog{animation:none}}
 
@@ -2085,3 +2104,50 @@ html #_pwfpkhint{opacity:1!important}
 /* El panel inferior del recorrido necesita espacio de desplazamiento también
    en móviles altos. Solo el clon de consulta, nunca la pantalla original. */
 @media(max-width:759px){body.sohail-tour-active #main-app[data-guide-preview]{padding-bottom:55vh}}
+
+
+/* v2.9 — cambio de liga: el desplegable es una superficie, no texto de la marca.
+   El header aplica --brand-ink a sus descendientes con !important. Se acota la
+   excepción al ID del selector, incluyendo iconos y etiquetas de cada opción. */
+html #hdr-liga-switch{box-sizing:border-box;min-width:0}
+html #hdr-liga-switch[aria-expanded="true"]{background:rgba(255,255,255,.24)}
+html #hdr-liga-switch:focus-visible{outline:3px solid var(--brand-accent);outline-offset:4px}
+html #hdr-liga-switch-menu{
+ position:absolute;z-index:80;margin:0;padding:10px;gap:8px;
+ width:340px;min-width:0;max-width:calc(100vw - 24px);max-height:min(420px,70dvh);
+ background:var(--surface)!important;color:var(--text)!important;
+ border:1px solid var(--border2);border-radius:14px;
+ box-shadow:0 14px 38px rgba(0,0,0,.22);text-shadow:none;
+ box-sizing:border-box;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;
+ scrollbar-width:thin;scrollbar-color:var(--control-border) var(--surface);
+}
+html #hdr-liga-switch-menu[hidden]{display:none!important}
+html #hdr-liga-switch-menu :is(div,span,button,i,b,strong,svg){color:inherit!important;text-shadow:none}
+html #hdr-liga-switch-menu .hdr-liga-menu-title{
+ color:var(--text2)!important;flex:0 0 auto;padding:2px 4px 4px;
+ font-size:11px;font-weight:700;line-height:1.5;letter-spacing:.055em;text-transform:uppercase;
+}
+html #hdr-liga-switch-menu .hdr-liga-menu-list{display:flex;flex-direction:column;gap:7px;min-width:0;flex:0 0 auto}
+html #hdr-liga-switch-menu .hdr-liga-option{
+ display:flex;align-items:center;gap:10px;box-sizing:border-box;width:100%;min-height:54px;
+ padding:11px 12px;margin:0;border:1px solid var(--border2);border-radius:10px;
+ background:var(--surface)!important;color:var(--text)!important;
+ font:inherit;font-size:14px;font-weight:600;line-height:1.4;text-align:left;
+ white-space:normal;cursor:pointer;transform:none;opacity:1;
+}
+html #hdr-liga-switch-menu .hdr-liga-option:hover{background:var(--surface2)!important;border-color:var(--control-border)}
+html #hdr-liga-switch-menu .hdr-liga-option.is-current{
+ background:var(--action)!important;color:var(--on-action)!important;border-color:var(--action)!important;
+}
+html #hdr-liga-switch-menu .hdr-liga-option:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+html #hdr-liga-switch-menu .hdr-liga-option-icon{display:flex;flex:0 0 22px;align-items:center;justify-content:center}
+html #hdr-liga-switch-menu .hdr-liga-option-name{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:normal}
+html #hdr-liga-switch-menu .hdr-liga-option-current{
+ flex:0 0 auto;border:1px solid currentColor;border-radius:20px;padding:2px 7px;
+ font-size:11px;font-weight:700;line-height:1.4;white-space:nowrap;
+}
+html #hdr-liga-switch-menu .hdr-liga-option-arrow{flex:0 0 auto;font-size:23px;font-weight:400;line-height:1}
+@media(max-width:640px){
+ html #hdr-liga-switch-menu{padding:9px;border-radius:13px}
+ html #hdr-liga-switch-menu .hdr-liga-option{font-size:13px;gap:8px;padding:11px 10px}
+}

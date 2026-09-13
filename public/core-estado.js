@@ -1234,75 +1234,162 @@ function updateBadge() {
 // vuelve a pedir al servidor en cada cambio de pestaña, solo la primera vez
 // que se llama después del login (updateHdr() la dispara).
 // ============================================================================
-let _hdrLigasCache = null;   // null = todavía no se pidió; [] = se pidió y no hay otras
+// v2.9 — selector con colores propios, nombres completos y controles de teclado.
+// Mantiene la misma API y los mismos permisos de participación del servidor.
+let _hdrLigasCache = null;
 let _hdrLigasCargando = false;
+let _hdrLigaMenuCleanup = null;
+let _hdrLigaFetchId = 0;
+let _hdrLigaFetchContext = '';
 
+function _hdrLigaContext(){
+  const session=typeof _saveSessionKey==='function'?_saveSessionKey():_token;
+  return JSON.stringify([session,_ligaActual,currentUser&&currentUser.key]);
+}
+function _hdrLigaOpciones(){
+  const seen=new Set();
+  return (Array.isArray(_hdrLigasCache)?_hdrLigasCache:[]).filter(l=>{
+    if(!l||typeof l.id!=='string'||!l.id||seen.has(l.id))return false;
+    seen.add(l.id);return true;
+  }).map(l=>({
+    id:l.id,
+    // Nunca mostrar una fila vacía ni sustituir otra liga por el nombre actual.
+    nombre:typeof l.nombre==='string'&&l.nombre.trim()?l.nombre.trim():
+      (l.id===_ligaActual&&LIGA_NOMBRE_OFICIAL?LIGA_NOMBRE_OFICIAL:l.id),
+    esLigaActual:l.id===_ligaActual
+  }));
+}
+function cerrarSelectorLigaHdr(restoreFocus){
+  if(_hdrLigaMenuCleanup){const cleanup=_hdrLigaMenuCleanup;_hdrLigaMenuCleanup=null;cleanup();}
+  const menu=document.getElementById('hdr-liga-switch-menu'),btn=document.getElementById('hdr-liga-switch');
+  if(menu){menu.hidden=true;menu.style.display='none';}
+  if(btn){btn.setAttribute('aria-expanded','false');if(restoreFocus&&btn.isConnected)btn.focus({preventScroll:true});}
+}
 function pintarHdrLigaSwitch(){
-  const btn = document.getElementById('hdr-liga-switch');
-  const menu = document.getElementById('hdr-liga-switch-menu');
-  if(!btn) return;
-  const ligas = _hdrLigasCache || [];
-  if(ligas.length < 2){
-    // Nada para elegir: solo participa acá (o todavía no cargó). El botón
-    // queda visible igual (ES el título de la liga) pero sin pinta de
-    // clickeable ni flecha — se ve exactamente como el título de siempre.
-    btn.classList.remove('multi');
-    btn.onclick = null;
-    if(menu) menu.style.display = 'none';
-    return;
-  }
-  // 2+ ligas activas: el título se vuelve clickeable (fondo + flecha).
-  // El TEXTO del título lo sigue controlando el flujo normal de arriba
-  // (lsn.n / updateHdr) — acá solo togglear la apariencia de "es un botón".
-  btn.classList.add('multi');
-  btn.onclick = abrirSelectorLigaHdr;
-  const arrows = btn.querySelector('.hdr-liga-switch-arrows');
-  if(arrows) arrows.style.display = '';
-}
-
-// Abre/cierra el menú de botones (mismo lenguaje visual que el selector de
-// liga del login: .liga-sel-btn). Se posiciona debajo del botón del header.
-function abrirSelectorLigaHdr(){
-  const menu = document.getElementById('hdr-liga-switch-menu');
-  const btn = document.getElementById('hdr-liga-switch');
-  if(!menu || !btn) return;
-  const abierto = menu.style.display !== 'none';
-  if(abierto){ menu.style.display='none'; return; }
-  const ligas = _hdrLigasCache || [];
-  menu.innerHTML = ligas.map(l =>
-    '<button class="liga-sel-btn'+(l.esLigaActual?' on':'')+'" onclick="cambiarLigaDesdeMenu(\''+String(l.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">'
-    + '<i class="ti ti-trophy"></i> '+attr(l.nombre)+(l.esLigaActual?' ('+(t('lsel_current_tag')||'acá')+')':'')+'</button>'
-  ).join('');
-  menu.style.display = '';
-  // Cerrar si se toca afuera (una sola vez, se remueve solo).
-  setTimeout(()=>{
-    document.addEventListener('click', function cerrar(ev){
-      if(!menu.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)){
-        menu.style.display='none';
-        document.removeEventListener('click', cerrar);
+  const btn=document.getElementById('hdr-liga-switch'),menu=document.getElementById('hdr-liga-switch-menu');
+  if(!btn)return;
+  const enabled=_hdrLigaOpciones().length>=2;
+  btn.type='button';btn.classList.toggle('multi',enabled);
+  btn.setAttribute('aria-controls','hdr-liga-switch-menu');
+  btn.setAttribute('aria-expanded',menu&&!menu.hidden&&menu.style.display!=='none'?'true':'false');
+  if(enabled){
+    btn.removeAttribute('aria-disabled');btn.removeAttribute('tabindex');
+    btn.setAttribute('title',t('lsel_current'));btn.onclick=()=>abrirSelectorLigaHdr();
+    btn.onkeydown=e=>{
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault();abrirSelectorLigaHdr(e.key==='ArrowUp'?'last':'first');
       }
+    };
+  }else{
+    cerrarSelectorLigaHdr(false);btn.onclick=null;btn.onkeydown=null;
+    btn.removeAttribute('title');btn.setAttribute('aria-disabled','true');btn.tabIndex=-1;
+  }
+  const arrows=btn.querySelector('.hdr-liga-switch-arrows');
+  if(arrows){arrows.style.display=enabled?'':'none';arrows.setAttribute('aria-hidden','true');}
+}
+function _posicionarSelectorLigaHdr(menu,btn){
+  if(!menu.isConnected||menu.hidden||!btn.isConnected)return;
+  const vp=window.visualViewport;
+  const x=vp?vp.offsetLeft:0,y=vp?vp.offsetTop:0;
+  const w=vp?vp.width:document.documentElement.clientWidth,h=vp?vp.height:window.innerHeight;
+  const edge=12,gap=8,clamp=(v,a,b)=>Math.max(a,Math.min(Math.max(a,b),v));
+  const anchor=btn.getBoundingClientRect(),parent=menu.offsetParent||btn.parentElement;
+  const pr=parent.getBoundingClientRect();
+  const width=Math.min(Math.max(300,anchor.width),380,Math.max(0,w-2*edge));
+  const left=clamp(anchor.left,x+edge,x+w-edge-width);
+  menu.style.width=width+'px';menu.style.left=(left-pr.left)+'px';
+  // Preferir debajo del título y su subtítulo. Si abajo no hay espacio, abrir arriba.
+  const below=Math.max(0,y+h-edge-(pr.bottom+gap));
+  const above=Math.max(0,anchor.top-gap-y-edge);
+  const useAbove=below<160&&above>below;
+  const available=Math.max(0,(useAbove?above:below));
+  menu.style.maxHeight=Math.min(420,available)+'px';
+  menu.style.top=(useAbove?anchor.top-pr.top-gap-menu.offsetHeight:pr.height+gap)+'px';
+  menu.dataset.placement=useAbove?'above':'below';
+}
+function abrirSelectorLigaHdr(focusMode){
+  const menu=document.getElementById('hdr-liga-switch-menu'),btn=document.getElementById('hdr-liga-switch');
+  if(!menu||!btn||typeof isTutorialRunning==='function'&&isTutorialRunning())return;
+  const keyboard=focusMode==='first'||focusMode==='last';
+  if(!menu.hidden&&menu.style.display!=='none'){
+    if(!keyboard){cerrarSelectorLigaHdr(false);return;}
+    const options=menu.querySelectorAll('.hdr-liga-option');
+    (focusMode==='last'?options[options.length-1]:options[0])?.focus();return;
+  }
+  const ligas=_hdrLigaOpciones();if(ligas.length<2)return;
+  cerrarSelectorLigaHdr(false);
+  const context=_hdrLigaContext();
+  // textContent y listeners: un nombre con comillas o HTML siempre es texto.
+  const heading=document.createElement('div');heading.className='hdr-liga-menu-title';
+  heading.id='hdr-liga-menu-title';heading.textContent=t('lsel_current');
+  const list=document.createElement('div');list.className='hdr-liga-menu-list';
+  for(const liga of ligas){
+    const option=document.createElement('button');option.type='button';
+    option.className='hdr-liga-option'+(liga.esLigaActual?' is-current':'');option.dataset.ligaId=liga.id;
+    if(liga.esLigaActual)option.setAttribute('aria-current','true');
+    const icon=document.createElement('span');icon.className='hdr-liga-option-icon';icon.setAttribute('aria-hidden','true');
+    // SVG local: los nombres y el icono no dependen de cargar la fuente del CDN.
+    icon.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8v6a4 4 0 0 1-8 0V3Z M8 5H4v2a4 4 0 0 0 4 4 M16 5h4v2a4 4 0 0 1-4 4 M12 13v5 M8 21h8 M10 18h4v3h-4Z"/></svg>';
+    const text=document.createElement('span');text.className='hdr-liga-option-name';text.textContent=liga.nombre;
+    const suffix=document.createElement('span');suffix.className=liga.esLigaActual?'hdr-liga-option-current':'hdr-liga-option-arrow';
+    suffix.textContent=liga.esLigaActual?t('lsel_current_tag'):'›';
+    if(!liga.esLigaActual)suffix.setAttribute('aria-hidden','true');
+    option.append(icon,text,suffix);
+    option.onclick=()=>{
+      const same=context===_hdrLigaContext();cerrarSelectorLigaHdr(true);
+      if(same&&!liga.esLigaActual)cambiarLigaDesdeMenu(liga.id);
+    };
+    list.appendChild(option);
+  }
+  menu.replaceChildren(heading,list);menu.setAttribute('role','group');menu.setAttribute('aria-labelledby',heading.id);
+  menu.hidden=false;menu.style.display='flex';btn.setAttribute('aria-expanded','true');
+  _posicionarSelectorLigaHdr(menu,btn);
+  const outside=ev=>{if(!menu.contains(ev.target)&&!btn.contains(ev.target))cerrarSelectorLigaHdr(false);};
+  const keys=ev=>{
+    if(!menu.contains(ev.target)&&!btn.contains(ev.target))return;
+    if(ev.key==='Escape'){ev.preventDefault();cerrarSelectorLigaHdr(true);return;}
+    if(!menu.contains(ev.target))return;
+    const options=Array.from(menu.querySelectorAll('.hdr-liga-option'));
+    const index=options.indexOf(document.activeElement);let next;
+    if(ev.key==='ArrowDown')next=(index+1)%options.length;
+    else if(ev.key==='ArrowUp')next=(index-1+options.length)%options.length;
+    else if(ev.key==='Home')next=0;
+    else if(ev.key==='End')next=options.length-1;
+    if(next!==undefined){ev.preventDefault();options[next]?.focus();}
+  };
+  let frame=0;
+  const layout=()=>{
+    if(frame)return;
+    frame=requestAnimationFrame(()=>{
+      frame=0;if(context!==_hdrLigaContext()||!btn.isConnected||!menu.isConnected){cerrarSelectorLigaHdr(false);return;}
+      _posicionarSelectorLigaHdr(menu,btn);
     });
-  }, 0);
+  };
+  document.addEventListener('pointerdown',outside);document.addEventListener('focusin',outside);document.addEventListener('keydown',keys);
+  window.addEventListener('resize',layout,{passive:true});window.addEventListener('scroll',layout,{passive:true,capture:true});
+  const vp=window.visualViewport;if(vp){vp.addEventListener('resize',layout);vp.addEventListener('scroll',layout);}
+  _hdrLigaMenuCleanup=()=>{
+    cancelAnimationFrame(frame);document.removeEventListener('pointerdown',outside);document.removeEventListener('focusin',outside);document.removeEventListener('keydown',keys);
+    window.removeEventListener('resize',layout);window.removeEventListener('scroll',layout,true);
+    if(vp){vp.removeEventListener('resize',layout);vp.removeEventListener('scroll',layout);}
+  };
+  if(keyboard){const options=list.querySelectorAll('.hdr-liga-option');(focusMode==='last'?options[options.length-1]:options[0])?.focus();}
 }
 
-// Dispara el fetch UNA vez por sesión (cache null = todavía no se pidió).
-// Se llama desde updateHdr(), que ya se ejecuta en cada cambio de pestaña, así
-// que no hace falta un hook nuevo en ningún otro lado.
+// Cache por sesión. Una respuesta antigua no puede llenar el selector de otra cuenta.
 function refreshHdrLigaSwitch(){
-  if(!_token || !_ligaActual || !currentUser || !currentUser.key) return;
-  if(_hdrLigasCache !== null){ pintarHdrLigaSwitch(); return; }
-  if(_hdrLigasCargando) return;
-  _hdrLigasCargando = true;
-  fetch('/api/liga', {
-    method:'POST',
-    headers:{'Content-Type':'application/json', Authorization:'Bearer '+_token},
-    body: JSON.stringify({ accion:'misLigas', ligaId:_ligaActual })
+  if(!_token||!_ligaActual||!currentUser||!currentUser.key){cerrarSelectorLigaHdr(false);return;}
+  if(_hdrLigasCache!==null){pintarHdrLigaSwitch();return;}
+  const context=_hdrLigaContext();
+  if(_hdrLigasCargando&&context===_hdrLigaFetchContext)return;
+  _hdrLigasCargando=true;_hdrLigaFetchContext=context;const request=++_hdrLigaFetchId;
+  fetch('/api/liga',{
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+    body:JSON.stringify({accion:'misLigas',ligaId:_ligaActual})
   }).then(r=>r.ok?r.json():null).then(d=>{
-    _hdrLigasCargando = false;
-    if(!d || !Array.isArray(d.ligas)) return;
-    _hdrLigasCache = d.ligas.filter(l=>l.participo);
-    pintarHdrLigaSwitch();
-  }).catch(()=>{ _hdrLigasCargando = false; });
+    if(request!==_hdrLigaFetchId||context!==_hdrLigaContext()||!d||!Array.isArray(d.ligas))return;
+    _hdrLigasCache=d.ligas.filter(l=>l&&l.participo);pintarHdrLigaSwitch();
+  }).catch(()=>{}).finally(()=>{if(request===_hdrLigaFetchId)_hdrLigasCargando=false;});
 }
 
 // El usuario eligió otra liga desde el menú del header: cambia de liga SIN
@@ -1312,8 +1399,7 @@ function refreshHdrLigaSwitch(){
 // liga antes de entregar nada (mismo endpoint que usa el paso 2 del login
 // unificado cuando el jugador está en 2+ ligas activas al loguearse).
 async function cambiarLigaDesdeMenu(ligaId){
-  const menu = document.getElementById('hdr-liga-switch-menu');
-  if(menu) menu.style.display = 'none';
+  cerrarSelectorLigaHdr(false);
   if(!ligaId || ligaId === _ligaActual) return;
   if(_saveInFlight)await _saveInFlight;
   if(_loadOK&&_serialize()!==_lastSaved&&!await _criticalSave()){toast(t('fix_pending_first'));return;}

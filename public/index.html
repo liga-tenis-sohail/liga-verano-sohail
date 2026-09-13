@@ -41,7 +41,7 @@ button.liga-tab{cursor:pointer}
 .msg-compose-row{display:flex;gap:8px;align-items:flex-end;padding:.6rem;background:#EDF1F6;border-top:1px solid #c8d0dc}
 .msg-input{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border-radius:10px;border:1.5px solid #c8d0dc;background:#ffffff;color:#1b2433;font-family:inherit;font-size:14px;line-height:1.4}
 </style>
-<link rel="stylesheet" href="estilos.css?v=sohail-dark-v26-20260912">
+<link rel="stylesheet" href="estilos.css?v=sohail-liga-selector-v29">
 
 </head><body>
 <div id="login-screen">
@@ -76,8 +76,8 @@ button.liga-tab{cursor:pointer}
 </div>
 <div class="app" id="main-app" style="display:none">
   <div class="app-sticky-nav">
-  <div class="hdr"><div class="hdr-logo"><i class="ti ti-trophy"></i></div><div class="hdr-titlebox"><button id="hdr-liga-switch" class="hdr-liga-switch"><span id="hdr-title" class="hdr-liga-switch-txt"></span><i class="ti ti-arrows-up-down hdr-liga-switch-arrows" style="display:none"></i></button><p id="hdr-sub"></p>
-    <div id="hdr-liga-switch-menu" class="hdr-liga-switch-menu" style="display:none"></div>
+  <div class="hdr"><div class="hdr-logo"><i class="ti ti-trophy"></i></div><div class="hdr-titlebox"><button type="button" id="hdr-liga-switch" class="hdr-liga-switch" aria-expanded="false" aria-controls="hdr-liga-switch-menu"><span id="hdr-title" class="hdr-liga-switch-txt"></span><i class="ti ti-arrows-up-down hdr-liga-switch-arrows" style="display:none"></i></button><p id="hdr-sub"></p>
+    <div id="hdr-liga-switch-menu" class="hdr-liga-switch-menu" hidden style="display:none"></div>
   </div>
     <div class="user-chip">
       <div class="user-info"><div class="name" id="cur-name">—</div><div class="role" id="cur-role">—</div></div>
@@ -170,7 +170,7 @@ button.liga-tab{cursor:pointer}
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
 <script src="score-rules.js?v=sohail-dark-v26-20260912"></script>
-<script src="core-estado.js?v=sohail-dark-v26-20260912"></script>
+<script src="core-estado.js?v=sohail-liga-selector-v29"></script>
 <script src="i18n-revision.js?v=sohail-dark-v26-20260912"></script>
 <script src="login-auth.js?v=sohail-dark-v26-20260912"></script>
 <script src="jugadores-perfiles-catalogo.js?v=sohail-dark-v26-20260912"></script>
