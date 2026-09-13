@@ -40,6 +40,8 @@ function poReport(ti,which,ri,mi){
 }
 
 function openPoForm(m,ti){
+if(window.SohailResults)return SohailResults.open({po:true,ti,...poContext});
+
   const existing = m.locked && m.sets && m.sets.length;
   document.getElementById('modal-title').textContent = (existing ? t('edit_result') : t('po_load_result')) + ' · ' + tf('po_match',{l:playoff.tramos[ti].label});
   
@@ -364,6 +366,8 @@ function checkLmAutoSTB(){
 // Abre el modal para cargar un resultado de liga regular desde el "+".
 // gid, n1, n2 = grupo, jugador A, jugador B (mismos parámetros que prefill).
 function openLoadModal(gid, n1, n2){
+if(window.SohailResults)return SohailResults.open({cycle:viewCycle,gid,a:n1,b:n2});
+
   // Fecha por defecto = hoy
   const hoy = (()=>{ const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
   _lmCtx = { gid, n1, n2, editId: null };
@@ -654,47 +658,22 @@ let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');i
 //   string en vez de boolean) }
 // ============================================================================
 function confirmarModal(mensaje, opts){
-  opts = opts || {};
-  return new Promise(resolve => {
-    const ov = document.createElement('div');
-    ov.className = 'cm-ov';
-    ov.style.cssText = 'position:fixed;inset:0;z-index:100001;background:rgba(15,23,42,.55);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .18s';
-    const peligro = !!opts.peligro;
-    const okBg = peligro ? 'var(--danger)' : 'var(--pri,#1e3a8a)';
-    const titulo = opts.titulo || '';
-    const okTxt = opts.okTxt || 'Confirmar';
-    const cancelTxt = opts.cancelTxt || 'Cancelar';
-    const inputPh = opts.inputPlaceholder || '';
-    const inputHtml = inputPh
-      ? '<input id="_cm-in" placeholder="'+inputPh.replace(/"/g,'&quot;')+'" style="width:100%;padding:9px;margin:8px 0 4px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px" autocomplete="off">'
-      : '';
-    ov.innerHTML =
-      '<div style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:400px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.25);transform:translateY(8px);transition:transform .18s">'+
-        (titulo ? '<h3 style="margin:0 0 8px;font-size:16px;font-weight:600">'+titulo+'</h3>' : '')+
-        '<p style="margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--text,#0f172a);white-space:pre-wrap">'+String(mensaje).replace(/</g,'&lt;')+'</p>'+
-        inputHtml +
-        '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">'+
-          '<button id="_cm-cancel" class="btn btn-sm" style="background:transparent;border:1px solid var(--border,#e2e8f0);color:var(--text2,#64748b);padding:8px 14px">'+cancelTxt+'</button>'+
-          '<button id="_cm-ok" class="btn btn-sm" style="background:'+okBg+';color:#fff;border:none;padding:8px 14px;font-weight:600">'+okTxt+'</button>'+
-        '</div>'+
-      '</div>';
-    document.body.appendChild(ov);
-    requestAnimationFrame(()=>{ ov.style.opacity='1'; ov.firstChild.style.transform='translateY(0)'; });
-    const cerrar = (val) => {
-      ov.style.opacity='0';
-      setTimeout(()=>{ if(ov.parentNode) ov.parentNode.removeChild(ov); resolve(val); }, 180);
-    };
-    const inp = document.getElementById('_cm-in');
-    if(inp){ setTimeout(()=>inp.focus(), 60); }
-    document.getElementById('_cm-ok').onclick = () => cerrar(inp ? inp.value : true);
-    document.getElementById('_cm-cancel').onclick = () => cerrar(inp ? null : false);
-    // Click en el overlay = cancelar
-    ov.onclick = (e) => { if(e.target === ov) cerrar(inp ? null : false); };
-    // ESC = cancelar
-    const esc = (e) => { if(e.key === 'Escape'){ cerrar(inp ? null : false); document.removeEventListener('keydown', esc); } };
-    document.addEventListener('keydown', esc);
-    // Enter en el input = OK
-    if(inp){ inp.addEventListener('keydown', (e) => { if(e.key === 'Enter') cerrar(inp.value); }); }
+  opts=opts||{};
+  return new Promise(resolve=>{
+    const previous=document.activeElement,ov=document.createElement('div');ov.className='cm-ov';
+    const box=document.createElement('section');box.className='ui-confirm-dialog';box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');
+    const title=document.createElement('h3');title.id='_cm-title';title.textContent=opts.titulo||t('confirm');box.setAttribute('aria-labelledby',title.id);
+    const copy=document.createElement('p');copy.textContent=String(mensaje);copy.id='_cm-copy';box.setAttribute('aria-describedby',copy.id);box.append(title,copy);
+    let inp=null;if(opts.inputPlaceholder){const label=document.createElement('label');label.textContent=opts.inputPlaceholder;label.htmlFor='_cm-in';inp=document.createElement('input');inp.id='_cm-in';inp.placeholder=opts.inputPlaceholder;inp.autocomplete='off';box.append(label,inp);}
+    const actions=document.createElement('div');actions.className='ui-confirm-actions';
+    const cancel=document.createElement('button');cancel.id='_cm-cancel';cancel.type='button';cancel.className='btn';cancel.textContent=opts.cancelTxt||t('cancel');
+    const ok=document.createElement('button');ok.id='_cm-ok';ok.type='button';ok.className='btn '+(opts.peligro?'btn-danger':'btn-primary');ok.textContent=opts.okTxt||t('confirm');actions.append(cancel,ok);box.append(actions);ov.append(box);
+    let done=false;
+    const end=value=>{if(done)return;done=true;ov.remove();if(previous?.isConnected)previous.focus({preventScroll:true});resolve(value);};
+    cancel.onclick=()=>end(inp?null:false);ok.onclick=()=>end(inp?inp.value:true);
+    ov.onclick=e=>{if(e.target===ov)end(inp?null:false);};
+    ov.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();end(inp?null:false);}else if(e.key==='Tab'&&typeof trapDialogFocus==='function')trapDialogFocus(e,box);else if(e.key==='Enter'&&e.target===inp){e.preventDefault();end(inp.value);}});
+    document.body.append(ov);(inp||cancel).focus({preventScroll:true});
   });
 }
 

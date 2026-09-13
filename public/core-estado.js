@@ -77,6 +77,7 @@ try{const saved=localStorage.getItem('liga_lang');if(saved==='es'||saved==='en')
 document.documentElement.lang=LANG;
 function setLang(l){
  if(l!=='es'&&l!=='en')return;
+ if(window.SohailResults&&SohailResults.isSaving()){toast(t('ui_busy'));return;}
  LANG=l;document.documentElement.lang=l;
  try{localStorage.setItem('liga_lang',l);}catch(_){}
  // La guía navega sus vistas sin reconstruir el formulario original.
@@ -87,11 +88,12 @@ function setLang(l){
  if(typeof applyStaticTranslations==='function')applyStaticTranslations();
  if(typeof updateForcedPasswordLanguage==='function')updateForcedPasswordLanguage();
  if(document.getElementById('sohail-guide'))renderTutorial();
+ if(window.SohailResults)SohailResults.translate();
 }
 
 function t(k){const v=(TRANSLATIONS[LANG]&&TRANSLATIONS[LANG][k])||TRANSLATIONS['es'][k];return v!==undefined?v:k;}
 function tf(k,vars){let s=t(k);Object.keys(vars||{}).forEach(v=>{s=s.replace(new RegExp('{'+v+'}','g'),vars[v]);});return s;}
-function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'&&subView==='playoff'){showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
+function renderAll(){if(typeof currentUser!=='undefined'&&currentUser){renderShell();if(typeof subView!=='undefined'){try{if(viewCycle==='po'&&(subView==='playoff'||subView==='po')){showPlayoffView();}else showSub(subView);}catch(e){console.warn('renderAll',e);}}}updateLangUI();updateBadge();}
 function updateLangUI(){
   ['btn-lang-es','btn-lang-es-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='es');}});
   ['btn-lang-en','btn-lang-en-login'].forEach(id=>{let el=document.getElementById(id);if(el){el.classList.toggle('active',LANG==='en');}});
@@ -857,6 +859,8 @@ function allCyclesDone(){return cycles.every(c=>c.groups&&c.status==='finished')
 // así que además se guardaba dos veces. Ahora quien cambia datos, guarda; quien
 // dibuja, dibuja.
 function refreshAll(){
+if(window.SohailUI&&['inicio','resumen','partidos','mas','jugadores'].includes(subView)){SohailUI.afterView();}
+
   // El corte temprano para Play Offs SOLO debe aplicar cuando se está
   // viendo el bracket en sí (subView==='po'), no cualquier sub-vista
   // dentro de Play Offs. Antes cortaba siempre que viewCycle==='po', sin

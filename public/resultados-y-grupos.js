@@ -43,10 +43,7 @@ function attr(s){
 // llamaban a setSelGroup(gid) por onclick pero nunca estaba definida, por lo
 // que al tocar un grupo distinto no pasaba nada (ni jugador ni admin podían
 // cambiar de grupo).
-function setSelGroup(gid){
-  selGroup=gid;
-  renderGrupos();
-}
+function setSelGroup(gid){if(window.SohailUI)return SohailUI.setGroup(gid);selGroup=gid;renderGrupos();}
 function renderGrupos(){
   try {
       const c=cycles[viewCycle-1];
@@ -54,12 +51,6 @@ function renderGrupos(){
       if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
       
       if(LAYOUT==='selector'){
-        html+=`<div class="card"><div class="section-lbl">${t('choose_group')}</div><div class="grp-pick">`+c.groups.map((g,i)=>{
-            const gid=i+1;
-            const loc=currentUser?findLoc(currentUser.name,viewCycle):null;
-            const mine=currentUser&&currentUser.role==='player'&&loc&&loc.g===gid;
-            return `<button class="grp-btn ${selGroup===gid?'active':''}" onclick="setSelGroup(${gid})">${groupName(gid)}${mine?`<span class="mine">${t('mine_label')}</span>`:''}</button>`;
-        }).join('')+`</div></div>`;
         if(selGroup>c.groups.length)selGroup=1;
         html+=groupCardHTML(selGroup);
       }else{
@@ -71,12 +62,13 @@ function renderGrupos(){
       ).join('');
       html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> WO (no se presentó)</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
       document.getElementById('view-grupos').innerHTML=html;
+      if(window.SohailUI)SohailUI.groupControls();
   } catch(e) {
       console.error("Error crítico en renderGrupos:", e);
       document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
   }
 }
-function canCreate(gid,n1,n2){if(viewCycle!==activeN)return false;if(esAdmin(currentUser))return true;const rival=currentUser.name===n1?n2:n1;if(USERS[rival]&&USERS[rival].inactive)return false;const loc=findLoc(currentUser.name,activeN);return loc&&loc.g===gid&&(currentUser.name===n1||currentUser.name===n2);}
+function canCreate(gid,n1,n2){if(_ligaReadOnly||!currentUser)return false;const cy=cycles.find(c=>c.n===viewCycle);if(!cy||!(cy.status==='active'||esAdmin(currentUser)&&cy.editMode))return false;if(esAdmin(currentUser))return true;if(viewCycle!==activeN||playoff.started)return false;const rival=currentUser.name===n1?n2:n1;if(USERS[rival]?.inactive||USERS[currentUser.name]?.inactive)return false;return cy.groups?.[gid-1]?.players.includes(currentUser.name)&&(currentUser.name===n1||currentUser.name===n2);}
 function renderGeneral(){
 const all=computeGeneral();const pc=['p1','p2','p3'];
 const title=document.getElementById('gen-title');if(title)title.textContent=t('general_title');
@@ -190,7 +182,9 @@ function getMyPoMatch(){
   return null;
 }
 
-function populateForm(gid,na,nb){poContext=null;formClub='';renderClubButtons();const r=document.getElementById('f-reporter'),o=document.getElementById('f-rival'),note=document.getElementById('cargar-note');r.innerHTML='<option value="">— Jugador —</option>';o.innerHTML='<option value="">— Rival —</option>';
+function populateForm(gid,na,nb){
+if(window.SohailResults){return SohailResults.renderPage(gid||na||nb?{cycle:viewCycle==='po'?activeN:viewCycle,gid,a:na,b:nb}:undefined);}
+poContext=null;formClub='';renderClubButtons();const r=document.getElementById('f-reporter'),o=document.getElementById('f-rival'),note=document.getElementById('cargar-note');r.innerHTML='<option value="">— Jugador —</option>';o.innerHTML='<option value="">— Rival —</option>';
   // Ciclo para cargar: el activo, O un ciclo cerrado con editMode habilitado por el admin.
   // Si hay editMode, se usa ese ciclo (tanto para admins como para jugadores).
   const editCycle = cycles.find(cx=>cx.editMode);
@@ -432,6 +426,8 @@ function filterRival(repVal,preselect){
   if(preselect)o.value=`${gi}|${preselect}`;
 }
 function prefill(gid,n1,n2){
+if(window.SohailResults)return SohailResults.open({cycle:viewCycle,gid,a:n1,b:n2});
+
   showSub('cargar');
   if(currentUser.role==='player' && !esAdmin(currentUser)){
     // Jugador sin permisos de admin: es uno de los dos, se setea el rival.
@@ -708,6 +704,8 @@ function clearForm(){if(esAdmin(currentUser)){const r=document.getElementById('f
 }
 function involvedPend(m){if(esAdmin(currentUser))return true;if(m.po)return m.poNames&&m.poNames.includes(currentUser.name)&&m.reporter!==currentUser.name;return (m.aName===currentUser.name||m.bName===currentUser.name)&&m.reporter!==currentUser.name;}
 function renderPend(){
+if(window.SohailUI)return SohailUI.renderPending();
+
   var _pt=document.getElementById('pend-title');if(_pt)_pt.textContent=t('pending_title');
   const pend=matches.filter(m=>m.status==='pending').sort((a,b)=>b.id-a.id);
   const disp=matches.filter(m=>m.status==='disputed').sort((a,b)=>b.id-a.id);
@@ -770,10 +768,14 @@ if(isAdmin){
 h+=`<button class="btn" onclick="closeM()">${t('close')}</button>`;acts.innerHTML=h;document.getElementById('modal-bg').classList.add('open');}
 function closeM(){document.getElementById('modal-bg').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeM();});
-async function confirmM(){if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));return;}const m=matches.find(x=>x.id===currentModal);if(m){m.vBy=currentUser.name;m.status='confirmed';m.locked=true;if(m.po){applyPoPending(m);const tr=playoff.tramos[m.ti];const rnd=(()=>{const rounds=m.which==='main'?tr.main:tr.cons;const fe=rounds.length-1-m.ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(m.ri+1);})();addLog('Playoff: confirmado',{a:m.poNames[0],b:m.poNames[1],sets:m.sets,winner:m.winner,po:true,cuadro:tr.label,which:m.which,round:rnd});}else{addLog('Liga: confirmado',{a:m.aName,b:m.bName,sets:m.sets,grupo:m.g,po:false});}}if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('toast_confirmed'));}
+async function confirmM(){
+if(window.SohailUI)return SohailUI.resolve(currentModal);
+if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));return;}const m=matches.find(x=>x.id===currentModal);if(m){m.vBy=currentUser.name;m.status='confirmed';m.locked=true;if(m.po){applyPoPending(m);const tr=playoff.tramos[m.ti];const rnd=(()=>{const rounds=m.which==='main'?tr.main:tr.cons;const fe=rounds.length-1-m.ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(m.ri+1);})();addLog('Playoff: confirmado',{a:m.poNames[0],b:m.poNames[1],sets:m.sets,winner:m.winner,po:true,cuadro:tr.label,which:m.which,round:rnd});}else{addLog('Liga: confirmado',{a:m.aName,b:m.bName,sets:m.sets,grupo:m.g,po:false});}}if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('toast_confirmed'));}
 async function disputeM(){const m=matches.find(x=>x.id===currentModal);if(m)m.status='disputed';if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('toast_disputed'));}
 async function deleteMatch(mid){if(confirm(t('confirm_delete'))){const dm=matches.find(x=>x.id===mid);if(dm){if(dm.po){const tr=playoff.tramos[dm.ti];addLog('Playoff: eliminado',{a:dm.poNames[0],b:dm.poNames[1],sets:dm.sets,po:true,cuadro:tr?tr.label:'',which:dm.which});}else{addLog('Liga: eliminado',{a:dm.aName,b:dm.bName,sets:dm.sets,grupo:dm.g,po:false});}}matches=matches.filter(x=>x.id!==mid);if(dm&&dm.po){const k=(dm.which==='main'?dm.ti:dm.ti+'c')+'#'+dm.poNames.slice().sort().join('|');delete playoff.results[k];rebuildTramo(dm.ti);}if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('match_deleted'));}}
-function adminEdit(mid){const m=matches.find(x=>x.id===mid);closeM();showSub('cargar');populateForm(m.g,m.aName,m.bName);pickClub(m.club);['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>document.getElementById(id).value='');document.getElementById('s3-row').style.display='none';m.sets.forEach((s,i)=>{const a=document.getElementById(`s${i+1}a`),b=document.getElementById(`s${i+1}b`);if(a)a.value=s[0];if(b)b.value=s[1];if(i===2)document.getElementById('s3-row').style.display='flex';});document.getElementById('f-fecha').value=m.date;}
+function adminEdit(mid){
+if(window.SohailResults){if(!esAdmin(currentUser))return;return SohailResults.open({existing:mid});}
+const m=matches.find(x=>x.id===mid);closeM();showSub('cargar');populateForm(m.g,m.aName,m.bName);pickClub(m.club);['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>document.getElementById(id).value='');document.getElementById('s3-row').style.display='none';m.sets.forEach((s,i)=>{const a=document.getElementById(`s${i+1}a`),b=document.getElementById(`s${i+1}b`);if(a)a.value=s[0];if(b)b.value=s[1];if(i===2)document.getElementById('s3-row').style.display='flex';});document.getElementById('f-fecha').value=m.date;}
 
 function setTotalCycles(val){
   const newTotal = parseInt(val);

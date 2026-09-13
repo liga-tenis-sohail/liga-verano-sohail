@@ -26,10 +26,10 @@ function _guideAvailableSteps(){
 // Mantener esta función pública: la usan la navegación y las pruebas del tutorial.
 function _tutorialSteps(){return _tutorialTour?_tutorialTour.steps:_guideAvailableSteps();}
 function _guideOtherDialog(){
- return !!document.getElementById('_pwforce')||!!document.querySelector('#modal-bg.open,.cm-ov');
+ return !!document.getElementById('_pwforce')||!!document.querySelector('#modal-bg.open,.cm-ov,dialog[open]');
 }
 function _guideWriteInProgress(){
- return (typeof _saveInFlight!=='undefined'&&!!_saveInFlight)||
+ return (window.SohailUI&&SohailUI.isBusy())||(window.SohailResults&&SohailResults.isSaving())||(typeof _saveInFlight!=='undefined'&&!!_saveInFlight)||
   (typeof _saving!=='undefined'&&_saving)||(typeof _prioritySave!=='undefined'&&_prioritySave)||
   (typeof _resultSubmitting!=='undefined'&&_resultSubmitting);
 }
@@ -123,7 +123,7 @@ function _guideNavigate(step){
 }
 function _guideTarget(step){
  const selectors={intro:'.app-sticky-nav',groups:'#view-grupos .grp-card',standings:'#view-general .gen-table',rating:'#view-rating .rt-table',
-  results:'#names-score-wrap',pending:'#view-pendientes .card',playoffs:'#view-playoff .po-bracket-outer',
+  results:'#result-page .re-score',pending:'#view-pendientes .card',playoffs:'#view-playoff .po-bracket-outer',
   messages:'#view-mensajes .msg-card .tabs',rules:'#view-reglamento .card',admin:'#view-admin .card',profile:'#view-perfil .prof-row'};
  let el=document.querySelector(selectors[step]);
  if(step==='profile'&&el)el=el.closest('.card')||el;
@@ -197,10 +197,12 @@ function _guideLayout(){
  const ov=document.getElementById('sohail-guide'),dialog=ov?.querySelector('.guide-dialog'),ring=document.getElementById('guide-spotlight');
  if(!dialog||!ring)return;
  const vv=window.visualViewport,w=vv?.width||innerWidth,h=vv?.height||innerHeight,x=vv?.offsetLeft||0,y=vv?.offsetTop||0;
- const mobile=w<760,margin=mobile?10:22,gap=mobile?10:14;
- const width=Math.min(mobile?Math.max(280,w-20):400,w-20);
+ const mobile=w<760,landscape=w>=560&&h<480,margin=mobile?8:22,gap=mobile?8:14;
+ ov.classList.toggle('guide-compact-landscape',landscape);
+ const width=landscape?Math.min(360,w*.48):Math.min(mobile?Math.max(292,w-16):400,w-20);
  const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
- dialog.style.width=width+'px';dialog.style.maxHeight=Math.max(180,h*(mobile?0.5:0.72))+'px';
+ dialog.style.width=width+'px';
+ dialog.style.maxHeight=(landscape?h-16:Math.min(h-16,Math.max(290,h*(mobile?0.64:0.78))))+'px';
  const dh=dialog.getBoundingClientRect().height;
  const fallbackX=clamp(x+w-width-margin,x+margin,x+w-width-margin);
  const fallbackY=clamp(y+h-dh-margin,y+margin,y+h-dh-margin);
@@ -208,17 +210,20 @@ function _guideLayout(){
  const target=_guideTarget(tour.steps[_tutorialStep]);
  if(target&&target.getClientRects().length){
   const r=target.getBoundingClientRect();
-  const pad=6;
+  const pad=mobile?5:6;
   let left=Math.max(x+8,r.left-pad),top=Math.max(y+8,r.top-pad),right=Math.min(x+w-8,r.right+pad),bottom=Math.min(y+h-8,r.bottom+pad);
   const tW=right-left,tH=bottom-top;
-  const large=tW>w*(mobile?0.86:0.55)||tH>h*(mobile?0.28:0.4);
+  const large=tW>w*(mobile?0.88:0.55)||tH>h*(mobile?0.26:0.4);
   const rightSpace=x+w-right-gap-margin,leftSpace=left-x-gap-margin,belowSpace=y+h-bottom-gap-margin,aboveSpace=top-y-gap-margin;
   const centeredX=clamp(left+tW/2-width/2,x+margin,x+w-width-margin);
-  const alignedLeft=clamp(left,x+margin,x+w-width-margin);
-  if(mobile){
-   if(!large&&belowSpace>=dh){placement='bottom';dx=alignedLeft;dy=bottom+gap;}
-   else if(!large&&aboveSpace>=dh){placement='top';dx=alignedLeft;dy=top-dh-gap;}
-   else {placement='side-center';dx=clamp(x+w-width-margin,x+margin,x+w-width-margin);dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+  const sheetY=clamp(y+h-dh-margin,y+margin,y+h-dh-margin);
+  if(landscape){placement='right';dx=x+w-width-margin;dy=y+margin;right=Math.min(right,dx-gap);}
+  else if(mobile){
+   if(!large&&belowSpace>=dh+4&&tH<h*0.22){placement='bottom';dx=centeredX;dy=bottom+gap;}
+   else if(!large&&aboveSpace>=dh+4&&tH<h*0.22){placement='top';dx=centeredX;dy=top-dh-gap;}
+   else if(rightSpace>=width*0.72&&tH>72){placement='right';dx=right+gap;dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+   else if(leftSpace>=width*0.72&&tH>72){placement='left';dx=left-width-gap;dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
+   else {placement='sheet';dx=clamp(x+(w-width)/2,x+margin,x+w-width-margin);dy=sheetY;}
   }else{
    if(rightSpace>=width){placement='right';dx=right+gap;dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
    else if(leftSpace>=width){placement='left';dx=left-width-gap;dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
@@ -227,14 +232,12 @@ function _guideLayout(){
    else {placement='side-center';dx=clamp(x+w-width-margin,x+margin,x+w-width-margin);dy=clamp(top+tH/2-dh/2,y+margin,y+h-dh-margin);}
   }
   dialog.dataset.placement=placement;
-  // Posición final del panel
   dx=clamp(dx,x+margin,x+w-width-margin);dy=clamp(dy,y+margin,y+h-dh-margin);
   dialog.style.left=dx+'px';dialog.style.top=dy+'px';
-  // Highlight: evita superposición fuerte con el panel cuando haga falta.
   if(right>dx&&left<dx+width&&bottom>dy&&top<dy+dh){
    if(placement==='right')right=Math.min(right,dx-gap);
    else if(placement==='left')left=Math.max(left,dx+width+gap);
-   else if(placement==='bottom')bottom=Math.min(bottom,dy-gap);
+   else if(placement==='bottom'||placement==='sheet')bottom=Math.min(bottom,dy-gap);
    else if(placement==='top')top=Math.max(top,dy+dh+gap);
    else if(dy>top+tH/2)bottom=Math.min(bottom,dy-gap);
    else top=Math.max(top,dy+dh+gap);

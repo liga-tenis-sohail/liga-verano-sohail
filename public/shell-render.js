@@ -4,7 +4,7 @@
 // Este archivo comparte scope global con los otros public/*.js.
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-function renderShell(){renderCycleBar();renderSubTabs();updateBadge();}
+function renderShell(){renderCycleBar();renderSubTabs();updateBadge();if(window.SohailUI)SohailUI.renderNav();}
 function renderCycleBar(){
   const bar=document.getElementById('cycle-bar');
   let html='';
@@ -19,7 +19,7 @@ function renderCycleBar(){
     // actualizada, sin ningún paso manual de refresco.
     const fechaCorta=fmtRangeShort(FECHAS[c.n-1]||'');
     const fechaHtml=fechaCorta?`<span class="cycle-tab-date">${fechaCorta}</span>`:'';
-    html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`viewCyc(${c.n})`:''}"><span class="cycle-tab-main">${icon} ${t('cycle')} ${c.n}</span>${fechaHtml}</button>`;
+    html+=`<button class="cycle-tab ${playable?'':'locked'} ${isView?'active':''}" onclick="${playable?`SohailUI.chooseCycle(${c.n})`:''}"><span class="cycle-tab-main">${icon} ${t('cycle')} ${c.n}</span>${fechaHtml}</button>`;
   });
   const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));
   const poLabel=showPO?(playoff.preview&&!playoff.started?`<i class="ti ti-eye st"></i> ${t('playoffs_prev')}`:`<i class="ti ti-tournament st"></i> ${t('playoffs')}`):`<i class="ti ti-lock st"></i> ${t('playoffs')}`;
@@ -28,10 +28,12 @@ function renderCycleBar(){
   // la más vieja a la más nueva (ver su comentario en core-estado.js).
   const poFechaCorta=showPO?fmtPlayoffRangeShort():'';
   const poFechaHtml=poFechaCorta?`<span class="cycle-tab-date">${poFechaCorta}</span>`:'';
-  html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`viewCyc('po')`:''}"><span class="cycle-tab-main">${poLabel}</span>${poFechaHtml}</button>`;
+  html+=`<button class="cycle-tab ${showPO?'':'locked'} ${viewCycle==='po'?'active':''}" onclick="${showPO?`SohailUI.chooseCycle('po')`:''}"><span class="cycle-tab-main">${poLabel}</span>${poFechaHtml}</button>`;
   bar.innerHTML=html;
 }
-function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{
+function renderSubTabs(){
+if(window.SohailUI){SohailUI.tabDefs();return;}
+const tabs=document.getElementById('tabs');tabs.style.display='flex';const showPO=playoff.started||(playoff.preview&&esAdmin(currentUser));const inPO=viewCycle==='po';let tabs_def=[];if(showPO){tabs_def.push({id:'po',i:'ti-tournament',l:t('playoffs'),po:true});}else{tabs_def.push({id:'grupos',i:'ti-layout-grid',l:t('tab_grupos')});}tabs_def.push({id:'general',i:'ti-chart-bar',l:t('tab_general')});if(RATING_ON)tabs_def.push({id:'rating',i:'ti-star',l:'Rating'});if(!_ligaReadOnly){tabs_def.push({id:'cargar',i:'ti-upload',l:esAdmin(currentUser)?t('tab_cargar_admin'):t('tab_cargar')});tabs_def.push({id:'pendientes',i:'ti-bell',l:esAdmin(currentUser)?t('tab_pendientes_admin'):t('tab_pendientes'),b:true,badgeId:'pend-n'});tabs_def.push({id:'mensajes',i:'ti-message-circle',l:t('tab_mensajes'),b:true,badgeId:'msg-n'});tabs_def.push({id:'perfil',i:'ti-user',l:t('tab_perfil')});}if(REGLAMENTO&&REGLAMENTO.trim()||esAdmin(currentUser)){tabs_def.push({id:'reglamento',i:'ti-book',l:t('rg_tab')});}if(!_ligaReadOnly&&esAdmin(currentUser)){tabs_def.push({id:'admin',i:'ti-settings',l:t('tab_admin')});tabs_def.push({id:'historial',i:'ti-history',l:'Historial'});}tabs.innerHTML=tabs_def.map(x=>{
   // El botón "Play Offs" de esta fila se marca activo solo cuando subView
   // vale 'po' — es decir, cuando se acaba de entrar a Play Offs y todavía
   // no se eligió ninguna sub-pestaña (Cargar, Mensajes, etc.). Antes usaba
@@ -45,75 +47,38 @@ function renderSubTabs(){const tabs=document.getElementById('tabs');tabs.style.d
   // por accidente con ninguna de estas.
   const active=subView===x.id;const extraCls=(x.id==='historial'||x.id==='admin')?' tab-sm':'';return '<button class="tab'+extraCls+(active?' active':'')+'" id="tab-'+x.id+'" onclick="showSub(\''+x.id+'\')" ><i class="ti '+x.i+'" aria-hidden="true"></i> '+x.l+(x.b?' <span class="tab-n" id="'+x.badgeId+'" style="display:none">0</span>':'')+'</button>';}).join('');}
 function viewCyc(n){
+  if(window.SohailUI&&!SohailUI.canLeave(n==='po'?'po':'grupos'))return;
+  if(n==='po'&&!(playoff.started||playoff.preview&&esAdmin(currentUser)))return;
+  if(n!=='po'&&!cycles.find(c=>c.n===n&&c.groups))return;
   viewCycle=n;
   if(n==='po'){
-    // subView='po': antes esto NO se tocaba acá, así que subView se quedaba
-    // con lo último que tenía (ej. 'cargar', si esa era la última pestaña
-    // vista) — como esa misma pestaña sigue existiendo dentro de Play Offs,
-    // el botón "Cargar" Y el botón "Play Offs" de la fila de tabs quedaban
-    // los dos marcados 'active' a la vez. 'po' es un valor de subView que
-    // ningún botón real usa como id, así que representa limpiamente "estoy
-    // viendo el bracket de Play Offs en sí, sin ninguna sub-pestaña
-    // elegida" — el único momento en que el botón "Play Offs" de la fila de
-    // tabs debe ser el resaltado.
-    subView='po';
-    ['grupos','general','cargar','pendientes','admin','perfil'].forEach(v=>{
-      const el=document.getElementById('view-'+v);
-      if(el)el.style.display='none';
-    });
-    const pv=document.getElementById('view-playoff');
-    if(pv)pv.style.display='block';
-    renderShell();
-    // updateHdr() faltaba acá: esta rama (entrar a Play Offs) nunca pasa por
-    // showSub(), que es el único lugar que llamaba updateHdr() — la rama
-    // 'else' de abajo sí llama showSub('grupos'). Resultado: el header (línea
-    // de "Ciclo N · fechas · estado") se quedaba mostrando lo último que
-    // tenía pintado hasta que el usuario cambiaba de sub-tab DENTRO de Play
-    // Offs (lo cual sí pasa por showSub). Se veía como si "recordara" el
-    // ciclo anterior en vez de reflejar que ahora se está viendo Play Offs.
-    updateHdr();
-    showPlayoffView();
+    subView='po';document.querySelectorAll('#main-app > [id^="view-"]').forEach(el=>el.style.display='none');
+    document.getElementById('view-playoff').style.display='block';try{detenerPollingMensajes();}catch(_){}
+    renderShell();updateHdr();showPlayoffView();
   }else{
-    // Al cambiar a un ciclo normal, auto-ajustar el grupo seleccionado al
-    // grupo donde juega el usuario en ESE ciclo. Sin esto, si Víctor estaba
-    // viendo Ciclo 2 · Grupo 3 y cambiaba a Ciclo 1, se quedaba en Grupo 3
-    // (donde no juega en C1) en vez de saltar a su grupo real (Grupo 5).
-    //
-    // Aplicamos a CUALQUIER usuario que tenga un grupo en el ciclo destino
-    // (no solo currentUser.role === 'player'). Cubre también a jugadores que
-    // fueron ascendidos a admin — mantienen sus partidos como jugador y les
-    // interesa ver su grupo propio al cambiar de ciclo. Los admins puros
-    // (Organización) sin grupo asignado no entran a este `if` y conservan
-    // selGroup — que es lo correcto para ellos.
-    if(currentUser && currentUser.name && typeof findLoc === 'function'){
-      const loc = findLoc(currentUser.name, n);
-      if(loc && loc.g){
-        selGroup = loc.g;
-      }
-      // Nota: si no encuentra al usuario en el ciclo destino (por ej. Víctor
-      // en un ciclo donde no jugó), NO tocamos selGroup — así el usuario se
-      // queda viendo el mismo número de grupo que venía viendo antes.
-    }
-    const pv=document.getElementById('view-playoff');
-    if(pv)pv.style.display='none';
-    renderShell();
-    showSub('grupos');
+    const remembered=window.SohailUI?SohailUI.remembered(n):undefined;
+    const loc=currentUser?findLoc(currentUser.name,n):null;
+    selGroup=remembered||loc?.g||selGroup||1;
+    const c=cycles.find(c=>c.n===n);if(selGroup>c.groups.length)selGroup=1;
+    renderShell();showSub('grupos');
   }
+  if(window.SohailUI)SohailUI.afterView();
 }
 function showSub(name){
-  // Antes esto reseteaba viewCycle de 'po' a activeN INCONDICIONALMENTE en
-  // cada llamada — así que hacer clic en "Mensajes" (o Cargar, Pendientes,
-  // Perfil, etc.) mientras se estaba viendo Play Offs sacaba a la persona
-  // del contexto de playoff sin que lo pidiera, y el header pasaba a
-  // mostrar "Ciclo N" en vez de "Play Offs" aunque la pestaña "Play Offs"
-  // siguiera resaltada como activa arriba. La única vista que de verdad
-  // necesita viewCycle numérico es 'grupos' (renderGrupos indexa
-  // cycles[viewCycle-1] directamente); el resto de pestañas (Mensajes,
-  // Cargar, Pendientes, Perfil, General, Rating, Admin, Historial,
-  // Reglamento) funcionan igual en cualquier contexto y no dependen de él,
-  // así que ya no se les fuerza la salida de Play Offs.
-  if(viewCycle==='po' && name==='grupos') viewCycle=activeN;
-  subView=name;['grupos','general','cargar','pendientes','admin','playoff','perfil','historial','rating','reglamento','mensajes'].forEach(v=>{const el=document.getElementById('view-'+v);if(el){el.style.display='none';el.classList.remove('view-fade');}});const pv=document.getElementById('view-playoff');if(pv)pv.style.display='none';renderSubTabs();const activo=document.getElementById('view-'+name);if(activo){activo.style.display='block';/* Reset + reflow para relanzar la animación (si no, cambiar clase sobre elemento visible no dispara @keyframes) */void activo.offsetWidth;activo.classList.add('view-fade');}if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();if(name==='cargar'){populateForm();}if(name==='pendientes')renderPend();if(name==='admin')renderAdmin();if(name==='perfil')renderPerfil();if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();if(name==='mensajes')renderMensajes();else try{detenerPollingMensajes();}catch(_){}updateHdr();if(name!=='pendientes')renderPend();updateBadge();}
+  if(name==='po'||name==='playoff'){viewCyc('po');return;}
+  if(window.SohailUI&&(!SohailUI.allowed(name)||!SohailUI.canLeave(name)))return;
+  if(viewCycle==='po'&&name==='grupos')viewCycle=activeN;
+  subView=name;
+  document.querySelectorAll('#main-app > [id^="view-"]').forEach(el=>{el.style.display='none';el.classList.remove('view-fade');});
+  renderSubTabs();const active=document.getElementById('view-'+name);if(active)active.style.display='block';
+  if(name==='grupos')renderGrupos();if(name==='general')renderGeneral();
+  if(name==='cargar')populateForm();if(name==='pendientes')renderPend();
+  if(name==='admin')renderAdmin();if(name==='perfil'||name==='jugadores')renderPerfil();
+  if(name==='historial')renderHistorial();if(name==='rating')renderRating();if(name==='reglamento')renderReglamento();
+  if(name==='mensajes')renderMensajes();else try{detenerPollingMensajes();}catch(_){}
+  updateHdr();if(name!=='pendientes')renderPend();updateBadge();renderCycleBar();
+  if(window.SohailUI)SohailUI.afterView();
+}
 function updateHdr(){
   // El subtítulo del header ya NO incluye el rango de fechas del ciclo — se
   // movió a una línea propia, centrada, debajo del nombre de cada pestaña de
@@ -245,9 +210,16 @@ function groupCardHTML(gid){
       }).join('');
       
       const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> Editar</button>` : '');
-      const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th>${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th>${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
+      const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th data-ui-stat="sets">${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th data-ui-stat="points">${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
       
-      return `<div class="card grp-card"><div class="grp-title">${t('group')} ${gid}</div><div class="overflow-x"><table class="cls-table"><thead><tr class="clg-head"><th colspan="9"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div><p class="legend-txt">${t('legend_pts')}</p><div class="section-lbl">${t('players_col')} ${groupName(gid)}</div><div class="overflow-x"><table class="res-table"><thead><tr><th>${t('players_col')}</th>${head}</tr></thead><tbody>${mrows}</tbody></table></div><p class="legend-txt">${t('legend_matrix')}</p></div>`;
+      const jump=(kind,label)=>`<button type="button" class="ui-link-button" data-ui-jump="${kind}" data-gid="${gid}">${attr(label)}</button>`;
+      const matrix=mrows.replace(/<td([^>]*onclick="[^"]+"[^>]*)>/g,'<td$1 role="button" tabindex="0">');
+      return `<div class="grp-card ui-group-card" id="ui-group-${gid}">
+      <section class="card ui-standings-section"><div class="ui-section-heading"><h2>${t('ui_positions')} · ${groupName(gid)}</h2>${jump('results',t('ui_to_results'))}</div><p class="ui-muted">${t('cycle')} ${viewCycle} · ${players.length} ${t('players_col')} · ${c.status==='finished'?t('ui_finished'):t('ui_active')}</p>
+      <div class="overflow-x ui-standings-scroll" role="region" aria-label="${attr(t('ui_positions')+' · '+groupName(gid))}" tabindex="0"><table class="cls-table"><caption class="ui-sr-only">${groupName(gid)} · ${t('cycle')} ${viewCycle}</caption><thead><tr class="clg-head"><th colspan="${RATING_ON?10:9}"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div>
+      <div class="ui-table-shortcuts">${jump('sets',t('ui_sets_balance')+' →')}${jump('points',t('ui_final_points')+' →')}</div><p class="ui-scroll-note">${t('ui_scroll_hint')}</p></section>
+      <section class="card ui-matrix-section"><div class="ui-section-heading"><h2>${t('ui_results')} · ${groupName(gid)}</h2>${jump('positions',t('ui_back_positions'))}</div><p class="legend-txt ui-matrix-hint">${t('legend_matrix')}</p><div class="overflow-x ui-matrix-scroll" role="region" aria-label="${attr(t('ui_results')+' · '+groupName(gid))}" tabindex="0"><table class="res-table"><caption class="ui-sr-only">${t('ui_results')} · ${t('cycle')} ${viewCycle}</caption><thead><tr><th scope="col">${t('players_col')}</th>${head}</tr></thead><tbody>${matrix}</tbody></table></div></section>
+      <section class="card ui-legend-section"><h3>${t('ui_group_legend')}</h3><p class="legend-txt">${t('legend_pts')}</p></section></div>`;
   } catch(e) {
       console.error("Error regenerando tabla del grupo:", gid, e);
       return `<div class="card"><div class="alert alert-err">Datos corruptos en el Grupo ${gid}.</div></div>`;

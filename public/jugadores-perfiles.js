@@ -25,32 +25,13 @@ function tienePasswordDefault(u){
 
 function renderCargarDisputas(){ }
 
-function resolveD(mid){
-  const m=matches.find(x=>x.id===mid);
-  if(!m)return;
-  m.vBy=currentUser.name;
-  m.status='confirmed';
-  m.locked=true;
-  if(m.po){applyPoPending(m);const tr=playoff.tramos[m.ti];addLog('Playoff: disputa resuelta',{a:m.poNames[0],b:m.poNames[1],sets:m.sets,winner:m.winner,po:true,cuadro:tr?tr.label:'',which:m.which});}
-  else{addLog('Liga: disputa resuelta',{a:m.aName,b:m.bName,sets:m.sets,grupo:m.g,po:false});}
-  persist(true);
-  refreshAll();
-  toast('Resultado validado correctamente.');
-}
+function resolveD(mid){return SohailUI.resolve(mid);}
 
-function forceConfirmAll(){
-  // Los partidos propios se saltean: si no, este botón desarma de un click todas
-  // las reglas de arbitraje propio. Los resuelve el rival u otro administrador.
-  matches.forEach(m=>{
-    if(m.status!=='pending')return;
-    m.vBy=currentUser.name;m.status='confirmed';m.locked=true;if(m.po)applyPoPending(m);
-  });
-  persist(true);
-  refreshAll();
-  toast(t('toast_pending_confirmed'));
-}
+function forceConfirmAll(){if(window.SohailUI)SohailUI.forceConfirm();}
 
 function demoFillUI(){
+if(!esAdmin(currentUser)||prompt(t('ui_simulation_warning'))!=='SIMULAR')return;
+
   if(!demoBackup)demoBackup=JSON.stringify({cycles,activeN,playoff});
   demoFill();
   persist(true);
@@ -597,7 +578,7 @@ async function abrirH2H(a, b){
 }
 function renderPerfil(){
   const u = currentUser;
-  if(u.role === 'admin' || u.role === 'superadmin') {
+  if(esAdmin(u)) {
     // Se filtra por CLAVE, no por rol: 'admin' y 'superadmin' son cuentas del sistema,
     // no personas. Un jugador ascendido a admin tiene que SEGUIR apareciendo acá,
     // si no no habría forma de quitarle el rol después.
@@ -664,7 +645,7 @@ function renderPerfil(){
       h += `<div class="cj-search"><i class="ti ti-search"></i><input id="cj-search" placeholder="${t('cj_search')}" oninput="filtrarCatJugadores()"></div>`;
       h += `<div id="cat-jugadores-list"><div class="pm-past-load">${t('past_loading')}</div></div></div>`;
     }
-    document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+    document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); if(window.SohailUI)SohailUI.organizeProfile(); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
     if(u.role==='superadmin') cargarCatJugadores();
   } else {
     const loc = findLoc(u.name, activeN);
@@ -686,7 +667,7 @@ function renderPerfil(){
     h += `<div class="form-row"><div class="form-group"><label for="pw-new2">${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
     h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('my_history')}</div>${playerHistoryHTML(u.name)}</div>`;
-    document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
+    document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); if(window.SohailUI)SohailUI.organizeProfile(); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
     cargarMisLigasHeader();
   }
 }

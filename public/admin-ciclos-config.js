@@ -247,6 +247,8 @@ function setPoFechaType(r, type) {
 }
 
 function renderAdmin(){
+/* UI v3 keeps original controls. Organizer runs after DOM is rendered below. */
+
   if(!currentUser||!esAdmin(currentUser))return;
   try {
     const c = getActive() || { groups: [] };

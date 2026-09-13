@@ -741,7 +741,7 @@ function showPlayoffView(){
   const pv=document.getElementById('view-playoff');
   if(!pv)return;
   pv.style.display='block';
-  ['grupos','general','cargar','pendientes','admin','perfil'].forEach(v=>{
+  ['grupos','general','cargar','pendientes','admin','perfil','rating','reglamento','historial','mensajes','inicio','resumen','partidos','jugadores','mas'].forEach(v=>{
     const el=document.getElementById('view-'+v);
     if(el)el.style.display='none';
   });
