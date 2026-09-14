@@ -388,6 +388,9 @@ function playerHistoryHTML(name){
 
 function showPlayerHistory(name){
   if(!name)return;
+  // v3.3: same read-only sporting data, same calculations as My matches.
+  _pmPastOpen=null;
+  if(window.SohailHistory&&typeof SohailHistory.openPlayer==='function'&&SohailHistory.openPlayer(name))return;
   document.getElementById('modal-title').textContent=t('hist_title')+' · '+name;
   document.getElementById('modal-body').innerHTML=(RATING_ON?ratingFichaHTML(name):'')+playerHistoryHTML(name)
     + '<div id="pm-past-wrap"></div>';   // acá se despliegan las ligas pasadas del jugador
@@ -401,53 +404,53 @@ function showPlayerHistory(name){
 // Despliega/oculta las ligas pasadas donde jugó esa persona, dentro de la ficha.
 let _pmPastOpen=null;
 async function togglePlayerPast(name){
-  const wrap=document.getElementById('pm-past-wrap');
-  if(!wrap) return;
-  if(_pmPastOpen===name){ wrap.innerHTML=''; _pmPastOpen=null; return; }
+  const wrap=document.getElementById('pm-past-wrap');if(!wrap)return;
+  if(_pmPastOpen===name){wrap.replaceChildren();_pmPastOpen=null;return;}
   _pmPastOpen=name;
-  wrap.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  const request={},key=_saveSessionKey(),league=_ligaActual;
+  wrap._playerPastRequest=request;
+  const current=()=>wrap.isConnected&&document.getElementById('modal-bg')?.classList.contains('open')&&wrap._playerPastRequest===request&&_pmPastOpen===name&&key===_saveSessionKey()&&league===_ligaActual;
+  wrap.innerHTML='<div class="pm-past-load" role="status">'+t('past_loading')+'</div>';
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-    const d=await r.json().catch(()=>({}));
-    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
-    if(!otras.length){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>'; return; }
-    wrap.innerHTML='<div class="pm-past-box"><div class="pm-past-lbl">'+t('past_player_lbl')+'</div>'
-      +'<div class="pm-past-seasons" id="pm-past-seasons">'
-      + otras.map((l,i)=>'<button class="pm-season-btn'+(i===0?' on':'')+'" onclick="verJugadorEnLiga(\''+String(name).replace(/'/g,"\\'")+'\',\''+String(l.id).replace(/'/g,"\\'")+'\',this)">'+escPast(l.nombre)+'</button>').join('')
-      +'</div><div class="pm-season-results" id="pm-season-results"></div></div>';
-    verJugadorEnLiga(name, otras[0].id, null);
-  }catch(_){ wrap.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+    if(!r.ok)throw new Error('league-list');
+    const d=await r.json();if(!current())return;
+    const others=(Array.isArray(d.ligas)?d.ligas:[]).filter(l=>l&&l.id!==(_ligaActual||'liga-actual'));
+    if(!others.length){wrap.innerHTML='<div class="pm-past-empty">'+t('past_player_none')+'</div>';return;}
+    wrap.innerHTML='<div class="pm-past-box"><div class="pm-past-lbl">'+t('past_player_lbl')+'</div><div class="pm-past-seasons" id="pm-past-seasons"></div><div class="pm-season-results" id="pm-season-results"></div></div>';
+    const seasons=wrap.querySelector('#pm-past-seasons');
+    others.forEach((l,i)=>{const b=document.createElement('button');b.type='button';b.className='pm-season-btn'+(i===0?' on':'');b.textContent=l.nombre||l.id;b.onclick=()=>verJugadorEnLiga(name,l.id,b);seasons.appendChild(b);});
+    verJugadorEnLiga(name,others[0].id,seasons.firstElementChild);
+  }catch(_){if(current())wrap.innerHTML='<div class="pm-past-empty" role="status">'+t('past_loading_err')+'</div>';}
 }
-
-// Trae los resultados de esa persona en OTRA liga (activa o finalizada —
-// ya no se distingue: el pedido es que el jugador pueda ver su historial
-// completo sin importar el estado de esas otras ligas). Antes esta función
-// estaba declarada DOS VECES en el archivo: la segunda declaración (más
-// simple, sin el fallback a /api/state) pisaba silenciosamente a la
-// primera en JavaScript, y esa versión solo intentaba accion:'ver', que el
-// backend rechaza si la liga no está finalizada (ver liga.js) — así que
-// para cualquier liga TODAVÍA ACTIVA esto siempre fallaba con
-// "No se pudo cargar", que es exactamente el síntoma reportado.
-async function verJugadorEnLiga(name, ligaId, btn){
-  if(btn){ document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on')); btn.classList.add('on'); }
-  const box=document.getElementById('pm-season-results');
-  if(box) box.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+// Same read endpoints and server permissions as before. No elegir=1, no hydration,
+// no switch of identity or active league. Discard stale replies when a new card opens.
+async function verJugadorEnLiga(name,ligaId,btn){
+  const box=document.getElementById('pm-season-results');if(!box)return;
+  if(btn){document.querySelectorAll('#pm-past-seasons .pm-season-btn').forEach(b=>b.classList.remove('on'));btn.classList.add('on');}
+  if(typeof box._mhPlayerDispose==='function')box._mhPlayerDispose();
+  const request={},key=_saveSessionKey(),league=_ligaActual;
+  box._playerSeasonRequest=request;
+  const current=()=>box.isConnected&&document.getElementById('modal-bg')?.classList.contains('open')&&box._playerSeasonRequest===request&&key===_saveSessionKey()&&league===_ligaActual;
+  box.innerHTML='<div class="pm-past-load" role="status">'+t('past_loading')+'</div>';
   try{
-    let est=null;
-    // accion:'ver' solo sirve para ligas FINALIZADAS (ver liga.js). Para
-    // una liga todavía activa, cae al fallback de /api/state (que sí lee
-    // cualquier liga, con el token de la sesión — ver el fix de state.js
-    // que permite leer el estado de una liga ajena para este propósito).
+    let state=null,label=btn?.textContent||ligaId;
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
-    if(r.ok){ const d=await r.json().catch(()=>({})); est=d.estado; }
+    if(!current())return;
+    if(r.ok){const d=await r.json();state=d.estado;}
     else if(_token){
       const r2=await fetch('/api/state?liga='+encodeURIComponent(ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-      if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
+      if(!current())return;
+      if(r2.ok){const d2=await r2.json();state=d2.state;if(d2.ligaNombre)label=d2.ligaNombre;}
     }
-    if(!est){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; return; }
-    if(box) box.innerHTML=resultadosJugadorEnEstado(name, est);
-  }catch(_){ if(box)box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+    if(!current())return;
+    if(!state){box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>';return;}
+    if(window.SohailHistory&&typeof SohailHistory.mountPlayer==='function'){
+      SohailHistory.mountPlayer(box,{name,leagueName:label,otherLeague:true,cycles:state.cycles,records:state.matches,groupLabel:g=>t('group')+' '+g});
+    }else box.innerHTML=resultadosJugadorEnEstado(name,state);
+  }catch(_){if(current())box.innerHTML='<div class="pm-past-empty" role="status">'+t('past_loading_err')+'</div>';}
 }
+
 // Arma la lista de partidos de un jugador dado el estado de una liga.
 // Incluye TANTO partidos de liga regular (aName/bName) COMO de Play Offs
 // (po:true, poNames array) — antes solo miraba aName/bName, así que los
@@ -528,6 +531,7 @@ async function abrirH2H(a, b){
   document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
   document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
   document.getElementById('modal-bg').classList.add('open');
+  const owner=document.getElementById('modal-body').firstElementChild,key=_saveSessionKey(),league=_ligaActual;
   let gA=0,gB=0; let filasHTML='';
   const todasLasFilas=[];
   const actual=partidosEntre(a,b,{matches:matches}, LEAGUE_NAME||t('past_current'));
@@ -565,6 +569,7 @@ async function abrirH2H(a, b){
       +'</div>').join('')+'</div>';
   }catch(_){}
   
+  if(!owner?.isConnected||key!==_saveSessionKey()||league!==_ligaActual||!document.getElementById('modal-bg').classList.contains('open'))return;
   const body=document.getElementById('modal-body');
   if(gA+gB===0){ body.innerHTML='<div class="pm-past-empty">'+t('h2h_none').replace('{a}',escPast(a)).replace('{b}',escPast(b))+'</div>'; return; }
   let h='<div class="h2h-head">';
