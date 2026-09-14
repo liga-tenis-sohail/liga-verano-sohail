@@ -575,53 +575,68 @@ async function doLogin(){
 // (?elegir=1 hace que el server revalide pertenencia antes de entregar nada).
 // ============================================================================
 let _pendienteMustChangePw=false, _pendientePassPlano='';
+let _postLoginChoices=[],_postLoginName='',_postLoginBusy=false,_postLoginRequest=0;
 function mostrarSelectorLigaPostLogin(ligas, nombreUsuario){
-  const wrap=document.querySelector('.login-wrap');
-  const body=document.querySelector('.login-body');
-  if(!wrap || !body) return;
-  // Ocultamos SOLO el formulario de usuario/contraseña (.login-body): ya
-  // se autenticó, solo falta elegir liga. El header (logo/título) queda
-  // visible arriba, igual que en el pre-selector viejo de ligas.
-  body.style.display='none';
+  const wrap=document.querySelector('.login-wrap'),body=document.querySelector('.login-body');
+  if(!wrap||!body)return;
+  _postLoginChoices=(Array.isArray(ligas)?ligas:[]).filter((l,i,a)=>l&&typeof l.id==='string'&&l.id&&a.findIndex(v=>v?.id===l.id)===i);
+  _postLoginName=String(nombreUsuario||'');body.style.display='none';
   let box=document.getElementById('login-liga-post');
-  if(!box){
-    box=document.createElement('div');
-    box.id='login-liga-post';
-    box.className='liga-selector';
-    // Mismo patrón que #liga-selector: hermano de .login-wrap, insertado
-    // justo después (dentro del login-body hubiera quedado oculto con él).
-    if(wrap.parentNode) wrap.parentNode.insertBefore(box, wrap.nextSibling);
-  }
-  box.innerHTML='<div class="liga-sel-lbl">'+t('lsel_title_post').replace('{n}', escPast(nombreUsuario))+'</div><div class="liga-sel-btns">'
-    + ligas.map(l=>
-      '<button class="liga-sel-btn" onclick="elegirLigaTrasLogin(\''+String(l.id).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+'\')">'
-      + '<i class="ti ti-trophy"></i> '+escPast(l.nombre)+'</button>').join('')
-    +'</div><button class="btn btn-sm" style="margin-top:.75rem" onclick="doLogout()">'+t('lsel_cancel')+'</button>';
-  box.style.display='';
+  if(!box){box=document.createElement('section');box.id='login-liga-post';box.className='liga-selector ui-login-choices';wrap.after(box);}
+  box.style.display='';box.setAttribute('aria-labelledby','ui-login-choice-title');
+  drawLoginChoices();
+}
+function drawLoginChoices(){
+  const box=document.getElementById('login-liga-post');if(!box)return;
+  const icon=window.SohailUI?SohailUI.icon('league'):'';
+  box.replaceChildren();
+  const hello=document.createElement('p');hello.className='ui-choice-greeting';hello.textContent=tf('ui_welcome',{name:_postLoginName});
+  const title=document.createElement('h2');title.id='ui-login-choice-title';title.textContent=t('ui_choice_title');
+  const hint=document.createElement('p');hint.className='ui-choice-hint';hint.textContent=t('ui_choice_hint');
+  const count=document.createElement('p');count.className='ui-choice-count';count.textContent=tf('ui_choice_count',{n:_postLoginChoices.length});
+  const list=document.createElement('div');list.className='liga-sel-btns';
+  _postLoginChoices.forEach(l=>{
+    const btn=document.createElement('button');btn.type='button';btn.className='liga-sel-btn ui-login-choice';btn.dataset.ligaId=l.id;
+    const mark=document.createElement('span');mark.className='ui-choice-icon';mark.innerHTML=icon;mark.setAttribute('aria-hidden','true');
+    const info=document.createElement('span');info.className='ui-choice-info';
+    const name=document.createElement('strong');name.textContent=typeof l.nombre==='string'&&l.nombre.trim()?l.nombre.trim():l.id;
+    const label=document.createElement('small');label.textContent=t('ui_choice_open');info.append(name,label);
+    const arrow=document.createElement('span');arrow.className='ui-choice-arrow';arrow.textContent='›';arrow.setAttribute('aria-hidden','true');
+    btn.append(mark,info,arrow);btn.disabled=_postLoginBusy;btn.onclick=()=>elegirLigaTrasLogin(l.id);list.append(btn);
+  });
+  if(!_postLoginChoices.length){const empty=document.createElement('p');empty.textContent=t('ui_choice_none');list.append(empty);}
+  const error=document.createElement('p');error.id='login-choice-error';error.className='ui-choice-error';error.setAttribute('role','alert');error.hidden=true;
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='btn ui-choice-cancel';cancel.textContent=t('lsel_cancel');cancel.onclick=doLogout;
+  box.append(hello,title,hint,count,list,error,cancel);
+}
+function refreshLoginChoiceLanguage(){
+  const box=document.getElementById('login-liga-post');if(box&&box.style.display!=='none'&&!_postLoginBusy)drawLoginChoices();
 }
 async function elegirLigaTrasLogin(ligaId){
-  const box=document.getElementById('login-liga-post');
-  const e=document.getElementById('login-err');
+  if(_postLoginBusy||!_token||!_postLoginChoices.some(l=>l.id===ligaId))return;
+  const box=document.getElementById('login-liga-post'),token=_token,request=++_postLoginRequest;
+  _postLoginBusy=true;box?.setAttribute('aria-busy','true');
+  box?.querySelectorAll('[data-liga-id]').forEach(btn=>{btn.disabled=true;if(btn.dataset.ligaId===ligaId){btn.classList.add('is-loading');btn.querySelector('small').textContent=t('ui_choice_loading');}});
+  const error=box?.querySelector('#login-choice-error');if(error)error.hidden=true;
+  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
   try{
-    const r=await fetch('/api/state?liga='+encodeURIComponent(ligaId)+'&elegir=1',{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+    const r=await fetch('/api/state?liga='+encodeURIComponent(ligaId)+'&elegir=1',{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal});
     const d=await r.json().catch(()=>({}));
-    if(!r.ok){ if(e){e.textContent=d.error||t('err_hydrate');e.style.display='block';} return; }
+    if(token!==_token||request!==_postLoginRequest)return;
+    if(!r.ok)throw Error(d.error||t('err_hydrate'));
+    if(!d.state||!d.name||!d.state.users?.[d.name])throw Error(t('err_no_user_league'));
+    const ok=_hydrate(d.state);if(!ok)throw Error(t('err_hydrate'));
     if(d.token)_token=d.token;
-    _ligaActual=ligaId;
-    const ok=_hydrate(d.state);
-    if(!ok){ if(e){e.textContent=t('err_hydrate');e.style.display='block';} return; }
-    _lastSaved=_serialize();
-    _loadOK=true;
-    LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
-    const u=USERS[d.name];
-    if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} return; }
-    currentUser=u; currentUser.key=d.name;
-    if(box) box.style.display='none';
-    if(d.mustChangePw||_pendienteMustChangePw) forcePwChange(_pendientePassPlano);
-    _pendientePassPlano='';
-    montarAppTrasLogin();
+    _ligaActual=ligaId;_lastSaved=_serialize();_loadOK=true;LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
+    currentUser=USERS[d.name];currentUser.key=d.name;
+    if(box)box.style.display='none';
+    if(d.mustChangePw||_pendienteMustChangePw)forcePwChange(_pendientePassPlano);
+    _pendientePassPlano='';montarAppTrasLogin();
   }catch(err){
-    if(e){e.textContent=t('err_no_server');e.style.display='block';}
+    if(token===_token&&request===_postLoginRequest&&error){error.textContent=err.name==='AbortError'?t('err_no_server'):(err.message||t('err_no_server'));error.hidden=false;error.tabIndex=-1;error.focus();}
+  }finally{
+    clearTimeout(timeout);
+    if(request===_postLoginRequest){_postLoginBusy=false;box?.removeAttribute('aria-busy');box?.querySelectorAll('[data-liga-id]').forEach(btn=>{btn.disabled=false;btn.classList.remove('is-loading');btn.querySelector('small').textContent=t('ui_choice_open');});}
   }
 }
 
@@ -648,7 +663,7 @@ function montarAppTrasLogin(){
   if(currentUser.role==='player'){const loc=findLoc(currentUser.name,activeN);if(loc)selGroup=loc.g;}
   // Redirigir al lugar correcto según el estado de la liga
   if(playoff.started||(playoff.preview&&esAdmin(currentUser))){
-    viewCycle='po';renderShell();showPlayoffView();renderSubTabs();updateHdr();
+    viewCyc('po'); // v3.1: vista visible y subView siempre coinciden, también tras el login.
     // renderSubTabs() re-crea el elemento #pend-n (con display:none y "0"),
     // pisando el resultado que había dejado el updateBadge() interno de
     // renderShell. Sin este updateBadge() extra, el admin entra en playoffs
@@ -707,6 +722,10 @@ function entrarConToken(d){
   return true;
 }
 function doLogout(){
+  _postLoginRequest++;_postLoginBusy=false;_postLoginChoices=[];_postLoginName='';
+  const pass=document.getElementById('login-pass');if(pass)pass.type='password';
+  if(window.SohailUI)SohailUI.updateLogin();
+  if(typeof cerrarSelectorLigaHdr==='function')cerrarSelectorLigaHdr(false);
   document.getElementById('sohail-guide')?.remove();document.getElementById('_pwforce')?.remove();
   _tutorialRecord=null;_tutorialSeenSession='';_tutorialBusy=false;_saveConflict=false;
   closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;_hdrLigasCache=null;

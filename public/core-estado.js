@@ -89,6 +89,8 @@ function setLang(l){
  if(typeof updateForcedPasswordLanguage==='function')updateForcedPasswordLanguage();
  if(document.getElementById('sohail-guide'))renderTutorial();
  if(window.SohailResults)SohailResults.translate();
+ if(window.SohailUI)SohailUI.updateLogin();
+ if(typeof refreshLoginChoiceLanguage==='function')refreshLoginChoiceLanguage();
 }
 
 function t(k){const v=(TRANSLATIONS[LANG]&&TRANSLATIONS[LANG][k])||TRANSLATIONS['es'][k];return v!==undefined?v:k;}
@@ -859,25 +861,20 @@ function allCyclesDone(){return cycles.every(c=>c.groups&&c.status==='finished')
 // así que además se guardaba dos veces. Ahora quien cambia datos, guarda; quien
 // dibuja, dibuja.
 function refreshAll(){
-if(window.SohailUI&&['inicio','resumen','partidos','mas','jugadores'].includes(subView)){SohailUI.afterView();}
-
-  // El corte temprano para Play Offs SOLO debe aplicar cuando se está
-  // viendo el bracket en sí (subView==='po'), no cualquier sub-vista
-  // dentro de Play Offs. Antes cortaba siempre que viewCycle==='po', sin
-  // mirar subView — así que, por ejemplo, guardar un ajuste de puntos
-  // desde "Clasificación" (renderGeneral) mientras se estaba en Play Offs
-  // nunca refrescaba esa tabla: el código volvía antes de llegar a
-  // `if(subView==='general')`. showPlayoffView() SOLO se llama cuando
-  // subView==='po': esa función oculta explícitamente view-general/
-  // view-grupos/etc., así que llamarla con otra sub-vista activa taparía
-  // lo que el usuario está viendo con el bracket.
-  if(viewCycle==='po' && subView==='po'){showPlayoffView();renderPend();renderCycleBar();return;}
-  if(subView==='grupos')renderGrupos();
-  if(subView==='general')renderGeneral();
-  if(subView==='pendientes')renderPend();
-  if(subView==='admin')renderAdmin();
-  if(subView==='cargar')renderCargarDisputas();
-  renderPend();renderCycleBar();updateBadge();
+  // Repaint from saved in-memory data. Never navigate to a different view or POST here.
+  const root=document.getElementById('main-app');
+  const scroll=Array.from(root?.querySelectorAll('[id^="view-"] .overflow-x,.ui-standings-scroll,.ui-matrix-scroll,.po-scroll-area')||[])
+    .map((el,i)=>({i,id:el.id,top:el.scrollTop,left:el.scrollLeft}));
+  if(viewCycle==='po'&&(subView==='po'||subView==='playoff')){subView='po';showPlayoffView();}
+  else if(subView==='grupos')renderGrupos();
+  else if(subView==='general')renderGeneral();
+  else if(subView==='rating')renderRating();
+  else if(subView==='admin')renderAdmin();
+  else if(subView==='cargar')renderCargarDisputas();
+  renderPend();renderCycleBar();updateHdr();updateBadge();
+  if(window.SohailUI)SohailUI.afterView();
+  const updated=Array.from(root?.querySelectorAll('[id^="view-"] .overflow-x,.ui-standings-scroll,.ui-matrix-scroll,.po-scroll-area')||[]);
+  scroll.forEach(pos=>{const el=pos.id?document.getElementById(pos.id):updated[pos.i];if(el){el.scrollTop=pos.top;el.scrollLeft=pos.left;}});
 }
 
 function splitTramos(qual,T){const n=qual.length;const base=Math.floor(n/T);const extra=n%T;const out=[];let idx=0;for(let t=0;t<T;t++){// extra players go to LAST brackets (D,C,B...) not first
@@ -1345,7 +1342,8 @@ function abrirSelectorLigaHdr(focusMode){
     };
     list.appendChild(option);
   }
-  menu.replaceChildren(heading,list);menu.setAttribute('role','group');menu.setAttribute('aria-labelledby',heading.id);
+  const hint=document.createElement('p');hint.className='hdr-liga-menu-hint';hint.textContent=t('ui_switch_hint');
+  menu.dataset.uiVersion='3.1';menu.replaceChildren(heading,hint,list);menu.setAttribute('role','group');menu.setAttribute('aria-labelledby',heading.id);
   menu.hidden=false;menu.style.display='flex';btn.setAttribute('aria-expanded','true');
   _posicionarSelectorLigaHdr(menu,btn);
   const outside=ev=>{if(!menu.contains(ev.target)&&!btn.contains(ev.target))cerrarSelectorLigaHdr(false);};

@@ -13,13 +13,19 @@
  Object.assign(TRANSLATIONS.en,en,{admin_profile:'My profile — Administrator'});
  Object.assign(TRANSLATIONS.es,{
   tour_intro_body:'Usá Siguiente para recorrer las pantallas. Los ciclos y grupos siguen a mano y el recuadro dorado muestra dónde mirar. Al salir volvés a tu pantalla, sin modificar datos.',
-  tour_results_body:'Revisá los nombres de cada fila, elegí club y fecha y cargá dos sets. Solo con un set para cada jugador aparece el supertiebreak 1–0 o 0–1. Para 7–6 no hay campos extra. Esta guía no envía resultados.',
+  tour_results_body:'Revisá los nombres de las columnas, elegí club y fecha y cargá una fila por set. Solo con un set para cada jugador aparece el supertiebreak 1–0 o 0–1. Para 7–6 no hay campos extra. Esta guía no envía resultados.',
   tour_admin_body:'El Resumen reúne lo pendiente; Jugadores está separado de tu Perfil. Desde Configuración abrís las opciones de ciclos y gestión. Durante este recorrido no se puede editar.'
  });
  Object.assign(TRANSLATIONS.en,{
   tour_intro_body:'Select Next to explore. Cycles and groups stay within reach and the gold outline shows where to look. Leaving the tour restores your screen without changing data.',
-  tour_results_body:'Check the name on each row, choose a club and date, and enter two sets. The 1–0 or 0–1 match tiebreak appears only at one set each. No extra fields are needed for 7–6. This tour submits no results.',
+  tour_results_body:'Check the name above each column, choose a club and date, and fill in one row per set. The 1–0 or 0–1 match tiebreak appears only at one set each. No extra fields are needed for 7–6. This tour submits no results.',
   tour_admin_body:'Overview brings together outstanding items; Players is separate from your Profile. Open cycle and management options in Settings. Editing is blocked during this tour.'
+ });
+ Object.assign(TRANSLATIONS.es,{
+ ui_switch_hint:'Elegí la competición que querés consultar. Tus permisos no cambian.',ui_login_eyebrow:'Tu liga, en un solo lugar',ui_login_title:'Entrá a tu competición',ui_login_intro:'Resultados, clasificaciones y mensajes, siempre a mano.',ui_login_step:'Elegí tu usuario y continuá con tu contraseña o tu dispositivo.',ui_login_show:'Mostrar contraseña',ui_login_hide:'Ocultar contraseña',ui_choice_title:'¿En qué liga querés entrar?',ui_choice_hint:'Estas son las ligas a las que tenés acceso.',ui_choice_open:'Entrar a la liga',ui_choice_loading:'Abriendo liga…',ui_choice_none:'No hay ligas disponibles para esta cuenta.',ui_choice_count:'{n} ligas disponibles',ui_competition_stage:'Fase actual',ui_view_playoffs:'Ver playoffs',ui_view_draw:'Ver mi cuadro',ui_view_cons:'Ver mi consolación',ui_no_draw:'Todavía no estás asignado a un cuadro.',ui_wait_rival:'Esperando que se defina el próximo rival.',ui_draw_finished:'Tu participación en este cuadro está finalizada.',ui_draw_champion:'¡Ganaste este cuadro!',ui_phase_groups:'Fase de grupos',ui_phase_playoffs:'Fase de playoffs',ui_review_result:'Revisar resultado',ui_up_next:'Tu próximo paso',ui_no_open_cycle:'Este ciclo terminó. Podés consultar sus tablas y resultados.',ui_home_empty:'No tenés acciones pendientes en esta fase.',ui_open_cycle:'Ver el ciclo',ui_group_mine:'Tu grupo',ui_home_po_hint:'Seguimiento del cuadro, rivales y validación de resultados.',ui_home_groups_hint:'Tu grupo, los próximos cruces y los resultados de este ciclo.',ui_home_admin_hint:'Revisá los partidos y las incidencias de la fase actual.',ui_phase_draws:'{n} cuadros',ui_no_other_league:'No hay otra liga disponible para esta cuenta.'
+ });
+ Object.assign(TRANSLATIONS.en,{
+ ui_switch_hint:'Choose the competition to view. Your permissions stay the same.',ui_login_eyebrow:'Your league, all in one place',ui_login_title:'Sign in to your competition',ui_login_intro:'Results, standings and messages, always within reach.',ui_login_step:'Select your user, then sign in with your password or device.',ui_login_show:'Show password',ui_login_hide:'Hide password',ui_choice_title:'Which league would you like to enter?',ui_choice_hint:'These are the leagues you can access.',ui_choice_open:'Open league',ui_choice_loading:'Opening league…',ui_choice_none:'There are no leagues available for this account.',ui_choice_count:'{n} leagues available',ui_competition_stage:'Current phase',ui_view_playoffs:'View playoffs',ui_view_draw:'View my draw',ui_view_cons:'View my consolation draw',ui_no_draw:'You have not been assigned to a draw yet.',ui_wait_rival:'Waiting for your next opponent to be decided.',ui_draw_finished:'Your run in this draw has ended.',ui_draw_champion:'You won this draw!',ui_phase_groups:'Group stage',ui_phase_playoffs:'Playoff stage',ui_review_result:'Review result',ui_up_next:'Your next step',ui_no_open_cycle:'This cycle has ended. You can view its standings and results.',ui_home_empty:'You have no outstanding actions in this phase.',ui_open_cycle:'View cycle',ui_group_mine:'Your group',ui_home_po_hint:'Follow your draw, opponents and result validation.',ui_home_groups_hint:'Your group, remaining matches and results for this cycle.',ui_home_admin_hint:'Review matches and outstanding items in the current phase.',ui_phase_draws:'{n} draws',ui_no_other_league:'There is no other league available for this account.'
  });
  const e=s=>attr(s==null?'':s);
  const paths={home:'M3 10l9-7 9 7v11H3z M9 21v-7h6v7',league:'M8 3h8v5c0 5-8 5-8 0z M8 5H4v3q0 4 5 4 M16 5h4v3q0 4-5 4 M12 12v6 M7 21h10 M9 18h6',matches:'M4 5h16v16H4z M7 3v4 M17 3v4 M4 10h16 M8 14h3 M8 17h7',messages:'M4 4h16v13H8l-4 4z',profile:'M16 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2',more:'M5 11v2 M12 11v2 M19 11v2',check:'M5 12l4 4L19 6',arrow:'M5 12h14 M14 7l5 5-5 5',search:'M16 10a6 6 0 1 1-12 0a6 6 0 1 1 12 0 M15 15l6 6',settings:'M12 3v3 M12 18v3 M3 12h3 M18 12h3 M6 6l2 2 M16 16l2 2 M6 18l2-2 M16 8l2-2 M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0',help:'M12 17h.01 M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3 M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0',close:'M6 6l12 12 M6 18L18 6'};
@@ -71,7 +77,7 @@
    [home,admin?t('ui_summary'):t('ui_home'),'home'],['partidos',admin?t('ui_matches'):t('ui_my_matches'),'matches'],['grupos',t('ui_league'),'league'],['mensajes',t('tab_mensajes'),'messages'],['perfil',t('ui_profile'),'profile']];
   let nav=opts.map(([id,lab,ic])=>navButton(id,lab,ic,id==='grupos'?area==='league':id===subView)).join('');
   if(admin)nav+='<div class="ui-nav-label">'+e(t('role_admin'))+'</div>'+[['pendientes','ui_review','check'],['jugadores','ui_players','profile'],['admin','ui_settings','settings'],['historial','hist_title','matches']].map(([id,key,ic])=>navButton(id,t(key),ic,subView===id)).join('');
-  document.getElementById('ui-side').innerHTML='<div class="ui-brand"><span class="ui-brand-mark">'+icon('league')+'</span><div><strong>SOHAIL</strong><small>'+e(t('ui_your_league'))+'</small></div></div><div class="ui-side-league"><span>'+e(t('ui_current_context'))+'</span><strong>'+e(leagueName())+'</strong></div><nav aria-label="'+e(t('ui_more'))+'">'+nav+'</nav><div class="ui-sidebar-bottom">'+(!_ligaReadOnly?'<button class="ui-nav-item" type="button" data-ui-help>'+icon('help')+'<span>'+e(t('ui_help'))+'</span></button>':'')+'<span class="ui-user-name">'+e(currentUser?.name||t('ui_readonly'))+'</span></div>';
+  document.getElementById('ui-side').innerHTML='<div class="ui-brand"><span class="ui-brand-mark">'+icon('league')+'</span><div><strong>SOHAIL</strong><small>'+e(t('ui_your_league'))+'</small></div></div><div class="ui-side-league"><span>'+e(t('ui_current_context'))+'</span><strong>'+e(leagueName())+'</strong><button type="button" class="ui-link-button" data-ui-leagues>'+e(t('lsel_current'))+' '+icon('arrow')+'</button></div><nav aria-label="'+e(t('ui_more'))+'">'+nav+'</nav><div class="ui-sidebar-bottom">'+(!_ligaReadOnly?'<button class="ui-nav-item" type="button" data-ui-help>'+icon('help')+'<span>'+e(t('ui_help'))+'</span></button>':'')+'<span class="ui-user-name">'+e(currentUser?.name||t('ui_readonly'))+'</span></div>';
   const bottom=document.getElementById('ui-bottom');bottom.setAttribute('aria-label',t('ui_more'));
   bottom.innerHTML=_ligaReadOnly?'':[[home,t('ui_home'),'home'],['partidos',t('ui_matches'),'matches'],['grupos',t('ui_league'),'league'],['mensajes',t('tab_mensajes'),'messages'],['mas',t('ui_more'),'more']].map(([id,lab,ic])=>navButton(id,lab,ic,area===ic)).join('');
   const mark=root.querySelector('.hdr-logo');if(mark&&!mark.querySelector('svg'))mark.innerHTML=icon('league');root.dataset.uiArea=area;groupControls();
@@ -92,15 +98,15 @@
   const c=currentCycle();if(subView!=='grupos'||viewCycle==='po'||!c?.groups){host.hidden=true;host.replaceChildren();return;}host.hidden=false;
   if(selGroup<1||selGroup>c.groups.length)selGroup=1;
   const my=findLoc(currentUser?.name,viewCycle)?.g;
-  const desktop='<div class="ui-group-buttons">'+c.groups.map((g,i)=>'<button type="button" data-ui-group="'+(i+1)+'" class="ui-group '+(selGroup===i+1?'is-active':'')+'" '+(selGroup===i+1?'aria-current="true"':'')+'>'+e(groupName(i+1))+(my===i+1?'<small> · '+e(t('mine_label'))+'</small>':'')+'</button>').join('')+'</div>';
-  const mob='<div class="ui-group-mobile"><button type="button" data-ui-group="'+(selGroup-1)+'" aria-label="'+e(t('ui_previous_group'))+'" '+(selGroup===1?'disabled':'')+'>‹</button><button type="button" data-ui-group-picker aria-haspopup="dialog">'+e(groupName(selGroup))+(my===selGroup?' · '+e(t('mine_label')):'')+' <span aria-hidden="true">⌄</span></button><button type="button" data-ui-group="'+(selGroup+1)+'" aria-label="'+e(t('ui_next_group'))+'" '+(selGroup===c.groups.length?'disabled':'')+'>›</button></div>';
+  const desktop='<div class="ui-group-buttons">'+c.groups.map((g,i)=>'<button type="button" data-ui-group="'+(i+1)+'" class="ui-group '+(selGroup===i+1?'is-active ':'')+(my===i+1?'is-mine':'')+'" '+(selGroup===i+1?'aria-current="true"':'')+'>'+e(groupName(i+1))+(my===i+1?'<span class="ui-mine-badge">'+e(t('mine_label'))+'</span>':'')+'</button>').join('')+'</div>';
+  const mob='<div class="ui-group-mobile"><button type="button" data-ui-group="'+(selGroup-1)+'" aria-label="'+e(t('ui_previous_group'))+'" '+(selGroup===1?'disabled':'')+'>‹</button><button type="button" data-ui-group-picker aria-haspopup="dialog">'+e(groupName(selGroup))+(my===selGroup?' <span class="ui-mine-badge">'+e(t('mine_label'))+'</span>':'')+' <span class="ui-group-chevron" aria-hidden="true">⌄</span></button><button type="button" data-ui-group="'+(selGroup+1)+'" aria-label="'+e(t('ui_next_group'))+'" '+(selGroup===c.groups.length?'disabled':'')+'>›</button></div>';
   host.innerHTML=desktop+mob+'<div class="ui-group-shortcuts">'+(my?'<button type="button" data-ui-my-group>'+e(t('ui_my_group'))+'</button>':'')+'<button type="button" data-ui-group-picker aria-haspopup="dialog">'+e(t('ui_all'))+' · '+c.groups.length+'</button></div>';
  }
  function groupPicker(){
   const c=currentCycle();if(!c?.groups)return;
   const dlg=document.createElement('dialog');dlg.className='ui-picker';dlg.setAttribute('aria-labelledby','ui-picker-title');
   dlg.innerHTML='<div class="ui-picker-head"><h2 id="ui-picker-title">'+e(t('ui_all_groups'))+'</h2><button type="button" aria-label="'+e(t('close'))+'" data-ui-close>'+icon('close')+'</button></div><label for="ui-picker-search" class="ui-sr-only">'+e(t('ui_group_search'))+'</label><input id="ui-picker-search" type="search" placeholder="'+e(t('ui_group_search'))+'"><div class="ui-picker-list"></div>';
-  const draw=()=>{const q=dlg.querySelector('input').value.toLocaleLowerCase(LANG);const rows=c.groups.map((g,i)=>({n:i+1,players:(g.players||[]).filter(Boolean)})).filter(g=>(groupName(g.n)+' '+g.players.join(' ')).toLocaleLowerCase(LANG).includes(q));dlg.querySelector('.ui-picker-list').innerHTML=rows.map(g=>'<button type="button" data-pick="'+g.n+'" class="'+(g.n===selGroup?'is-active':'')+'"><strong>'+e(groupName(g.n))+'</strong><span>'+e(g.players.join(' · '))+'</span></button>').join('')||'<p>'+e(t('ui_no_results'))+'</p>';};
+  const draw=()=>{const q=dlg.querySelector('input').value.toLocaleLowerCase(LANG);const rows=c.groups.map((g,i)=>({n:i+1,players:(g.players||[]).filter(Boolean)})).filter(g=>(groupName(g.n)+' '+g.players.join(' ')).toLocaleLowerCase(LANG).includes(q));dlg.querySelector('.ui-picker-list').innerHTML=rows.map(g=>'<button type="button" data-pick="'+g.n+'" class="'+(g.n===selGroup?'is-active':'')+'"><strong>'+e(groupName(g.n))+(g.players.includes(currentUser?.name)?' <small class="ui-mine-badge">'+e(t('mine_label'))+'</small>':'')+'</strong><span>'+e(g.players.join(' · '))+'</span></button>').join('')||'<p>'+e(t('ui_no_results'))+'</p>';};
   document.body.appendChild(dlg);draw();const previous=document.activeElement;dlg.addEventListener('input',draw);dlg.addEventListener('click',ev=>{const b=ev.target.closest('[data-pick]');if(b){setGroup(Number(b.dataset.pick));dlg.close();}if(ev.target.closest('[data-ui-close]'))dlg.close();});dlg.addEventListener('close',()=>{dlg.remove();if(previous?.isConnected)previous.focus({preventScroll:true});});dlg.showModal();dlg.querySelector('input').focus();
  }
  function jump(gid,kind){
@@ -116,16 +122,89 @@
   return '<article class="ui-match"><div class="ui-match-meta">'+(selection?'<input type="checkbox" class="ui-pending-select" value="'+m.id+'" aria-label="'+e(a+' vs '+b)+'">':'')+'<span>'+e(tag)+'</span><span class="badge '+(m.status==='confirmed'?'badge-ok':m.status==='disputed'?'badge-disp':'badge-pend')+'">'+e(t(m.status==='confirmed'?'validated_result':m.status==='disputed'?'disputed_result':'legend_pending'))+'</span></div><div class="ui-match-main"><strong>'+e(a)+' <span class="ui-vs">vs</span> '+e(b)+'</strong><b>'+e(score||'—')+'</b></div><div class="ui-match-meta"><span>'+e(m.club||'—')+' · '+e(m.date||'—')+'</span><button type="button" class="ui-link-button" data-ui-match="'+m.id+'">'+e(t('ui_open_match'))+' '+icon('arrow')+'</button></div></article>';
  }
  function pageTitle(title,sub,actions=''){return '<header class="ui-page-head"><div><p class="ui-eyebrow">'+e(leagueName())+'</p><h1>'+e(title)+'</h1><p>'+e(sub)+'</p></div>'+actions+'</header>';}
+ // Current competition is separate from browsing a historical cycle.
+ function competitionDestination(){
+  const name=currentUser?.name;
+  if(!playoff.started){const c=cycles.find(c=>c.n===activeN);return{po:false,cycle:activeN,group:findLoc(name,activeN)?.g,cycleState:c?.status};}
+  const all=playoff.tramos||[];
+  const has=(rounds)=>Array.isArray(rounds)&&rounds.some(rd=>rd.some(m=>m.a===name||m.b===name));
+  const ti=all.findIndex(tr=>(tr.seeds||[]).includes(name)||has(tr.main)||has(tr.cons));
+  if(ti<0)return{po:true,ti:-1,which:'main',assigned:false};
+  const tr=all[ti],mainStillPlaying=(tr.main||[]).some(rd=>rd.some(m=>!m.w&&(m.a===name||m.b===name)));
+  const which=has(tr.cons)&&!mainStillPlaying?'cons':'main',rounds=tr[which]||[];
+  const candidates=[];
+  rounds.forEach((rd,ri)=>rd.forEach((m,mi)=>{if(m.a!==name&&m.b!==name)return;if(!m.w&&m.a&&m.b)candidates.push({ti,which,ri,mi,a:m.a,b:m.b});}));
+  const next=candidates[0]||null;
+  if(next)next.record=matches.find(m=>m.po&&Number(m.ti)===ti&&m.which===which&&(m.poNames||[]).includes(next.a)&&(m.poNames||[]).includes(next.b));
+  const final=rounds.at(-1)?.[0],champion=final?.w===name;
+  const lost=rounds.some(rd=>rd.some(m=>(m.a===name||m.b===name)&&m.w&&m.w!==name));
+  return{po:true,assigned:true,ti,which,label:tr.label,next,champion,lost};
+ }
+ function openCompetition(){
+  const d=competitionDestination();if(!canLeave(d.po?'po':'grupos'))return;
+  if(!d.po){chooseCycle(d.cycle);if(d.group)setGroup(d.group);return;}
+  viewCyc('po');if(viewCycle!=='po')return;
+  if(d.ti>=0){playoff.viewT=d.ti;showPlayoffView();const node=document.getElementById('po-draw-'+d.ti+'-'+d.which);node?.scrollIntoView({block:'start',behavior:'auto'});}
+ }
+ function homeLoad(){
+  if(!canLeave('cargar'))return;
+  const d=competitionDestination();
+  if(d.po&&!activeAdmin()){
+   if(d.next?.record){openModal(d.next.record.id);return;}
+   if(d.next){SohailResults.open({...d.next,po:true});return;}
+   openCompetition();return;
+  }
+  viewCycle=d.po?'po':d.cycle;showSub('cargar');
+ }
  function renderHome(){
   const admin=activeAdmin(),root=document.getElementById(admin?'view-resumen':'view-inicio');if(!root)return;
-  const relevant=contextMatches().filter(m=>admin||ownMatch(m)),pending=relevant.filter(m=>m.status==='pending'),disputes=relevant.filter(m=>m.status==='disputed'),confirmed=relevant.filter(m=>m.status==='confirmed');
-  const loc=findLoc(currentUser?.name,activeN),cy=cycles.find(c=>c.n===activeN),peers=loc?(cy?.groups?.[loc.g-1]?.players||[]).filter(n=>n&&n!==currentUser.name&&!USERS[n]?.inactive&&!findMatch(activeN,loc.g,currentUser.name,n)):[];
-  let h=pageTitle(admin?t('ui_admin_welcome'):tf('ui_welcome',{name:(currentUser?.name||'').split(' ')[0]}),t(admin?'ui_admin_intro':'ui_home_intro'),'<button type="button" class="btn btn-primary" data-ui-route="cargar">'+icon('matches')+e(t('ui_start'))+'</button>');
-  h+='<div class="ui-metrics">'+[[pending.length,'ui_pending_count','pendientes'],[disputes.length,'ui_disputes_count','pendientes'],[confirmed.length,'ui_confirmed_count','partidos']].map(([v,k,to])=>'<button type="button" class="ui-metric" data-ui-route="'+to+'"><b>'+v+'</b><span>'+e(t(k))+'</span><small>'+e(contextLabel())+'</small></button>').join('')+'</div>';
-  h+='<div class="ui-home-grid">'+card(t('ui_your_league'),'<p class="ui-context-name">'+e(t('cycle')+' '+activeN)+(loc?' · '+e(groupName(loc.g)):'')+'</p><p>'+e(cy?.status==='finished'?t('ui_finished'):t('ui_active'))+'</p><button type="button" class="btn" data-ui-route="grupos">'+icon('league')+e(t('ui_table_results'))+'</button>');
-  if(admin)h+=card(t('ui_attention'),pending.concat(disputes).slice(0,4).map(m=>matchCard(m)).join('')||'<p>'+e(t('ui_no_tasks'))+'</p>','<button class="ui-link-button" data-ui-route="pendientes">'+e(t('ui_view_all'))+'</button>');
-  else h+=card(t('ui_unplayed'),(cy?.status==='active'&&!playoff.started?peers:[]).map(n=>'<div class="ui-opponent"><span>'+e(n)+'</span><button type="button" class="ui-link-button" data-ui-opponent="'+e(n)+'">'+e(t('ui_start'))+'</button></div>').join('')||'<p>'+e(t('ui_no_rivals'))+'</p>');
-  h+='</div>'+card(t('ui_recent'),relevant.slice().sort((a,b)=>b.id-a.id).slice(0,5).map(m=>matchCard(m)).join('')||'<p>'+e(t('ui_no_matches'))+'</p>');root.innerHTML=h;
+  const d=competitionDestination(),isPO=d.po,cy=cycles.find(c=>c.n===activeN);
+  const relevant=matches.filter(m=>(isPO?m.po:!m.po&&m.cycle===activeN)&&(admin||ownMatch(m)));
+  const pending=relevant.filter(m=>m.status==='pending'),disputes=relevant.filter(m=>m.status==='disputed'),confirmed=relevant.filter(m=>m.status==='confirmed');
+  const peers=!isPO&&d.group?(cy?.groups?.[d.group-1]?.players||[]).filter(n=>n&&n!==currentUser.name&&!USERS[n]?.inactive&&!findMatch(activeN,d.group,currentUser.name,n)):[];
+  const phase=t(isPO?'ui_phase_playoffs':'ui_phase_groups'),subtitle=t(admin?'ui_home_admin_hint':isPO?'ui_home_po_hint':'ui_home_groups_hint');
+  const title=admin?t('ui_admin_welcome'):tf('ui_welcome',{name:(currentUser?.name||'').split(' ')[0]});
+  const loadable=admin||(!isPO?cy?.status==='active'&&d.group&&peers.length:!!d.next);
+  const action=loadable?'<button type="button" class="btn btn-primary" data-ui-home-load>'+icon('matches')+e(t(d.next?.record?'ui_review_result':'ui_start'))+'</button>':'<button type="button" class="btn btn-primary" data-ui-competition>'+icon('league')+e(t(isPO?'ui_view_playoffs':'ui_table_results'))+'</button>';
+  let h='<header class="ui-home-hero"><div class="ui-home-copy"><p class="ui-eyebrow">'+e(leagueName())+'</p><h1>'+e(title)+'</h1><p>'+e(subtitle)+'</p><span class="ui-phase-tag">'+icon('league')+e(phase)+(!isPO?' · '+e(t('cycle')+' '+activeN):'')+'</span></div><div class="ui-home-action">'+action+'</div></header>';
+  h+='<div class="ui-metrics">'+[[pending.length,'ui_pending_count','pendientes'],[disputes.length,'ui_disputes_count','pendientes'],[confirmed.length,'ui_confirmed_count','partidos']].map(([v,k,to])=>'<button type="button" class="ui-metric" data-ui-route="'+to+'"><b>'+v+'</b><span>'+e(t(k))+'</span><small>'+e(isPO?t('playoffs'):t('cycle')+' '+activeN)+'</small></button>').join('')+'</div>';
+  let compLabel,compHint,compButton;
+  if(isPO){
+   compLabel=d.assigned?t('draw')+' '+d.label+' · '+t(d.which==='cons'?'re_consolation':'re_main'):t('playoffs');
+   compHint=admin&&!d.assigned?tf('ui_phase_draws',{n:(playoff.tramos||[]).length}):!d.assigned?t('ui_no_draw'):d.champion?t('ui_draw_champion'):d.lost?t('ui_draw_finished'):d.next?t('ui_active'):t('ui_wait_rival');
+   compButton=t(d.assigned?(d.which==='cons'?'ui_view_cons':'ui_view_draw'):'ui_view_playoffs');
+  }else{compLabel=t('cycle')+' '+activeN+(d.group?' · '+groupName(d.group):'');compHint=t(cy?.status==='finished'?'ui_finished':cy?.status==='active'?'ui_active':'ui_locked');compButton=t('ui_table_results');}
+  h+='<div class="ui-home-grid">'+card(t('ui_your_league'),'<div class="ui-competition-mark">'+icon('league')+'</div><p class="ui-context-name">'+e(compLabel)+'</p><p>'+e(compHint)+'</p><button type="button" class="btn" data-ui-competition>'+icon('arrow')+e(compButton)+'</button>');
+  let next='';
+  if(admin)next=pending.concat(disputes).slice(0,4).map(m=>matchCard(m)).join('')||'<div class="ui-home-empty">'+icon('check')+'<p>'+e(t('ui_no_tasks'))+'</p></div>';
+  else if(isPO){
+   if(d.next?.record)next=matchCard(d.next.record);
+   else if(d.next){const rival=d.next.a===currentUser.name?d.next.b:d.next.a;next='<div class="ui-next-opponent"><small>'+e(t('rival'))+'</small><strong>'+e(rival)+'</strong><span>'+e(compLabel)+'</span><button type="button" class="btn btn-primary" data-ui-home-load>'+icon('matches')+e(t('ui_start'))+'</button></div>';}
+   else next='<div class="ui-home-empty">'+icon(d.champion?'league':'check')+'<p>'+e(compHint)+'</p></div>';
+  }else next=(cy?.status==='active'?peers:[]).map(n=>'<div class="ui-opponent"><span>'+e(n)+'</span><button type="button" class="ui-link-button" data-ui-opponent="'+e(n)+'">'+e(t('ui_start'))+'</button></div>').join('')||'<div class="ui-home-empty">'+icon('check')+'<p>'+e(t(cy?.status==='finished'?'ui_no_open_cycle':'ui_no_rivals'))+'</p></div>';
+  h+=card(t(admin?'ui_attention':isPO?'ui_up_next':'ui_unplayed'),next,admin?'<button class="ui-link-button" data-ui-route="pendientes">'+e(t('ui_view_all'))+'</button>':'');
+  h+='</div>'+card(t('ui_recent'),relevant.slice().sort((a,b)=>b.id-a.id).slice(0,5).map(m=>matchCard(m)).join('')||'<div class="ui-home-empty">'+icon('matches')+'<p>'+e(t('ui_no_matches'))+'</p></div>');root.innerHTML=h;
+ }
+ // Extra labels are presentation only: never read/log/store password values.
+ function updateLogin(){
+  const screen=document.getElementById('login-screen');if(!screen)return;
+  screen.querySelectorAll('[data-ui-login-text]').forEach(el=>el.textContent=t(el.dataset.uiLoginText));
+  const select=screen.querySelector('#login-user');
+  // Translate UI account labels in place; preserve selection and player names.
+  if(select){
+   for(const option of select.options){
+    if(option.value==='admin')option.textContent=t('admin_org');
+    else if(option.value==='superadmin')option.textContent=LANG==='en'?'Super administrator':'Superadministrador';
+    else if(!option.value)option.textContent=t('select_user');
+   }
+   for(const group of select.querySelectorAll('optgroup')){
+    if(['Organización','Organisation'].includes(group.label))group.label=t('org_label');
+    else if(['Jugadores','Players'].includes(group.label))group.label=LANG==='en'?'Players':'Jugadores';
+    else if(['Sin grupo','No group'].includes(group.label))group.label=t('cl_sin_grupo');
+   }
+  }
+  const b=document.getElementById('ui-password-visibility'),input=document.getElementById('login-pass');
+  if(b&&input){b.textContent=t(input.type==='password'?'ui_login_show':'ui_login_hide');b.setAttribute('aria-pressed',String(input.type==='text'));}
  }
  function renderMatches(){const root=document.getElementById('view-partidos');const list=contextMatches().filter(m=>activeAdmin()||ownMatch(m));root.innerHTML=pageTitle(t(activeAdmin()?'ui_matches':'ui_my_matches'),contextLabel(),'<button class="btn btn-primary" data-ui-route="cargar">'+icon('matches')+e(t('ui_start'))+'</button>')+card(t('ui_recent'),list.slice().sort((a,b)=>b.id-a.id).map(m=>matchCard(m)).join('')||'<p>'+e(t('ui_no_matches'))+'</p>');}
  function renderPending(){
@@ -184,6 +263,10 @@
  document.addEventListener('click',ev=>{
   const target=ev.target.closest('button');if(!target||target.disabled)return;
   if(target.dataset.uiRoute){go(target.dataset.uiRoute);return;}
+  if(target.hasAttribute('data-ui-competition')){openCompetition();return;}
+  if(target.hasAttribute('data-ui-home-load')){homeLoad();return;}
+  if(target.hasAttribute('data-ui-leagues')){const b=document.getElementById('hdr-liga-switch');if(b?.classList.contains('multi')){b.scrollIntoView({block:'nearest'});abrirSelectorLigaHdr('first');}else toast(t('ui_no_other_league'));return;}
+  if(target.id==='ui-password-visibility'){const input=document.getElementById('login-pass');if(input){input.type=input.type==='password'?'text':'password';updateLogin();}return;}
   if(target.hasAttribute('data-ui-help')){openTutorialPopupFromHelp();return;}
   if(target.hasAttribute('data-ui-group')){setGroup(Number(target.dataset.uiGroup));return;}
   if(target.hasAttribute('data-ui-my-group')){myGroup();return;}
@@ -197,6 +280,6 @@
  function updateSelection(){const n=document.querySelectorAll('.ui-pending-select:checked').length;const span=document.getElementById('ui-selected-count'),btn=document.querySelector('[data-ui-bulk]');if(span)span.textContent=n;if(btn)btn.disabled=!n;}
  document.addEventListener('change',e=>{if(e.target.matches('.ui-pending-select'))updateSelection();});
  document.addEventListener('keydown',ev=>{const el=ev.target;if((ev.key==='Enter'||ev.key===' ')&&el.matches('td[role="button"]')){ev.preventDefault();el.click();}});
- global.SohailUI={icon,e,go,canLeave,allowed,chooseCycle,remembered,setGroup,myGroup,renderNav,tabDefs,groupControls,jump,renderHome,renderMatches,renderPending,afterView,organizeProfile,organizeAdmin,forceConfirm,validateSelected,resolve,mutation,currentCycle,activeAdmin,contextLabel,contextMatches,ownMatch,isBusy:()=>mutationBusy};
- mount();
+ global.SohailUI={icon,e,go,canLeave,allowed,chooseCycle,remembered,setGroup,myGroup,renderNav,tabDefs,groupControls,jump,renderHome,renderMatches,renderPending,afterView,organizeProfile,organizeAdmin,forceConfirm,validateSelected,resolve,mutation,currentCycle,activeAdmin,contextLabel,contextMatches,ownMatch,competitionDestination,openCompetition,homeLoad,updateLogin,isBusy:()=>mutationBusy};
+ mount();updateLogin();
 })(window);

@@ -68,6 +68,7 @@ function showSub(name){
   if(name==='po'||name==='playoff'){viewCyc('po');return;}
   if(window.SohailUI&&(!SohailUI.allowed(name)||!SohailUI.canLeave(name)))return;
   if(viewCycle==='po'&&name==='grupos')viewCycle=activeN;
+  if(name==='inicio'||name==='resumen')viewCycle=playoff.started?'po':activeN;
   subView=name;
   document.querySelectorAll('#main-app > [id^="view-"]').forEach(el=>{el.style.display='none';el.classList.remove('view-fade');});
   renderSubTabs();const active=document.getElementById('view-'+name);if(active)active.style.display='block';

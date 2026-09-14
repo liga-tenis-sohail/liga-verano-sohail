@@ -280,3 +280,130 @@ body.sohail-ui-modern .cm-ov{position:fixed;inset:0;z-index:100005;display:flex;
 .ui-confirm-dialog input{width:100%;min-height:44px;padding:10px;border-radius:9px;border:1px solid var(--border2);background:var(--surface);color:var(--text);margin:8px 0}
 .ui-confirm-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:9px}
 .ui-confirm-actions .btn{min-height:44px;border-radius:10px;font-weight:600}
+
+/* v3.1 — score rows, phase-aware home and independent login/league surfaces.
+   Changes scoped here deliberately do not redefine club, award or theme tokens. */
+.result-editor .re-score-board{margin-top:18px;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface)}
+.result-editor table.re-score-table{table-layout:fixed;width:100%;border-collapse:separate;border-spacing:0;color:var(--text);font-variant-numeric:tabular-nums}
+.result-editor .re-score-table thead th{background:var(--soft);color:var(--text);font-size:13px;line-height:1.4;font-weight:700;padding:14px 12px;text-align:center;overflow-wrap:anywhere}
+.result-editor .re-score-table thead th:first-child{width:22%;text-align:left;color:var(--text2)}
+.result-editor .re-score-table tbody th{font-size:13px;font-weight:700;text-align:left;line-height:1.4;padding:14px 12px;overflow-wrap:anywhere}
+.result-editor .re-score-table td{padding:12px 10px}
+.result-editor .re-score-table tbody tr+tr :is(th,td){border-top:1px solid var(--border)}
+.result-editor .re-score-table input{width:100%;height:52px;min-width:0;font-size:24px;font-weight:750;text-align:center;font-variant-numeric:tabular-nums;border:1px solid var(--control-border,var(--border2));border-radius:10px;background:var(--surface);color:var(--text);padding:6px;-moz-appearance:textfield}
+.result-editor .re-score-table input::-webkit-inner-spin-button,.result-editor .re-score-table input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.result-editor .re-score-table tr.re-stb{display:table-row;background:var(--soft);color:var(--text);border:0;padding:0;margin:0}
+.result-editor .re-score-table tr.re-stb[hidden]{display:none!important}
+.result-editor .re-score-table .re-stb th{color:var(--text)}
+.result-editor .re-stb-reference{display:block;border-left:3px solid var(--action);background:var(--soft);color:var(--text);padding:10px 12px;margin:10px 0 0;border-radius:0 8px 8px 0;font-size:12px;font-weight:600;line-height:1.5}
+.result-editor .re-score-table input:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+.result-editor .re-score-table input[aria-invalid=true]{border:2px solid var(--danger)}
+.result-editor .re-score-table input:disabled{cursor:default}
+/* Mine is different from Selected: a gold badge remains visible in both states. */
+.ui-v3 .ui-group{display:inline-flex;align-items:center;gap:6px}
+.ui-v3 .ui-group.is-mine:not(.is-active){background:#fff5d4;color:#392c09;border-color:#c7a343}
+html body .ui-v3 .ui-mine-badge,html body .ui-picker .ui-mine-badge{display:inline-flex;align-items:center;background:#fff0b9!important;color:#493600!important;border:1px solid #c7a343;border-radius:20px;padding:2px 7px;line-height:1.35;font-size:10px;font-weight:750;white-space:nowrap;text-transform:none;float:none!important}
+.ui-v3 .ui-group-mobile button:nth-child(2){display:flex;align-items:center;gap:6px;flex-wrap:wrap;text-align:left}
+.ui-v3 .ui-group-mobile button:nth-child(2) .ui-group-chevron{margin-left:auto}
+.ui-picker .ui-picker-list strong{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* Current competition has a single phase and contextual destination. */
+.ui-v3 .ui-home-hero{display:flex;justify-content:space-between;align-items:center;gap:24px;background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--brand-accent);border-radius:18px;padding:26px;margin-bottom:18px;box-shadow:var(--ui-shadow)}
+.ui-home-copy{min-width:0}
+.ui-home-hero h1{font-size:30px;letter-spacing:-.04em;line-height:1.2;margin:5px 0 10px;font-weight:780;color:var(--text)}
+.ui-home-hero .ui-eyebrow{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text2);line-height:1.5}
+.ui-home-hero p{font-size:13px;line-height:1.6;color:var(--text2);max-width:590px;overflow-wrap:anywhere}
+.ui-phase-tag{display:inline-flex;align-items:center;gap:7px;background:var(--soft);color:var(--text);font-size:11px;line-height:1.4;font-weight:650;padding:7px 10px;border-radius:9px;margin-top:14px}
+.ui-phase-tag svg{width:16px;height:16px}
+.ui-home-action{flex-shrink:0;max-width:100%}
+.ui-v3 .ui-home-action .btn{min-height:46px}
+.ui-home-grid>.ui-section{height:100%}
+.ui-competition-mark{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#fff0b9;color:#493600;margin-top:12px}
+.ui-home-grid .ui-context-name{font-size:22px;font-weight:730;line-height:1.35;margin:12px 0 8px;overflow-wrap:anywhere}
+.ui-home-empty{display:flex;align-items:center;gap:10px;min-height:70px;color:var(--text2)}
+.ui-home-empty>.ui-icon{width:26px;height:26px;flex-shrink:0;color:var(--text2)}
+.ui-section .ui-home-empty p{margin:0;line-height:1.6}
+.ui-next-opponent{display:grid;gap:8px;justify-items:start;padding-top:10px}
+.ui-next-opponent small,.ui-next-opponent>span{font-size:12px;color:var(--text2)}
+.ui-next-opponent strong{font-size:23px;line-height:1.3;color:var(--text);overflow-wrap:anywhere}
+.ui-next-opponent .btn{margin-top:6px}
+[data-po-draw]{scroll-margin-top:calc(var(--ui-sticky-h) + 14px)}
+.ui-side-league .ui-link-button{margin-top:8px;font-size:11px;padding:0;min-height:28px;color:var(--text)}
+.ui-side-league .ui-link-button svg{width:14px}
+/* Login: original names and editable links are retained. No forced new identity. */
+body.sohail-ui-modern #login-screen{min-height:100dvh;padding-bottom:28px}
+body.sohail-ui-modern .login-wrap.ui-login-card{width:calc(100% - 32px);max-width:460px;margin:34px auto 18px;border-radius:22px;border:1px solid var(--border);box-shadow:0 16px 40px rgba(6,20,40,.09)}
+body.sohail-ui-modern .ui-login-card .login-head{text-align:left;padding:55px 26px 24px;border-top-width:4px}
+body.sohail-ui-modern .ui-login-card .ball{width:44px;height:44px;border-radius:13px;margin:0 0 14px;display:flex;align-items:center;justify-content:center}
+body.sohail-ui-modern .ui-login-card .login-head h1{font-size:20px;line-height:1.35;letter-spacing:-.025em;font-weight:720;overflow-wrap:anywhere}
+body.sohail-ui-modern .ui-login-card .login-head p{font-size:13px;line-height:1.5;margin-top:5px}
+body.sohail-ui-modern .ui-login-card .lang-btn{min-height:32px;min-width:38px;border-radius:9px}
+body.sohail-ui-modern .ui-login-card .login-body{padding:24px 26px}
+.ui-login-intro{margin-bottom:20px}
+.ui-login-intro .ui-eyebrow{font-size:10px;font-weight:700;letter-spacing:.065em;text-transform:uppercase;color:var(--text2);margin:0 0 5px}
+.ui-login-intro h2{font-size:22px;letter-spacing:-.025em;color:var(--text);margin:0 0 7px;line-height:1.3}
+.ui-login-intro p{font-size:13px;line-height:1.55;color:var(--text2)}
+body.sohail-ui-modern .ui-login-card .login-body label{font-size:12px;font-weight:700;color:var(--text);margin-bottom:7px}
+body.sohail-ui-modern .ui-login-card .login-body :is(input,select){height:48px;min-height:48px;font:inherit;font-size:16px;padding:10px 12px;border-radius:10px;margin-bottom:18px;max-width:100%;border:1px solid var(--control-border,var(--border2))}
+body.sohail-ui-modern .ui-login-card .login-btn{min-height:48px;font-size:14px;border-radius:10px;padding:11px;line-height:1.4}
+.ui-login-password-label{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#ui-password-visibility{font:inherit;font-size:11px;border:0;background:none;color:var(--link);cursor:pointer;min-height:30px;padding:0 0 4px}
+#ui-password-visibility:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+body.sohail-ui-modern .ui-login-card .login-forgot{margin-top:14px;font-size:13px;min-height:32px}
+body.sohail-ui-modern .past-leagues,body.sohail-ui-modern .ui-login-choices{width:calc(100% - 32px);max-width:460px}
+/* League choices: fully scoped surface and ink override the header's white text. */
+html body.sohail-ui-modern #hdr-liga-switch-menu{background:var(--surface)!important;color:var(--text)!important;padding:14px;border-radius:18px;border:1px solid var(--border2);gap:6px;box-shadow:0 16px 44px rgba(0,0,0,.24)}
+html body.sohail-ui-modern #hdr-liga-switch-menu :is(div,p,span,strong,small,button,i,svg){color:inherit!important;text-shadow:none!important;opacity:1}
+html body.sohail-ui-modern #hdr-liga-switch-menu .hdr-liga-menu-title{color:var(--text)!important;font-size:14px;letter-spacing:0;text-transform:none;padding:0 2px}
+html body.sohail-ui-modern #hdr-liga-switch-menu .hdr-liga-menu-hint{font-size:11px;color:var(--text2)!important;white-space:normal;line-height:1.5;padding:0 2px;margin:0 0 8px;overflow-wrap:anywhere}
+html body.sohail-ui-modern #hdr-liga-switch-menu :is(.hdr-liga-option,.liga-sel-btn){background:var(--surface2)!important;color:var(--text)!important;min-height:60px;border:1px solid var(--border);border-radius:12px;font-size:14px;line-height:1.45;padding:12px 10px;white-space:normal;overflow-wrap:anywhere}
+html body.sohail-ui-modern #hdr-liga-switch-menu :is(.hdr-liga-option,.liga-sel-btn):hover{border-color:var(--action);background:var(--soft)!important;color:var(--text)!important}
+html body.sohail-ui-modern #hdr-liga-switch-menu :is(.hdr-liga-option.is-current,.liga-sel-btn.on){background:var(--action)!important;color:var(--on-action)!important;border-color:var(--action)}
+html body.sohail-ui-modern #hdr-liga-switch-menu .hdr-liga-option-name{font-weight:650;color:inherit!important}
+html body.sohail-ui-modern #hdr-liga-switch-menu .hdr-liga-option-current{font-size:10px;color:inherit!important}
+.ui-login-choices{padding:24px!important;border-radius:18px!important;background:var(--surface);color:var(--text);margin:0 auto 20px;border:1px solid var(--border)}
+.ui-login-choices h2{font-size:22px;letter-spacing:-.025em;line-height:1.3;margin:4px 0 9px;color:var(--text)}
+.ui-choice-greeting{font-size:12px;font-weight:650;color:var(--text2)}
+.ui-choice-hint{font-size:13px;line-height:1.5;color:var(--text2)}
+.ui-choice-count{font-size:11px;color:var(--text2);margin:12px 0}
+.ui-login-choices .ui-login-choice{background:var(--surface2);color:var(--text);display:flex;align-items:center;gap:12px;width:100%;padding:14px 12px;border:1px solid var(--border2);border-radius:12px;min-height:70px;text-align:left;line-height:1.4;font-family:inherit}
+.ui-login-choice:hover{background:var(--soft);border-color:var(--action)}
+.ui-choice-icon{display:flex;background:var(--soft);color:var(--text);padding:10px;border-radius:10px;flex-shrink:0}
+.ui-choice-info{flex:1;min-width:0;overflow-wrap:anywhere}
+.ui-choice-info strong{font-size:14px;font-weight:700;display:block}
+.ui-choice-info small{display:block;font-size:11px;color:var(--text2);margin-top:4px}
+.ui-choice-arrow{font-size:24px}
+.ui-login-choices .ui-choice-cancel{margin-top:16px;min-height:42px;width:100%;justify-content:center;font:inherit;font-size:12px}
+.ui-choice-error{background:var(--dangerBg);color:var(--dangerT);border:1px solid var(--danger);border-radius:9px;padding:10px;margin-top:12px;font-size:13px;line-height:1.5}
+.ui-choice-error[hidden]{display:none!important}
+.ui-login-choice:disabled{cursor:wait;opacity:.7}
+.ui-login-choice.is-loading{border-color:var(--action)}
+@media(max-width:900px){
+ .ui-v3 .ui-home-hero{padding:20px;align-items:flex-start;gap:14px;flex-wrap:wrap}
+ .ui-home-hero h1{font-size:25px}
+ .ui-home-hero p{font-size:12px}
+ .ui-home-grid>.ui-section{height:auto}
+ .ui-home-grid .ui-context-name{font-size:20px}
+ .ui-home-action{width:100%}.ui-home-action .btn{width:100%;justify-content:center}
+ .result-editor .re-score-table thead th{font-size:12px;padding:12px 7px}
+ .result-editor .re-score-table thead th:first-child{width:27%}
+ .result-editor .re-score-table tbody th{font-size:12px;padding:12px 8px}
+ .result-editor .re-score-table td{padding:10px 6px}
+ .result-editor .re-score-table input{height:48px;font-size:23px;border-radius:9px}
+ .ui-v3 .ui-group-shortcuts [data-ui-my-group]{background:#fff0b9;color:#493600;border-color:#c7a343}
+}
+@media(max-width:420px){
+ .result-editor .re-score-table :is(thead th,tbody th){font-size:11px}
+ .result-editor .re-score-table tbody th{padding:10px 6px}
+ .result-editor .re-score-table td{padding:9px 5px}
+ .result-editor .re-stb-reference{font-size:11px;line-height:1.5}
+ body.sohail-ui-modern .login-wrap.ui-login-card{width:calc(100% - 24px);margin-top:20px;border-radius:18px}
+ body.sohail-ui-modern .ui-login-card .login-head{padding:48px 20px 20px}
+ body.sohail-ui-modern .ui-login-card .login-body{padding:20px}
+ body.sohail-ui-modern .ui-login-card .login-head h1{font-size:19px}
+ .ui-login-intro h2{font-size:21px}
+ .ui-login-choices{padding:20px!important}
+ .ui-login-choices h2{font-size:20px}
+ html body.sohail-ui-modern #hdr-liga-switch-menu{padding:12px}
+}
+
+body.sohail-ui-modern .ui-login-card .ball svg{color:var(--brand-accent-ink)!important;stroke:currentColor}

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script src="theme.js?v=sohail-master-v3-20260913"></script>
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><script src="theme.js?v=sohail-ui-v31-20260913"></script>
 <script>(function(){try{
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn)document.addEventListener('DOMContentLoaded',function(){
@@ -7,7 +7,7 @@
     if(sub&&lsn.s)sub.textContent=lsn.s;
     if(lsn.n)document.title=lsn.n;
   },false);
-}catch(_){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-master-v3-20260913"></script><style>
+}catch(_){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-ui-v31-20260913"></script><style>
 /* Respaldo inline de "Mis Ligas": si por cualquier motivo estilos.css no
    llegara a cargar con la versión más reciente, estas reglas viven acá
    adentro del HTML mismo y se aplican igual. Duplicadas a propósito respecto
@@ -41,26 +41,26 @@ button.liga-tab{cursor:pointer}
 .msg-compose-row{display:flex;gap:8px;align-items:flex-end;padding:.6rem;background:#EDF1F6;border-top:1px solid #c8d0dc}
 .msg-input{flex:1;resize:none;min-height:42px;max-height:120px;padding:10px 12px;border-radius:10px;border:1.5px solid #c8d0dc;background:#ffffff;color:#1b2433;font-family:inherit;font-size:14px;line-height:1.4}
 </style>
-<link rel="stylesheet" href="estilos.css?v=sohail-master-v3-20260913">
+<link rel="stylesheet" href="estilos.css?v=sohail-ui-v31-20260913">
 
-<link rel="stylesheet" href="ui-modern.css?v=sohail-master-v3-20260913">
+<link rel="stylesheet" href="ui-modern.css?v=sohail-ui-v31-20260913">
 </head><body>
 <div id="login-screen">
   <!-- Header editable de la pantalla de login. El admin configura color y
        links desde el panel Admin. Aparece SOLO en el login (no en la app).
        Contenido inyectado por renderLoginHeader() al cargar y cuando cambia. -->
   <div id="login-header" style="display:none"></div>
-  <div class="login-wrap">
+  <div class="login-wrap ui-login-card">
     <div class="login-head" style="position:relative">
       <div style="position:absolute;top:10px;right:12px;display:flex;gap:6px">
         <button id="btn-lang-es-login" onclick="setLang('es')" class="lang-btn active">ES</button>
         <button id="btn-lang-en-login" onclick="setLang('en')" class="lang-btn">EN</button>
       </div>
-      <div class="ball"><i class="ti ti-ball-tennis"></i></div><h1 id="login-title"></h1><p id="login-sub"></p>
+      <div class="ball"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 5c6 4 6 10 0 14M18 5c-6 4-6 10 0 14"/></svg></div><h1 id="login-title"></h1><p id="login-sub"></p>
     </div>
-    <div class="login-body"><div class="login-err" id="login-err"></div>
+    <div class="login-body"><div class="ui-login-intro"><p class="ui-eyebrow" data-ui-login-text="ui_login_eyebrow">Tu liga, en un solo lugar</p><h2 data-ui-login-text="ui_login_title">Entrá a tu competición</h2><p data-ui-login-text="ui_login_step">Elegí tu usuario y continuá con tu contraseña o tu dispositivo.</p></div><div class="login-err" id="login-err" role="alert"></div>
       <label id="lbl-user" for="login-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
-      <label id="lbl-pass" for="login-pass">Contraseña</label><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div class="ui-login-password-label"><label id="lbl-pass" for="login-pass">Contraseña</label><button type="button" id="ui-password-visibility" aria-controls="login-pass" aria-pressed="false">Mostrar contraseña</button></div><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
       <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
       <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
@@ -171,27 +171,27 @@ button.liga-tab{cursor:pointer}
      bootstrap.js DEBE ser el último de la app (contiene el arranque).
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
-<script src="score-rules.js?v=sohail-master-v3-20260913"></script>
-<script src="core-estado.js?v=sohail-master-v3-20260913"></script>
-<script src="i18n-revision.js?v=sohail-master-v3-20260913"></script>
-<script src="login-auth.js?v=sohail-master-v3-20260913"></script>
-<script src="jugadores-perfiles-catalogo.js?v=sohail-master-v3-20260913"></script>
-<script src="reglamento.js?v=sohail-master-v3-20260913"></script>
-<script src="login-auth-p2.js?v=sohail-master-v3-20260913"></script>
-<script src="shell-render.js?v=sohail-master-v3-20260913"></script>
-<script src="resultados-y-grupos.js?v=sohail-master-v3-20260913"></script>
-<script src="admin-ligas-clubes.js?v=sohail-master-v3-20260913"></script>
-<script src="admin-ciclos-config.js?v=sohail-master-v3-20260913"></script>
-<script src="playoffs.js?v=sohail-master-v3-20260913"></script>
-<script src="jugadores-perfiles.js?v=sohail-master-v3-20260913"></script>
-<script src="mensajes.js?v=sohail-master-v3-20260913"></script>
-<script src="resultados-po-lm.js?v=sohail-master-v3-20260913"></script>
-<script src="persistencia.js?v=sohail-master-v3-20260913"></script>
-<script src="headers-ui.js?v=sohail-master-v3-20260913"></script>
-<script src="accessibility.js?v=sohail-master-v3-20260913"></script>
-<script src="tutorial.js?v=sohail-master-v3-20260913"></script>
-<script src="ui-modern.js?v=sohail-master-v3-20260913"></script>
-<script src="result-editor.js?v=sohail-master-v3-20260913"></script>
-<script src="bootstrap.js?v=sohail-master-v3-20260913"></script>
-<script src="rating.js?v=sohail-master-v3-20260913"></script>
+<script src="score-rules.js?v=sohail-ui-v31-20260913"></script>
+<script src="core-estado.js?v=sohail-ui-v31-20260913"></script>
+<script src="i18n-revision.js?v=sohail-ui-v31-20260913"></script>
+<script src="login-auth.js?v=sohail-ui-v31-20260913"></script>
+<script src="jugadores-perfiles-catalogo.js?v=sohail-ui-v31-20260913"></script>
+<script src="reglamento.js?v=sohail-ui-v31-20260913"></script>
+<script src="login-auth-p2.js?v=sohail-ui-v31-20260913"></script>
+<script src="shell-render.js?v=sohail-ui-v31-20260913"></script>
+<script src="resultados-y-grupos.js?v=sohail-ui-v31-20260913"></script>
+<script src="admin-ligas-clubes.js?v=sohail-ui-v31-20260913"></script>
+<script src="admin-ciclos-config.js?v=sohail-ui-v31-20260913"></script>
+<script src="playoffs.js?v=sohail-ui-v31-20260913"></script>
+<script src="jugadores-perfiles.js?v=sohail-ui-v31-20260913"></script>
+<script src="mensajes.js?v=sohail-ui-v31-20260913"></script>
+<script src="resultados-po-lm.js?v=sohail-ui-v31-20260913"></script>
+<script src="persistencia.js?v=sohail-ui-v31-20260913"></script>
+<script src="headers-ui.js?v=sohail-ui-v31-20260913"></script>
+<script src="accessibility.js?v=sohail-ui-v31-20260913"></script>
+<script src="tutorial.js?v=sohail-ui-v31-20260913"></script>
+<script src="ui-modern.js?v=sohail-ui-v31-20260913"></script>
+<script src="result-editor.js?v=sohail-ui-v31-20260913"></script>
+<script src="bootstrap.js?v=sohail-ui-v31-20260913"></script>
+<script src="rating.js?v=sohail-ui-v31-20260913"></script>
 </body></html>

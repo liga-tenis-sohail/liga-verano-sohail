@@ -486,7 +486,7 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
     : null;
   const canLoad=m.a&&m.b&&!m.w&&!_poPending&&(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name);
   const emptyTxt=isFirstRound?'BYE':t('tbd');
-  const isBYE_A=!m.a&&m.b;const isBYE_B=!m.b&&m.a;
+  const isBYE_A=!m.a&&m.b&&(isFirstRound||m.w===m.b);const isBYE_B=!m.b&&m.a&&(isFirstRound||m.w===m.a);
   const meA=currentUser&&m.a===currentUser.name;const meB=currentUser&&m.b===currentUser.name;
   // Nota: cuando meA/meB, el fondo cream #FFF8DC + clase .po-me-slot fuerzan
   // texto oscuro en dark mode (regla en CSS). El seed number y el chip "yo"
@@ -497,7 +497,7 @@ function matchBox(m,ti,which,ri,mi,isFirstRound){
   const sB=meB?'background:#FFF8DC;font-weight:700;color:#0E3470;':isBYE_B?'background:var(--surface2);':'';
   const iA=!m.a?'color:var(--text2);font-style:italic;':'';
   const iB=!m.b&&m.a?'color:var(--text2);font-style:italic;':'';
-  const nmA=m.a||emptyTxt;const nmB=m.b||(m.a?'BYE':emptyTxt);
+  const nmA=m.a||(isBYE_A?'BYE':emptyTxt);const nmB=m.b||(isBYE_B?'BYE':emptyTxt);
   const seedA=(m.sid&&m.sid[0])||'';const seedB=(m.sid&&m.sid[1])||'';
   // Selector inline de posición: reemplaza al lápiz + modal separado que
   // había antes. Antes, editar una posición abría un modal aparte con la
@@ -740,6 +740,8 @@ function applyPoBracketZoom(key){
 function showPlayoffView(){
   const pv=document.getElementById('view-playoff');
   if(!pv)return;
+  // Mostrar un cuadro también establece su ruta. No deja subView='grupos' tras el login.
+  viewCycle='po';subView='po';
   pv.style.display='block';
   ['grupos','general','cargar','pendientes','admin','perfil','rating','reglamento','historial','mensajes','inicio','resumen','partidos','jugadores','mas'].forEach(v=>{
     const el=document.getElementById('view-'+v);
@@ -806,7 +808,7 @@ function showPlayoffView(){
   const mainEditBtns = (isAdmin && hayMainOrder)
     ? '<button class="btn btn-sm" style="margin-left:8px" onclick="clearMainOrderUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>'
     : '';
-  html+=`<div class="card"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM?renderChampionShowcase(tr,finalM,'main'):''}</div>`;
+  html+=`<div class="card" id="po-draw-${ti}-main" data-po-draw="main"><div class="po-section-title"><i class="ti ti-trophy"></i> ${tf('po_main_title',{l:tr.label})}${mainEditBtns}</div>${bracketHTML(tr.main,ti,'main')}${finalM?renderChampionShowcase(tr,finalM,'main'):''}</div>`;
   if(tr.cons){
     const cf=tr.cons[tr.cons.length-1][0];
     const hayOverrides = tr.consOverrides && Object.keys(tr.consOverrides).length;
@@ -820,7 +822,7 @@ function showPlayoffView(){
       ? '<button class="btn btn-sm" style="margin-left:8px" onclick="editConsOverrideUI('+ti+')"><i class="ti ti-edit"></i> '+t('po_cons_edit_btn')+'</button>'
         + (hayOverrides ? '<button class="btn btn-sm" style="margin-left:4px" onclick="clearConsOverridesUI('+ti+')"><i class="ti ti-refresh"></i> '+t('po_cons_clear_btn')+'</button>' : '')
       : '';
-    html+=`<div class="card"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}${consEditBtns}</div>${bracketHTML(tr.cons,ti,'cons')}${cf?renderChampionShowcase(tr,cf,'cons'):''}</div>`;
+    html+=`<div class="card" id="po-draw-${ti}-cons" data-po-draw="cons"><div class="po-section-title po-cons-title"><i class="ti ti-shield"></i> ${tf('po_cons_title',{l:tr.label})}${consEditBtns}</div>${bracketHTML(tr.cons,ti,'cons')}${cf?renderChampionShowcase(tr,cf,'cons'):''}</div>`;
   }
 
   html+=`<div class="card legend-card"><p class="legend-txt">${t('po_legend')}</p></div>`;
