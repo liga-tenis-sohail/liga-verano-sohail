@@ -280,21 +280,6 @@
  function updateSelection(){const n=document.querySelectorAll('.ui-pending-select:checked').length;const span=document.getElementById('ui-selected-count'),btn=document.querySelector('[data-ui-bulk]');if(span)span.textContent=n;if(btn)btn.disabled=!n;}
  document.addEventListener('change',e=>{if(e.target.matches('.ui-pending-select'))updateSelection();});
  document.addEventListener('keydown',ev=>{const el=ev.target;if((ev.key==='Enter'||ev.key===' ')&&el.matches('td[role="button"]')){ev.preventDefault();el.click();}});
- function translateRawUiKeys(scope){try{const root=scope&&scope.querySelectorAll?scope:document;root.querySelectorAll('*').forEach(el=>{if(el.children.length)return;const txt=(el.textContent||'').trim();if(/^ui_[a-z0-9_]+$/i.test(txt)){const tr=t(txt);if(tr&&tr!==txt)el.textContent=tr;}['placeholder','aria-label','title'].forEach(attrName=>{const val=el.getAttribute&&el.getAttribute(attrName);if(val&&/^ui_[a-z0-9_]+$/i.test(val)){const tr=t(val);if(tr&&tr!==val)el.setAttribute(attrName,tr);}});});}catch(_){}}
- function installModernViewHotfix(){
-  const legacyShowSub=typeof global.showSub==='function'?global.showSub:null;
-  const modern=new Set(['inicio','resumen','partidos','jugadores','mas']);
-  function setDisplay(name){const root=document.getElementById('main-app');if(!root)return false;root.querySelectorAll('[id^="view-"]').forEach(el=>{el.style.display=(el.id==='view-'+name?'':'none');});return !!document.getElementById('view-'+name);}
-  function runModern(name){mount();if(typeof subView!=='undefined')subView=name;if(!setDisplay(name))return false;try{afterView();}catch(err){const host=document.getElementById('view-'+name);if(host)host.innerHTML=pageTitle(t('ui_more'),'')+'<div class="card"><p>'+e((err&&err.message)||'Error')+'</p></div>';console.error(err);}translateRawUiKeys(document);return true;}
-  global.showSub=function(name){if(modern.has(name))return runModern(name);const out=legacyShowSub?legacyShowSub.apply(this,arguments):undefined;if(typeof subView!=='undefined'&&modern.has(subView))runModern(subView);else modern.forEach(id=>{const el=document.getElementById('view-'+id);if(el)el.style.display='none';});translateRawUiKeys(document);return out;};
-  const login=document.getElementById('login-screen');
-  if(login&&!login.__uiHotfixObserver){const obs=new MutationObserver(()=>translateRawUiKeys(login));obs.observe(login,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});login.__uiHotfixObserver=obs;}
-  const app=document.getElementById('main-app');
-  if(app&&!app.__uiHotfixObserver){const obs=new MutationObserver(()=>translateRawUiKeys(app));obs.observe(app,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['placeholder','aria-label','title']});app.__uiHotfixObserver=obs;}
-  translateRawUiKeys(document);
-  setTimeout(()=>{translateRawUiKeys(document);if(typeof subView!=='undefined'&&modern.has(subView))runModern(subView);},0);
- }
- global.SohailUI={icon,e,go,canLeave,allowed,chooseCycle,remembered,setGroup,myGroup,renderNav,tabDefs,groupControls,jump,renderHome,renderMatches,renderPending,afterView,organizeProfile,organizeAdmin,forceConfirm,validateSelected,resolve,mutation,currentCycle,activeAdmin,contextLabel,contextMatches,ownMatch,competitionDestination,openCompetition,homeLoad,updateLogin,translateRawUiKeys,isBusy:()=>mutationBusy};
- installModernViewHotfix();
- mount();updateLogin();translateRawUiKeys(document);
+ global.SohailUI={icon,e,go,canLeave,allowed,chooseCycle,remembered,setGroup,myGroup,renderNav,tabDefs,groupControls,jump,renderHome,renderMatches,renderPending,afterView,organizeProfile,organizeAdmin,forceConfirm,validateSelected,resolve,mutation,currentCycle,activeAdmin,contextLabel,contextMatches,ownMatch,competitionDestination,openCompetition,homeLoad,updateLogin,isBusy:()=>mutationBusy};
+ mount();updateLogin();
 })(window);
