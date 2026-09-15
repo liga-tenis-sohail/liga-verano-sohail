@@ -266,7 +266,7 @@ function renderAdmin(){
     // ¿Hay algún ciclo con editMode activo? (carga habilitada manualmente por admin)
     const cicloEditMode = cycles.find(c2=>c2.editMode);
     
-    let h=`<div class="card"><div class="section-lbl">${t('admin_cycle_status')}</div><div class="alert ${ready?'alert-ok':(puedeCerrar?'alert-warn':'alert-info')}">${t('cycle')} ${activeN}: ${tf('validated_count',{done,need})}${notC>0?` · ${notC} ${t('unvalidated_short')}`:''}. ${ready?t('ready_close'):(notC>0?t('missing_results'):tf('close_can_incomplete',{n:faltanJugar}))}</div>`+
+    let h=`<div class="card" data-admin-task="cycle-status"><div class="section-lbl">${t('admin_cycle_status')}</div><div class="alert ${ready?'alert-ok':(puedeCerrar?'alert-warn':'alert-info')}">${t('cycle')} ${activeN}: ${tf('validated_count',{done,need})}${notC>0?` · ${notC} ${t('unvalidated_short')}`:''}. ${ready?t('ready_close'):(notC>0?t('missing_results'):tf('close_can_incomplete',{n:faltanJugar}))}</div>`+
     (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ¡Todos los partidos validados! Presiona "Finalizar último ciclo" para habilitar los Play Offs.</div>`:'')+
     // Banner de ciclo con editMode activo
     (cicloEditMode?`<div class="alert alert-warn" style="margin-top:.4rem"><i class="ti ti-pencil"></i> <strong>Carga habilitada en Ciclo ${cicloEditMode.n}</strong> — jugadores y admins pueden cargar resultados en ese ciclo aunque esté cerrado. Deshabilitalo cuando termines.</div>`:'')+
@@ -289,7 +289,7 @@ function renderAdmin(){
     // "Aceptar" se oculta para otros admins, con una nota explicando por qué.
     const solicitudesPendientes = (JOIN_REQUESTS||[]).filter(r=>r&&r.status==='pending');
     const puedeAceptarJugadores = (currentUser.key==='admin' || currentUser.role==='superadmin');
-    h += `<div class="card"><div class="section-lbl"><i class="ti ti-user-plus"></i> ${t('solicitudes_title')}</div>`;
+    h += `<div class="card" data-admin-task="requests"><div class="section-lbl"><i class="ti ti-user-plus"></i> ${t('solicitudes_title')}</div>`;
     h += `<p class="legend-txt" style="margin-top:.15rem;margin-bottom:.65rem">${t('solicitudes_desc')}</p>`;
     if(!solicitudesPendientes.length){
       h += `<div class="legend-txt">${t('solicitudes_none')}</div>`;
@@ -319,7 +319,7 @@ function renderAdmin(){
     // parte cosmética; lo estructural (puntos, grupos, ciclos) sigue gateado
     // aparte, más abajo (exclusivo superadmin). ====
     if(esAdmin(currentUser)){
-      h += `<div class="card"><div class="section-lbl" style="color:var(--pri)">${t('appearance_title')}</div>
+      h += `<div class="card" data-admin-task="appearance"><div class="section-lbl" style="color:var(--pri)">${t('appearance_title')}</div>
         <p class="legend-txt" style="margin-top:0;margin-bottom:.9rem">${t('appearance_name_hint')}</p>
         <div class="form-row" style="margin-bottom:.75rem">
           <div class="form-group">
@@ -393,7 +393,7 @@ function renderAdmin(){
     const numGrupos = grps.length || 12;
     const ppg = (grps[0]&&grps[0].players)?grps[0].players.length:5;
     const cActiveHasMatches = matches.some(m=>m.cycle===activeN&&!m.po);
-    if(currentUser.role==='superadmin'){ h += `<div class="card"><div class="section-lbl">Configuración de la Liga (Ciclo ${activeN})</div>
+    if(currentUser.role==='superadmin'){ h += `<div class="card" data-admin-task="structure"><div class="section-lbl">Configuración de la Liga (Ciclo ${activeN})</div>
           <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
              <div class="form-group">
                 <label>Total de ciclos (1 a 8)</label>
@@ -416,8 +416,8 @@ function renderAdmin(){
           </div>
           <p class="legend-txt" style="margin-top:0">Cambiar grupos o jugadores por grupo ajusta la estructura del <strong>Ciclo ${activeN}</strong> (el ciclo activo). ${cActiveHasMatches?'<span style="color:#e55;font-weight:600">⚠ Este ciclo ya tiene partidos cargados — reducir grupos puede borrar resultados.</span>':''}</p>
           </div>
-          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">⚡ ${t('autoscale_title')}</div>
+          <div class="card" data-admin-task="scale">
+            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">⚡ ${t('autoscale_title')}</div>
             <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('autoscale_hint')}</p>
             <div class="form-row" style="grid-template-columns:1fr auto;align-items:end;gap:.625rem">
               <div class="form-group">
@@ -427,13 +427,13 @@ function renderAdmin(){
               <button class="btn btn-accent" onclick="autoGenerarEscala()">${t('autoscale_btn')}</button>
             </div>
           </div>
-          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🔄 Recalcular puntos por posición</div>
+          <div class="card" data-admin-task="standard-scale">
+            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🔄 Recalcular puntos por posición</div>
             <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Regenera automáticamente los puntos de TODOS los grupos del ciclo activo con la escala estándar de la liga (paso 3, el último puesto del último grupo siempre vale 1 punto). Útil después de agregar/quitar grupos o jugadores.</p>
             <button class="btn btn-accent" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular ahora</button>
           </div>
-          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🩹 Reparar jugador en un ciclo</div>
+          <div class="card" data-admin-task="repair-player">
+            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🩹 Reparar jugador en un ciclo</div>
             <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Si un jugador tiene partidos cargados en un ciclo (incluso ya cerrado) pero no aparece en la tabla de Clasificación de ese ciclo, usá esto para volver a anotarlo en el grupo correspondiente. NO toca los partidos ya jugados, solo la lista de jugadores del grupo.</p>
             <div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end;gap:.5rem">
               <div class="form-group">
@@ -456,8 +456,8 @@ function renderAdmin(){
               <button class="btn btn-accent" onclick="repararJugadorCicloUI()"><i class="ti ti-tool"></i> Agregar al grupo</button>
             </div>
           </div>
-          <div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.85rem">
-            <div style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">✏️ ${t('pts_ajuste_panel_title')}</div>
+          <div class="card" data-admin-task="player-points">
+            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">✏️ ${t('pts_ajuste_panel_title')}</div>
             <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('pts_ajuste_panel_hint')}</p>
             <div class="form-row" style="grid-template-columns:1fr auto;align-items:end;gap:.5rem">
               <div class="form-group">
@@ -471,7 +471,7 @@ function renderAdmin(){
 
     h+=`<div class="form-row" style="grid-template-columns:1fr 1fr;gap:.625rem;align-items:start">`;
     
-    h+=`<div class="card" style="margin:0"><div class="section-lbl">${t('cycle_dates')}</div><div style="display:grid;grid-template-columns:1fr;gap:12px">`+
+    h+=`<div class="card" data-admin-task="dates" style="margin:0"><div class="section-lbl">${t('cycle_dates')}</div><div style="display:grid;grid-template-columns:1fr;gap:12px">`+
        cycles.map((cyc,i)=>{
          const [d1, d2] = parseDateRange(FECHAS[i]);
          return `<div class="form-group"><label>${t('cycle')} ${i+1}</label>
@@ -483,7 +483,7 @@ function renderAdmin(){
        }).join('')+
        `</div><p class="legend-txt" style="margin-top:.4rem">Selecciona inicio y fin de cada ciclo.</p></div>`;
 
-    h+=`<div class="card" style="margin:0"><div class="section-lbl">${t('playoffs_title')}</div>`;
+    h+=`<div class="card" data-admin-task="playoffs" style="margin:0"><div class="section-lbl">${t('playoffs_title')}</div>`;
     h+=(cyclesDone?`<div class="alert alert-ok" style="margin-bottom:.5rem">${t('playoffs_ready')}</div>`:`<div class="alert alert-info" style="margin-bottom:.5rem">${t('playoffs_not_ready')}</div>`);
     h+=`<div class="form-row"><div class="form-group"><label>${t('how_many_playoffs')}</label><select onchange="setPoNum(this.value)">${[1,2,3,4,5,6].map(k=>`<option value="${k}" ${playoff.numTramos===k?'selected':''}>${k} ${k>1?t('bracket_plural'):t('bracket_singular')}</option>`).join('')}</select></div>`;
     h+=`<div class="form-group"><label>${t('po_size_label')}</label><select onchange="setPoSize(this.value)"><option value="0" ${!playoff.forcedSize?'selected':''}>${t('po_size_auto')}</option><option value="64" ${playoff.forcedSize===64?'selected':''}>${t('r_64')}</option><option value="32" ${playoff.forcedSize===32?'selected':''}>${t('r_32')}</option><option value="16" ${playoff.forcedSize===16?'selected':''}>${t('r_16')}</option><option value="8" ${playoff.forcedSize===8?'selected':''}>${t('r_8')}</option><option value="4" ${playoff.forcedSize===4?'selected':''}>${t('r_4')}</option><option value="2" ${playoff.forcedSize===2?'selected':''}>${t('r_2')}</option></select></div></div>`;
@@ -492,7 +492,7 @@ function renderAdmin(){
     h+=`</div>`;
     h+=`</div>`;
 
-    h+=`<div class="card"><div class="section-lbl">Exportar / Importar</div>
+    h+=`<div class="card" data-admin-task="exchange"><div class="section-lbl">Exportar / Importar</div>
       <div style="margin-top:.35rem">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Exportar</div>
       <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Descarga los resultados completos o los Play Offs para compartir o imprimir.</p>
@@ -518,7 +518,7 @@ function renderAdmin(){
       </div>
     </div>`;
 
-    h+=`<div class="card" style="border:1.5px solid var(--pri)"><div class="section-lbl"><i class="ti ti-shield-check"></i> Copia de seguridad (backup completo)</div>
+    h+=`<div class="card" data-admin-task="backup" style="border:1.5px solid var(--pri)"><div class="section-lbl"><i class="ti ti-shield-check"></i> Copia de seguridad (backup completo)</div>
       <p class="legend-txt" style="margin-top:.35rem;margin-bottom:.85rem">Descarga un backup en Excel con TODA la liga (jugadores, grupos, ciclos, resultados, ascensos/descensos, puntos, colores y nombre). Si algún día se pierde la data, con este archivo restauras todo en un clic. <b>Recomendado: descarga un backup cada semana.</b></p>
       <div class="gap-sm" style="flex-wrap:wrap">
         <button class="btn btn-success btn-sm" onclick="exportBackup()"><i class="ti ti-download"></i> Descargar backup (Excel)</button>
@@ -529,16 +529,16 @@ function renderAdmin(){
       <p class="legend-txt" style="margin-bottom:0;margin-top:.7rem;font-size:11px">Restaurar REEMPLAZA todo el estado actual por el del archivo (pide confirmación). Acepta el backup en Excel o los .json viejos. Es la forma segura de recuperar la liga completa.</p>
     </div>`;
 
-    h+=`<div class="card"><div class="section-lbl">${tf('edit_groups',{n:activeN})}</div><p class="legend-txt" style="margin-top:0">${t('edit_groups_hint')}</p><div style="margin-bottom:.75rem"><button class="btn btn-primary" onclick="applyGroupsUpdate()"><i class="ti ti-refresh"></i> Actualizar grupos</button></div>`;
+    h+=`<div class="card" data-admin-task="groups"><div class="section-lbl">${tf('edit_groups',{n:activeN})}</div><p class="legend-txt" style="margin-top:0">${t('edit_groups_hint')}</p><div style="margin-bottom:.75rem"><button class="btn btn-primary" onclick="applyGroupsUpdate()"><i class="ti ti-refresh"></i> Actualizar grupos</button></div>`;
     h+=`<div class="grpedit">`+grps.map((g,gi)=>{
       const gid=gi+1;
       const players = g.players || [];
       return `<div class="ge-group"><div class="ge-gtitle">${groupName(gid)} (${players.length})</div>`+
       players.map(n=>`<div class="ge-row"><span class="ge-nm">${n}</span><select class="ge-sel" onchange="movePlayerUI('${jsq(n)}',${gid},this.value)"><option value="">${t('move_to')}</option>${grps.map((_,k)=>k+1!==gid?`<option value="${k+1}">${groupName(k+1)}</option>`:'').join('')}</select><button class="btn btn-danger btn-sm" onclick="removePlayerUI('${jsq(n)}',${gid})">${t('remove')}</button></div>`).join('')+`</div>`;
     }).join('')+`</div></div>`;
-    h+=destinoCard();
+    h+=`<section data-admin-task="destinations">${destinoCard()}</section>`;
 
-    h+='<div class="card"><div class="section-lbl">Reiniciar y retroceder</div>';
+    h+='<div class="card" data-admin-task="reset"><div class="section-lbl">Reiniciar y retroceder</div>';
     h+='<p class="legend-txt" style="margin-top:0;margin-bottom:.75rem">Tres opciones según lo que necesitás:</p>';
 
     // Acción 1: solo borrar partidos del ciclo activo (conserva grupos y jugadores)
@@ -568,7 +568,7 @@ function renderAdmin(){
     h+='</div>';
 
     if(currentUser.role==='superadmin'){
-    h+='<div class="card" style="border:1.5px solid var(--danger,#e55);border-radius:12px">';
+    h+='<div class="card" data-admin-task="new-season" style="border:1.5px solid var(--danger,#e55);border-radius:12px">';
     h+='<div class="section-lbl" style="color:var(--danger,#e55)">Nueva temporada</div>';
     h+='<p class="legend-txt" style="margin-top:0">Reinicia la liga para una nueva temporada. Los partidos actuales se borran.</p>';
     h+='<div class="gap-sm" style="flex-wrap:wrap">';
@@ -579,7 +579,7 @@ function renderAdmin(){
     // ---- Gestión de ligas (sistema unificado) ----
     // Panel para crear ligas nuevas desde el catálogo de jugadores, y para
     // cerrar / reabrir / eliminar las existentes. Visible para cualquier admin.
-    h+='<div class="card" id="liga-mgmt-card">';
+    h+='<div class="card" id="liga-mgmt-card" data-admin-task="leagues">';
     h+='<div class="section-lbl"><i class="ti ti-trophy"></i> '+t('lm_title')+'</div>';
     h+='<p class="legend-txt" style="margin-top:0">'+t('lm_desc')+'</p>';
     h+='<div class="gap-sm" style="flex-wrap:wrap;margin-bottom:10px">';
@@ -591,7 +591,7 @@ function renderAdmin(){
     // ==================== CARD: Métricas + Panel de Ingreso Rápido ====================
     // Muestra métricas de adopción de Face ID y permite al admin desactivar
     // dispositivos de cualquier jugador (útil si perdieron el iPhone).
-    h+=`<div class="card"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_admin_title')}</div>`;
+    h+=`<div class="card" data-admin-task="devices"><div class="section-lbl"><i class="ti ti-face-id"></i> ${t('pk_admin_title')}</div>`;
     h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('pk_admin_desc')}</p>`;
     h+=`<div id="pk-admin-metrics" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>`;
     h+=`<div id="pk-admin-list"></div></div>`;
@@ -601,7 +601,7 @@ function renderAdmin(){
     // Un admin ascendido no ve este card (evita que agregue números arbitrarios
     // y reciba data sensible de la liga).
     if(puedeGestionarAdmins(currentUser)){
-      h+=`<div class="card"><div class="section-lbl"><i class="ti ti-brand-whatsapp"></i> ${t('wa_admin_title')}</div>`;
+      h+=`<div class="card" data-admin-task="whatsapp"><div class="section-lbl"><i class="ti ti-brand-whatsapp"></i> ${t('wa_admin_title')}</div>`;
       h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('wa_admin_desc')}</p>`;
       h+=`<div class="gap-sm" style="flex-wrap:wrap;margin-bottom:12px">`;
       h+=`<button class="btn btn-primary" onclick="abrirModalCanalWA()"><i class="ti ti-plus"></i> 📱 ${t('wa_add_btn')}</button>`;
@@ -613,7 +613,7 @@ function renderAdmin(){
     // Barra superior de la pantalla de login con color + links configurables.
     // Solo admin original y superadmin la editan (misma restricción que WA).
     if(puedeGestionarAdmins(currentUser)){
-      h+=`<div class="card"><div class="section-lbl"><i class="ti ti-layout-navbar"></i> ${t('lh_title')}</div>`;
+      h+=`<div class="card" data-admin-task="login-header"><div class="section-lbl"><i class="ti ti-layout-navbar"></i> ${t('lh_title')}</div>`;
       h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('lh_desc')}</p>`;
       // --- Fila 1: colores para LIGHT MODE ---
       h+=`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem">Light mode</div>`;
@@ -636,11 +636,13 @@ function renderAdmin(){
     }
 
     // ==================== CARD: Exportar liga a Excel ====================
-    h+=`<div class="card"><div class="section-lbl"><i class="ti ti-file-spreadsheet"></i> ${t('export_title')}</div>`;
+    h+=`<div class="card" data-admin-task="export"><div class="section-lbl"><i class="ti ti-file-spreadsheet"></i> ${t('export_title')}</div>`;
     h+=`<p class="legend-txt" style="margin:.35rem 0 .75rem">${t('export_desc')}</p>`;
     h+=`<button class="btn btn-primary btn-sm" onclick="exportarLigaExcel()"><i class="ti ti-download"></i> ${t('export_btn')}</button></div>`;
 
     document.getElementById('view-admin').innerHTML=h;
+    // Organize on EVERY render, including direct calls after a group/points action.
+    if(window.SohailAdmin)SohailAdmin.organize();
     cargarGestionLigas();
     // Cargar el card de passkeys admin (fetch async, no bloquea el render)
     if(typeof cargarPasskeysAdmin==='function') cargarPasskeysAdmin();
