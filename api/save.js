@@ -5,6 +5,7 @@
 // =====================================================================
 const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex, upsertLigaIndex } = require('./_lib');
 const { protectState, AppError } = require('./_validation');
+const destinosAuto = require('../public/destinos-auto.js');
 const { notifyAdmins, fmtFecha, fmtSets } = require('./_lib_whatsapp');
 
 module.exports = async function handler(req, res){
@@ -124,6 +125,13 @@ async function _handlerSave(req, res){
   try { protectState(current, incoming, session, admin, puedeGestionarAdmins(session)); }
   catch(e){ return res.status(e.status || 400).json({ error:e.message, code:e.code || 'INVALID_STATE' }); }
 
+  // Solo ligas adheridas; no migra las históricas. Ejecutado DESPUÉS del
+  // control de permisos y versión, y ANTES de la escritura transaccional.
+  destinosAuto.reconcile(incoming,current);
+  if(destinosAuto.meta(current)&&incoming.activeN!==current.activeN){
+    const review=destinosAuto.check({...current,DESTINO:incoming.DESTINO});
+    if(!review.ok)return res.status(400).json({error:'Hay destinos incompletos o por revisar. No se cerró el ciclo.',code:'DESTINATIONS_REVIEW'});
+  }
   // 1. PRIMERO guardamos en la base de datos para asegurar el partido
   try { 
     await writeState(ligaId, incoming, {expectedVersion:curV}); 
@@ -156,7 +164,7 @@ async function _handlerSave(req, res){
   await _dispararNotificaciones(current, incoming, session).catch(() => {});
 
   // 3. FINALMENTE devolvemos la respuesta al cliente
-  return res.status(200).json({ ok: true, version:incoming._v, token: renewIfStale(session) || undefined });
+  return res.status(200).json({ ok: true, version:incoming._v, token: renewIfStale(session) || undefined, destinos:destinosAuto.meta(incoming)?incoming.DESTINO:undefined });
 };
 
 async function _dispararNotificaciones(current, incoming, session){

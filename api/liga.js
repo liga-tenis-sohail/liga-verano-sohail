@@ -10,11 +10,12 @@ const {
   auth, envOK, sesionEsAdmin, blockedUser, readState, writeState,
   readLigaIndex, upsertLigaIndex, setEstadoLiga, borrarLiga,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
-  ligaIdOK, hashV2, logAudit, clientIP,
+  ligaIdOK, LIGA_DEFAULT, hashV2, logAudit, clientIP,
   insertarMensaje, leerMensajes, leerMensajesDesde
 } = require('./_lib');
 
 const crypto = require('crypto');
+const destinosAuto = require('../public/destinos-auto.js');
 
 function idDeJugador(nombre){
   // Colapsa espacios múltiples ("Juan  Pérez" -> "Juan Pérez") además de
@@ -112,7 +113,7 @@ function estadoInicial(nombreLiga, numGrupos, numCiclos, heredarDe, clubsOverrid
   return {
     _v: 1, users: {}, matches: [], matchId: 1, activeN: 1, cycles: cycles,
     playoff: { started: false, numTramos: 4, tramos: [], results: {}, viewT: 0, preview: false },
-    DESTINO: {}, FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: generarEscalaPuntos(nG, 5), LOG: [],
+    DESTINO: destinosAuto.initial(), FECHAS: [], PO_FECHAS: {}, ALLNAMES: [], PUNTOS: generarEscalaPuntos(nG, 5), LOG: [],
     // LEAGUE_NAME siempre es el nombre nuevo que puso el admin (no se hereda:
     // cada liga tiene su propio nombre). LOGIN_TITLE, en cambio, SÍ se hereda:
     // es el mismo texto para todas las ligas del club (ver comentario arriba).
@@ -607,6 +608,7 @@ module.exports = async function handler(req, res){
     const jugadoresIn = Array.isArray(body.jugadores) ? body.jugadores : [];
     if(!jugadoresIn.length) return res.status(400).json({ error: 'No se indicó ningún jugador para agregar.' });
 
+    if(id !== (body.ligaId || session.src || LIGA_DEFAULT))return res.status(400).json({error:'La liga de destino no coincide con el contexto autorizado. No se modificó ninguna liga.'});
     const estado = sesionState;
     if(!Array.isArray(estado.ALLNAMES)) estado.ALLNAMES = [];
     if(!estado.users) estado.users = {};
@@ -691,6 +693,7 @@ module.exports = async function handler(req, res){
 
     if(!agregados.length) return res.status(200).json({ ok: true, agregados: [] });
 
+    destinosAuto.reconcile(estado);
     try { await writeState(id, estado); }
     catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
@@ -826,7 +829,8 @@ module.exports = async function handler(req, res){
     }
 
     try {
-      await writeState(nuevoId, estado);
+      destinosAuto.reconcile(estado);
+      await writeState(nuevoId, estado, {expectedVersion:-1}); // creación: la fila aún no existe
       const orden = (idx.length ? Math.max(...idx.map(l => l.orden || 0)) : 0) + 1;
       await upsertLigaIndex({ id: nuevoId, nombre, estado: 'activa', orden });
     } catch(e){ return res.status(503).json({ error: 'No se pudo crear la liga: ' + e.message }); }
