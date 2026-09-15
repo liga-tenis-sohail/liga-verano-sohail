@@ -74,7 +74,7 @@ async function activarPasskey(){
   // Si no ves ni este aviso, el problema es que la librería rompió el onclick.
   try{
     if(typeof window.SimpleWebAuthnBrowser==='undefined'){
-      alert('La librería de Face ID no cargó. Puede estar bloqueada por la configuración de seguridad (CSP). Avisa al administrador.');
+      alert((""+t('ui36_text_196')+""));
       return;
     }
     if(!window.PublicKeyCredential){
@@ -86,10 +86,10 @@ async function activarPasskey(){
     let r1, opts;
     try{
       r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-start'})});
-    }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 1). ¿Está subido /api/passkey?'); }
+    }catch(netErr){ throw new Error((""+t('ui36_text_197')+"")); }
     const txt1=await r1.text();
-    try{ opts=JSON.parse(txt1); }catch(_){ throw new Error('El servidor no respondió bien (paso 1). Código '+r1.status+'. ¿Falta el package.json o la librería en Vercel?'); }
-    if(!r1.ok) throw new Error((opts&&opts.error)||('Error del servidor al iniciar (código '+r1.status+').'));
+    try{ opts=JSON.parse(txt1); }catch(_){ throw new Error((""+t('ui36_text_198')+"")+r1.status+(""+t('ui36_text_199')+"")); }
+    if(!r1.ok) throw new Error((opts&&opts.error)||((""+t('ui36_text_200')+"")+r1.status+').'));
     // 2) El dispositivo crea la passkey (aparece el Face ID / Touch ID)
     let cred;
     try{
@@ -107,8 +107,8 @@ async function activarPasskey(){
       r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},credentials:'same-origin',body:JSON.stringify({accion:'reg-finish',cred,deviceLabel})});
     }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 4).'); }
     const txt2=await r2.text();
-    try{ d=JSON.parse(txt2); }catch(_){ throw new Error('El servidor no respondió bien al guardar (paso 4). Código '+r2.status+'. ¿Creaste la tabla passkeys en Supabase?'); }
-    if(!r2.ok) throw new Error((d&&d.error)||('Error al guardar la passkey (código '+r2.status+').'));
+    try{ d=JSON.parse(txt2); }catch(_){ throw new Error((""+t('ui36_text_201')+"")+r2.status+(""+t('ui36_text_202')+"")); }
+    if(!r2.ok) throw new Error((d&&d.error)||((""+t('ui36_text_203')+"")+r2.status+').'));
     toast(t('pk_activated'));
     try{ localStorage.setItem('pk_hint','1'); }catch(_){}
     // Refresca la vista del perfil si está abierta: pasamos de "activar" a mostrar el dispositivo nuevo.
@@ -490,6 +490,7 @@ async function renombrarPasskey(credId, labelActual){
 }
 
 async function doLogin(){
+  const field=document.getElementById('login-pass');if(field)field.type='password';if(window.SohailUI)SohailUI.updateLogin();
   const uv=(document.getElementById('login-user').value||'').trim();
   const pv=document.getElementById('login-pass').value;
   const e=document.getElementById('login-err');
@@ -502,7 +503,7 @@ async function doLogin(){
     // para 'player'). El server busca al usuario en todas las ligas activas.
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined})});
     const d=await r.json().catch(()=>({}));
-    if(!r.ok){e.textContent=d.error||'Usuario o contraseña incorrectos.';e.style.display='block';return;}
+    if(!r.ok){e.textContent=d.error||(""+t('ui36_text_180')+"");e.style.display='block';return;}
     _token=d.token;
 
     // El jugador está en 2+ ligas activas: la contraseña YA se validó, pero

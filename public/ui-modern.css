@@ -628,3 +628,15 @@ body.sohail-ui-modern #modal-bg .modal:has(.mh-player-sheet){width:min(760px,cal
   height:auto;
   margin-bottom:0;
 }
+
+/* v3.6: un acceso en Liga; las herramientas de resultados siguen siendo las originales. */
+.ui-league-results-nav{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:18px;min-width:0}
+.ui-league-results-nav .btn{min-height:44px;white-space:normal;line-height:1.35}
+.ui-league-results-nav [aria-current="page"]{background:var(--action);color:var(--on-action,#fff);border-color:var(--action)}
+.ui-league-results-context{color:var(--text2);font-size:12px;margin-left:auto;overflow-wrap:anywhere}
+.ui-password-field{position:relative;display:flex;min-width:0;align-items:center;margin-bottom:12px}
+.login-body .ui-password-field #login-pass{margin:0;padding-right:56px;width:100%;box-sizing:border-box;min-height:48px}
+.login-body .ui-password-field #ui-password-visibility{position:absolute;right:3px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;padding:9px;border:0;border-radius:8px;background:transparent;color:var(--text);cursor:pointer}
+.login-body .ui-password-field #ui-password-visibility:hover{background:var(--surface2)}
+.login-body #ui-password-visibility:focus-visible{outline:3px solid var(--ring-color,#4e8bd8);outline-offset:-3px}
+@media(max-width:520px){.ui-league-results-nav>.btn{flex:1 1 120px;justify-content:center}.ui-league-results-context{width:100%;margin:0}}

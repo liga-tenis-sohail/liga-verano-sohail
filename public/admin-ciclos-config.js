@@ -6,9 +6,9 @@
 // ============================================================================
 function limpiarJugadoresUI(){
   // Primera confirmación
-  if(!confirm('⚠️ Limpiar jugadores\n\nEsto eliminará TODOS los jugadores y sus resultados del ciclo activo.\nLa estructura de grupos se mantiene vacía.\n\n¿Quieres continuar?')) return;
+  if(!confirm((""+t('ui36_text_100')+""))) return;
   // Segunda confirmación
-  if(!confirm('⛔ Segunda confirmación\n\n¿Estás seguro de que quieres borrar todos los jugadores y resultados?\nEsta acción no se puede deshacer.')) return;
+  if(!confirm((""+t('ui36_text_101')+""))) return;
   // Ejecutar limpieza solo de jugadores
   const c=cycles[activeN-1];
   const numGrupos=c&&c.groups?c.groups.length:12;
@@ -20,7 +20,7 @@ function limpiarJugadoresUI(){
     if(cy.groups)cy.groups.forEach(g=>{g.players=[];});
   });
   persist(true);renderPerfil();
-  toast('✅ '+numGrupos+' grupos vaciados. Puedes importar nuevos jugadores.');
+  toast('✅ '+numGrupos+(""+t('ui36_text_102')+""));
 }
 
 function mostrarModalReiniciar(){
@@ -34,22 +34,22 @@ function mostrarModalReiniciar(){
 
   function paso2(){
     const estado=_excelDescargado
-      ?'<span style="color:#22c55e;font-weight:600">✅ Excel descargado correctamente</span>'
-      :'<span style="color:#f59e0b;font-weight:600">⚠️ No descargaste el Excel (continuaste sin respaldo)</span>';
+      ?("<span style=\"color:#22c55e;font-weight:600\">"+t('ui36_text_085')+"</span>")
+      :("<span style=\"color:#f59e0b;font-weight:600\">"+t('ui36_text_086')+"</span>");
     overlay.innerHTML=`
       <div style="background:var(--surface);border-radius:16px;padding:1.5rem;max-width:440px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">PASO 2 DE 2</div>
-        <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">⛔ Confirmar reinicio</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">${t('ui36_text_088')}</div>
+        <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">${t('ui36_text_089')}</div>
         <p style="font-size:13px;margin-bottom:.75rem">${estado}</p>
-        <p style="font-size:13px;color:var(--text2);margin-bottom:.35rem">Para confirmar, escribe exactamente:</p>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:.35rem">${t('ui36_text_091')}</p>
         <p style="font-family:monospace;font-size:14px;font-weight:700;color:var(--pri);background:var(--surface2,#f5f5f5);padding:6px 12px;border-radius:8px;margin-bottom:.75rem;display:inline-block">reiniciar liga</p>
-        <input id="reiniciar-input" type="text" placeholder="Escribe aquí..." autocomplete="off"
+        <input id="reiniciar-input" type="text" placeholder="${attr(t('ui36_text_092'))}" autocomplete="off"
           style="width:100%;padding:10px 14px;border:1.5px solid var(--border2);border-radius:10px;font-size:15px;margin-bottom:1rem;box-sizing:border-box;outline:none"
           oninput="document.getElementById('btn-confirm-reiniciar').disabled=this.value!=='reiniciar liga'">
         <div style="display:flex;gap:8px;justify-content:flex-end">
-          <button class="btn" onclick="document.getElementById('reiniciar-overlay').remove()">Cancelar</button>
+          <button class="btn" onclick="document.getElementById('reiniciar-overlay').remove()">${t('ui36_text_093')}</button>
           <button id="btn-confirm-reiniciar" class="btn btn-danger" disabled onclick="ejecutarReiniciar()">
-            <i class="ti ti-trash"></i> Reiniciar liga
+            <i class="ti ti-trash"></i> ${t('ui36_text_063')}
           </button>
         </div>
       </div>`;
@@ -58,18 +58,18 @@ function mostrarModalReiniciar(){
 
   overlay.innerHTML=`
     <div style="background:var(--surface);border-radius:16px;padding:1.5rem;max-width:440px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.25)">
-      <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">PASO 1 DE 2</div>
-      <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">⛔ Reiniciar Liga</div>
-      <p style="color:var(--text);font-size:14px;margin-bottom:1.25rem">Esta acción eliminará <strong>todos los jugadores, partidos y resultados</strong>. No se puede deshacer.<br><br>
-      ¿Quieres descargar un respaldo en Excel antes de continuar?</p>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:.25rem;font-weight:600;letter-spacing:.05em">${t('ui36_text_087')}</div>
+      <div style="font-size:20px;font-weight:700;color:var(--danger);margin-bottom:.5rem">${t('ui36_text_090')}</div>
+      <p style="color:var(--text);font-size:14px;margin-bottom:1.25rem">${t('ui36_text_094')} <strong>${t('ui36_text_095')}</strong>${t('ui36_text_096')}<br><br>
+      ${t('ui36_text_097')}</p>
       <div style="display:flex;flex-direction:column;gap:8px">
         <button id="btn-excel-reiniciar" class="btn btn-success" style="justify-content:center;font-size:15px;padding:10px">
-          <i class="ti ti-file-spreadsheet"></i> Descargar Excel y continuar
+          <i class="ti ti-file-spreadsheet"></i> ${t('ui36_text_098')}
         </button>
         <button class="btn" style="justify-content:center;color:var(--text2);font-size:13px" id="btn-sin-excel">
-          Continuar sin descargar
+          ${t('ui36_text_099')}
         </button>
-        <button class="btn" style="justify-content:center" onclick="document.getElementById('reiniciar-overlay').remove()">Cancelar</button>
+        <button class="btn" style="justify-content:center" onclick="document.getElementById('reiniciar-overlay').remove()">${t('ui36_text_093')}</button>
       </div>
     </div>`;
 
@@ -111,7 +111,7 @@ async function ejecutarReiniciar(){
   playoff={started:false,numTramos:playoff.numTramos||4,tramos:[],results:{},viewT:0,qualified:[],preview:false,forcedSize:0};
   PO_FECHAS={};
   persist(true);renderShell();showSub('admin');
-  toast('✅ Liga reiniciada. '+numGrupos+' grupos vacíos listos. Importa jugadores con el botón "Importar jugadores (Excel)".');
+  toast((""+t('ui36_text_103')+"")+numGrupos+(""+t('ui36_text_104')+""));
 }
 
 // Alias para el botón
@@ -166,7 +166,7 @@ function renderHistorial(){
     if(!isSA&&e.role==='superadmin')return false;
     if(filter==='liga'&&(e.detail&&(e.detail.po===true||e.detail.po===null)))return false;
     if(filter==='playoff'&&(!e.detail||e.detail.po!==true))return false;
-    if(search&&!(e.who.toLowerCase().includes(search)||e.action.toLowerCase().includes(search)||(e.detail&&JSON.stringify(e.detail).toLowerCase().includes(search))))return false;
+    if(search&&!(e.who.toLowerCase().includes(search)||ui36ActionLabel(e.action).toLowerCase().includes(search)||e.action.toLowerCase().includes(search)||(e.detail&&JSON.stringify(e.detail).toLowerCase().includes(search))))return false;
     return true;
   });
   const icons={
@@ -186,20 +186,20 @@ function renderHistorial(){
     'Playoff: W.O.':'<i class="ti ti-arrow-big-right-lines" style="color:#ea580c"></i>',
     'Playoff: disputa resuelta':'<i class="ti ti-gavel" style="color:#8b5cf6"></i>',
   };
-  let h='<div class="card"><div class="section-lbl">Historial de resultados</div>';
+  let h=("<div class=\"card\"><div class=\"section-lbl\">"+t('ui36_text_073')+"</div>");
   h+='<div style="display:flex;gap:8px;margin-bottom:.75rem;flex-wrap:wrap">';
   h+='<select id="hist-filter" onchange="renderHistorial()" style="padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:13px">';
-  h+='<option value="all">Todos</option><option value="liga" '+(filter==='liga'?'selected':'')+'>Solo liga</option><option value="playoff" '+(filter==='playoff'?'selected':'')+'>Solo playoff</option>';
+  h+=("<option value=\"all\">"+t('ui36_text_074')+"</option><option value=\"liga\" ")+(filter==='liga'?'selected':'')+(">"+t('ui36_text_075')+"</option><option value=\"playoff\" ")+(filter==='playoff'?'selected':'')+(">"+t('ui36_text_076')+"</option>");
   h+='</select>';
-  h+='<input id="hist-search" placeholder="Buscar jugador o acción..." value="'+attr(search)+'" oninput="renderHistorial()" style="flex:1;min-width:160px;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:13px">';
+  h+=("<input id=\"hist-search\" placeholder=\""+attr(t('ui36_text_077'))+"\" value=\"")+attr(search)+'" oninput="renderHistorial()" style="flex:1;min-width:160px;padding:5px 10px;border-radius:8px;border:1px solid var(--border2);background:var(--surface);font-size:13px">';
   h+='</div>';
-  if(!rows.length){h+='<p style="color:var(--text2);font-style:italic;text-align:center;padding:2rem 0">Sin entradas en el historial todavía.</p></div>';el.innerHTML=h;return;}
+  if(!rows.length){h+=("<p style=\"color:var(--text2);font-style:italic;text-align:center;padding:2rem 0\">"+t('ui36_text_078')+"</p></div>");el.innerHTML=h;return;}
   h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px">';
   h+='<thead><tr style="border-bottom:2px solid var(--border2);text-align:left">';
-  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600;white-space:nowrap">Fecha y hora</th>';
-  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600">Quién</th>';
-  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600">Acción</th>';
-  h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600">Detalle</th>';
+  h+=("<th style=\"padding:6px 8px;color:var(--text2);font-weight:600;white-space:nowrap\">"+t('ui36_text_079')+"</th>");
+  h+=("<th style=\"padding:6px 8px;color:var(--text2);font-weight:600\">"+t('ui36_text_080')+"</th>");
+  h+=("<th style=\"padding:6px 8px;color:var(--text2);font-weight:600\">"+t('ui36_text_081')+"</th>");
+  h+=("<th style=\"padding:6px 8px;color:var(--text2);font-weight:600\">"+t('ui36_text_082')+"</th>");
   h+='<th style="padding:6px 8px;color:var(--text2);font-weight:600;white-space:nowrap">Sets</th>';
   h+='</tr></thead><tbody>';
   rows.forEach((e,i)=>{
@@ -207,12 +207,12 @@ function renderHistorial(){
     const d=e.detail||{};
     let detalle='';
     if(d.po){
-      const rnd=d.round||'';const cuadro=d.cuadro?'Cuadro '+d.cuadro:'';
-      const draw=d.which==='cons'?'Consolación':'Principal';
+      const rnd=d.round||'';const cuadro=d.cuadro?t('draw')+' '+d.cuadro:'';
+      const draw=t(d.which==='cons'?'re_consolation':'re_main');
       detalle=cuadro+(rnd?' · '+rnd:'')+(draw?' ('+draw+')':'');
       if(d.a&&d.b)detalle+='<br><span style="font-weight:500">'+d.a+'</span> vs <span style="font-weight:500">'+d.b+'</span>';
     } else {
-      if(d.grupo)detalle='Grupo '+d.grupo;
+      if(d.grupo)detalle=t('group')+' '+d.grupo;
       if(d.a&&d.b)detalle+=(detalle?'<br>':'')+'<span style="font-weight:500">'+d.a+'</span> vs <span style="font-weight:500">'+d.b+'</span>';
     }
     const sets=fmtSets(d.sets);
@@ -220,13 +220,13 @@ function renderHistorial(){
     h+=`<tr style="border-bottom:1px solid var(--border);background:${i%2===0?'transparent':'var(--surface2,#f8f9fb)'}">`;
     h+=`<td style="padding:7px 8px;color:var(--text2);font-size:12px;white-space:nowrap">${e.ts}</td>`;
     h+=`<td style="padding:7px 8px;font-weight:500">${e.who}</td>`;
-    h+=`<td style="padding:7px 8px;white-space:nowrap">${ic} ${e.action}</td>`;
+    h+=`<td style="padding:7px 8px;white-space:nowrap">${ic} ${attr(ui36ActionLabel(e.action))}</td>`;
     h+=`<td style="padding:7px 8px">${detalle}${winner}</td>`;
     h+=`<td style="padding:7px 8px;font-family:monospace;white-space:nowrap">${sets}</td>`;
     h+='</tr>';
   });
   h+='</tbody></table></div>';
-  h+=`<p style="font-size:11px;color:var(--text2);margin-top:.5rem;text-align:right">${rows.length} de ${LOG.length} entradas</p>`;
+  h+=`<p style="font-size:11px;color:var(--text2);margin-top:.5rem;text-align:right">${rows.length} ${t('ui36_of')} ${LOG.length} ${t('ui36_text_083')}</p>`;
   h+='</div>';
   el.innerHTML=h;
 }
@@ -267,16 +267,16 @@ function renderAdmin(){
     const cicloEditMode = cycles.find(c2=>c2.editMode);
     
     let h=`<div class="card" data-admin-task="cycle-status"><div class="section-lbl">${t('admin_cycle_status')}</div><div class="alert ${ready?'alert-ok':(puedeCerrar?'alert-warn':'alert-info')}">${t('cycle')} ${activeN}: ${tf('validated_count',{done,need})}${notC>0?` · ${notC} ${t('unvalidated_short')}`:''}. ${ready?t('ready_close'):(notC>0?t('missing_results'):tf('close_can_incomplete',{n:faltanJugar}))}</div>`+
-    (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ¡Todos los partidos validados! Presiona "Finalizar último ciclo" para habilitar los Play Offs.</div>`:'')+
+    (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ${t('ui36_text_067')}</div>`:'')+
     // Banner de ciclo con editMode activo
-    (cicloEditMode?`<div class="alert alert-warn" style="margin-top:.4rem"><i class="ti ti-pencil"></i> <strong>Carga habilitada en Ciclo ${cicloEditMode.n}</strong> — jugadores y admins pueden cargar resultados en ese ciclo aunque esté cerrado. Deshabilitalo cuando termines.</div>`:'')+
+    (cicloEditMode?`<div class="alert alert-warn" style="margin-top:.4rem"><i class="ti ti-pencil"></i> <strong>${t('ui36_text_068')} ${cicloEditMode.n}</strong> ${t('ui36_text_069')}</div>`:'')+
     `<div class="gap-sm mt-sm">${activeN<cycles.length?`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar)?'disabled':''} onclick="startNextCycle()"><i class="ti ti-arrow-right-circle"></i> ${t('close_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`:`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar||(c&&c.status==='finished'))?'disabled':''} onclick="finishLastCycle()"><i class="ti ti-flag-check"></i> ${t('finish_last_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`}<button class="btn" onclick="demoFillUI()"><i class="ti ti-wand"></i> ${t('simulate')}</button><button class="btn btn-danger" onclick="undoDemoUI()"><i class="ti ti-eraser"></i> ${t('undo_demo')}</button></div>` +
     // Sección de rehabilitar carga (solo si hay ciclos cerrados)
     (cycles.some(c2=>c2.status==='finished')?`<div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.75rem">
-      <div style="font-weight:700;font-size:.85rem;margin-bottom:.25rem"><i class="ti ti-pencil"></i> Habilitar carga de partidos en un ciclo cerrado</div>
-      <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.5rem">Si necesitas agregar resultados en un ciclo ya cerrado (sin borrar los existentes), habilita ese ciclo temporalmente. Jugadores y admins van a poder cargar partidos en él desde la pestaña Cargar. Deshabilítalo cuando termines.</p>
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:.25rem"><i class="ti ti-pencil"></i> ${t('ui36_text_071')}</div>
+      <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.5rem">${t('ui36_text_072')}</p>
       <div class="gap-sm" style="flex-wrap:wrap">
-        ${cycles.filter(c2=>c2.status==='finished').map(c2=>`<button class="btn btn-sm ${c2.editMode?'btn-warn':''}" onclick="toggleEditMode(${c2.n})"><i class="ti ti-${c2.editMode?'lock-open':'lock'}"></i> Ciclo ${c2.n} ${c2.editMode?'(carga activa — click para cerrar)':'(cerrado)'}</button>`).join('')}
+        ${cycles.filter(c2=>c2.status==='finished').map(c2=>`<button class="btn btn-sm ${c2.editMode?'btn-warn':''}" onclick="toggleEditMode(${c2.n})"><i class="ti ti-${c2.editMode?'lock-open':'lock'}"></i> ${t('ui36_text_015')} ${c2.n} ${c2.editMode?(""+t('ui36_text_070')+""):'(cerrado)'}</button>`).join('')}
       </div>
     </div>`:'') +
     `</div>`;
@@ -334,14 +334,14 @@ function renderAdmin(){
         </div>
         <div class="form-row" style="margin-bottom:.75rem">
           <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color primario</label>
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('ui36_text_001')}</label>
             <div style="display:flex;align-items:center;gap:8px">
               <input id="sa-color-pri" type="color" value="${LEAGUE_COLOR_PRI}" oninput="syncHex('pri','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
               <input id="sa-pri-hex" type="text" value="${LEAGUE_COLOR_PRI}" maxlength="7" spellcheck="false" oninput="syncHex('pri')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
             </div>
           </div>
           <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color acento</label>
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('ui36_text_002')}</label>
             <div style="display:flex;align-items:center;gap:8px">
               <input id="sa-color-acc" type="color" value="${LEAGUE_COLOR_ACC}" oninput="syncHex('acc','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
               <input id="sa-acc-hex" type="text" value="${LEAGUE_COLOR_ACC}" maxlength="7" spellcheck="false" oninput="syncHex('acc')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
@@ -350,11 +350,11 @@ function renderAdmin(){
         </div>
         <div class="form-row" style="margin-bottom:.75rem">
           <div class="form-group">
-            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">Color de resaltado <span style="font-size:11px">(fondo de "No jugado" y "W.O.")</span></label>
+            <label style="font-size:13px;color:var(--text2);margin-bottom:4px;display:block">${t('ui36_text_003')} <span style="font-size:11px">${t('ui36_text_004')}</span></label>
             <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
               <input id="sa-color-hl" type="color" value="${LEAGUE_COLOR_HL}" oninput="syncHex('hl','picker')" style="width:48px;height:36px;border:1.5px solid var(--border2);border-radius:8px;cursor:pointer;padding:2px">
               <input id="sa-hl-hex" type="text" value="${LEAGUE_COLOR_HL}" maxlength="7" spellcheck="false" oninput="syncHex('hl')" style="width:92px;font-size:13px;font-family:monospace;padding:6px 8px;border:1.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text)">
-              <span id="sa-hl-demo" class="colour-preview" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${LEAGUE_COLOR_HL};--sample-ink:${autoTxt(LEAGUE_COLOR_HL)};color:${autoTxt(LEAGUE_COLOR_HL)};border:1px solid var(--priD)">No jugado</span>
+              <span id="sa-hl-demo" class="colour-preview" style="font-size:12px;font-weight:600;padding:5px 12px;border-radius:6px;background:${LEAGUE_COLOR_HL};--sample-ink:${autoTxt(LEAGUE_COLOR_HL)};color:${autoTxt(LEAGUE_COLOR_HL)};border:1px solid var(--priD)">${t('ui36_text_005')}</span>
             </div>
           </div>
         </div>
@@ -393,28 +393,28 @@ function renderAdmin(){
     const numGrupos = grps.length || 12;
     const ppg = (grps[0]&&grps[0].players)?grps[0].players.length:5;
     const cActiveHasMatches = matches.some(m=>m.cycle===activeN&&!m.po);
-    if(currentUser.role==='superadmin'){ h += `<div class="card" data-admin-task="structure"><div class="section-lbl">Configuración de la Liga (Ciclo ${activeN})</div>
+    if(currentUser.role==='superadmin'){ h += `<div class="card" data-admin-task="structure"><div class="section-lbl">${t('ui36_text_019')} ${activeN})</div>
           <div class="form-row" style="grid-template-columns:1fr 1fr 1fr">
              <div class="form-group">
-                <label>Total de ciclos (1 a 8)</label>
+                <label>${t('ui36_text_006')}</label>
                 <select onchange="setTotalCycles(this.value)">
-                   ${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}" ${cycles.length===n?'selected':''}>${n} ciclo${n>1?'s':''}</option>`).join('')}
+                   ${[1,2,3,4,5,6,7,8].map(n=>`<option value="${n}" ${cycles.length===n?'selected':''}>${n} ${t('cycle')}${n>1?'s':''}</option>`).join('')}
                 </select>
              </div>
              <div class="form-group">
-                <label>Grupos en la liga (1 a 50)</label>
+                <label>${t('ui36_text_007')}</label>
                 <select onchange="setNumGroups(this.value)">
-                   ${Array.from({length:50},(_,i)=>i+1).map(n=>`<option value="${n}" ${numGrupos===n?'selected':''}>${n} grupo${n>1?'s':''}</option>`).join('')}
+                   ${Array.from({length:50},(_,i)=>i+1).map(n=>`<option value="${n}" ${numGrupos===n?'selected':''}>${n} ${t('group')}${n>1?'s':''}</option>`).join('')}
                 </select>
              </div>
              <div class="form-group">
-                <label>Jugadores por grupo</label>
+                <label>${t('ui36_text_008')}</label>
                 <select onchange="setPlayersPerGroup(this.value)">
-                   ${[2,3,4,5,6,7,8].map(n=>`<option value="${n}" ${ppg===n?'selected':''}>${n} jugadores</option>`).join('')}
+                   ${[2,3,4,5,6,7,8].map(n=>`<option value="${n}" ${ppg===n?'selected':''}>${n} ${t('ui36_text_013')}</option>`).join('')}
                 </select>
              </div>
           </div>
-          <p class="legend-txt" style="margin-top:0">Cambiar grupos o jugadores por grupo ajusta la estructura del <strong>Ciclo ${activeN}</strong> (el ciclo activo). ${cActiveHasMatches?'<span style="color:#e55;font-weight:600">⚠ Este ciclo ya tiene partidos cargados — reducir grupos puede borrar resultados.</span>':''}</p>
+          <p class="legend-txt" style="margin-top:0">${t('ui36_text_017')} <strong>${t('ui36_text_015')} ${activeN}</strong> ${t('ui36_text_018')} ${cActiveHasMatches?("<span style=\"color:#e55;font-weight:600\">"+t('ui36_text_020')+"</span>"):''}</p>
           </div>
           <div class="card" data-admin-task="scale">
             <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">⚡ ${t('autoscale_title')}</div>
@@ -428,32 +428,32 @@ function renderAdmin(){
             </div>
           </div>
           <div class="card" data-admin-task="standard-scale">
-            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🔄 Recalcular puntos por posición</div>
-            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Regenera automáticamente los puntos de TODOS los grupos del ciclo activo con la escala estándar de la liga (paso 3, el último puesto del último grupo siempre vale 1 punto). Útil después de agregar/quitar grupos o jugadores.</p>
-            <button class="btn btn-accent" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> Recalcular ahora</button>
+            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">${t('ui36_text_021')}</div>
+            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('ui36_text_022')}</p>
+            <button class="btn btn-accent" onclick="recalcularPuntajesGrupos()"><i class="ti ti-refresh"></i> ${t('ui36_text_023')}</button>
           </div>
           <div class="card" data-admin-task="repair-player">
-            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">🩹 Reparar jugador en un ciclo</div>
-            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Si un jugador tiene partidos cargados en un ciclo (incluso ya cerrado) pero no aparece en la tabla de Clasificación de ese ciclo, usá esto para volver a anotarlo en el grupo correspondiente. NO toca los partidos ya jugados, solo la lista de jugadores del grupo.</p>
+            <div data-admin-title style="font-weight:700;font-size:.85rem;margin-bottom:.35rem">${t('ui36_text_024')}</div>
+            <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('ui36_text_025')}</p>
             <div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end;gap:.5rem">
               <div class="form-group">
-                <label>Ciclo</label>
+                <label>${t('ui36_text_015')}</label>
                 <select id="rep-ciclo">
-                  ${cycles.filter(cy=>cy.groups).map(cy=>`<option value="${cy.n}">Ciclo ${cy.n}${cy.status==='finished'?' (cerrado)':''}</option>`).join('')}
+                  ${cycles.filter(cy=>cy.groups).map(cy=>`<option value="${cy.n}">${t('ui36_text_015')} ${cy.n}${cy.status==='finished'?' (cerrado)':''}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group">
-                <label>Grupo</label>
+                <label>${t('ui36_text_014')}</label>
                 <select id="rep-grupo">
-                  ${Array.from({length:numGrupos},(_,i)=>i+1).map(n=>`<option value="${n}">Grupo ${n}</option>`).join('')}
+                  ${Array.from({length:numGrupos},(_,i)=>i+1).map(n=>`<option value="${n}">${t('ui36_text_014')} ${n}</option>`).join('')}
                 </select>
               </div>
               <div class="form-group">
-                <label>Jugador</label>
-                <input type="text" id="rep-jugador" list="rep-jugador-list" placeholder="Nombre exacto" style="width:100%;padding:.5rem;border:1.5px solid var(--border2);border-radius:8px">
+                <label>${t('ui36_text_016')}</label>
+                <input type="text" id="rep-jugador" list="rep-jugador-list" placeholder="${attr(t('ui36_text_027'))}" style="width:100%;padding:.5rem;border:1.5px solid var(--border2);border-radius:8px">
                 <datalist id="rep-jugador-list">${ALLNAMES.map(n=>`<option value="${n}">`).join('')}</datalist>
               </div>
-              <button class="btn btn-accent" onclick="repararJugadorCicloUI()"><i class="ti ti-tool"></i> Agregar al grupo</button>
+              <button class="btn btn-accent" onclick="repararJugadorCicloUI()"><i class="ti ti-tool"></i> ${t('ui36_text_026')}</button>
             </div>
           </div>
           <div class="card" data-admin-task="player-points">
@@ -481,7 +481,7 @@ function renderAdmin(){
                    <input type="date" value="${d2}" onchange="updateCycleDate(${i}, 'end', this.value)" style="padding:6px 8px">
                  </div></div>`;
        }).join('')+
-       `</div><p class="legend-txt" style="margin-top:.4rem">Selecciona inicio y fin de cada ciclo.</p></div>`;
+       `</div><p class="legend-txt" style="margin-top:.4rem">${t('ui36_text_028')}</p></div>`;
 
     h+=`<div class="card" data-admin-task="playoffs" style="margin:0"><div class="section-lbl">${t('playoffs_title')}</div>`;
     h+=(cyclesDone?`<div class="alert alert-ok" style="margin-bottom:.5rem">${t('playoffs_ready')}</div>`:`<div class="alert alert-info" style="margin-bottom:.5rem">${t('playoffs_not_ready')}</div>`);
@@ -492,44 +492,44 @@ function renderAdmin(){
     h+=`</div>`;
     h+=`</div>`;
 
-    h+=`<div class="card" data-admin-task="exchange"><div class="section-lbl">Exportar / Importar</div>
+    h+=`<div class="card" data-admin-task="exchange"><div class="section-lbl">${t('ui36_text_029')}</div>
       <div style="margin-top:.35rem">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Exportar</div>
-      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Descarga los resultados completos o los Play Offs para compartir o imprimir.</p>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">${t('ui36_text_030')}</div>
+      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('ui36_text_032')}</p>
       <div class="gap-sm" style="flex-wrap:wrap">`;
     cycles.forEach(cy => {
-        h += `<button class="btn btn-sm" onclick="printCycle(${cy.n})"><i class="ti ti-printer"></i> PDF Ciclo ${cy.n}</button>`;
+        h += `<button class="btn btn-sm" onclick="printCycle(${cy.n})"><i class="ti ti-printer"></i> ${t('ui36_text_033')} ${cy.n}</button>`;
     });
-    h += `<button class="btn btn-sm" onclick="printPlayoffs()"><i class="ti ti-printer"></i> PDF Play Offs</button>`;
-    h += `<button class="btn btn-success btn-sm" onclick="exportExcel()"><i class="ti ti-file-spreadsheet"></i> Exportar Excel</button>`;
+    h += `<button class="btn btn-sm" onclick="printPlayoffs()"><i class="ti ti-printer"></i> ${t('ui36_text_034')}</button>`;
+    h += `<button class="btn btn-success btn-sm" onclick="exportExcel()"><i class="ti ti-file-spreadsheet"></i> ${t('ui36_text_035')}</button>`;
     h += `</div>
       </div>
       <div style="height:1px;background:var(--border);margin:1.1rem 0"></div>
       <div>
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">Importar</div>
-      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">Carga resultados de liga desde un Excel con el mismo formato de la plantilla.</p>
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin-bottom:.5rem">${t('ui36_text_031')}</div>
+      <p class="legend-txt" style="margin-top:0;margin-bottom:.65rem">${t('ui36_text_036')}</p>
       <div class="gap-sm" style="flex-wrap:wrap">
-        <button class="btn btn-sm" onclick="descargarPlantillaResultados()"><i class="ti ti-file-download"></i> Plantilla de resultados</button>
-        <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> Importar resultados (Excel)
+        <button class="btn btn-sm" onclick="descargarPlantillaResultados()"><i class="ti ti-file-download"></i> ${t('ui36_text_037')}</button>
+        <label class="btn btn-sm" style="cursor:pointer"><i class="ti ti-file-upload"></i> ${t('ui36_text_038')}
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarResultadosExcel(this)">
         </label>
       </div>
-      <p class="legend-txt" style="margin-bottom:0;margin-top:.65rem;font-size:11px">Solo resultados de liga (grupos), no Play Offs. Quedan validados. Un resultado ya cargado del mismo partido se reemplaza.</p>
+      <p class="legend-txt" style="margin-bottom:0;margin-top:.65rem;font-size:11px">${t('ui36_text_039')}</p>
       </div>
     </div>`;
 
-    h+=`<div class="card" data-admin-task="backup" style="border:1.5px solid var(--pri)"><div class="section-lbl"><i class="ti ti-shield-check"></i> Copia de seguridad (backup completo)</div>
-      <p class="legend-txt" style="margin-top:.35rem;margin-bottom:.85rem">Descarga un backup en Excel con TODA la liga (jugadores, grupos, ciclos, resultados, ascensos/descensos, puntos, colores y nombre). Si algún día se pierde la data, con este archivo restauras todo en un clic. <b>Recomendado: descarga un backup cada semana.</b></p>
+    h+=`<div class="card" data-admin-task="backup" style="border:1.5px solid var(--pri)"><div class="section-lbl"><i class="ti ti-shield-check"></i> ${t('ui36_text_040')}</div>
+      <p class="legend-txt" style="margin-top:.35rem;margin-bottom:.85rem">${t('ui36_text_041')} <b>${t('ui36_text_042')}</b></p>
       <div class="gap-sm" style="flex-wrap:wrap">
-        <button class="btn btn-success btn-sm" onclick="exportBackup()"><i class="ti ti-download"></i> Descargar backup (Excel)</button>
-        <label class="btn btn-danger btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> Restaurar backup
+        <button class="btn btn-success btn-sm" onclick="exportBackup()"><i class="ti ti-download"></i> ${t('ui36_text_043')}</button>
+        <label class="btn btn-danger btn-sm" style="cursor:pointer"><i class="ti ti-upload"></i> ${t('ui36_text_044')}
           <input type="file" accept=".xlsx,.xls,.json,application/json" style="display:none" onchange="importBackup(this)">
         </label>
       </div>
-      <p class="legend-txt" style="margin-bottom:0;margin-top:.7rem;font-size:11px">Restaurar REEMPLAZA todo el estado actual por el del archivo (pide confirmación). Acepta el backup en Excel o los .json viejos. Es la forma segura de recuperar la liga completa.</p>
+      <p class="legend-txt" style="margin-bottom:0;margin-top:.7rem;font-size:11px">${t('ui36_text_045')}</p>
     </div>`;
 
-    h+=`<div class="card" data-admin-task="groups"><div class="section-lbl">${tf('edit_groups',{n:activeN})}</div><p class="legend-txt" style="margin-top:0">${t('edit_groups_hint')}</p><div style="margin-bottom:.75rem"><button class="btn btn-primary" onclick="applyGroupsUpdate()"><i class="ti ti-refresh"></i> Actualizar grupos</button></div>`;
+    h+=`<div class="card" data-admin-task="groups"><div class="section-lbl">${tf('edit_groups',{n:activeN})}</div><p class="legend-txt" style="margin-top:0">${t('edit_groups_hint')}</p><div style="margin-bottom:.75rem"><button class="btn btn-primary" onclick="applyGroupsUpdate()"><i class="ti ti-refresh"></i> ${t('ui36_text_046')}</button></div>`;
     h+=`<div class="grpedit">`+grps.map((g,gi)=>{
       const gid=gi+1;
       const players = g.players || [];
@@ -538,41 +538,41 @@ function renderAdmin(){
     }).join('')+`</div></div>`;
     h+=`<section data-admin-task="destinations">${destinoCard()}</section>`;
 
-    h+='<div class="card" data-admin-task="reset"><div class="section-lbl">Reiniciar y retroceder</div>';
-    h+='<p class="legend-txt" style="margin-top:0;margin-bottom:.75rem">Tres opciones según lo que necesitás:</p>';
+    h+=("<div class=\"card\" data-admin-task=\"reset\"><div class=\"section-lbl\">"+t('ui36_text_047')+"</div>");
+    h+=("<p class=\"legend-txt\" style=\"margin-top:0;margin-bottom:.75rem\">"+t('ui36_text_048')+"</p>");
 
     // Acción 1: solo borrar partidos del ciclo activo (conserva grupos y jugadores)
     h+=`<div style="border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem">
-      <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-eraser" style="color:#f59e0b"></i> Reiniciar partidos del ciclo activo</div>
-      <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">Borra solo los partidos del ciclo activo (Ciclo ${activeN}). Los grupos, jugadores, inactivos y movimientos entre grupos se conservan. Útil para empezar a jugar desde cero con los mismos grupos.</p>
-      <button class="btn btn-warn btn-sm" onclick="resetCycleUI(${activeN})"><i class="ti ti-eraser"></i> Borrar partidos del Ciclo ${activeN}</button>
+      <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-eraser" style="color:#f59e0b"></i> ${t('ui36_text_049')}</div>
+      <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">${t('ui36_text_050')} ${activeN}${t('ui36_text_051')}</p>
+      <button class="btn btn-warn btn-sm" onclick="resetCycleUI(${activeN})"><i class="ti ti-eraser"></i> ${t('ui36_text_052')} ${activeN}</button>
     </div>`;
 
     // Acción 2: retroceder al ciclo anterior (solo si hay ciclo anterior)
     if(activeN>1){
       h+=`<div style="border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem">
-        <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-arrow-back-up" style="color:#3b82f6"></i> Volver al ciclo anterior (Ciclo ${activeN-1})</div>
-        <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">Reabre el Ciclo ${activeN-1} para seguir cargando partidos. Descarta la estructura del Ciclo ${activeN} (los partidos de ese ciclo también se borran). Los partidos del Ciclo ${activeN-1} se conservan.</p>
-        <button class="btn btn-sm" style="border-color:#3b82f6;color:#3b82f6" onclick="retrocederCicloUI()"><i class="ti ti-arrow-back-up"></i> Volver al Ciclo ${activeN-1}</button>
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-arrow-back-up" style="color:#3b82f6"></i> ${t('ui36_text_053')} ${activeN-1})</div>
+        <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">${t('ui36_text_054')} ${activeN-1}${t('ui36_text_055')}${activeN}${t('ui36_text_056')}${activeN-1} ${t('ui36_text_057')}</p>
+        <button class="btn btn-sm" style="border-color:#3b82f6;color:#3b82f6" onclick="retrocederCicloUI()"><i class="ti ti-arrow-back-up"></i> ${t('ui36_text_058')} ${activeN-1}</button>
       </div>`;
     }
 
     // Acción 3: reiniciar playoffs
     if(playoff.started||playoff.preview){
       h+=`<div style="border:1px solid var(--border2);border-radius:10px;padding:.75rem 1rem;margin-bottom:.6rem">
-        <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-trash" style="color:#e55"></i> Reiniciar Play Offs</div>
-        <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">Borra todos los cuadros y resultados de Play Offs. Los partidos de liga no se tocan.</p>
-        <button class="btn btn-danger btn-sm" onclick="resetPlayoffUI()"><i class="ti ti-trash"></i> Reiniciar Play Offs</button>
+        <div style="font-weight:700;font-size:.85rem;margin-bottom:.2rem"><i class="ti ti-trash" style="color:#e55"></i> ${t('ui36_text_059')}</div>
+        <p class="legend-txt" style="margin-top:.2rem;margin-bottom:.5rem">${t('ui36_text_060')}</p>
+        <button class="btn btn-danger btn-sm" onclick="resetPlayoffUI()"><i class="ti ti-trash"></i> ${t('ui36_text_059')}</button>
       </div>`;
     }
     h+='</div>';
 
     if(currentUser.role==='superadmin'){
     h+='<div class="card" data-admin-task="new-season" style="border:1.5px solid var(--danger,#e55);border-radius:12px">';
-    h+='<div class="section-lbl" style="color:var(--danger,#e55)">Nueva temporada</div>';
-    h+='<p class="legend-txt" style="margin-top:0">Reinicia la liga para una nueva temporada. Los partidos actuales se borran.</p>';
+    h+=("<div class=\"section-lbl\" style=\"color:var(--danger,#e55)\">"+t('ui36_text_061')+"</div>");
+    h+=("<p class=\"legend-txt\" style=\"margin-top:0\">"+t('ui36_text_062')+"</p>");
     h+='<div class="gap-sm" style="flex-wrap:wrap">';
-    h+='<button class="btn btn-danger" onclick="limpiarParticipantesUI()"><i class="ti ti-refresh"></i> Reiniciar liga</button>';
+    h+=("<button class=\"btn btn-danger\" onclick=\"limpiarParticipantesUI()\"><i class=\"ti ti-refresh\"></i> "+t('ui36_text_063')+"</button>");
     h+='</div></div>';
     }
 
@@ -624,7 +624,7 @@ function renderAdmin(){
       // --- Fila 2: colores para DARK MODE ---
       // Si están vacíos, el header cae a los colores light. El admin puede configurarlos
       // opcionalmente si quiere que el header se vea distinto en dark.
-      h+=`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem">Dark mode <span style="font-weight:400;text-transform:none;letter-spacing:0">(opcional, si no se define se usa el color de light)</span></div>`;
+      h+=`<div style="font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:.35rem">Dark mode <span style="font-weight:400;text-transform:none;letter-spacing:0">${t('ui36_text_064')}</span></div>`;
       h+=`<div class="form-row" style="align-items:flex-end;flex-wrap:wrap;margin-bottom:.5rem">`;
       h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_color_lbl')} dark</label><input type="color" id="lh-color-dark" value="${(LOGIN_HEADER&&LOGIN_HEADER.colorDark)||(LOGIN_HEADER&&LOGIN_HEADER.color)||'#0E3470'}" style="height:38px;padding:2px;cursor:pointer" onchange="saveLoginHeader()"></div>`;
       h+=`<div class="form-group" style="max-width:180px"><label>${t('lh_textcolor_lbl')} dark <span class="legend-txt" style="font-size:10px">(${t('lh_textcolor_auto')})</span></label><div style="display:flex;gap:4px;align-items:center"><input type="color" id="lh-textcolor-dark" value="${(LOGIN_HEADER&&LOGIN_HEADER.textColorDark)||'#ffffff'}" style="height:38px;padding:2px;cursor:pointer;flex:1" onchange="saveLoginHeader()"><button class="btn btn-sm" onclick="resetLoginHeaderTextColorDark()" title="${t('lh_textcolor_reset')}"><i class="ti ti-refresh"></i></button></div></div>`;
@@ -651,14 +651,14 @@ function renderAdmin(){
     if(puedeGestionarAdmins(currentUser) && typeof renderLoginHeaderLinks==='function') renderLoginHeaderLinks();
   } catch (err) {
     console.error("Error en renderAdmin:", err);
-    document.getElementById('view-admin').innerHTML = `<div class="card"><div class="alert alert-err" style="margin-bottom:0"><b>Error cargando el panel Admin:</b> ${err.message}<br>Por favor recarga la página o contacta a soporte técnico.</div></div>`;
+    document.getElementById('view-admin').innerHTML = `<div class="card"><div class="alert alert-err" style="margin-bottom:0"><b>${t('ui36_text_107')}</b> ${err.message}<br>${t('ui36_text_108')}</div></div>`;
   }
 }
 
 function printCycle(n) {
   const c = cycles[n-1];
-  if(!c || !c.groups) { toast('Ciclo sin datos.'); return; }
-  let html = `<h2 style="margin-bottom:1rem;color:var(--priD)">Liga de Tenis Sohail - Ciclo ${n}</h2>`;
+  if(!c || !c.groups) { toast((""+t('ui36_text_109')+"")); return; }
+  let html = `<h2 style="margin-bottom:1rem;color:var(--priD)">${t('ui36_text_233')} ${n}</h2>`;
   const oldView = viewCycle;
   viewCycle = n;
   c.groups.forEach((g, gi) => { html += groupCardHTML(gi + 1); });
@@ -673,9 +673,9 @@ function printCycle(n) {
 }
 
 function printPlayoffs() {
-  if(!playoff.started && !playoff.preview) { toast('Play Offs no disponibles.'); return;
+  if(!playoff.started && !playoff.preview) { toast((""+t('ui36_text_110')+"")); return;
   }
-  let html = `<h2 style="margin-bottom:1rem;color:var(--priD)">Liga de Tenis Sohail - Play Offs</h2>`;
+  let html = `<h2 style="margin-bottom:1rem;color:var(--priD)">${t('ui36_text_234')}</h2>`;
   playoff.tramos.forEach((tr, ti) => {
      if(!tr.main)return;
      html += `<div class="po-card">`;
@@ -938,12 +938,12 @@ function repararJugadorCicloUI(){
   const nombreInput = document.getElementById('rep-jugador');
   const name = (nombreInput?.value || '').trim();
   if(!cycN || !gid || !name){
-    toast('Completa ciclo, grupo y nombre del jugador.');
+    toast((""+t('ui36_text_105')+""));
     return;
   }
   const r = repairPlayerInCycleGroup(cycN, gid, name);
   if(!r.ok){
-    toast(r.motivo || 'No se pudo agregar.');
+    toast(r.motivo || (""+t('ui36_text_106')+""));
     return;
   }
   persist(true);

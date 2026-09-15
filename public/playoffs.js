@@ -229,7 +229,7 @@ function editConsOverrideUI(ti,focoEnJugador){
   const addSectionHtml = `
     <div class="form-row" style="grid-template-columns:1fr auto;align-items:center;margin-top:4px;gap:6px">
       <select id="po-cons-add-select" style="font-size:12px;padding:4px 6px">
-        <option value="">— ${attr(t('choose_player')||'Elegí un jugador')} —</option>
+        <option value="">— ${attr(t('choose_player')||(""+t('ui36_text_126')+""))} —</option>
         ${disponibles.map(d=>`<option value="${attr(d)}">${attr(d)}</option>`).join('')}
       </select>
       <button class="btn btn-sm" onclick="agregarConsSinReemplazo(${ti})"><i class="ti ti-plus"></i> Agregar</button>
@@ -237,9 +237,9 @@ function editConsOverrideUI(ti,focoEnJugador){
   document.getElementById('modal-body').innerHTML = `
     <p class="legend-txt" style="margin-top:0">${t('po_cons_edit_hint')}</p>
     ${rowsHtml}
-    <div class="section-lbl" style="margin-top:1rem">Agregar jugador (sin reemplazar)</div>
-    <p class="legend-txt" style="margin-top:0">Sumá a alguien que perdió en una ronda posterior a la primera (octavos, cuartos, etc.) — se agrega además de los jugadores actuales, sin sacar a nadie.</p>
-    ${disponibles.length ? addSectionHtml : `<p class="legend-txt">No hay más jugadores de este cuadro disponibles para agregar.</p>`}`;
+    <div class="section-lbl" style="margin-top:1rem">${t('ui36_text_130')}</div>
+    <p class="legend-txt" style="margin-top:0">${t('ui36_text_131')}</p>
+    ${disponibles.length ? addSectionHtml : `<p class="legend-txt">${t('ui36_text_132')}</p>`}`;
   document.getElementById('modal-actions').innerHTML = `
     <button class="btn btn-primary" onclick="saveConsOverridesYPosiciones(${ti},[${actuales.map(n=>"'"+jsq(n)+"'").join(',')}])"><i class="ti ti-device-floppy"></i> ${t('save')}</button>
     <button class="btn" onclick="closeM()">${t('close')}</button>`;
@@ -262,15 +262,15 @@ function agregarConsSinReemplazo(ti){
   const tr=playoff.tramos[ti];if(!tr)return;
   const sel=document.getElementById('po-cons-add-select');
   const v=sel?sel.value:'';
-  if(!v){toast('Elegí un jugador para agregar.');return;}
+  if(!v){toast((""+t('ui36_text_127')+""));return;}
   if(!tr.consOverrides) tr.consOverrides={};
   if(!Array.isArray(tr.consOverrides._extra)) tr.consOverrides._extra=[];
-  if(tr.consOverrides._extra.includes(v)){toast('Ese jugador ya está agregado.');return;}
+  if(tr.consOverrides._extra.includes(v)){toast((""+t('ui36_text_128')+""));return;}
   tr.consOverrides._extra.push(v);
   rebuildTramo(ti);
   showPlayoffView();
   persist(true);
-  toast('Jugador agregado a la consolación.');
+  toast((""+t('ui36_text_129')+""));
   editConsOverrideUI(ti);
 }
 // Aplica reemplazos de jugador Y asignaciones de posición (BYE/rival) en
@@ -410,7 +410,7 @@ function aplicarPosicionInline(ti,which,idx,nombreActualCrudo,valor){
     // Buscar un BYE que NO sea esta misma posición (evita el caso trivial
     // de "poner BYE donde ya hay BYE").
     while(idxOrigen===idx) idxOrigen = slots.indexOf(null, idxOrigen+1);
-    if(idxOrigen<0){ toast('No hay ningún BYE disponible en este cuadro.'); return; }
+    if(idxOrigen<0){ toast((""+t('ui36_text_133')+"")); return; }
   }else{
     idxOrigen = slots.indexOf(valor);
     if(idxOrigen<0 || idxOrigen===idx) return;
@@ -832,13 +832,13 @@ function showPlayoffView(){
     pv.innerHTML='<div class="card"><div class="empty" style="color:red">Error al mostrar playoffs: '+err.message+'</div></div>';
   }
 }
-function removePlayerUI(name,fromG){removePlayerCycle(name,fromG);renderAdmin();toast(name+' quitado del ciclo.');persist(true);}
+function removePlayerUI(name,fromG){removePlayerCycle(name,fromG);renderAdmin();toast(name+(""+t('ui36_text_134')+""));persist(true);}
 
 function resetCycleUI(n){
   // Mismo criterio que retroceder: con playoffs activos, cambiar resultados de un
   // ciclo altera la general con la que se armaron los cuadros.
   if(playoff.started||playoff.preview){
-    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nBorrar los partidos de un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reinicia los Play Offs (Admin → Reiniciar Play Offs) y después reinicia el ciclo.');
+    alert((""+t('ui36_text_139')+"")+(playoff.started?(""+t('ui36_text_138')+""):(""+t('ui36_text_137')+""))+(""+t('ui36_text_140')+""));
     return;
   }
   if(!confirm(tf('reset_confirm_cycle',{n})))return;
@@ -866,14 +866,14 @@ function resetCycleUI(n){
 function toggleEditMode(n){
   const c2=cycles[n-1]; if(!c2)return;
   // Solo tiene sentido en ciclos cerrados: el activo ya permite cargar normalmente.
-  if(!c2.editMode && c2.status!=='finished'){toast('El Ciclo '+n+' no está cerrado; ya se puede cargar normalmente.');return;}
+  if(!c2.editMode && c2.status!=='finished'){toast((""+t('ui36_text_142')+"")+n+(""+t('ui36_text_143')+""));return;}
   if(c2.editMode){
     delete c2.editMode;
-    toast('Carga deshabilitada en Ciclo '+n+'. El ciclo volvió a estar cerrado.');
+    toast((""+t('ui36_text_144')+"")+n+(""+t('ui36_text_145')+""));
   }else{
     cycles.forEach(cx=>delete cx.editMode);
     c2.editMode=true;
-    toast('Carga habilitada en Ciclo '+n+'. Puedes cargar resultados desde Grupos o Cargar.');
+    toast((""+t('ui36_text_146')+"")+n+(""+t('ui36_text_147')+""));
   }
   persist(true);
   // Navegar al ciclo habilitado para que se vean los "+" en la matriz
@@ -891,21 +891,21 @@ function toggleEditMode(n){
 // Útil cuando se cerró un ciclo por error o hay partidos pendientes de cargar.
 function retrocederCicloUI(){
   // Solo tiene sentido si hay al menos 2 ciclos y el activo no es el primero
-  if(activeN<=1){toast('Ya estás en el primer ciclo, no hay ciclo anterior al que volver.');return;}
+  if(activeN<=1){toast((""+t('ui36_text_135')+""));return;}
   // Con playoffs activos, retroceder deja los cuadros inconsistentes (se armaron
   // con la clasificación general completa). Hay que reiniciarlos primero.
   if(playoff.started||playoff.preview){
-    alert('⚠️ Los Play Offs están '+(playoff.started?'iniciados':'en previsualización')+'.\n\nRetroceder un ciclo cambiaría la Clasificación General con la que se armaron los cuadros.\n\nPrimero reinicia los Play Offs (Admin → Reiniciar Play Offs) y después retrocede el ciclo.');
+    alert((""+t('ui36_text_139')+"")+(playoff.started?(""+t('ui36_text_138')+""):(""+t('ui36_text_137')+""))+(""+t('ui36_text_141')+""));
     return;
   }
   const cycAnterior=activeN-1;
   const cAnterior=cycles[cycAnterior-1];
-  if(!cAnterior){toast('No existe el ciclo anterior.');return;}
-  if(!confirm('RETROCEDER AL CICLO '+cycAnterior+'\n\n'
-    +'Esto reabre el Ciclo '+cycAnterior+' como activo y descarta la estructura del Ciclo '+activeN+'.\n\n'
-    +'Los PARTIDOS del Ciclo '+cycAnterior+' se conservan. Los del Ciclo '+activeN+' también se borran '
+  if(!cAnterior){toast((""+t('ui36_text_136')+""));return;}
+  if(!confirm((""+t('ui36_text_148')+"")+cycAnterior+'\n\n'
+    +(""+t('ui36_text_149')+"")+cycAnterior+(""+t('ui36_text_150')+"")+activeN+'.\n\n'
+    +(""+t('ui36_text_151')+"")+cycAnterior+(""+t('ui36_text_152')+"")+activeN+(""+t('ui36_text_153')+"")
     +'(si quieres conservarlos, primero exporta un backup).\n\n'
-    +'¿Continuar?'))return;
+    +(""+t('ui36_text_154')+"")))return;
   // Borrar partidos del ciclo actual (el que se está "deshaciendo")
   matches=matches.filter(m=>m.cycle!==activeN);
   // Limpiar cualquier editMode colgado: al retroceder, el ciclo destino pasa a ser
@@ -925,7 +925,7 @@ function resetPlayoffUI(){if(!confirm(t('reset_confirm_po')))return;playoff={sta
 function setPoNum(v){
   const newV=+v;
   if(playoff.started&&newV!==playoff.numTramos){
-    if(!confirm('⚠️ Los Play Offs ya están iniciados. Cambiar la cantidad de cuadros va a reorganizar todos los jugadores y se perderán los resultados ya cargados. ¿Confirmar cambio a '+newV+' cuadros?')){
+    if(!confirm((""+t('ui36_text_164')+"")+newV+' cuadros?')){
       const sel=document.querySelector('[onchange*="setPoNum"]');
       if(sel)sel.value=playoff.numTramos;
       return;
@@ -938,14 +938,14 @@ function setPoNum(v){
 function setPoSize(v){
   const newV=+v;
   if(playoff.started&&newV!==playoff.forcedSize){
-    if(!confirm('⚠️ Los Play Offs ya están iniciados. Cambiar el tamaño del cuadro va a reorganizar los brackets y se perderán los resultados ya cargados. ¿Confirmar?')){
+    if(!confirm((""+t('ui36_text_165')+""))){
       const sel=document.querySelector('[onchange*="setPoSize"]');
       if(sel)sel.value=playoff.forcedSize||0;
       return;
     }
   }
   playoff.forcedSize=newV;
-  if(playoff.started||playoff.preview){rebuildAll();showPlayoffView();toast('Tamaño del cuadro actualizado.');}
+  if(playoff.started||playoff.preview){rebuildAll();showPlayoffView();toast((""+t('ui36_text_155')+""));}
 }
 function addPlayerUI(){
   const nom=(document.getElementById('ap-nom').value||'').trim();
@@ -976,7 +976,7 @@ function addPlayerUI(){
     // desde Gestión de jugadores.
     if(ALLNAMES.indexOf(full)<0) ALLNAMES.push(full);
     if(!USERS[full]) USERS[full] = {role:'player', pass:null, name:full};
-    renderPerfil();toast(full+' — agregado sin grupo asignado.');
+    renderPerfil();toast(full+(""+t('ui36_text_156')+""));
   }
   // Primero guardar, DESPUÉS refrescar la lista: /api/users lee de la base,
   // así que si refrescáramos antes traeríamos la lista sin el jugador nuevo.
@@ -1022,13 +1022,13 @@ function destinoCard(){
   }
   return html+'</div>';
 }
-function setFecha(i,v){FECHAS[i]=v;updateHdr();renderCycleBar();toast('Fecha del Ciclo '+(i+1)+' actualizada.');persist(true);}
+function setFecha(i,v){FECHAS[i]=v;updateHdr();renderCycleBar();toast((""+t('ui36_text_157')+"")+(i+1)+(""+t('ui36_text_227')+""));persist(true);}
 async function previewPlayoffUI(){
   if(!previewPlayoff()){toast(t('po_need_3cycles'));return;}
   const gen=computeGeneral();
-  if(!gen||gen.length<2){toast('No hay suficientes jugadores activos para armar los Play Offs. Verifica que haya al menos 2 jugadores activos.');return;}
+  if(!gen||gen.length<2){toast((""+t('ui36_text_158')+""));return;}
   viewCycle='po';renderCycleBar();showPlayoffView();renderSubTabs();
-  toast('⏳ Guardando previsualización…');
+  toast((""+t('ui36_text_159')+""));
   const ok=await _criticalSave();
   if(ok){
     toast(t('po_preview_toast'));
@@ -1036,7 +1036,7 @@ async function previewPlayoffUI(){
     // Revertir si no se pudo guardar
     playoff.preview=false;
     renderCycleBar();
-    alert('⚠️ No se pudo guardar la previsualización de Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecarga la página y vuelve a intentarlo.');
+    alert((""+t('ui36_text_160')+"")+(_lastSaveError||(""+t('ui36_text_228')+""))+(""+t('ui36_text_162')+""));
   }
 }
 async function confirmPlayoffUI(){
@@ -1052,6 +1052,6 @@ async function confirmPlayoffUI(){
     playoff.started=false;playoff.preview=true;
     renderCycleBar();showPlayoffView();renderSubTabs();
     // Usar alert para que el usuario no lo pierda (no desaparece solo)
-    alert('⚠️ No se pudo guardar el inicio de los Play Offs.\n\n'+(_lastSaveError||'Error desconocido')+'\n\nRecarga la página y vuelve a intentarlo.\nSi el problema persiste, contacta al desarrollador.');
+    alert((""+t('ui36_text_161')+"")+(_lastSaveError||(""+t('ui36_text_228')+""))+(""+t('ui36_text_163')+""));
   }
 }

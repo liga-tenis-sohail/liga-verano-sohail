@@ -12,7 +12,7 @@ function setNumGroups(val){
   const cur = c.groups.length;
   const ppg = c.groups[0] ? c.groups[0].players.length : 5;
   if(newNum > cur){
-    if(!confirm('¿Agregar '+(newNum-cur)+' grupo'+(newNum-cur>1?'s':'')+' a la liga? Los '+ppg+' cupos de cada grupo nuevo quedan vacíos: asigná jugadores desde Perfil & Jugadores o "Agregar de ligas anteriores".')) { renderAdmin(); return; }
+    if(!confirm(tf('ui36_add_groups_confirm',{n:newNum-cur,slots:ppg}))) { renderAdmin(); return; }
     for(let i = cur; i < newNum; i++){
       // Cupos vacíos (null), NO jugadores placeholder con nombre inventado.
       // shell-render.js ya filtra estos huecos con .filter(Boolean) al armar
@@ -26,7 +26,7 @@ function setNumGroups(val){
       ensureDestino(i+1, ppg);
     }
   } else if(newNum < cur){
-    if(!confirm('¿Reducir a '+newNum+' grupos? Los jugadores de los grupos eliminados se perderán.')) { renderAdmin(); return; }
+    if(!confirm((""+t('ui36_text_114')+"")+newNum+(""+t('ui36_text_115')+""))) { renderAdmin(); return; }
     const removedNames = c.groups.slice(newNum).flatMap(g=>g.players||[]);
     c.groups.splice(newNum);
     Object.keys(DESTINO).forEach(k=>{ if(parseInt(k)>newNum) delete DESTINO[k]; });
@@ -59,7 +59,7 @@ function setPlayersPerGroup(val){
       });
     }
   });
-  if(willRemove.length && !confirm('Esto va a quitar a estos jugadores que ya tienen partidos cargados: '+willRemove.join(', ')+'. ¿Continuar?')){
+  if(willRemove.length && !confirm((""+t('ui36_text_116')+"")+willRemove.join(', ')+(""+t('ui36_text_117')+""))){
     renderAdmin(); return;
   }
   c.groups.forEach((g, gi) => {
@@ -90,14 +90,14 @@ function setPlayersPerGroup(val){
   // ALLNAMES.push(null) lo agregaría).
   c.groups.flatMap(g=>g.players).filter(Boolean).forEach(n=>{ if(!ALLNAMES.includes(n)) ALLNAMES.push(n); });
   persist(true); renderAdmin();
-  toast('Grupos actualizados a '+ppg+' jugadores.');
+  toast(tf('ui36_group_size_done',{n:ppg}));
 }
 
 function applyGroupsUpdate(){
   persist(true);  // explícito: refreshAll ya no guarda
   refreshAll();
   persist(true);
-  toast('Grupos actualizados.');
+  toast((""+t('ui36_text_119')+""));
 }
 
 // ===== GESTIÓN DE LIGA =====
@@ -259,7 +259,7 @@ function removeClub(i){
   // y la leyenda perdería la referencia. Mejor que el admin sepa antes de borrar.
   const enUso=matches.filter(m=>m.club===CLUBS[i].id).length;
   if(enUso>0){
-    if(!confirm('⚠️ Hay '+enUso+' partido'+(enUso===1?'':'s')+' jugado'+(enUso===1?'':'s')+' en "'+(CLUBS[i].name||'este club')+'".\n\nSi lo borrás, esos partidos quedan sin el color del club en las tablas (los resultados NO se pierden).\n\n¿Borrar el club igualmente?'))return;
+    if(!confirm(tf('ui36_delete_club_confirm',{n:enUso,club:CLUBS[i].name||t('club_short')})))return;
   }else{
     if(!confirm(t('club_delete_confirm').replace('{n}',CLUBS[i].name||t('club_short'))))return;
   }
@@ -295,7 +295,7 @@ function previewLeagueColors(){
   LEAGUE_COLOR_ACC=acc.value;
   if(hl)LEAGUE_COLOR_HL=hl.value;
   applyLeagueColors(pri.value,acc.value,hl?hl.value:LEAGUE_COLOR_HL);
-  toast('Vista previa aplicada. Usá "Guardar todo" para persistir los cambios.');
+  toast((""+t('ui36_text_120')+""));
 }
 function resetLeagueColors(){
   LEAGUE_COLOR_PRI='#1B4F9C';LEAGUE_COLOR_ACC='#F5C518';LEAGUE_COLOR_HL='#FFEDD5';
@@ -313,7 +313,7 @@ function resetLeagueColors(){
   const dc=document.getElementById('sa-color-disp');if(dc)dc.value='#FDE68A';
   const dh=document.getElementById('sa-disp-hex');if(dh){dh.value='#FDE68A';dh.style.borderColor='';}
   const dd=document.getElementById('sa-disp-demo');if(dd){dd.style.background='#FDE68A';dd.style.color=autoTxt('#FDE68A');}
-  persist(true);toast('Colores restablecidos.');
+  persist(true);toast((""+t('ui36_text_121')+""));
 }
 
 function applyLeagueColors(pri, acc, hl){
@@ -401,7 +401,7 @@ function saveLeagueName(){
   // Guardar en localStorage para recuperación inmediata sin flash
   try{localStorage.setItem('lsn',JSON.stringify({n:nombreOficial,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
   persist(true);
-  if(al)al.innerHTML='<span style="color:#22c55e">✓ Configuración guardada.</span>';
+  if(al)al.innerHTML=("<span style=\"color:#22c55e\">"+t('ui36_text_122')+"</span>");
   setTimeout(()=>{if(al)al.innerHTML='';},3000);
 }
 

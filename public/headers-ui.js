@@ -249,7 +249,7 @@ function renderLoginHeaderLinks(){
     const text = String(l.text || '').replace(/"/g, '&quot;');
     const url = String(l.url || '').replace(/"/g, '&quot;');
     html += '<div style="display:grid;grid-template-columns:1fr 2fr auto;gap:.5rem;align-items:end;margin-bottom:.5rem;padding:.5rem;border:1px solid var(--border2);border-radius:8px;background:var(--surface)">';
-    html +=   '<div class="form-group" style="margin:0"><label style="font-size:11px">'+t('lh_link_text')+'</label><input type="text" value="'+text+'" onchange="updateLoginHeaderLink('+i+',\'text\',this.value)" placeholder="Ej: Club" maxlength="30"></div>';
+    html +=   '<div class="form-group" style="margin:0"><label style="font-size:11px">'+t('lh_link_text')+'</label><input type="text" value="'+text+'" onchange="updateLoginHeaderLink('+i+(",'text',this.value)\" placeholder=\""+attr(t('ui36_text_179'))+"\" maxlength=\"30\"></div>");
     html +=   '<div class="form-group" style="margin:0"><label style="font-size:11px">'+t('lh_link_url')+'</label><input type="url" value="'+url+'" onchange="updateLoginHeaderLink('+i+',\'url\',this.value)" placeholder="https://..." maxlength="500"></div>';
     html +=   '<button class="btn btn-sm btn-danger" onclick="removeLoginHeaderLink('+i+')" title="'+t('lh_link_delete')+'" style="margin-bottom:.15rem"><i class="ti ti-trash"></i></button>';
     html += '</div>';

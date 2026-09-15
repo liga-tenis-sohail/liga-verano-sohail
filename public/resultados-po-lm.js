@@ -103,21 +103,21 @@ if(window.SohailResults)return SohailResults.open({po:true,ti,...poContext});
   ${(esAdmin(currentUser)||m.a===currentUser.name||m.b===currentUser.name)?`
   <div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
     <div id="po-ret-toggle-wrap" style="text-align:center;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
-      <button class="btn btn-sm" id="po-ret-toggle-btn" onclick="togglePoRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET (se jugó algo y se retiró)</button>
-      <button class="btn btn-sm" id="po-wo-toggle-btn" onclick="togglePoWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> W.O. (no se jugó nada)</button>
+      <button class="btn btn-sm" id="po-ret-toggle-btn" onclick="togglePoRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> ${t('ui36_text_191')}</button>
+      <button class="btn btn-sm" id="po-wo-toggle-btn" onclick="togglePoWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> ${t('ui36_text_192')}</button>
     </div>
     <div id="po-ret-panel" style="display:none">
-      <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;text-align:center;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
+      <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;text-align:center;font-weight:600">${t('ui36_text_236')}</p>
       <div style="text-align:center">
         <select id="po-ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5">
-          <option value="">— ¿Quién se retiró? —</option>
+          <option value="">${t('ui36_text_195')}</option>
           <option value="${attr(m.a)}">${attr(m.a)}</option>
           <option value="${attr(m.b)}">${attr(m.b)}</option>
         </select>
       </div>
     </div>
     <div id="po-wo-panel" style="display:none">
-      <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;text-align:center;font-weight:600">W.O. — el partido no se jugó, ¿quién no se presentó?</p>
+      <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;text-align:center;font-weight:600">${t('ui36_text_193')}</p>
       <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <button class="btn btn-sm" onclick="confirmarPoWO('${jsq(m.a)}','${jsq(m.b)}')" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> Falta ${attr(m.a)} · avanza ${attr(m.b)}</button>
         <button class="btn btn-sm" onclick="confirmarPoWO('${jsq(m.b)}','${jsq(m.a)}')" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> Falta ${attr(m.b)} · avanza ${attr(m.a)}</button>
@@ -128,7 +128,7 @@ if(window.SohailResults)return SohailResults.open({po:true,ti,...poContext});
 
   let actions = `<button class="btn btn-accent" onclick="submitPo()"><i class="ti ti-send"></i> ${esAdmin(currentUser) ? t('save_validate') : t('send')}</button>`;
   if(existing && esAdmin(currentUser)){
-    actions += `<button class="btn btn-danger" onclick="deletePo()" style="margin-left:.25rem"><i class="ti ti-trash"></i> Eliminar</button>`;
+    actions += `<button class="btn btn-danger" onclick="deletePo()" style="margin-left:.25rem"><i class="ti ti-trash"></i> ${t('ui36_text_175')}</button>`;
   }
   actions += `<button class="btn" onclick="closeM()">${t('close')}</button>`;
   document.getElementById('modal-actions').innerHTML = actions;
@@ -197,10 +197,10 @@ async function confirmarPoWO(loserName,winnerName){
   const m=tr[which][ri][mi];if(!m||!m.a||!m.b)return;
   const isAdmin=esAdmin(currentUser);
   if(!isAdmin && m.a!==currentUser.name && m.b!==currentUser.name){
-    toast('Solo los jugadores de ese partido (o el admin) pueden reportar un W.O.');
+    toast((""+t('ui36_text_181')+""));
     return;
   }
-  if(!confirm(loserName+' no se presentó.\n\n'+winnerName+' avanza por W.O. '+(isAdmin?'':'Queda pendiente de confirmación.')+'\n\n¿Confirmás?'))return;
+  if(!confirm(loserName+(""+t('ui36_text_182')+"")+winnerName+' avanza por W.O. '+(isAdmin?'':(""+t('ui36_text_183')+""))+(""+t('ui36_text_184')+"")))return;
   matches=matches.filter(x=>!(x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b)));
   const newM={id:matchId++,po:true,ti,which,ri,mi,tLabel:tr.label,poNames:[m.a,m.b],sets:[],wo:true,retiroDe:loserName,date:(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})(),club:'',status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:currentUser.name,winner:winnerName,locked:isAdmin};
   matches.push(newM);
@@ -215,7 +215,7 @@ async function confirmarPoWO(loserName,winnerName){
   closeM();
   if(typeof showPlayoffView==='function')showPlayoffView();
   refreshAll();
-  toast(isAdmin?(winnerName+' avanza por W.O.'):'W.O. reportado, pendiente de confirmación.');
+  toast(isAdmin?(winnerName+' avanza por W.O.'):(""+t('ui36_text_185')+""));
 }
 // Lectura "libre" de sets del modal de Play Offs para un retiro — mismo
 // criterio que readSetsLibre() en resultados-y-grupos.js: solo incluye los
@@ -373,7 +373,7 @@ if(window.SohailResults)return SohailResults.open({cycle:viewCycle,gid,a:n1,b:n2
   _lmCtx = { gid, n1, n2, editId: null };
   lmFormClub = '';
 
-  document.getElementById('modal-title').textContent = (t('load_result') || 'Cargar resultado') + ' · ' + groupName(gid);
+  document.getElementById('modal-title').textContent = (t('load_result') || (""+t('ui36_text_177')+"")) + ' · ' + groupName(gid);
   document.getElementById('modal-body').innerHTML = `
   <div class="req-wrap" style="margin-bottom:1.25rem">
     <div class="form-row" style="margin-bottom:0">
@@ -382,7 +382,7 @@ if(window.SohailResults)return SohailResults.open({cycle:viewCycle,gid,a:n1,b:n2
         <div class="club-pick" id="lm-club-pick">${CLUBS.map(c=>`<div class="club-opt" data-club="${attr(c.name)}" onclick="pickLmClub('${jsq(c.name)}')" style="--cbg:${c.bg};--ctx:${autoTxt(c.bg)}">${attr(c.name)}</div>`).join('')}</div>
       </div>
       <div class="form-group">
-        <label>${t('date_label')||'Fecha'} <span class="reqmark">${t('reqmark_label')||'obligatorio'}</span></label>
+        <label>${t('date_label')||(""+t('ui36_text_176')+"")} <span class="reqmark">${t('reqmark_label')||'obligatorio'}</span></label>
         <input type="date" id="lm-f-fecha" class="req" value="${hoy}">
       </div>
     </div>
@@ -424,21 +424,21 @@ if(window.SohailResults)return SohailResults.open({cycle:viewCycle,gid,a:n1,b:n2
        que el rival lo confirme, como cualquier resultado cargado por un
        jugador. -->
   <div id="lm-ret-toggle-wrap" style="text-align:center;margin-top:.75rem;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
-    <button class="btn btn-sm" id="lm-ret-toggle-btn" onclick="toggleLmRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> RET (se jugó algo y se retiró)</button>
-    <button class="btn btn-sm" id="lm-wo-toggle-btn" onclick="toggleLmWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> W.O. (no se jugó nada)</button>
+    <button class="btn btn-sm" id="lm-ret-toggle-btn" onclick="toggleLmRetiro()" style="background:#FEE2E2;color:#991B1B;border-color:#FCA5A5;font-weight:600"><i class="ti ti-flag"></i> ${t('ui36_text_191')}</button>
+    <button class="btn btn-sm" id="lm-wo-toggle-btn" onclick="toggleLmWO()" style="background:var(--hl);color:var(--priD);border-color:var(--priD);font-weight:600"><i class="ti ti-ban"></i> ${t('ui36_text_192')}</button>
   </div>
   <div id="lm-ret-panel" style="display:none;text-align:center;margin-top:.5rem;padding:.6rem;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px">
-    <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;font-weight:600">Cargá arriba los sets que SÍ se jugaron (dejá 0-0 los que no) y elegí quién se retiró:</p>
+    <p style="font-size:12px;color:#991B1B;margin-bottom:.5rem;font-weight:600">${t('ui36_text_236')}</p>
     <select id="lm-ret-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid #FCA5A5">
-      <option value="">— ¿Quién se retiró? —</option>
+      <option value="">${t('ui36_text_195')}</option>
       <option value="${attr(n1)}">${attr(n1)}</option>
       <option value="${attr(n2)}">${attr(n2)}</option>
     </select>
   </div>
   <div id="lm-wo-panel" style="display:none;text-align:center;margin-top:.5rem;padding:.6rem;background:var(--surface2);border:1px solid var(--priD);border-radius:10px">
-    <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;font-weight:600">W.O. — el partido no se jugó, ¿quién no se presentó?</p>
+    <p style="font-size:12px;color:var(--priD);margin-bottom:.5rem;font-weight:600">${t('ui36_text_193')}</p>
     <select id="lm-wo-quien" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--priD)">
-      <option value="">— ¿Quién no se presentó? —</option>
+      <option value="">${t('ui36_text_194')}</option>
       <option value="${attr(n1)}">${attr(n1)}</option>
       <option value="${attr(n2)}">${attr(n2)}</option>
     </select>
@@ -446,8 +446,8 @@ if(window.SohailResults)return SohailResults.open({cycle:viewCycle,gid,a:n1,b:n2
   <p class="lock-note" id="lm-alert" style="margin-top:.5rem"></p>`;
 
   document.getElementById('modal-actions').innerHTML =
-    '<button class="btn btn-accent" onclick="submitLoadModal()"><i class="ti ti-send"></i> ' + (esAdmin(currentUser) ? (t('save_validate')||'Guardar y validar') : (t('send')||'Enviar')) + '</button>' +
-    '<button class="btn" onclick="closeM()">' + (t('close')||'Cerrar') + '</button>';
+    '<button class="btn btn-accent" onclick="submitLoadModal()"><i class="ti ti-send"></i> ' + (esAdmin(currentUser) ? (t('save_validate')||(""+t('ui36_text_178')+"")) : (t('send')||'Enviar')) + '</button>' +
+    '<button class="btn" onclick="closeM()">' + (t('close')||(""+t('ui36_text_173')+"")) + '</button>';
 
   document.getElementById('modal-bg').classList.add('open');
 }
@@ -476,7 +476,7 @@ function submitLoadModal(){
   }
   const fecha = document.getElementById('lm-f-fecha').value;
   if(!fecha){
-    showErr(t('select_date')||'Elige la fecha');
+    showErr(t('select_date')||(""+t('ui36_text_186')+""));
     document.getElementById('lm-f-fecha').classList.add('req-empty');
     return;
   }
@@ -561,7 +561,7 @@ function submitLoadModal(){
 // confirme o el admin lo valide; si lo hace el admin, queda 'confirmed'
 // directo, igual que siempre.
 async function deletePoDirect(ti,which,ri,mi){
-  if(!confirm('¿Eliminar este resultado? El partido vuelve a estar pendiente.')) return;
+  if(!confirm((""+t('ui36_text_187')+""))) return;
   const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
   const mRec = matches.find(x=>x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b));
   addLog('Playoff: eliminado',{a:m.a,b:m.b,sets:mRec?mRec.sets:[],po:true,cuadro:playoff.tramos[ti]?playoff.tramos[ti].label:'',which});
@@ -584,7 +584,7 @@ async function submitPo(){
   let s, winner;
   if(retQuien){
     if(retQuien!==m.a && retQuien!==m.b){
-      const a=document.getElementById('po-alert'); a.textContent='Elegí quién se retiró entre los dos jugadores de este partido.'; a.classList.add('err-txt'); return;
+      const a=document.getElementById('po-alert'); a.textContent=(""+t('ui36_text_188')+""); a.classList.add('err-txt'); return;
     }
     s=readPoSetsLibre();
     if(!SohailScore.validRetirement(s)){const a=document.getElementById('po-alert');a.textContent=t('valid_set_count');return;}
@@ -614,14 +614,14 @@ async function submitPo(){
       return;
   }
   if(!fecha){
-      const a = document.getElementById('po-alert'); a.textContent = '✕ Completa la fecha.'; a.classList.add('err-txt');
+      const a = document.getElementById('po-alert'); a.textContent = (""+t('ui36_text_189')+""); a.classList.add('err-txt');
       document.getElementById('po-f-fecha').classList.add('req-empty');
       return;
   }
 
   const exPo = matches.find(x => x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a)));
   if(exPo && exPo.status === 'disputed' && !esAdmin(currentUser)){
-    const a=document.getElementById('po-alert'); a.textContent='Este resultado está en disputa. El administrador debe resolverlo primero.'; a.classList.add('err-txt'); return;
+    const a=document.getElementById('po-alert'); a.textContent=(""+t('ui36_text_190')+""); a.classList.add('err-txt'); return;
   }
   matches = matches.filter(x => !(x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a))));
   

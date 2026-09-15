@@ -90,3 +90,14 @@
  .aw-task [id="clubs-editor"] input[type="text"]{flex-basis:140px}
 }
 @media(prefers-reduced-motion:reduce){.aw-category{transition:none}}
+
+/* v3.6: categorías accesibles sin regresar al menú principal. */
+.aw-category-tabs{display:flex;flex-wrap:wrap;gap:7px;padding:0 0 14px;margin:0 0 18px;border-bottom:1px solid var(--border);min-width:0}
+.aw-category-tab{font:inherit;font-size:12px;font-weight:650;line-height:1.4;min-height:44px;padding:9px 12px;max-width:100%;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);cursor:pointer;overflow-wrap:anywhere}
+.aw-category-tab:hover{background:var(--surface2);border-color:var(--link)}
+.aw-category-tab[aria-current="page"]{background:var(--action);color:var(--on-action,#fff);border-color:var(--action)}
+@media(max-width:520px){.aw-category-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.aw-category-tab{font-size:12px;text-align:center;padding:8px;min-width:0}}
+
+/* Keep the selected task navigation in sight; mobile uses an internal swipe row. */
+.aw-category-tabs{position:sticky;top:calc(var(--ui-sticky-h,0px) + 6px);z-index:12;background:var(--bg);padding:8px 0 12px;scroll-margin-top:calc(var(--ui-sticky-h,0px) + 12px)}
+@media(max-width:759px){.aw-category-tabs{display:flex;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin;gap:6px}.aw-category-tab{flex:0 0 auto;white-space:nowrap;max-width:none;min-height:44px;padding:9px 12px}}

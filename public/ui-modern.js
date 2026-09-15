@@ -31,8 +31,32 @@
  const paths={home:'M3 10l9-7 9 7v11H3z M9 21v-7h6v7',league:'M8 3h8v5c0 5-8 5-8 0z M8 5H4v3q0 4 5 4 M16 5h4v3q0 4-5 4 M12 12v6 M7 21h10 M9 18h6',matches:'M4 5h16v16H4z M7 3v4 M17 3v4 M4 10h16 M8 14h3 M8 17h7',messages:'M4 4h16v13H8l-4 4z',profile:'M16 7a4 4 0 1 1-8 0a4 4 0 1 1 8 0 M4 21v-2a8 8 0 0 1 16 0v2',more:'M5 11v2 M12 11v2 M19 11v2',check:'M5 12l4 4L19 6',arrow:'M5 12h14 M14 7l5 5-5 5',search:'M16 10a6 6 0 1 1-12 0a6 6 0 1 1 12 0 M15 15l6 6',settings:'M12 3v3 M12 18v3 M3 12h3 M18 12h3 M6 6l2 2 M16 16l2 2 M6 18l2-2 M16 8l2-2 M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0',help:'M12 17h.01 M9 8a3 3 0 1 1 5 2c-2 1-2 2-2 3 M22 12a10 10 0 1 1-20 0a10 10 0 1 1 20 0',close:'M6 6l12 12 M6 18L18 6'};
  function icon(n){return '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="'+(paths[n]||paths.league)+'"/></svg>';}
  const leagueName=()=>document.getElementById('hdr-title')?.textContent?.trim()||LEAGUE_NAME;
- function activeArea(){if(['inicio','resumen'].includes(subView))return'home';if(['partidos','cargar','pendientes'].includes(subView))return'matches';if(['grupos','general','rating','po','playoff','reglamento'].includes(subView))return'league';if(subView==='mensajes')return'messages';return'more';}
+ function activeArea(){if(inLeagueResults())return 'league';if(['inicio','resumen'].includes(subView))return'home';if(['partidos','cargar','pendientes'].includes(subView))return'matches';if(['grupos','general','rating','po','playoff','reglamento'].includes(subView))return'league';if(subView==='mensajes')return'messages';return'more';}
  const memory=new Map();let mutationBusy=false;let navResize=null;
+ // The shared result editor keeps its original DOM and save/permission paths.
+ let leagueResultsKey='';
+ const resultContextKey=()=>[typeof _ligaActual==='undefined'?'':_ligaActual,currentUser?.key||currentUser?.name,currentUser?.role].join('|');
+ function inLeagueResults(){return activeAdmin()&&leagueResultsKey===resultContextKey()&&['cargar','pendientes'].includes(subView);}
+ function openLeagueResults(mode){
+  if(!activeAdmin())return;
+  const target=mode==='pendientes'?'pendientes':'cargar';
+  if(!canLeave(target))return;
+  leagueResultsKey=resultContextKey();showSub(target);
+ }
+ function renderLeagueResults(){
+  document.querySelectorAll('.ui-league-results-nav').forEach(el=>el.remove());
+  if(!inLeagueResults())return;
+  const host=document.getElementById('view-'+subView);if(!host)return;
+  const nav=document.createElement('nav');nav.className='ui-league-results-nav';nav.setAttribute('aria-label',t('ui36_result_tools'));
+  const pending=contextMatches().filter(m=>['pending','disputed'].includes(m.status)).length;
+  for(const [mode,key] of [['cargar','ui_start'],['pendientes','ui_review']]){
+   const b=document.createElement('button');b.type='button';b.className='btn';b.dataset.uiLeagueResult=mode;
+   b.textContent=t(key)+(mode==='pendientes'&&pending?' · '+pending:'');
+   if(subView===mode)b.setAttribute('aria-current','page');nav.append(b);
+  }
+  const hint=document.createElement('span');hint.className='ui-league-results-context';hint.textContent=contextLabel();nav.append(hint);host.prepend(nav);
+ }
+
  function activeAdmin(){return !!currentUser&&esAdmin(currentUser)&&!_ligaReadOnly;}
  function currentCycle(){return cycles.find(c=>c.n===viewCycle)||cycles.find(c=>c.n===activeN)||cycles.find(c=>c.groups);}
  function contextLabel(){return viewCycle==='po'?t('playoffs'):t('cycle')+' '+viewCycle;}
@@ -49,8 +73,8 @@
   }
   return true;
  }
- function allowed(name){if(['admin','jugadores','resumen','historial'].includes(name))return activeAdmin();if(_ligaReadOnly&&['inicio','partidos','cargar','pendientes','mensajes','perfil','mas'].includes(name))return false;return true;}
- function go(name){if(!allowed(name)||!canLeave(name))return; if(name==='po'||name==='playoff')viewCyc('po');else showSub(name);}
+ function allowed(name){if(['admin','jugadores','resumen','historial','liga-resultados'].includes(name))return activeAdmin();if(_ligaReadOnly&&['inicio','partidos','cargar','pendientes','mensajes','perfil','mas'].includes(name))return false;return true;}
+ function go(name){if(name==='liga-resultados'){openLeagueResults();return;}if(!allowed(name)||!canLeave(name))return;leagueResultsKey=''; if(name==='po'||name==='playoff')viewCyc('po');else showSub(name);}
  function chooseCycle(n){
   if(!canLeave(n==='po'?'po':'grupos'))return;
   if(viewCycle!=='po'&&!(typeof isTutorialRunning==='function'&&isTutorialRunning()))memory.set(_ligaActual+':'+currentUser?.name+':'+viewCycle,selGroup);
@@ -87,11 +111,11 @@
   if(area==='league'){
    defs=[['grupos','tab_grupos'],['general','tab_general']];if(RATING_ON)defs.push(['rating','rating_title']);
    if(playoff.started||playoff.preview&&activeAdmin())defs.push(['po','playoffs']);
-   if(REGLAMENTO?.trim()||activeAdmin())defs.push(['reglamento','rg_tab']);
+   if(REGLAMENTO?.trim()||activeAdmin())defs.push(['reglamento','rg_tab']);if(activeAdmin())defs.push(['liga-resultados','ui36_result_tools']);
   }else if(area==='matches')defs=[['partidos','ui_matches'],['cargar','ui_start'],['pendientes','ui_review']];
   else if(subView==='jugadores')defs=[['jugadores','ui_players'],['perfil','ui_profile']];
   const tabs=document.getElementById('tabs');tabs.style.display=defs.length?'flex':'none';
-  tabs.innerHTML=defs.map(([id,key])=>'<button type="button" id="tab-'+id+'" class="tab '+(subView===id?'active':'')+'" data-ui-route="'+id+'" '+(subView===id?'aria-current="page"':'')+'>'+e(t(key))+(id==='pendientes'?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>').join('');
+  tabs.innerHTML=defs.map(([id,key])=>{const selected=subView===id||(id==='liga-resultados'&&inLeagueResults());return '<button type="button" id="tab-'+id+'" class="tab '+(selected?'active':'')+'" data-ui-route="'+id+'" '+(selected?'aria-current="page"':'')+'>'+e(t(key))+(id==='pendientes'?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');
  }
  function groupControls(){
   const host=document.getElementById('ui-group-controls');if(!host)return;
@@ -204,7 +228,11 @@
    }
   }
   const b=document.getElementById('ui-password-visibility'),input=document.getElementById('login-pass');
-  if(b&&input){b.textContent=t(input.type==='password'?'ui_login_show':'ui_login_hide');b.setAttribute('aria-pressed',String(input.type==='text'));}
+  if(b&&input){
+   const shown=input.type==='text',label=t(shown?'ui_login_hide':'ui_login_show');
+   b.setAttribute('aria-label',label);b.title=label;b.setAttribute('aria-pressed',String(shown));
+   b.innerHTML='<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'+(shown?'<path d="M3 3l18 18"/>':'')+'</svg>';
+  }
  }
  function renderMatches(){if(global.SohailHistory)SohailHistory.render();}
  function renderPending(){
@@ -261,14 +289,15 @@
   if(window.SohailAdmin)SohailAdmin.organizeAccount(root,dest);
  }
  function renderMore(){const root=document.getElementById('view-mas');root.innerHTML=pageTitle(t('ui_more'),currentUser?.name||'')+'<div class="ui-more-grid">'+[['perfil','ui_profile','profile'],['pendientes','ui_review','check'],...(activeAdmin()?[['resumen','ui_summary','home'],['jugadores','ui_players','profile'],['admin','ui_settings','settings'],['historial','hist_title','matches']]:[]),['reglamento','rg_tab','help']].map(([id,k,ic])=>navButton(id,t(k),ic,false)).join('')+'<button type="button" class="ui-nav-item" data-ui-help>'+icon('help')+e(t('ui_help'))+'</button></div>';}
- function afterView(){renderNav();if(subView==='admin')organizeAdmin();if(subView==='perfil'||subView==='jugadores')organizeProfile();if(['inicio','resumen'].includes(subView))renderHome();if(subView==='partidos')renderMatches();if(subView==='mas')renderMore();}
+ function afterView(){if(!['cargar','pendientes'].includes(subView))leagueResultsKey='';renderNav();renderLeagueResults();if(subView==='admin')organizeAdmin();if(subView==='perfil'||subView==='jugadores')organizeProfile();if(['inicio','resumen'].includes(subView))renderHome();if(subView==='partidos')renderMatches();if(subView==='mas')renderMore();}
  document.addEventListener('click',ev=>{
   const target=ev.target.closest('button');if(!target||target.disabled)return;
+  if(target.dataset.uiLeagueResult){openLeagueResults(target.dataset.uiLeagueResult);return;}
   if(target.dataset.uiRoute){go(target.dataset.uiRoute);return;}
   if(target.hasAttribute('data-ui-competition')){openCompetition();return;}
   if(target.hasAttribute('data-ui-home-load')){homeLoad();return;}
   if(target.hasAttribute('data-ui-leagues')){const b=document.getElementById('hdr-liga-switch');if(b?.classList.contains('multi')){b.scrollIntoView({block:'nearest'});abrirSelectorLigaHdr('first');}else toast(t('ui_no_other_league'));return;}
-  if(target.id==='ui-password-visibility'){const input=document.getElementById('login-pass');if(input){input.type=input.type==='password'?'text':'password';updateLogin();}return;}
+  if(target.id==='ui-password-visibility'){const input=document.getElementById('login-pass');if(input){const start=input.selectionStart,end=input.selectionEnd;input.type=input.type==='password'?'text':'password';if(start!==null&&end!==null)try{input.setSelectionRange(start,end);}catch(_){}updateLogin();}return;}
   if(target.hasAttribute('data-ui-help')){openTutorialPopupFromHelp();return;}
   if(target.hasAttribute('data-ui-group')){setGroup(Number(target.dataset.uiGroup));return;}
   if(target.hasAttribute('data-ui-my-group')){myGroup();return;}
@@ -282,6 +311,6 @@
  function updateSelection(){const n=document.querySelectorAll('.ui-pending-select:checked').length;const span=document.getElementById('ui-selected-count'),btn=document.querySelector('[data-ui-bulk]');if(span)span.textContent=n;if(btn)btn.disabled=!n;}
  document.addEventListener('change',e=>{if(e.target.matches('.ui-pending-select'))updateSelection();});
  document.addEventListener('keydown',ev=>{const el=ev.target;if((ev.key==='Enter'||ev.key===' ')&&el.matches('td[role="button"]')){ev.preventDefault();el.click();}});
- global.SohailUI={icon,e,go,canLeave,allowed,chooseCycle,remembered,setGroup,myGroup,renderNav,tabDefs,groupControls,jump,renderHome,renderMatches,renderPending,afterView,organizeProfile,organizeAdmin,forceConfirm,validateSelected,resolve,mutation,currentCycle,activeAdmin,contextLabel,contextMatches,ownMatch,competitionDestination,openCompetition,homeLoad,updateLogin,isBusy:()=>mutationBusy};
+ global.SohailUI={icon,e,go,canLeave,allowed,chooseCycle,remembered,setGroup,myGroup,renderNav,tabDefs,groupControls,jump,renderHome,renderMatches,renderPending,afterView,organizeProfile,organizeAdmin,forceConfirm,validateSelected,resolve,mutation,currentCycle,activeAdmin,contextLabel,contextMatches,ownMatch,competitionDestination,openCompetition,homeLoad,updateLogin,openLeagueResults,isBusy:()=>mutationBusy};
  mount();updateLogin();
 })(window);

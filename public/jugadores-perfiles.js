@@ -138,16 +138,16 @@ function editPuntosUI(gid){
   const grp=c.groups[gid-1];
   const len=Math.max(1,(grp.players||[]).length);
   if(!PUNTOS[gid])PUNTOS[gid]=[];
-  let h=`<p class="legend-txt" style="margin-top:0;margin-bottom:.8rem">Ajusta los puntos que otorga cada posición en este grupo (0 a 100).</p>`;
+  let h=`<p class="legend-txt" style="margin-top:0;margin-bottom:.8rem">${t('ui36_text_169')}</p>`;
   h+=`<div class="form-row" style="grid-template-columns: 1fr;">`;
   for(let i=0;i<len;i++){
     let v=PUNTOS[gid][i]!==undefined?PUNTOS[gid][i]:0;
-    h+=`<div class="set-row"><label>${i+1}º Puesto</label><input type="number" id="pt-pos-${i}" value="${v}" min="0" max="100" class="po-in" style="width:70px"></div>`;
+    h+=`<div class="set-row"><label>${i+1}${t('ui36_text_170')}</label><input type="number" id="pt-pos-${i}" value="${v}" min="0" max="100" class="po-in" style="width:70px"></div>`;
   }
   h+=`</div>`;
-  document.getElementById('modal-title').textContent=`Editar Puntos · ${groupName(gid)}`;
+  document.getElementById('modal-title').textContent=`${t('ui36_text_171')}${groupName(gid)}`;
   document.getElementById('modal-body').innerHTML=h;
-  document.getElementById('modal-actions').innerHTML=`<button class="btn btn-primary" onclick="savePuntos(${gid},${len})"><i class="ti ti-device-floppy"></i> Guardar</button><button class="btn" onclick="closeM()">Cancelar</button>`;
+  document.getElementById('modal-actions').innerHTML=`<button class="btn btn-primary" onclick="savePuntos(${gid},${len})"><i class="ti ti-device-floppy"></i> ${t('ui36_text_172')}</button><button class="btn" onclick="closeM()">${t('ui36_text_093')}</button>`;
   document.getElementById('modal-bg').classList.add('open');
 }
 // Genera la escala de puntos de TODOS los grupos con un patrón regular, para no tener
@@ -197,7 +197,7 @@ function savePuntos(gid,len){
   persist(true);
   closeM();
   refreshAll();
-  toast('Puntos actualizados.');
+  toast((""+t('ui36_text_174')+""));
 }
 
 // ===== Ajuste manual de puntos por jugador (bonus/penalidad) =====
@@ -606,8 +606,8 @@ function renderPerfil(){
     h += `<div class="card"><div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.25rem">
       <div class="section-lbl" style="margin:0">${t('add_player')}</div>
       <div class="gap-sm" style="display:flex;flex-wrap:wrap;gap:.35rem">
-        <button class="btn btn-sm" onclick="exportarListaJugadores()" title="Descargá un Excel con Nombre, Apellido y Grupo de todos los jugadores"><i class="ti ti-file-download"></i> ${t('fix_export_list')}</button>
-        <label class="btn btn-sm" style="cursor:pointer;margin:0" title="Importá un Excel con columnas Nombre, Apellido y Grupo (Grupo opcional)"><i class="ti ti-file-upload"></i> ${t('fix_import_list')}
+        <button class="btn btn-sm" onclick="exportarListaJugadores()" title="${attr(t('ui36_text_221'))}"><i class="ti ti-file-download"></i> ${t('fix_export_list')}</button>
+        <label class="btn btn-sm" style="cursor:pointer;margin:0" title="${attr(t('ui36_text_222'))}"><i class="ti ti-file-upload"></i> ${t('fix_import_list')}
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarListaJugadores(this)">
         </label>
         <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
@@ -712,7 +712,7 @@ function renderPlayerList(players, filter) {
     const c = getActive();
     const gOpts = (c && c.groups) ? c.groups.map((_,k) => `<option value="${k+1}" ${curG===k+1?'selected':''}>${groupName(k+1)}</option>`).join('') : '';
     const isInactive = !!(p.inactive);
-    const sinGrupoBadge = (!loc && !isInactive) ? ' <span style="font-size:10px;background:var(--warnBg,#fef3c7);color:var(--warnT,#854d0e);border-radius:4px;padding:1px 5px;font-weight:700">Sin grupo</span>' : '';
+    const sinGrupoBadge = (!loc && !isInactive) ? (" <span style=\"font-size:10px;background:var(--warnBg,#fef3c7);color:var(--warnT,#854d0e);border-radius:4px;padding:1px 5px;font-weight:700\">"+t('ui36_text_209')+"</span>") : '';
     // Punto verde/rojo: rojo si sigue con una contraseña pública conocida
     // (la default "tenis", o "admin123" que en algún momento quedó pública),
     // verde si ya la cambió por una propia. Se recalcula en cada render a
@@ -720,10 +720,10 @@ function renderPlayerList(players, filter) {
     // el hash en HASHES_PASS_DEFAULT) se refleja solo con volver a pintar
     // la lista — no hace falta ningún estado aparte.
     const esDefault = tienePasswordDefault(p);
-    const pwDot = ` <span title="${esDefault?'Sigue con la contraseña por defecto':'Ya cambió su contraseña'}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esDefault?'#e5484d':'#2f9e44'};flex-shrink:0"></span>`;
+    const pwDot = ` <span title="${esDefault?(""+t('ui36_text_223')+""):(""+t('ui36_text_224')+"")}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esDefault?'#e5484d':'#2f9e44'};flex-shrink:0"></span>`;
     return `<div class="ge-group" style="margin-bottom:.5rem;${isInactive?'opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="ge-gtitle">${pwDot} ${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?' <span style="font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700">INACTIVO</span>':''}</div>
+        <div class="ge-gtitle">${pwDot} ${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?(" <span style=\"font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700\">"+t('ui36_text_166')+"</span>"):''}</div>
         <button class="btn btn-sm" onclick="togglePlayerEdit('${jsq(p.name)}')"><i class="ti ti-edit"></i> ${t('edit')}</button>
       </div>
       __PLAYER_CARD_BODY_${attr(p.name)}__
@@ -792,20 +792,20 @@ function renderPlayerBodyHTML(p, gOpts){
   const isInactive = !!(p.inactive);
   return `<div id="pe-${attr(p.name)}" style="display:none;margin-top:.5rem;border:2px solid var(--pri);border-radius:12px;padding:.6rem;background:var(--soft)">
         <div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem;background:var(--surface)">
-        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-user"></i> Perfil del jugador</div>
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-user"></i> ${t('ui36_text_204')}</div>
         <div class="form-row">
-          <div class="form-group"><label>Nombre</label><input type="text" id="pe-nombre-${attr(p.name)}" value="${attr(p.nombre!=null?p.nombre:_splitNom(p.name).nombre)}"></div>
-          <div class="form-group"><label>Apellido</label><input type="text" id="pe-apellido-${attr(p.name)}" value="${attr(p.apellido!=null?p.apellido:_splitNom(p.name).apellido)}"></div>
+          <div class="form-group"><label>${t('ui36_text_205')}</label><input type="text" id="pe-nombre-${attr(p.name)}" value="${attr(p.nombre!=null?p.nombre:_splitNom(p.name).nombre)}"></div>
+          <div class="form-group"><label>${t('ui36_text_206')}</label><input type="text" id="pe-apellido-${attr(p.name)}" value="${attr(p.apellido!=null?p.apellido:_splitNom(p.name).apellido)}"></div>
         </div>
         <div class="form-row">
           <div class="form-group"><label>Email</label><input type="email" id="pe-email-${attr(p.name)}" value="${attr(p.email||'')}"></div>
         </div>
         <div class="form-row">
-          <div class="form-group"><label>Teléfono</label><input type="tel" id="pe-tel-${attr(p.name)}" value="${attr(p.tel||'')}"></div>
-          <div class="form-group"><label>Grupo (Ciclo Activo)</label><select id="pe-grp-${attr(p.name)}"><option value="">Sin grupo</option>${gOpts}</select></div>
+          <div class="form-group"><label>${t('ui36_text_207')}</label><input type="tel" id="pe-tel-${attr(p.name)}" value="${attr(p.tel||'')}"></div>
+          <div class="form-group"><label>${t('ui36_text_208')}</label><select id="pe-grp-${attr(p.name)}"><option value="">${t('ui36_text_209')}</option>${gOpts}</select></div>
         </div>
         <div style="text-align:right;margin-top:.5rem">
-          <button class="btn btn-success btn-sm" onclick="savePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-device-floppy"></i> Guardar perfil</button>
+          <button class="btn btn-success btn-sm" onclick="savePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-device-floppy"></i> ${t('ui36_text_210')}</button>
         </div>
         </div>
         ${(p.role==='superadmin'||p.role==='admin'||!puedeGestionarAdmins(currentUser)) ? '' : `
@@ -819,24 +819,24 @@ function renderPlayerBodyHTML(p, gOpts){
           </div>
         </div>`}
         <div style="border:1.5px solid var(--border2);border-radius:10px;padding:.65rem .8rem;margin-bottom:.55rem;background:var(--surface)">
-        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-lock"></i> Contraseña</div>
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text2);margin-bottom:.55rem"><i class="ti ti-lock"></i> ${t('ui36_text_211')}</div>
         <div class="form-group">
-          <label>Poner una nueva contraseña</label>
+          <label>${t('ui36_text_212')}</label>
           <div style="display:flex;gap:6px">
-            <input type="text" id="pe-pass-${attr(p.name)}" placeholder="Mín. 4 caracteres" autocomplete="new-password" style="flex:1">
-            <button class="btn btn-sm" style="white-space:nowrap" onclick="setPlayerPwd('${jsq(p.name)}')"><i class="ti ti-key"></i> Aplicar</button>
+            <input type="text" id="pe-pass-${attr(p.name)}" placeholder="${attr(t('ui36_text_213'))}" autocomplete="new-password" style="flex:1">
+            <button class="btn btn-sm" style="white-space:nowrap" onclick="setPlayerPwd('${jsq(p.name)}')"><i class="ti ti-key"></i> ${t('ui36_text_214')}</button>
           </div>
         </div>
         <div style="margin-top:.55rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <span style="font-size:12px;color:var(--text2)">o restablecer a la clave por defecto:</span>
-          <button class="btn btn-sm" onclick="resetPwd('${jsq(p.name)}')"><i class="ti ti-refresh"></i> Reset PSWD - tenis</button>
+          <span style="font-size:12px;color:var(--text2)">${t('ui36_text_215')}</span>
+          <button class="btn btn-sm" onclick="resetPwd('${jsq(p.name)}')"><i class="ti ti-refresh"></i> ${t('ui36_text_216')}</button>
         </div>
         </div>
         <div class="pe-danger-box" style="border:1.5px solid #e9b8b8;border-radius:10px;padding:.65rem .8rem;background:#fdf5f5">
-        <div class="pe-danger-title" style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#b91c1c;margin-bottom:.55rem"><i class="ti ti-alert-triangle"></i> Estado en la liga</div>
+        <div class="pe-danger-title" style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#b91c1c;margin-bottom:.55rem"><i class="ti ti-alert-triangle"></i> ${t('ui36_text_217')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <button class="btn btn-sm" style="${isInactive?'background:var(--success)':'background:#f59e0b'};color:#fff" onclick="toggleInactive('${jsq(p.name)}')"><i class="ti ti-${isInactive?'user-check':'user-off'}"></i> ${isInactive?'Reactivar jugador':'Marcar inactivo'}</button>
-          <button class="btn btn-danger btn-sm" onclick="deletePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-trash"></i> Eliminar de la liga</button>
+          <button class="btn btn-sm" style="${isInactive?'background:var(--success)':'background:#f59e0b'};color:#fff" onclick="toggleInactive('${jsq(p.name)}')"><i class="ti ti-${isInactive?'user-check':'user-off'}"></i> ${isInactive?(""+t('ui36_text_218')+""):(""+t('ui36_text_219')+"")}</button>
+          <button class="btn btn-danger btn-sm" onclick="deletePlayerAdmin('${jsq(p.name)}')"><i class="ti ti-trash"></i> ${t('ui36_text_220')}</button>
         </div>
         </div>
       </div>`;
@@ -937,7 +937,7 @@ function _splitNom(full){
 }
 
 async function savePlayerAdmin(oldName){
-  if(esCuentaSistema(oldName)){toast('No se puede editar al administrador desde aquí.');return;}
+  if(esCuentaSistema(oldName)){toast((""+t('ui36_text_239')+""));return;}
   const nombre=(document.getElementById('pe-nombre-'+oldName).value||'').trim();
   const apellido=(document.getElementById('pe-apellido-'+oldName).value||'').trim();
   // El nombre completo (identidad del jugador) es la unión de ambos.
@@ -963,7 +963,7 @@ async function savePlayerAdmin(oldName){
 
 async function deletePlayerAdmin(name){
   if(esCuentaSistema(name)){toast('No se puede eliminar al administrador.');return;}
-  if(!confirm(`¿Seguro que quieres eliminar a ${name} de la liga? Se borrará de los grupos actuales.`))return;
+  if(!confirm(`${t('ui36_text_240')}${name}${t('ui36_text_241')}`))return;
   delete USERS[name];
   const idx=ALLNAMES.indexOf(name);
   if(idx>=0)ALLNAMES.splice(idx,1);
@@ -1065,9 +1065,9 @@ function toggleInactive(name){
   if(subView==='grupos')renderGrupos();
   if(subView==='general')renderGeneral();
   if(u.inactive){
-    toast(name+(sacado?' marcado como inactivo y quitado del ciclo actual.':' marcado como inactivo. (Ya jugó este ciclo, así que sigue en su grupo para no alterar los puntos; queda oculto en las vistas.)'));
+    toast(name+(sacado?' marcado como inactivo y quitado del ciclo actual.':(""+t('ui36_text_225')+"")));
   }else{
-    toast(name+' activado. Si quieres que vuelva a competir, añádelo a un grupo del ciclo.');
+    toast(name+(""+t('ui36_text_226')+""));
   }
 }
 // Quita a un jugador del grupo que ocupe en el ciclo activo, PERO solo si todavía no

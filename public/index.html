@@ -43,8 +43,8 @@ button.liga-tab{cursor:pointer}
 </style>
 <link rel="stylesheet" href="estilos.css?v=sohail-v322-recovery-20260914">
 
-<link rel="stylesheet" href="ui-modern.css?v=sohail-v331-home-spacing-20260914">
-<link rel="stylesheet" href="admin-workspace.css?v=admin-v35-20260915">
+<link rel="stylesheet" href="ui-modern.css?v=sohail-v36-20260915">
+<link rel="stylesheet" href="admin-workspace.css?v=sohail-v36-20260915">
 </head><body>
 <div id="login-screen">
   <!-- Header editable de la pantalla de login. El admin configura color y
@@ -61,7 +61,8 @@ button.liga-tab{cursor:pointer}
     </div>
     <div class="login-body"><div class="ui-login-intro"><p class="ui-eyebrow" data-ui-login-text="ui_login_eyebrow">Tu liga, en un solo lugar</p><h2 data-ui-login-text="ui_login_title">Entrá a tu competición</h2><p data-ui-login-text="ui_login_step">Elegí tu usuario y continuá con tu contraseña o tu dispositivo.</p></div><div class="login-err" id="login-err" role="alert"></div>
       <label id="lbl-user" for="login-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
-      <div class="ui-login-password-label"><label id="lbl-pass" for="login-pass">Contraseña</label><button type="button" id="ui-password-visibility" aria-controls="login-pass" aria-pressed="false">Mostrar contraseña</button></div><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div class="ui-login-password-label"><label id="lbl-pass" for="login-pass">Contraseña</label></div>
+      <div class="ui-password-field"><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" id="ui-password-visibility" aria-controls="login-pass" aria-pressed="false" aria-label="Mostrar contraseña" title="Mostrar contraseña"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
       <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
       <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
       <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
@@ -174,26 +175,26 @@ button.liga-tab{cursor:pointer}
      ================================================================== -->
 <script src="score-rules.js?v=sohail-v322-recovery-20260914"></script>
 <script src="core-estado.js?v=destinos-v34-20260915"></script>
-<script src="i18n-revision.js?v=sohail-v322-recovery-20260914"></script>
+<script src="i18n-revision.js?v=sohail-v36-20260915"></script>
 <script src="destinos-auto.js?v=destinos-v341-update-20260915"></script>
-<script src="login-auth.js?v=sohail-v322-recovery-20260914"></script>
+<script src="login-auth.js?v=sohail-v36-20260915"></script>
 <script src="jugadores-perfiles-catalogo.js?v=sohail-v322-recovery-20260914"></script>
 <script src="reglamento.js?v=sohail-v322-recovery-20260914"></script>
-<script src="login-auth-p2.js?v=sohail-v322-recovery-20260914"></script>
-<script src="shell-render.js?v=destinos-v34-20260915"></script>
-<script src="resultados-y-grupos.js?v=sohail-v322-recovery-20260914"></script>
-<script src="admin-ligas-clubes.js?v=sohail-v322-recovery-20260914"></script>
-<script src="admin-ciclos-config.js?v=admin-v35-20260915"></script>
-<script src="playoffs.js?v=destinos-v341-update-20260915"></script>
-<script src="jugadores-perfiles.js?v=destinos-v34-20260915"></script>
+<script src="login-auth-p2.js?v=sohail-v36-20260915"></script>
+<script src="shell-render.js?v=sohail-v36-20260915"></script>
+<script src="resultados-y-grupos.js?v=sohail-v36-20260915"></script>
+<script src="admin-ligas-clubes.js?v=sohail-v36-20260915"></script>
+<script src="admin-ciclos-config.js?v=sohail-v36-20260915"></script>
+<script src="playoffs.js?v=sohail-v36-20260915"></script>
+<script src="jugadores-perfiles.js?v=sohail-v36-20260915"></script>
 <script src="mensajes.js?v=sohail-v322-recovery-20260914"></script>
-<script src="resultados-po-lm.js?v=sohail-v322-recovery-20260914"></script>
+<script src="resultados-po-lm.js?v=sohail-v36-20260915"></script>
 <script src="persistencia.js?v=destinos-v34-20260915"></script>
-<script src="headers-ui.js?v=sohail-v322-recovery-20260914"></script>
+<script src="headers-ui.js?v=sohail-v36-20260915"></script>
 <script src="accessibility.js?v=sohail-v322-recovery-20260914"></script>
 <script src="tutorial.js?v=sohail-v322-recovery-20260914"></script>
-<script src="admin-workspace.js?v=admin-v35-20260915"></script>
-<script src="ui-modern.js?v=admin-v35-20260915"></script>
+<script src="admin-workspace.js?v=sohail-v36-20260915"></script>
+<script src="ui-modern.js?v=sohail-v36-20260915"></script>
 <script src="match-history.js?v=sohail-v33-player-stats-20260914"></script>
 <script src="result-editor.js?v=sohail-v322-recovery-20260914"></script>
 <script src="bootstrap.js?v=sohail-v322-recovery-20260914"></script>

@@ -48,7 +48,7 @@ function renderGrupos(){
   try {
       const c=cycles[viewCycle-1];
       let html='';
-      if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">Ciclo no disponible.</div></div>`;return;}
+      if(!c||!c.groups){document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="empty">${t('ui36_text_229')}</div></div>`;return;}
       
       if(LAYOUT==='selector'){
         if(selGroup>c.groups.length)selGroup=1;
@@ -60,12 +60,12 @@ function renderGrupos(){
       const clubsLeg = CLUBS.map(c=>
         `<span><span class="dot" style="background:${c.bg}"></span> ${attr(c.name)}</span>`
       ).join('');
-      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> WO (no se presentó)</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
+      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('ui36_text_167')}</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
       document.getElementById('view-grupos').innerHTML=html;
       if(window.SohailUI)SohailUI.groupControls();
   } catch(e) {
       console.error("Error crítico en renderGrupos:", e);
-      document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">Hubo un problema cargando los grupos. Contacte a soporte o actualice la página.</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
+      document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">${t('ui36_text_230')}</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
   }
 }
 function canCreate(gid,n1,n2){if(_ligaReadOnly||!currentUser)return false;const cy=cycles.find(c=>c.n===viewCycle);if(!cy||!(cy.status==='active'||esAdmin(currentUser)&&cy.editMode))return false;if(esAdmin(currentUser))return true;if(viewCycle!==activeN||playoff.started)return false;const rival=currentUser.name===n1?n2:n1;if(USERS[rival]?.inactive||USERS[currentUser.name]?.inactive)return false;return cy.groups?.[gid-1]?.players.includes(currentUser.name)&&(currentUser.name===n1||currentUser.name===n2);}
@@ -172,7 +172,7 @@ function getMyPoMatch(){
             const total=rounds.length;
             const fe=total-1-ri;
             const roundName=fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':fe===4?'16avos':'Ronda '+(ri+1);
-            const drawName=which==='cons'?'Consolación '+tr.label:'Cuadro '+tr.label;
+            const drawName=which==='cons'?(""+t('ui36_text_247')+"")+tr.label:'Cuadro '+tr.label;
             return{ti,which,ri,mi,rival,roundName,drawName,trLabel:tr.label};
           }
         }
@@ -191,19 +191,19 @@ poContext=null;formClub='';renderClubButtons();const r=document.getElementById('
   const c = editCycle || getActive();
   const cycleN = editCycle ? editCycle.n : activeN;
   _formCycleN = cycleN;  // submitResult lo lee para saber en qué ciclo guardar
-  if(!c||!c.groups){note.textContent="Ciclo inactivo.";r.disabled=true;o.disabled=true;return;}
+  if(!c||!c.groups){note.textContent=(""+t('ui36_text_242')+"");r.disabled=true;o.disabled=true;return;}
 // Ocultar/mostrar el filtro de grupo/playoff según el rol
 const _fw=document.getElementById('admin-group-filter');
 if(_fw)_fw.style.display=(esAdmin(currentUser))?'flex':'none';
 // Bloquear carga si el ciclo está finalizado y sin editMode ni playoffs activos.
 // Con editMode activo el admin habilitó explícitamente la carga: cualquiera puede cargar.
 if(c.status==='finished'&&!c.editMode&&!playoff.started&&!playoff.preview&&!esAdmin(currentUser)){
-  note.innerHTML='<span style="color:var(--text2)">La temporada regular ha finalizado. Esperá que el administrador habilite los Play Offs.</span>';
+  note.innerHTML=("<span style=\"color:var(--text2)\">"+t('ui36_text_243')+"</span>");
   r.disabled=true;o.disabled=true;r.className='score-sel-locked';o.className='score-sel-locked';return;
 }
 // Si hay editMode activo, mostrar banner informativo del ciclo habilitado
 if(editCycle){
-  note.innerHTML=`<strong style="color:#f59e0b"><i class="ti ti-pencil"></i> Carga habilitada en Ciclo ${cycleN} — los resultados se guardan en ese ciclo.</strong>`;
+  note.innerHTML=`<strong style="color:#f59e0b"><i class="ti ti-pencil"></i> ${t('ui36_text_068')} ${cycleN} ${t('ui36_text_244')}</strong>`;
 }
 if(currentUser.role==='player' && !esAdmin(currentUser)){
   // Un jugador que además es admin NO entra acá: cae en la rama else de abajo,
@@ -231,7 +231,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
   // NO le mostramos el formulario de liga. La liga regular ya terminó — no debe
   // poder cargar resultados de partidos del ciclo cerrado que nunca se jugaron.
   if((playoff.started||playoff.preview) && !myPo){
-    note.innerHTML='<span style="color:var(--text2)"><i class="ti ti-trophy"></i> Estamos en Play Offs. No tienes ningún partido pendiente por cargar en este momento.</span>';
+    note.innerHTML=("<span style=\"color:var(--text2)\"><i class=\"ti ti-trophy\"></i> "+t('ui36_text_245')+"</span>");
     r.disabled=true;o.disabled=true;r.className='score-sel-locked';o.className='score-sel-locked';
     return;
   }
@@ -258,7 +258,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
   }
   // Construir opciones del filtro incluyendo playoffs dinámicos
   function buildFilterOptions(){
-    let html='<option value="">— Todos los grupos —</option>';
+    let html=("<option value=\"\">"+t('ui36_text_246')+"</option>");
     const haspo=(playoff.started||playoff.preview)&&playoff.tramos&&playoff.tramos.length>0;
     if(haspo){
       html+='<optgroup label="─── Play Offs ───">';
@@ -270,7 +270,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
           // Contar partidos abiertos
           let open=0;rounds.forEach(rd=>rd.forEach(m=>{if(!m.w&&m.a&&m.b)open++;}));
           if(open===0)return; // sección eliminada — no aparece en el filtro
-          const lbl=which==='cons'?'Consolación '+tr.label:'Cuadro '+tr.label;
+          const lbl=which==='cons'?(""+t('ui36_text_247')+"")+tr.label:'Cuadro '+tr.label;
           html+='<option value="po:'+ti+':'+which+'">'+lbl+'</option>';
         });
       });
@@ -310,7 +310,7 @@ if(currentUser.role==='player' && !esAdmin(currentUser)){
         const total=ptr[pwhich].length;
         const fe=total-1-pri;
         const rn=fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(pri+1);
-        const sn=pwhich==='cons'?'Consolación '+ptr.label:'Cuadro '+ptr.label;
+        const sn=pwhich==='cons'?(""+t('ui36_text_247')+"")+ptr.label:'Cuadro '+ptr.label;
         note.innerHTML='<strong style="color:var(--pri)">🏆 Play Offs — '+sn+' · '+rn+'</strong>';
       } else {
         o.innerHTML='<option value="">—</option>';o.disabled=false;poContext=null;
@@ -468,7 +468,7 @@ function toggleRetiro(){
     }
     if(!repName||!rivName||repName===rivName){ fAlert(t('select_two'),'err'); return; }
     const sel=document.getElementById('ret-quien');
-    sel.innerHTML='<option value="">— ¿Quién se retiró? —</option>'
+    sel.innerHTML=("<option value=\"\">"+t('ui36_text_195')+"</option>")
       +'<option value="'+attr(repName)+'">'+attr(repName)+'</option>'
       +'<option value="'+attr(rivName)+'">'+attr(rivName)+'</option>';
     panel.style.display='block';
@@ -503,7 +503,7 @@ function toggleWO(){
     }
     if(!repName||!rivName||repName===rivName){ fAlert(t('select_two'),'err'); return; }
     const sel=document.getElementById('wo-quien');
-    sel.innerHTML='<option value="">— ¿Quién no se presentó? —</option>'
+    sel.innerHTML=("<option value=\"\">"+t('ui36_text_194')+"</option>")
       +'<option value="'+attr(repName)+'">'+attr(repName)+'</option>'
       +'<option value="'+attr(rivName)+'">'+attr(rivName)+'</option>';
     panel.style.display='block';
@@ -570,11 +570,11 @@ async function _submitResultImpl(){
     const isAdmin=validaAlCargar(m.a,m.b);
     let s,winner;
     if(woQuien){
-      if(woQuien!==m.a&&woQuien!==m.b){fAlert('Elegí quién no se presentó entre los dos jugadores de este partido.','err');return;}
+      if(woQuien!==m.a&&woQuien!==m.b){fAlert((""+t('ui36_text_248')+""),'err');return;}
       s=[];
       winner=woQuien===m.a?m.b:m.a;
     }else if(retQuien){
-      if(retQuien!==m.a&&retQuien!==m.b){fAlert('Elegí quién se retiró entre los dos jugadores de este partido.','err');return;}
+      if(retQuien!==m.a&&retQuien!==m.b){fAlert((""+t('ui36_text_188')+""),'err');return;}
       s=readSetsLibre();if(!SohailScore.validRetirement(s)){fAlert(t('fix_ret_invalid'),'err');return;}
       winner=retQuien===m.a?m.b:m.a;
     }else{
@@ -630,14 +630,14 @@ async function _submitResultImpl(){
   if(!fecha){fAlert(t('select_date'),'err');document.getElementById('f-fecha').classList.add('req-empty');return;}
   const ex=findMatch(_cN,gid,repName,rivName);
   if(ex&&ex.locked&&!esAdmin(currentUser)){fAlert(t('validated_admin_only'),'err');return;}
-  if(ex&&ex.status==='disputed'&&!esAdmin(currentUser)){fAlert('Este resultado está en disputa. El administrador debe resolverlo primero.','err');return;}
+  if(ex&&ex.status==='disputed'&&!esAdmin(currentUser)){fAlert((""+t('ui36_text_190')+""),'err');return;}
   let s,winnerRet;
   if(woQuien){
-    if(woQuien!==repName&&woQuien!==rivName){fAlert('Elegí quién no se presentó entre los dos jugadores de este partido.','err');return;}
+    if(woQuien!==repName&&woQuien!==rivName){fAlert((""+t('ui36_text_248')+""),'err');return;}
     s=[];
     winnerRet=woQuien===repName?rivName:repName;
   }else if(retQuien){
-    if(retQuien!==repName&&retQuien!==rivName){fAlert('Elegí quién se retiró entre los dos jugadores de este partido.','err');return;}
+    if(retQuien!==repName&&retQuien!==rivName){fAlert((""+t('ui36_text_188')+""),'err');return;}
     s=readSetsLibre();if(!SohailScore.validRetirement(s)){fAlert(t('fix_ret_invalid'),'err');return;}
     winnerRet=retQuien===repName?rivName:repName;
   }else{
@@ -667,8 +667,8 @@ function syncNoJugado(){
 // El admin marca un partido de liga como NO JUGADO: ambos suman 1 en NJ y 0 puntos.
 function markNotPlayed(){
   const isAdmin=esAdmin(currentUser);
-  if(!isAdmin){fAlert('Solo el administrador puede marcar partidos como no jugados.','err');return;}
-  if(poContext){fAlert('“No jugado” no aplica a partidos de Play Offs.','err');return;}
+  if(!isAdmin){fAlert((""+t('ui36_text_249')+""),'err');return;}
+  if(poContext){fAlert((""+t('ui36_text_250')+""),'err');return;}
   const rv=document.getElementById('f-reporter').value,iv=document.getElementById('f-rival').value;
   if(!rv||!iv){fAlert(t('select_two'),'err');return;}
   const repVal=rv.startsWith('po:')?rv.split(':')[3]:rv;
@@ -677,13 +677,13 @@ function markNotPlayed(){
   const gid=a.g,repName=a.name,rivName=b.name;
   if(repName===rivName){fAlert(t('select_two'),'err');return;}
   const ex=findMatch(activeN,gid,repName,rivName);
-  if(ex&&ex.status==='disputed'){fAlert('Este partido está en disputa; resolvelo antes de marcarlo como no jugado.','err');return;}
-  if(!confirm('¿Marcar como NO JUGADO el partido '+repName+' vs '+rivName+'?\n\nAmbos jugadores suman 1 en la columna NJ y 0 puntos por este partido. Puedes deshacerlo borrando el partido desde la tabla del grupo.'))return;
+  if(ex&&ex.status==='disputed'){fAlert((""+t('ui36_text_251')+""),'err');return;}
+  if(!confirm((""+t('ui36_text_252')+"")+repName+' vs '+rivName+(""+t('ui36_text_253')+"")))return;
   matches=matches.filter(m=>!(m.cycle===activeN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
   matches.push({id:matchId++,cycle:activeN,g:gid,aName:repName,bName:rivName,sets:[],np:true,date:'',status:'confirmed',reporter:currentUser.name,club:'',locked:true});
   addLog('Liga: marcado no jugado',{a:repName,b:rivName,grupo:gid,po:false});
   clearForm();
-  fAlert('Partido marcado como no jugado.','ok');
+  fAlert((""+t('ui36_text_254')+""),'ok');
   persist(true);
   refreshAll();
   setTimeout(()=>populateForm(),50);
@@ -752,7 +752,7 @@ function openModal(mid){const m=matches.find(x=>x.id===mid);if(!m)return;current
 document.getElementById('modal-title').textContent=(m.status==='confirmed'?t('validated_result'):m.status==='disputed'?t('disputed_result'):t('review_result'))+` · ${tag}`;
 const statusLabel = m.status === 'confirmed' ?
 t('confirmed_label') : m.status === 'disputed' ? t('legend_disputed') : t('legend_pending');
-if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${p1} &nbsp;vs&nbsp; ${p2}</p></div><p class="modal-meta" style="text-align:center"><strong>Partido no jugado</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${p1} &nbsp;vs&nbsp; ${p2}</p></div><p class="modal-meta" style="text-align:center"><strong>${t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${rep}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${m.club}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${p1} ${sc} ${p2}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser);const isPend=m.status==='pending';
 if(isAdmin){
@@ -780,7 +780,7 @@ const m=matches.find(x=>x.id===mid);closeM();showSub('cargar');populateForm(m.g,
 function setTotalCycles(val){
   const newTotal = parseInt(val);
   if(newTotal < activeN) {
-    toast('No puedes reducir a menos ciclos de los que ya están en juego.');
+    toast((""+t('ui36_text_255')+""));
     renderAdmin(); 
     return;
   }
@@ -798,7 +798,7 @@ function setTotalCycles(val){
   persist(true);
   renderCycleBar();
   renderAdmin();
-  toast('Cantidad de ciclos actualizada a ' + newTotal + '.');
+  toast((""+t('ui36_text_256')+"") + newTotal + '.');
 }
 
 
@@ -835,10 +835,10 @@ function recalcularPuntajesGrupos(){
   }
   const c = cycles[activeN - 1];
   if(!c || !Array.isArray(c.groups) || !c.groups.length){
-    toast('No hay ciclo activo.');
+    toast((""+t('ui36_text_257')+""));
     return;
   }
-  if(!confirm('Esto va a sobrescribir los puntos por posición de TODOS los grupos del ciclo activo con la escala estándar (paso 3). ¿Confirmás?')) return;
+  if(!confirm((""+t('ui36_text_258')+""))) return;
 
   const STEP = 3;   // cuánto sube el 1er puesto de un grupo al siguiente hacia arriba
   const BASE = 5;   // escalones definidos (1º a 5º); del 6º en adelante se repite el 5º
@@ -869,5 +869,5 @@ function recalcularPuntajesGrupos(){
   try { renderAll(); } catch(_){}
   try { renderAdmin(); } catch(_){}
   if(typeof persist === 'function') persist(true);
-  toast('Puntos recalculados con la escala estándar (paso 3, último puesto del último grupo = 1 punto).');
+  toast((""+t('ui36_text_259')+""));
 }

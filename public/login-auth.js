@@ -42,7 +42,7 @@ function pintarLogin(d){
       s.appendChild(og);
     });
     if((d.loose||[]).length){
-      const og=document.createElement('optgroup');og.label='Sin grupo';
+      const og=document.createElement('optgroup');og.label=(""+t('ui36_text_209')+"");
       d.loose.forEach(u=>og.appendChild(opt(u)));
       s.appendChild(og);
     }
