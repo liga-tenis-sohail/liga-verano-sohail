@@ -993,14 +993,15 @@ function destinoCard(){
   const state=destinoAutoState(),managed=!!SohailDestinos.meta(state);
   const grps=cycles[activeN-1]?.groups||[];if(!grps.length)return '';
   const canEdit=puedeGestionarAdmins(currentUser)&&!_ligaReadOnly;
-  let html=`<div class="card" id="destinos-config"><div class="section-lbl">${t('promotions_title')}</div><p class="legend-txt" style="margin-top:0">${t('promotions_hint')}</p><p class="legend-txt">${t(managed?'da_hint':'da_legacy')}</p>`;
+  const canUpdate=canEdit&&cycles[activeN-1]?.status==='active'&&!playoff.started;
+  let html=`<div class="card" id="destinos-config"><div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px"><div class="section-lbl" style="margin:0">${t('promotions_title')}</div>${canEdit?`<button type="button" class="btn btn-primary" data-da-update onclick="actualizarDestinosUI()" style="min-height:44px;max-width:100%;white-space:normal" ${canUpdate?'':'disabled'}>${t('da_update')}</button>`:''}</div><p class="legend-txt" style="margin-top:0">${t('promotions_hint')}</p><p class="legend-txt">${t(managed?'da_hint':'da_legacy')}</p>${canEdit?`<p class="legend-txt">${t(canUpdate?'da_update_hint':'da_update_closed')}</p>`:''}`;
   if(managed)html+=`<p class="legend-txt">${t('da_rules')}</p>`;
   html+='<div class="grpedit">';
   grps.forEach((g,gi)=>{
     const gid=gi+1,info=SohailDestinos.inspect(state,gid),count=SohailDestinos.names(g).length;
     // Legacy: conservar los valores reales, sin completar al consultar.
     const arr=Array.isArray(DESTINO[gid])?DESTINO[gid]:[];
-    const status=managed?info.mode:'custom';
+    const status=!count?'empty':managed?info.mode:'custom';
     const label=t({auto:'da_auto',fixed:'da_fixed',review:'da_review',empty:'da_empty',custom:'da_custom'}[status]);
     html+=`<div class="ge-group"><div class="ge-gtitle">${groupName(gid)} (${count}) <span class="badge ${info.review?'badge-pend':'badge-tag'}">${label}</span></div>`;
     for(let pos=0;pos<count;pos++){
