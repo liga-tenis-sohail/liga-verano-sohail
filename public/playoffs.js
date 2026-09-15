@@ -982,28 +982,44 @@ function addPlayerUI(){
   // así que si refrescáramos antes traeríamos la lista sin el jugador nuevo.
   persist(true).then(initLogin);
 }
-function setDestino(gid,pos,val){ensureDestino(gid,pos+1);DESTINO[gid][pos]='G'+val;if(subView==='admin')renderAdmin();toast(groupName(gid)+' · '+(pos+1)+'º → '+groupName(+val));persist(true);}
+async function setDestino(gid,pos,val){
+  if(!puedeGestionarAdmins(currentUser)||_ligaReadOnly){toast(t('da_forbidden'));return;}
+  const value='G'+val,state=destinoAutoState();
+  if(!SohailDestinos.manual(state,gid,pos,value))return;
+  if(subView==='admin')renderAdmin();
+  const ok=await persist(true);toast(t(ok?'da_saved':'da_failed'));
+}
 function destinoCard(){
-  const grps=cycles[activeN-1]?.groups || [];
-  if(!grps.length) return '';
-  let html=`<div class="card"><div class="section-lbl">${t('promotions_title')}</div><p class="legend-txt" style="margin-top:0">${t('promotions_hint')}</p><div class="grpedit">`;
-  const totalGrps=grps.length;
-  grps.forEach(function(g,gi){
-    const gid=gi+1;
-    const len=Math.max(1,(g.players||[]).length);
-    ensureDestino(gid,len);
-    html+=`<div class="ge-group"><div class="ge-gtitle">${groupName(gid)} (${(g.players||[]).length})</div>`;
-    for(let pos=0;pos<len;pos++){
-      const cur=parseInt((DESTINO[gid][pos]||('G'+Math.min(gid+1,totalGrps))).replace('G',''));
-      html+=`<div class="ge-row"><span class="ge-nm">${tf('pos_goes_to',{pos:pos+1})}</span><select class="ge-sel" onchange="setDestino(${gid},${pos},this.value)">`;
-      for(let k=0;k<totalGrps;k++){
-        html+=`<option value="${k+1}"${cur===k+1?' selected':''}>${groupName(k+1)}</option>`;
-      }
+  const state=destinoAutoState(),managed=!!SohailDestinos.meta(state);
+  const grps=cycles[activeN-1]?.groups||[];if(!grps.length)return '';
+  const canEdit=puedeGestionarAdmins(currentUser)&&!_ligaReadOnly;
+  let html=`<div class="card" id="destinos-config"><div class="section-lbl">${t('promotions_title')}</div><p class="legend-txt" style="margin-top:0">${t('promotions_hint')}</p><p class="legend-txt">${t(managed?'da_hint':'da_legacy')}</p>`;
+  if(managed)html+=`<p class="legend-txt">${t('da_rules')}</p>`;
+  html+='<div class="grpedit">';
+  grps.forEach((g,gi)=>{
+    const gid=gi+1,info=SohailDestinos.inspect(state,gid),count=SohailDestinos.names(g).length;
+    // Legacy: conservar los valores reales, sin completar al consultar.
+    const arr=Array.isArray(DESTINO[gid])?DESTINO[gid]:[];
+    const status=managed?info.mode:'custom';
+    const label=t({auto:'da_auto',fixed:'da_fixed',review:'da_review',empty:'da_empty',custom:'da_custom'}[status]);
+    html+=`<div class="ge-group"><div class="ge-gtitle">${groupName(gid)} (${count}) <span class="badge ${info.review?'badge-pend':'badge-tag'}">${label}</span></div>`;
+    for(let pos=0;pos<count;pos++){
+      const valid=SohailDestinos.validDestination(arr[pos],grps.length);
+      html+=`<div class="ge-row"><label class="ge-nm" for="dest-${gid}-${pos}">${tf('pos_goes_to',{pos:pos+1})}</label><select id="dest-${gid}-${pos}" class="ge-sel" onchange="setDestino(${gid},${pos},this.value)" ${canEdit?'':'disabled'}>`;
+      html+=`<option value="" ${valid?'':'selected'} disabled>${t('da_choose')}</option>`;
+      for(let k=1;k<=grps.length;k++)html+=`<option value="${k}"${arr[pos]==='G'+k?' selected':''}>${groupName(k)}</option>`;
       html+='</select></div>';
     }
+    if(managed&&canEdit&&info.canReset)html+=`<button type="button" class="btn btn-sm" style="white-space:normal;max-width:100%;margin-top:8px" onclick="resetDestinosAutoUI(${gid})">${t('da_reset')}</button>`;
     html+='</div>';
   });
-  return html+'</div></div>';
+  html+='</div>';
+  if(managed){
+    const info=SohailDestinos.check(state);
+    if(info.ok)html+=`<p class="legend-txt">${t('da_incoming')} ${info.incoming.map((v,i)=>groupName(i+1)+': '+v).join(' · ')}</p><p class="legend-txt">${t('da_note')}</p>`;
+    if(SohailDestinos.meta(state).locked)html+=`<p class="legend-txt">${t('da_phase')}</p>`;
+  }
+  return html+'</div>';
 }
 function setFecha(i,v){FECHAS[i]=v;updateHdr();renderCycleBar();toast('Fecha del Ciclo '+(i+1)+' actualizada.');persist(true);}
 async function previewPlayoffUI(){

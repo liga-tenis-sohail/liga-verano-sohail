@@ -294,6 +294,7 @@ async function _doPersist(){
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(_saveInFlight)return _saveInFlight;
   if(!_token||!_loadOK||_saveConflict||_ligaReadOnly||document.getElementById('_pwforce'))return false;
+  if(typeof syncDestinosAuto==='function')syncDestinosAuto();
   const json=_serialize(),sent=JSON.parse(json),liga=_ligaActual,user=currentUser&&currentUser.name,sessionKey=_saveSessionKey();
   _saveInFlight=(async()=>{
     try{
@@ -303,6 +304,12 @@ async function _doPersist(){
       if(r.ok){
         _stateV=Number.isSafeInteger(d.version)?d.version:sent._v+1;
         // SOLO esta instantánea fue confirmada. Los cambios posteriores siguen sucios.
+        // El servidor puede fijar el modo automático con el primer resultado.
+        // No pisar una edición de destinos hecha mientras viajaba esta petición.
+        if(d.destinos&&typeof d.destinos==='object'&&!Array.isArray(d.destinos)){
+          if(JSON.stringify(DESTINO)===JSON.stringify(sent.DESTINO))DESTINO=JSON.parse(JSON.stringify(d.destinos));
+          sent.DESTINO=d.destinos;
+        }
         sent._v=_stateV;_lastSaved=JSON.stringify(sent);
         if(d.token)_token=d.token;_lastSaveError='';_hideLoadError();
         if(typeof RATING_ON!=='undefined'&&RATING_ON&&typeof calcularRatingGlobal==='function')calcularRatingGlobal(true).catch(()=>{});
@@ -320,6 +327,7 @@ async function persist(force){
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_token||!_loadOK||_ligaReadOnly||_saveConflict||document.getElementById('_pwforce'))return false;
+  if(typeof syncDestinosAuto==='function')syncDestinosAuto();
   if(_prioritySave)return false;
   if(_saving){_pendingForce=true;return false;}
   if(!force&&_serialize()===_lastSaved)return true;

@@ -136,6 +136,7 @@ function groupCardHTML(gid){
         const d=dest[pos0]||'',dn=parseInt((d||'G99').replace('G',''));
         const ar=dn<gid?'dest-up':dn>gid?'dest-down':'dest-same';
         const ic=dn<gid?'↑':dn>gid?'↓':'=';
+        const pendingDest=typeof SohailDestinos!=='undefined'&&SohailDestinos.meta({DESTINO})&&!SohailDestinos.validDestination(d,c.groups.length);
         const ex=pos0===0?2:0;
         const base=ptsForPos(gid,pos0);
         // Ajuste manual del admin (bonus/penalidad) sobre el Total de ESTE
@@ -152,7 +153,7 @@ function groupCardHTML(gid){
           : '';
         const pInactive = USERS[s.name]&&USERS[s.name].inactive;
         const inactiveBadge = pInactive?'<span style="font-size:9px;background:#e55;color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:700">INACTIVO</span>':'';
-        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.6':''}"><td>${d?`<span class="dest ${ar}">${ic}${groupName(dn)}</span>`:''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${base}</td><td>${ex>0?ex:''}</td><td><strong>${totalFinal}</strong>${ajusteTxt}${ajusteBtn}</td></tr>`;
+        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.6':''}"><td>${(d||pendingDest)?`<span class="dest ${pendingDest?'badge-pend':ar}">${pendingDest?t('da_review'):ic+groupName(dn)}</span>`:''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${base}</td><td>${ex>0?ex:''}</td><td><strong>${totalFinal}</strong>${ajusteTxt}${ajusteBtn}</td></tr>`;
       }).join('');
       
       // Para la MATRIZ de resultados: los activos siempre aparecen. Los inactivos

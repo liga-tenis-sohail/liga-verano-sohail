@@ -77,6 +77,7 @@ function startNextCycle(){
 // Ejecuta el cierre real del ciclo y el armado del siguiente. Separado de startNextCycle
 // para poder llamarlo tras la confirmación cuando se fuerza el cierre.
 function _doStartNextCycle(c){
+  if(typeof destinosAutoBeforeClose==='function'&&!destinosAutoBeforeClose())return;
   const totalG=c.groups.length;
   const buckets={};for(let k=1;k<=totalG;k++)buckets[k]=[];
   c.groups.forEach((g,gi)=>{

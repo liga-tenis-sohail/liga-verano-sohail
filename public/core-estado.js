@@ -550,7 +550,10 @@ function updateCycleDate(i, type, val) {
   updateHdr(); renderCycleBar(); persist(true);
 }
 
-function ensureDestino(gid,len){if(!DESTINO)DESTINO={};if(!DESTINO[gid]||!Array.isArray(DESTINO[gid]))DESTINO[gid]=[];const maxG=(cycles[0]&&cycles[0].groups)?cycles[0].groups.length:12;while(DESTINO[gid].length<len)DESTINO[gid].push('G'+Math.min(gid+1,maxG));return DESTINO[gid];}
+function ensureDestino(gid,len){
+// Los destinos gestionados se preparan al guardar, nunca al dibujar una tabla.
+if(typeof SohailDestinos!=='undefined'&&SohailDestinos.meta({DESTINO}))return Array.isArray(DESTINO[gid])?DESTINO[gid]:[];
+if(!DESTINO)DESTINO={};if(!DESTINO[gid]||!Array.isArray(DESTINO[gid]))DESTINO[gid]=[];const maxG=(cycles[0]&&cycles[0].groups)?cycles[0].groups.length:12;while(DESTINO[gid].length<len)DESTINO[gid].push('G'+Math.min(gid+1,maxG));return DESTINO[gid];}
 // Agrega un jugador (ya existente en ALLNAMES/catálogo, o recién creado) a
 // un grupo del ciclo activo. NO asume que su contraseña es la default: antes
 // esto ponía `pass:DEFAULT_PASS_HASH` a ciegas para cualquier nombre que
