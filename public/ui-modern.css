@@ -614,3 +614,17 @@ body.sohail-ui-modern #modal-bg .modal:has(.mh-player-sheet){width:min(760px,cal
 #modal-bg:has(.mh-player-sheet) #modal-title{flex:0 0 auto;}
 #modal-bg:has(.mh-player-sheet) #modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;}
 #modal-bg:has(.mh-player-sheet) #modal-actions{flex:0 0 auto;}
+
+/* v3.3.1 · Inicio/Resumen: separación consistente antes de Últimos resultados.
+   La rejilla controla el espacio, no los márgenes de sus tarjetas.
+   height:auto + stretch evita que height:100% ocupe el margen inferior.
+   Reutiliza --ui-page-gap: 20px en escritorio y 14px hasta 900px. */
+.ui-v3 :is(#view-inicio, #view-resumen) > .ui-home-grid{
+  align-items:stretch;
+  row-gap:var(--ui-page-gap,20px);
+  margin-bottom:var(--ui-page-gap,20px);
+}
+.ui-v3 :is(#view-inicio, #view-resumen) > .ui-home-grid > .card.ui-section{
+  height:auto;
+  margin-bottom:0;
+}
