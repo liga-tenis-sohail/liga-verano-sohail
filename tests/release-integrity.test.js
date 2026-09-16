@@ -1,0 +1,10 @@
+'use strict';
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {verify}=require('../scripts/verify-release.cjs');
+const root=path.resolve(__dirname,'..');
+test('PKG01 complete release has valid JavaScript, HTML and all local resources',()=>{const list=verify(root);assert.deepEqual(list.filter(x=>!x.ok),[]);});
+function temporary(fn){const d=fs.mkdtempSync(path.join(os.tmpdir(),'sohail-integrity-'));try{fs.cpSync(path.join(root,'public'),path.join(d,'public'),{recursive:true});fs.cpSync(path.join(root,'api'),path.join(d,'api'),{recursive:true});fs.copyFileSync(path.join(root,'vercel.json'),path.join(d,'vercel.json'));fn(d);}finally{fs.rmSync(d,{recursive:true,force:true});}}
+test('PKG02 corrupt Media response is detected before deployment',()=>temporary(d=>{fs.writeFileSync(path.join(d,'public','jugadores-perfiles.js'),'Unsupported Media Type');assert.ok(verify(d).some(x=>!x.ok&&x.name==='syntax public/jugadores-perfiles.js'));}));
+test('PKG03 missing asset fails integrity instead of successful publication',()=>temporary(d=>{fs.rmSync(path.join(d,'public','match-history.js'));assert.ok(verify(d).some(x=>!x.ok&&x.name.startsWith('local resource match-history.js')));}));
+test('PKG04 wrong dependency order is detected',()=>temporary(d=>{const f=path.join(d,'public','index.html');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace('match-history.js?v=','placeholder.js?v=').replace('ui-modern.js?v=','match-history.js?v=').replace('placeholder.js?v=','ui-modern.js?v='));assert.ok(verify(d).some(x=>!x.ok&&x.name.includes('dependency order')));}));
+test('PKG05 frontend secret signatures are absent (bounded signature check)',()=>{for(const f of fs.readdirSync(path.join(root,'public')).filter(f=>/\.(js|html|css)$/.test(f))){const s=fs.readFileSync(path.join(root,'public',f),'utf8');assert.ok(!/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/.test(s),f);assert.ok(!/sb_secret_[A-Za-z0-9]{15,}/.test(s),f);}});
