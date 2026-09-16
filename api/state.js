@@ -24,7 +24,7 @@
 // que ese nombre visible no dependa de lo que haya quedado guardado en
 // LEAGUE_NAME desde el formulario de "Apariencia de la liga".
 // =====================================================================
-const { securityFor, makeSession, signToken, principalKey, filterPublicState, auth, readState, readLigaIndex, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT } = require('./_lib');
+const { securityFor, makeSession, signToken, principalKey, filterPublicState, auth, readState, readLigaIndex, envOK, filterForSession, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, resolveLigaId } = require('./_lib');
 
 module.exports = async function handler(req, res){
   if(req.method!=='GET')return res.status(405).json({error:'Método no permitido'});
@@ -34,8 +34,7 @@ module.exports = async function handler(req, res){
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   // Qué liga: viene por query (?liga=anual-2026). Si no, la liga por defecto.
-  const q = (req.query && req.query.liga) ? String(req.query.liga) : '';
-  const ligaId = ligaIdOK(q) ? q : LIGA_DEFAULT;
+  const ligaId = resolveLigaId(req.query ? req.query.liga : undefined);
 
   let state;
   try { state = await readState(ligaId); }

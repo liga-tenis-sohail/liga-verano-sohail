@@ -3,7 +3,7 @@
 // Sin token no se escribe nada. Y lo que un jugador nunca vio,
 // tampoco lo puede pisar: se reinyecta desde la base.
 // =====================================================================
-const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, readLigaIndex, upsertLigaIndex } = require('./_lib');
+const { auth, readState, writeState, envOK, sesionEsAdmin, puedeGestionarAdmins, renewIfStale, blockedUser, ligaIdOK, LIGA_DEFAULT, resolveLigaId, readLigaIndex, upsertLigaIndex } = require('./_lib');
 const { protectState, AppError } = require('./_validation');
 const destinosAuto = require('../public/destinos-auto.js');
 const { notifyAdmins, fmtFecha, fmtSets } = require('./_lib_whatsapp');
@@ -31,7 +31,7 @@ async function _handlerSave(req, res){
     return res.status(400).json({ error: 'Estado inválido: no se guarda.' });
   }
 
-  const ligaId = (req.body && ligaIdOK(req.body.ligaId)) ? req.body.ligaId : LIGA_DEFAULT;
+  const ligaId = resolveLigaId(req.body && req.body.ligaId);
 
   const bytes = JSON.stringify(incoming).length;
   if(bytes > 8 * 1024 * 1024){

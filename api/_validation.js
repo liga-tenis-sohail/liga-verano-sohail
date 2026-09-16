@@ -50,7 +50,7 @@ function validateMatch(m,state,admin){
     if(!score.validMatch(m.sets).ok)bad('Marcador inválido. Revisá los sets.');
     if(m.po&&m.winner!==names[score.winnerIndex(m.sets)])bad('El ganador no coincide con el marcador.');
   }
-  if((!m.wo||m.sets.length)&&(!Array.isArray(state.CLUBS)||!state.CLUBS.some(c=>c&&c.name===m.club)))bad('Seleccioná un club válido.');
+  if(!Array.isArray(state.CLUBS)||!state.CLUBS.some(c=>c&&c.name===m.club))bad('Seleccioná un club válido.');
 }
 function protectState(current,incoming,session,admin,manage){
   safeTree(incoming);
@@ -120,10 +120,16 @@ function protectState(current,incoming,session,admin,manage){
     if(!m||seen.has(m.id))bad('Hay identificadores de partido duplicados.');seen.add(m.id);
     const before=old.get(m.id);
     if(equal(before,m))continue; // No reinterpreta ni descarta resultados históricos.
+    // Aggregation hints belong to the read-only browser projection, not storage.
+    // Never let a supplied subject/profile override the participants in statistics.
+    for(const key of Object.keys(m))if(key.startsWith('_mh'))delete m[key];
     const ps=participants(m);
     if(!admin){
       if(!Array.isArray(ps)||!ps.includes(session.u))deny('No podés cargar o modificar partidos ajenos.');
       if(before){
+        // A pending record remains the same match; it cannot be moved by a player.
+        if(!!m.po!==!!before.po||
+          (m.po?['ti','which','ri','mi']:['cycle','g']).some(k=>!equal(m[k],before[k])))deny('No podés cambiar el ciclo, grupo o cruce de un partido existente.');
         if(!participants(before).includes(session.u)||!equal(participants(before),ps))deny('No podés sustituir los participantes de un partido.');
         if(before.status==='confirmed'||(before.status==='pending'&&m.status==='disputed')){
           const a={...before,status:0},b={...m,status:0};
@@ -136,6 +142,10 @@ function protectState(current,incoming,session,admin,manage){
       m.reporter=session.u;delete m.vBy;m.locked=false;
     }
     validateMatch(m,admin?incoming:current,admin);
+    if(!admin&&m.po){
+      // Presentation metadata is authoritative on the server as well.
+      m.tLabel=current.playoff.tramos[m.ti].label;
+    }
 
   }
   if(!admin)for(const [id,m]of old)if(!seen.has(id)){

@@ -176,6 +176,21 @@ function supaHeaders(extra){
 // La liga por defecto: si un endpoint todavía no pasa ligaId, trabaja sobre la
 // liga histórica. Así la migración es gradual y nada se rompe en el camino.
 const LIGA_DEFAULT = 'liga-actual';
+function unavailable(message){return Object.assign(new Error(message||'No se pudo comprobar la seguridad de la operación. Intentá nuevamente.'),{status:503,code:'SERVICE_UNAVAILABLE'});}
+// Only an OMITTED identifier uses the legacy default. Explicit invalid input
+// must never select another league as a side effect.
+function resolveLigaId(value){
+  if(value===undefined)return LIGA_DEFAULT;
+  if(!ligaIdOK(value))throw Object.assign(new Error('Identificador de liga inválido.'),{status:400,code:'INVALID_LEAGUE'});
+  return value;
+}
+// Never accept the stored hash as proof of knowledge of a password.
+function verifyPassword(stored,plain){
+  if(typeof stored!=='string'||typeof plain!=='string'||!plain||plain.length>128)return false;
+  const expected=stored.startsWith('v2:')?hashV2(plain):stored.startsWith('v1:')?hashV1(plain):plain;
+  const a=Buffer.from(stored),b=Buffer.from(expected);
+  return a.length===b.length&&crypto.timingSafeEqual(a,b);
+}
 
 // Sanea el id de liga: solo minúsculas, números y guiones. Evita inyección en la
 // URL de Supabase y mantiene los ids predecibles ("anual-2026").
@@ -320,55 +335,55 @@ async function borrarPasskeysDeUsuario(userName,strict=false){
 // El costo es 1-2 queries a Supabase por login. Aceptable a esta escala.
 // ============================================================================
 
-// Devuelve segundos que faltan hasta desbloquear, o 0 si no está bloqueada.
-async function rateLimitCheck(key, max){
-  const r = await fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key) + '&select=n,until_ts', {
-    headers: supaHeaders()
-  });
-  if(!r.ok) return 0;                            // ante duda, permitir (fail-open para no bloquear a usuarios legítimos)
-  const rows = await r.json();
-  if(!Array.isArray(rows) || !rows.length) return 0;
-  const row = rows[0];
-  if(row.n < max) return 0;
-  if(!row.until_ts) return 0;
-  const left = new Date(row.until_ts).getTime() - Date.now();
-  if(left <= 0){
-    // Ya venció: limpiamos best-effort (no esperamos)
-    fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key), {
-      method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' })
-    }).catch(()=>{});
-    return 0;
-  }
-  return Math.ceil(left / 1000);
+// Durable failure counters. A failed read/write is NOT an authorization to
+// continue. Conditional PATCH avoids losing failures from concurrent instances.
+async function readRate(key){
+  let r;
+  try { r=await fetch(SUPA_URL+'/rest/v1/rate_limits?key=eq.'+encodeURIComponent(key)+'&select=n,until_ts,updated_at', {headers:supaHeaders(),signal:AbortSignal.timeout(10000)}); }
+  catch(_) { throw unavailable(); }
+  if(!r.ok)throw unavailable();
+  let rows;try{rows=await r.json();}catch(_){throw unavailable();}
+  if(!Array.isArray(rows)||rows.length>1)throw unavailable();
+  const row=rows[0];
+  if(row&&(!Number.isSafeInteger(row.n)||row.n<0||typeof row.updated_at!=='string'||!Number.isFinite(Date.parse(row.updated_at))||row.until_ts!=null&&!Number.isFinite(Date.parse(row.until_ts))))throw unavailable();
+  return row||null;
 }
-
-// Registra un intento fallido. Al llegar a max, marca `until_ts` con el lock.
-// Usa UPSERT + expresión SQL vía RPC no está disponible en PostgREST plano, así
-// que hacemos read-modify-write (best-effort; race conditions bajo carga son
-// aceptables: dos fails simultáneos que cuenten 1 en vez de 2 no es crítico).
-async function rateLimitFail(key, max, lockMs){
-  const r = await fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key) + '&select=n,until_ts', {
-    headers: supaHeaders()
-  });
-  let n = 0;
-  if(r.ok){
-    const rows = await r.json();
-    if(Array.isArray(rows) && rows.length) n = rows[0].n || 0;
-  }
-  n = n + 1;
-  const until_ts = (n >= max) ? new Date(Date.now() + lockMs).toISOString() : null;
-  await fetch(SUPA_URL + '/rest/v1/rate_limits', {
-    method: 'POST',
-    headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' }),
-    body: JSON.stringify({ key, n, until_ts, updated_at: new Date().toISOString() })
-  }).catch(()=>{});
+function rateLeft(row,max){
+  if(!row||row.n<max)return 0;
+  if(!row.until_ts)throw unavailable();
+  return Math.max(0,Math.ceil((Date.parse(row.until_ts)-Date.now())/1000));
 }
-
-// Limpia el contador tras un login exitoso.
+async function rateLimitCheck(key,max){return rateLeft(await readRate(key),max);}
+function rateWhere(key,row){
+  return '?key=eq.'+encodeURIComponent(key)+'&n=eq.'+row.n+
+    '&until_ts='+(row.until_ts==null?'is.null':'eq.'+encodeURIComponent(row.until_ts))+
+    '&updated_at=eq.'+encodeURIComponent(row.updated_at);
+}
+async function rateLimitFail(key,max,lockMs){
+  for(let attempt=0;attempt<8;attempt++){
+    const row=await readRate(key),now=Date.now();
+    if(rateLeft(row,max))return;
+    const expired=row&&row.until_ts&&Date.parse(row.until_ts)<=now;
+    const n=Math.min(max,(expired?0:row?.n||0)+1);
+    const until_ts=(row&&!expired&&row.until_ts)||new Date(now+lockMs).toISOString();
+    // Monotonic per row: protects a concurrent clear/reset with the same count.
+    const updated_at=new Date(Math.max(now,row?Date.parse(row.updated_at)+1:now)).toISOString();
+    const body={key,n,until_ts,updated_at};let response;
+    try{response=await fetch(SUPA_URL+'/rest/v1/rate_limits'+(row?rateWhere(key,row):'?on_conflict=key'),{
+      method:row?'PATCH':'POST',headers:supaHeaders({'Content-Type':'application/json',Prefer:row?'return=representation':'resolution=ignore-duplicates,return=representation'}),
+      body:JSON.stringify(body),signal:AbortSignal.timeout(10000)});}catch(_){throw unavailable();}
+    if(!response.ok)throw unavailable();
+    const result=await response.json();if(!Array.isArray(result))throw unavailable();
+    if(result.length===1)return;
+    // Another instance changed/created the row: re-read rather than overwrite it.
+  }
+  throw unavailable('Hay varios intentos simultáneos. Esperá unos segundos.');
+}
+// Success clears only the version read here, never a later failure.
 async function rateLimitClear(key){
-  await fetch(SUPA_URL + '/rest/v1/rate_limits?key=eq.' + encodeURIComponent(key), {
-    method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' })
-  }).catch(()=>{});
+  const row=await readRate(key);if(!row)return;
+  let r;try{r=await fetch(SUPA_URL+'/rest/v1/rate_limits'+rateWhere(key,row),{method:'DELETE',headers:supaHeaders({Prefer:'return=minimal'}),signal:AbortSignal.timeout(10000)});}catch(_){throw unavailable();}
+  if(!r.ok)throw unavailable();
 }
 
 
@@ -482,34 +497,16 @@ async function leerMensajesDesde({ ligaId, tipo, ciclo, grupo, desdeId }){
 }
 
 
-// ============================================================================
-// BLOCKED USER CON CACHÉ — evita leer los 125 KB del estado en cada request
-// solo para verificar el flag `inactive`. Cachea por (usuario, liga, exp del
-// token) durante 60 segundos. El TTL bajo garantiza detección rápida de
-// desactivación (peor caso: 60 s de retraso).
-// ============================================================================
-const _blockedCache = new Map();   // key → { blocked, at }
-const BLOCKED_TTL_MS = 60 * 1000;
-
+// Authorization is checked against current data on EVERY request. The legacy
+// function name is retained for callers; no positive authorization is cached.
 async function blockedUserCached(session, ligaId){
-  if(!session) return null;
-  const lid = ligaId || LIGA_DEFAULT;
-  const key = session.u + '|' + lid + '|' + session.exp;
-  const hit = _blockedCache.get(key);
-  if(hit && (Date.now() - hit.at) < BLOCKED_TTL_MS) return hit.blocked;
-  let blocked = null;
-  try {
-    const state = await readState(lid);
-    if(state) blocked = blockedUser(state, session);
-  } catch(_){ /* si falla la lectura, no bloqueamos (mismo criterio que rateLimitCheck) */ }
-  _blockedCache.set(key, { blocked, at: Date.now() });
-  // Limpieza best-effort del cache (evitar leak de memoria en instancias long-lived)
-  if(_blockedCache.size > 500){
-    for(const [k, v] of _blockedCache){
-      if((Date.now() - v.at) > BLOCKED_TTL_MS) _blockedCache.delete(k);
-    }
-  }
-  return blocked;
+  if(!session) return 'Sesión inválida.';
+  const id = resolveLigaId(ligaId);
+  let state;
+  try { state = await readState(id); }
+  catch(_) { throw unavailable('No se pudo comprobar el acceso a la liga. Intentá nuevamente.'); }
+  if(!state) return 'La liga no está disponible.';
+  return blockedUser(state, session);
 }
 
 // =====================================================================
@@ -602,7 +599,7 @@ module.exports = {
   // Acceso directo a Supabase (para endpoints que necesitan queries custom):
   SUPA_URL, supaHeaders,
   // Sistema unificado (Fase 1):
-  LIGA_DEFAULT, ligaIdOK,
+  LIGA_DEFAULT, ligaIdOK, resolveLigaId, verifyPassword,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
   readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga,
   // Mensajería (tabla aparte, ver comentario arriba de insertarMensaje):

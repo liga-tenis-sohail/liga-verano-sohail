@@ -58,7 +58,9 @@ module.exports = async function handler(req, res){
   const body = (req.body && typeof req.body === 'object') ? req.body : {};
   const user = String(body.user || '').trim();
   const pass = String(body.pass || '');
-  if(!user || !pass) return res.status(400).json({ error: 'Escribí tu usuario y tu contraseña.' });
+  if(typeof body.user!=='string'||typeof body.pass!=='string'||!user||!pass||user.length>120||pass.length>128){
+    return res.status(400).json({error:'Revisá el usuario (hasta 120 caracteres) y la contraseña (hasta 128).',code:'INVALID_LOGIN_INPUT'});
+  }
 
   const ip = clientIP(req);
   const [waitU, waitIP] = await Promise.all([

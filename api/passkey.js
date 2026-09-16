@@ -52,7 +52,7 @@ function firmarChallenge(payload){
   return body + '.' + sig;
 }
 function leerChallenge(tok){
-  if(!tok || tok.indexOf('.') < 0) return null;
+  if(typeof tok!=='string'||tok.length>16384||tok.indexOf('.')<0) return null;
   const [body, sig] = tok.split('.');
   const expect = crypto.createHmac('sha256', process.env.SESSION_SECRET).update(body).digest('base64url');
   const a = Buffer.from(sig), b = Buffer.from(expect);
@@ -134,6 +134,7 @@ module.exports = async (req, res) => {
   let body = req.body;
   if(typeof body === 'string'){ try{ body = JSON.parse(body); }catch(_){ body = {}; } }
   body = body || {};
+  if(Object.prototype.hasOwnProperty.call(body,'ligaId')&&!lib.ligaIdOK(body.ligaId))return res.status(400).json({error:'Identificador de liga inválido.',code:'INVALID_LEAGUE'});
   const accion = body.accion;
   const { rpID, rpName, origin } = rpInfo(req);
   res.setHeader('Cache-Control', 'no-store');
@@ -157,11 +158,11 @@ module.exports = async (req, res) => {
         excludeCredentials: existentes.map(p => ({ id: p.credential_id, transports: p.transports ? JSON.parse(p.transports) : undefined })),
         authenticatorSelection: {
           residentKey: 'preferred',
-          userVerification: 'preferred'   // pide Face ID/Touch ID pero no lo exige rígido
+          userVerification: 'required'   // requiere PIN o biometría verificados por el autenticador
         }
       });
       // Guardar el challenge firmado en cookie temporal
-      setCookie(res, 'pk_reg', firmarChallenge({ ch: options.challenge, u: userName, exp: Date.now() + CHALLENGE_TTL }), CHALLENGE_TTL);
+      setCookie(res, 'pk_reg', firmarChallenge({ ch: options.challenge, u: userName, pk:session.pk, sv:session.sv, src:session.src, exp: Date.now() + CHALLENGE_TTL }), CHALLENGE_TTL);
       return res.status(200).json(options);
     }
 
@@ -173,7 +174,7 @@ module.exports = async (req, res) => {
       if(!session) return res.status(401).json({ error: 'Sesión inválida. Volvé a entrar con tu clave.' });
       const saved = leerChallenge(readCookie(req, 'pk_reg'));
       clearCookie(res, 'pk_reg');
-      if(!saved || saved.u !== session.u) return res.status(400).json({ error: 'El registro expiró. Probá de nuevo.' });
+      if(!saved||saved.u!==session.u||saved.pk!==session.pk||saved.sv!==session.sv||saved.src!==session.src) return res.status(400).json({ error: 'El registro expiró. Probá de nuevo.' });
 
       const { verifyRegistrationResponse } = await loadWebAuthn();
       const verification = await verifyRegistrationResponse({
@@ -181,7 +182,7 @@ module.exports = async (req, res) => {
         expectedChallenge: saved.ch,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        requireUserVerification: false
+        requireUserVerification: true
       });
       if(!verification.verified || !verification.registrationInfo){
         return res.status(400).json({ error: 'No se pudo verificar la passkey.' });
@@ -207,7 +208,7 @@ module.exports = async (req, res) => {
       const { generateAuthenticationOptions } = await loadWebAuthn();
       const options = await generateAuthenticationOptions({
         rpID,
-        userVerification: 'preferred'
+        userVerification: 'required'
         // allowCredentials vacío: dejamos que el dispositivo ofrezca las passkeys
         // que tenga para este sitio (discoverable credentials). Más simple para el
         // usuario: ve sus passkeys sin escribir el usuario.
@@ -235,7 +236,7 @@ module.exports = async (req, res) => {
         expectedChallenge: saved.ch,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        requireUserVerification: false,
+        requireUserVerification: true,
         credential: {
           id: pk.credential_id,
           publicKey: Buffer.from(pk.public_key, 'base64url'),
