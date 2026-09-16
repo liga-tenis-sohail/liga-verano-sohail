@@ -684,3 +684,10 @@ body.sohail-ui-modern #modal-bg .modal:has(.mh-player-sheet){width:min(760px,cal
  .mh-h2h-score strong{font-size:14px}
  .mh-match-actions{gap:6px 12px}
 }
+
+/* Audit v3.8: reliable status announcements and keyboard-accessible awards. */
+.toast{max-width:min(380px,calc(100vw - 32px));box-sizing:border-box;overflow-wrap:anywhere;pointer-events:none;}
+.champion-showcase button.champion-showcase__winner-link{font:inherit;line-height:inherit;max-width:100%;overflow-wrap:anywhere;background:transparent;border:0;border-bottom:1px dashed currentColor;border-radius:2px;padding:0;cursor:pointer;text-align:center;}
+.champion-showcase button.champion-showcase__winner-link:hover{opacity:1;text-decoration:underline;}
+.champion-showcase button.champion-showcase__winner-link:focus-visible{outline:3px solid currentColor;outline-offset:5px;}
+@media(max-width:520px){.toast{left:16px;right:16px;width:auto;bottom:calc(90px + env(safe-area-inset-bottom));max-width:none;}}

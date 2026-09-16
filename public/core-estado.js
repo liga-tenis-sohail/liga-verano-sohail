@@ -1199,6 +1199,8 @@ function removePlayerCycle(name,fromG){const c=cycles[activeN-1];if(!c||!c.group
 function movePlayerUI(name,fromG,toG){if(!toG)return;movePlayer(name,fromG,parseInt(toG));renderAdmin();persist(true);toast(name+' movido a '+groupName(parseInt(toG))+'.');}
 
 function updateBadge() {
+  // Async renders and language changes may finish after logout.
+  if(!currentUser){const badge=document.getElementById('pend-n');if(badge){badge.textContent='0';badge.style.display='none';}return;}
   const pend = matches.filter(m => m.status === 'pending');
   const disp = matches.filter(m => m.status === 'disputed');
   // Para el badge del admin: partidos donde el rival (no-reporter) puede confirmar

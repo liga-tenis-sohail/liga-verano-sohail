@@ -207,7 +207,7 @@
    else next='<div class="ui-home-empty">'+icon(d.champion?'league':'check')+'<p>'+e(compHint)+'</p></div>';
   }else next=(cy?.status==='active'?peers:[]).map(n=>'<div class="ui-opponent"><span>'+e(n)+'</span><button type="button" class="ui-link-button" data-ui-opponent="'+e(n)+'">'+e(t('ui_start'))+'</button></div>').join('')||'<div class="ui-home-empty">'+icon('check')+'<p>'+e(t(cy?.status==='finished'?'ui_no_open_cycle':'ui_no_rivals'))+'</p></div>';
   h+=card(t(admin?'ui_attention':isPO?'ui_up_next':'ui_unplayed'),next,admin?'<button class="ui-link-button" data-ui-route="pendientes">'+e(t('ui_view_all'))+'</button>':'');
-  h+='</div>'+card(t('ui_recent'),relevant.slice().sort((a,b)=>b.id-a.id).slice(0,5).map(m=>matchCard(m)).join('')||'<div class="ui-home-empty">'+icon('matches')+'<p>'+e(t('ui_no_matches'))+'</p></div>');root.innerHTML=h;
+  h+='</div>'+card(t('ui_recent'),relevant.slice().sort(global.SohailHistoryData?SohailHistoryData.newest:(a,b)=>String(b.date||'').localeCompare(String(a.date||''))||b.id-a.id).slice(0,5).map(m=>matchCard(m)).join('')||'<div class="ui-home-empty">'+icon('matches')+'<p>'+e(t('ui_no_matches'))+'</p></div>');root.innerHTML=h;
  }
  // Extra labels are presentation only: never read/log/store password values.
  function updateLogin(){

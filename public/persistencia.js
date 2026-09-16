@@ -46,7 +46,8 @@ function _hydrate(d){try{
   }
   if(d.DESTINO)DESTINO=d.DESTINO;
   if(d.FECHAS)FECHAS=d.FECHAS;
-  if(d.PO_FECHAS){// Migrate old string format to new object format
+  PO_FECHAS={};
+  if(d.PO_FECHAS&&typeof d.PO_FECHAS==='object'){// Migrate old string format to new object format
   Object.keys(d.PO_FECHAS).forEach(r=>{
     const v=d.PO_FECHAS[r];
     if(typeof v==='string')PO_FECHAS[r]={type:'single',date:v,from:'',to:''};
@@ -85,7 +86,7 @@ function _hydrate(d){try{
   if(Array.isArray(d.LOG))LOG=d.LOG;
   if(d.LEAGUE_NAME)LEAGUE_NAME=d.LEAGUE_NAME;
   REGLAMENTO=(typeof d.REGLAMENTO==='string')?d.REGLAMENTO:'';
-  if(d.LEAGUE_SUBTITLE)LEAGUE_SUBTITLE=d.LEAGUE_SUBTITLE;
+  LEAGUE_SUBTITLE=typeof d.LEAGUE_SUBTITLE==='string'?d.LEAGUE_SUBTITLE:'';
   // typeof==='string' (no truthy-check): un LOGIN_TITLE vacío es un valor
   // válido y querido (significa "usar LEAGUE_NAME por defecto"), a diferencia
   // de LEAGUE_SUBTITLE de arriba donde vacío se trata como "no vino nada".
@@ -104,6 +105,7 @@ function _hydrate(d){try{
   // LOGIN_HEADER: config del header editable del login (color + links).
   // Validamos defensivamente cada campo por si viene de una versión previa
   // sin este campo (default = azul con lista vacía).
+  LOGIN_HEADER={color:'#0E3470',textColor:'',colorDark:'',textColorDark:'',links:[]};
   if(d.LOGIN_HEADER && typeof d.LOGIN_HEADER === 'object'){
     LOGIN_HEADER = {
       color: (typeof d.LOGIN_HEADER.color === 'string' && d.LOGIN_HEADER.color) ? d.LOGIN_HEADER.color : '#0E3470',
@@ -114,8 +116,8 @@ function _hydrate(d){try{
     };
     // Refrescar el cache de localStorage con la versión autoritativa del server.
     // Así el próximo visitante ve la última config aunque no se haya logueado.
-    try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
   }
+  try { localStorage.setItem('lh', JSON.stringify(LOGIN_HEADER)); } catch(_){}
   // JOIN_REQUESTS: solicitudes de acceso de jugadores de OTRAS ligas. Se
   // sanitiza cada entrada por si viene de un formato viejo o corrupto.
   JOIN_REQUESTS = Array.isArray(d.JOIN_REQUESTS) ? d.JOIN_REQUESTS.filter(r=>r&&r.id&&r.nombre) : [];

@@ -54,7 +54,7 @@
  }
  function snapshotForReview(m){const v=validation(m);return{v,score:m.mode==='wo'?'W.O.':m.sets.map(s=>s.map(v=>v===''?'—':v).join('–')).join(' / ')+(m.mode==='normal'&&m.stb.some(v=>v!=='')?' / '+m.stb.map(v=>v===''?'—':v).join('–'):'')+(m.mode==='ret'?' · RET':'')};}
  function update(m){
-  const root=m.host;if(!root?.isConnected)return;if(m.club){root.querySelector('.re-club-fieldset')?.removeAttribute('aria-invalid');root.querySelectorAll('[data-field=club]').forEach(el=>el.removeAttribute('aria-invalid'));}const ints=m.sets.map(s=>s.map(v=>v===''?NaN:Number(v)));const split=m.mode==='normal'&&ints.every(s=>SohailScore.validSet(...s))&&(ints[0][0]>ints[0][1])!==(ints[1][0]>ints[1][1]);
+  const root=m.host;if(!root?.isConnected||root.dataset.editorId!==m.id||!root.querySelector('.re-review-data'))return;if(m.club){root.querySelector('.re-club-fieldset')?.removeAttribute('aria-invalid');root.querySelectorAll('[data-field=club]').forEach(el=>el.removeAttribute('aria-invalid'));}const ints=m.sets.map(s=>s.map(v=>v===''?NaN:Number(v)));const split=m.mode==='normal'&&ints.every(s=>SohailScore.validSet(...s))&&(ints[0][0]>ints[0][1])!==(ints[1][0]>ints[1][1]);
   const stb=root.querySelector('.re-stb');if(stb)stb.hidden=!split;
   const hint=root.querySelector('.re-stb-reference');if(hint)hint.hidden=!split;
   if(!split)m.stb=['',''];
@@ -94,8 +94,15 @@
    '<section class="re-review"><h3>'+SohailUI.icon('check')+e(t('re_review'))+'</h3><dl class="re-review-data"></dl></section><div class="re-error" role="alert" tabindex="-1" hidden></div><div class="re-actions"><button type="button" class="btn" data-close>'+e(t(isModal?'re_cancel':'re_reset'))+'</button><button type="button" class="btn btn-primary" data-save>'+SohailUI.icon('check')+'<span>'+e(t('re_save'))+'</span></button></div>';
   if(isModal)host.closest('dialog').setAttribute('aria-labelledby',id+'-title');
   update(m);
-  host.oninput=ev=>{if(ev.target.dataset.field){readModel(m);m.dirty=true;update(m);ev.target.removeAttribute('aria-invalid');}};
-  host.onchange=ev=>{const what=ev.target.dataset.context;if(what){const value=ev.target.value;let cc={...m.c,editId:undefined};if(what==='group'){cc.gid=Number(value);cc.a=esAdmin(currentUser)?'':currentUser.name;cc.b='';}else if(what==='pair'){if(!value){cc={po:true};}else{const [ti,which,ri,mi]=value.split(':');cc={po:true,ti:Number(ti),which,ri:Number(ri),mi:Number(mi)};}}else{cc[what]=value;if(cc.a===cc.b)cc[what==='a'?'b':'a']='';}
+  host.oninput=ev=>{if(ev.target.dataset.field&&!ev.target.dataset.context){readModel(m);m.dirty=true;update(m);ev.target.removeAttribute('aria-invalid');}};
+  host.onchange=ev=>{const what=ev.target.dataset.context;if(what){const value=ev.target.value;
+    if(m.saving)return;
+    readModel(m);
+    if(m.dirty&&!confirm(t('re_discard'))){
+      const old=what==='group'?m.c.gid:what==='pair'?(Number.isInteger(m.c.ti)?[m.c.ti,m.c.which,m.c.ri,m.c.mi].join(':'):''):m.c[what];
+      ev.target.value=old==null?'':String(old);return;
+    }
+    let cc={...m.c,editId:undefined};if(what==='group'){cc.gid=Number(value);cc.a=esAdmin(currentUser)?'':currentUser.name;cc.b='';}else if(what==='pair'){if(!value){cc={po:true};}else{const [ti,which,ri,mi]=value.split(':');cc={po:true,ti:Number(ti),which,ri:Number(ri),mi:Number(mi)};}}else{cc[what]=value;if(cc.a===cc.b)cc[what==='a'?'b':'a']='';}
     const fresh=createModel(context(cc),id);Object.assign(m,fresh);m.host=host;draw(m,host,isModal);return;}
    readModel(m);m.dirty=true;update(m);
   };
@@ -147,11 +154,32 @@
    if(c.po)applyPoPending(record); // Pending redraws but never advances; confirmed rebuilds both draws.
    addLog(c.po?(admin?'Playoff: validado (admin)':'Playoff: cargado'):(admin?'Liga: validado (admin)':'Liga: cargado'),{a:c.a,b:c.b,sets:record.sets,wo:record.wo,po:!!c.po,grupo:c.gid,cuadro:record.tLabel,which:c.which});
   });
-  m.saving=false;if(m.host.isConnected){m.host.removeAttribute('aria-busy');m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);m.host.querySelector('[data-save] span').textContent=t('re_save');}
+  m.saving=false;if(m.host.isConnected&&m.host.dataset.editorId===m.id){m.host.removeAttribute('aria-busy');m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);m.host.querySelector('[data-save] span').textContent=t('re_save');}
   if(saved){m.dirty=false;if(modal)activeModal?.close();else reset(m,m.host);const x=window.scrollX,y=window.scrollY;refreshAll();window.scrollTo({left:x,top:y,behavior:'auto'});toast(tf('re_saved_scope',{scope:scope(c),message:t(record.status==='confirmed'?'re_confirmed':'re_pending')}));}
-  else if(m.host.isConnected){update(m);showError(m,_saveConflict?'fix_conflict':'re_failed');}
+  else if(m.host.isConnected&&m.host.dataset.editorId===m.id){update(m);showError(m,_saveConflict?'fix_conflict':'re_failed');}
  }
- function translate(){for(const m of instances.values()){if(m.host?.isConnected){readModel(m);draw(m,m.host,m.id!=='re-page');}}}
+ function clearSession(){
+  // Removing a focused input can emit change while its parent is cleared.
+  // Detach the old handlers and invalidate the owner before removing DOM.
+  for(const m of instances.values()){if(m.host){m.host.oninput=null;m.host.onchange=null;m.host.onclick=null;delete m.host.dataset.editorId;}}
+  instances.clear();
+  if(activeModal){const dlg=activeModal;activeModal=null;dlg.close();dlg.remove();}
+  const page=document.getElementById('result-page');if(page)page.replaceChildren();
+ }
+ function translate(){
+  const sx=window.scrollX,sy=window.scrollY,active=document.activeElement;
+  const field=active?.dataset?.field,ctx=active?.dataset?.context,value=active?.value;
+  let focusHost=null;
+  for(const [key,m] of instances){
+   if(!currentUser||m.key!==_saveSessionKey()||m.league!==_ligaActual){instances.delete(key);continue;}
+   if(m.host?.isConnected&&!m.saving){const own=m.host.contains(active);const top=m.host.closest('dialog')?.scrollTop;
+    readModel(m);draw(m,m.host,m.id!=='re-page');if(own){focusHost=m.host;if(top!=null)m.host.closest('dialog').scrollTop=top;}
+   }
+  }
+  if(focusHost){const nodes=Array.from(focusHost.querySelectorAll('[data-field],[data-context]'));
+   const next=nodes.find(n=>field?n.dataset.field===field&&(n.type!=='radio'||n.value===value):ctx&&n.dataset.context===ctx);next?.focus({preventScroll:true});}
+  window.scrollTo({left:sx,top:sy,behavior:'auto'});
+ }
  global.addEventListener('beforeunload',ev=>{if([...instances.values()].some(m=>m.dirty&&m.key===_saveSessionKey()&&m.league===_ligaActual)){ev.preventDefault();ev.returnValue='';}});
- global.SohailResults={open,renderPage,canLeave,isSaving,translate,validation,update};
+ global.SohailResults={open,renderPage,canLeave,isSaving,translate,clearSession,validation,update};
 })(window);

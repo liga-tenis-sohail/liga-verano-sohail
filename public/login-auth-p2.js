@@ -723,6 +723,7 @@ function entrarConToken(d){
   return true;
 }
 function doLogout(){
+  if(window.SohailResults)SohailResults.clearSession();
   _postLoginRequest++;_postLoginBusy=false;_postLoginChoices=[];_postLoginName='';
   const pass=document.getElementById('login-pass');if(pass)pass.type='password';
   if(window.SohailUI)SohailUI.updateLogin();

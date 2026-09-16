@@ -561,14 +561,19 @@ function submitLoadModal(){
 // confirme o el admin lo valide; si lo hace el admin, queda 'confirmed'
 // directo, igual que siempre.
 async function deletePoDirect(ti,which,ri,mi){
-  if(!confirm((""+t('ui36_text_187')+""))) return;
-  const m = (which === 'main' ? playoff.tramos[ti].main : playoff.tramos[ti].cons)[ri][mi];
-  const mRec = matches.find(x=>x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(m.a)&&x.poNames.includes(m.b));
-  addLog('Playoff: eliminado',{a:m.a,b:m.b,sets:mRec?mRec.sets:[],po:true,cuadro:playoff.tramos[ti]?playoff.tramos[ti].label:'',which});
-  const k = (which === 'main' ? ti : ti + 'c') + '#' + [m.a, m.b].sort().join('|');
-  delete playoff.results[k];
-  matches = matches.filter(x => !(x.po && x.ti === ti && x.which === which && ((x.poNames[0] === m.a && x.poNames[1] === m.b) || (x.poNames[0] === m.b && x.poNames[1] === m.a))));
-  rebuildTramo(ti); if(!await _criticalSave()){toast(t('fix_save_failed'));return false;} showPlayoffView(); toast(t('match_deleted')); return true;
+  if(!currentUser||!esAdmin(currentUser)||_ligaReadOnly||SohailUI.isBusy())return false;
+  const tr=playoff.tramos[ti],slot=tr?.[which]?.[ri]?.[mi];if(!slot)return false;
+  const rec=matches.find(x=>x.po&&x.ti===ti&&x.which===which&&x.poNames&&x.poNames.includes(slot.a)&&x.poNames.includes(slot.b));
+  if(rec)return deleteMatch(rec.id);
+  if(!confirm(t('ui36_text_187')))return false;
+  const original=JSON.stringify(slot),a=slot.a,b=slot.b;
+  const saved=await SohailUI.mutation(()=>{
+    if(JSON.stringify(playoff.tramos[ti]?.[which]?.[ri]?.[mi])!==original)throw Error(t('err_conflict'));
+    const k=(which==='main'?ti:ti+'c')+'#'+[a,b].sort().join('|');delete playoff.results[k];
+    addLog('Playoff: eliminado',{a,b,sets:[],po:true,cuadro:tr.label,which});rebuildTramo(ti);
+  });
+  if(!saved){toast(t('fix_save_failed'));return false;}
+  refreshAll();toast(t('match_deleted'));return true;
 }
 
 async function deletePo(){
@@ -647,7 +652,13 @@ function applyPoPending(rec){
   else delete playoff.results[key];
   rebuildTramo(rec.ti);
 }
-let _toastTimer=null;function toast(m){let t=document.getElementById('_toast');if(!t){t=document.createElement('div');t.id='_toast';t.className='toast';document.body.appendChild(t);}t.textContent=m;t.style.opacity='1';if(_toastTimer)clearTimeout(_toastTimer);_toastTimer=setTimeout(()=>{t.style.opacity='0';_toastTimer=null;},3800);}
+let _toastTimer=null;function toast(m){
+  let box=document.getElementById('_toast');
+  if(!box){box=document.createElement('div');box.id='_toast';box.className='toast';box.setAttribute('role','status');box.setAttribute('aria-live','polite');box.setAttribute('aria-atomic','true');document.body.appendChild(box);}
+  box.textContent=String(m??'');box.style.opacity='1';
+  if(_toastTimer)clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>{box.style.opacity='0';box.textContent='';_toastTimer=null;},6000);
+}
 
 // ============================================================================
 // confirmarModal(mensaje, opts) — reemplazo estético del confirm() nativo.

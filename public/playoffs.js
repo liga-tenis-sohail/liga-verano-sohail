@@ -22,15 +22,15 @@ function renderChampionShowcase(tr, finalM, mode){
     : t(isCons?'po_champ_ready_hint_cons':'po_champ_ready_hint_main');
   const nameHtml = pending
     ? `<span class="champion-showcase__pending-name">${t('po_champ_pending_name')}</span>`
-    : `<span class="nm-link champion-showcase__winner-link" onclick="showPlayerHistory('${jsq(winner)}')">${winner}</span>`;
+    : `<button type="button" class="nm-link champion-showcase__winner-link" onclick="showPlayerHistory('${attr(jsq(winner))}')">${attr(winner)}</button>`;
   return `<div class="champion-showcase ${isCons?'champion-showcase--cons':''} ${pending?'is-pending':'is-winner'}" aria-live="polite">
     <div class="champion-showcase__shine"></div>
     <div class="champion-showcase__topline"></div>
-    <div class="champion-showcase__badge"><i class="ti ${isCons?'ti-rosette-discount-check':'ti-crown'}"></i> ${badge}</div>
-    <div class="champion-showcase__title">${leagueName}</div>
-    <div class="champion-showcase__subtitle">${bracketLabel}</div>
+    <div class="champion-showcase__badge"><i class="ti ${isCons?'ti-rosette-discount-check':'ti-crown'}"></i> ${attr(badge)}</div>
+    <div class="champion-showcase__title">${attr(leagueName)}</div>
+    <div class="champion-showcase__subtitle">${attr(bracketLabel)}</div>
     <div class="champion-showcase__name">${nameHtml}</div>
-    <div class="champion-showcase__hint">${hint}</div>
+    <div class="champion-showcase__hint">${attr(hint)}</div>
   </div>`;
 }
 

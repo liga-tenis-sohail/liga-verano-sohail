@@ -11,7 +11,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
  'use strict';
  const subject=(m,name)=>name&&typeof m?._mhSubject==='string'?m._mhSubject:name;
- const players=m=>m?.po?(Array.isArray(m.poNames)?m.poNames.slice(0,2):[]):[m?.aName,m?.bName];
+ const players=m=>m?.po?(Array.isArray(m.poNames)&&m.poNames.length===2?m.poNames.slice():[]):[m?.aName,m?.bName];
  const pairs=m=>(Array.isArray(m?.sets)?m.sets:[]).filter(s=>Array.isArray(s)&&s.length===2&&s.every(v=>Number.isSafeInteger(v)&&v>=0));
  const kind=m=>m?.np?'np':m?.wo?(pairs(m).some(s=>s[0]||s[1])?'ret':'wo'):'normal';
  function dateKey(value){
@@ -31,14 +31,17 @@
   return String(b?._mhKey??b?.id??'').localeCompare(String(a?._mhKey??a?.id??''));
  }
  function records(source,name,scope='all'){
-  return (Array.isArray(source)?source:[]).filter(m=>m&&players(m).length===2&&players(m).every(n=>typeof n==='string'&&n.length)&&
+  return (Array.isArray(source)?source:[]).filter(m=>m&&players(m).length===2&&players(m)[0]!==players(m)[1]&&players(m).every(n=>typeof n==='string'&&n.length)&&
    (!name||players(m).includes(subject(m,name)))&&(scope==='all'||scope==='groups'&&!m.po||scope==='po'&&m.po||scope==='main'&&m.po&&m.which!=='cons'||scope==='cons'&&m.po&&m.which==='cons'||scope.startsWith('cycle:')&&!m.po&&String(m.cycle)===scope.slice(6))).slice().sort(newest);
  }
  const validSet=s=>{const hi=Math.max(...s),lo=Math.min(...s);return hi===6&&lo<=4||hi===7&&(lo===5||lo===6);};
  function winner(m){
   const ns=players(m),ss=pairs(m),type=kind(m);
-  if(type==='np')return null;
+  if(ns.length!==2||ns[0]===ns[1]||ns.some(n=>typeof n!=='string'||!n)||!Array.isArray(m.sets)||ss.length!==m.sets.length||type==='np')return null;
   if(type==='wo'||type==='ret'){
+   if(ss.length>2||!ss.every(validSet)||(ss.length===2&&((ss[0][0]>ss[0][1])===(ss[1][0]>ss[1][1]))))return null;
+   if(m.winner!=null&&!ns.includes(m.winner)||m.retiroDe!=null&&!ns.includes(m.retiroDe))return null;
+   if(m.winner&&m.retiroDe&&m.winner===m.retiroDe)return null;
    if(ns.includes(m.winner))return m.winner;
    if(ns.includes(m.retiroDe))return ns.find(n=>n!==m.retiroDe)||null;
    return null;

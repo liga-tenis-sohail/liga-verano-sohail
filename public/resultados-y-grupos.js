@@ -752,8 +752,8 @@ function openModal(mid){const m=matches.find(x=>x.id===mid);if(!m)return;current
 document.getElementById('modal-title').textContent=(m.status==='confirmed'?t('validated_result'):m.status==='disputed'?t('disputed_result'):t('review_result'))+` · ${tag}`;
 const statusLabel = m.status === 'confirmed' ?
 t('confirmed_label') : m.status === 'disputed' ? t('legend_disputed') : t('legend_pending');
-if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${p1} &nbsp;vs&nbsp; ${p2}</p></div><p class="modal-meta" style="text-align:center"><strong>${t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
-else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${rep}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${m.club}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${p1} ${sc} ${p2}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${attr(p1)} &nbsp;vs&nbsp; ${attr(p2)}</p></div><p class="modal-meta" style="text-align:center"><strong>${t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${attr(rep)}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${attr(m.club)}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${attr(p1)} ${attr(sc)} ${attr(p2)}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser);const isPend=m.status==='pending';
 if(isAdmin){
   // El botón no se dibuja si el partido es propio: confirmM() lo rechazaría igual,
@@ -771,8 +771,34 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeM();});
 async function confirmM(){
 if(window.SohailUI)return SohailUI.resolve(currentModal);
 if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));return;}const m=matches.find(x=>x.id===currentModal);if(m){m.vBy=currentUser.name;m.status='confirmed';m.locked=true;if(m.po){applyPoPending(m);const tr=playoff.tramos[m.ti];const rnd=(()=>{const rounds=m.which==='main'?tr.main:tr.cons;const fe=rounds.length-1-m.ri;return fe===0?'Final':fe===1?'Semifinal':fe===2?'Cuartos':fe===3?'Octavos':'Ronda '+(m.ri+1);})();addLog('Playoff: confirmado',{a:m.poNames[0],b:m.poNames[1],sets:m.sets,winner:m.winner,po:true,cuadro:tr.label,which:m.which,round:rnd});}else{addLog('Liga: confirmado',{a:m.aName,b:m.bName,sets:m.sets,grupo:m.g,po:false});}}if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('toast_confirmed'));}
-async function disputeM(){const m=matches.find(x=>x.id===currentModal);if(m)m.status='disputed';if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('toast_disputed'));}
-async function deleteMatch(mid){if(confirm(t('confirm_delete'))){const dm=matches.find(x=>x.id===mid);if(dm){if(dm.po){const tr=playoff.tramos[dm.ti];addLog('Playoff: eliminado',{a:dm.poNames[0],b:dm.poNames[1],sets:dm.sets,po:true,cuadro:tr?tr.label:'',which:dm.which});}else{addLog('Liga: eliminado',{a:dm.aName,b:dm.bName,sets:dm.sets,grupo:dm.g,po:false});}}matches=matches.filter(x=>x.id!==mid);if(dm&&dm.po){const k=(dm.which==='main'?dm.ti:dm.ti+'c')+'#'+dm.poNames.slice().sort().join('|');delete playoff.results[k];rebuildTramo(dm.ti);}if(!await _criticalSave()){toast(t('fix_save_failed'));return;}closeM();refreshAll();toast(t('match_deleted'));}}
+async function disputeM(){
+  const id=currentModal,m=matches.find(x=>x.id===id);
+  if(!currentUser||!m||_ligaReadOnly||!SohailUI.ownMatch(m)||!['pending','confirmed'].includes(m.status))return false;
+  const original=JSON.stringify(m);
+  const saved=await SohailUI.mutation(()=>{
+    const record=matches.find(x=>x.id===id);
+    if(!record||JSON.stringify(record)!==original)throw Error(t('err_conflict'));
+    record.status='disputed';
+  });
+  if(!saved){toast(t('fix_save_failed'));return false;}
+  closeM();refreshAll();toast(t('toast_disputed'));return true;
+}
+async function deleteMatch(mid){
+  if(!currentUser||!esAdmin(currentUser)||_ligaReadOnly||SohailUI.isBusy())return false;
+  if(!confirm(t('confirm_delete')))return false;
+  const old=matches.find(x=>x.id===mid);if(!old)return false;
+  const original=JSON.stringify(old);
+  const saved=await SohailUI.mutation(()=>{
+    const dm=matches.find(x=>x.id===mid);
+    if(!dm||JSON.stringify(dm)!==original)throw Error(t('err_conflict'));
+    if(dm.po){const tr=playoff.tramos[dm.ti];addLog('Playoff: eliminado',{a:dm.poNames[0],b:dm.poNames[1],sets:dm.sets,po:true,cuadro:tr?tr.label:'',which:dm.which});}
+    else addLog('Liga: eliminado',{a:dm.aName,b:dm.bName,sets:dm.sets,grupo:dm.g,po:false});
+    matches=matches.filter(x=>x.id!==mid);
+    if(dm.po){const k=(dm.which==='main'?dm.ti:dm.ti+'c')+'#'+dm.poNames.slice().sort().join('|');delete playoff.results[k];rebuildTramo(dm.ti);}
+  });
+  if(!saved){toast(t('fix_save_failed'));return false;}
+  closeM();refreshAll();toast(t('match_deleted'));return true;
+}
 function adminEdit(mid){
 if(window.SohailResults){if(!esAdmin(currentUser))return;return SohailResults.open({existing:mid});}
 const m=matches.find(x=>x.id===mid);closeM();showSub('cargar');populateForm(m.g,m.aName,m.bName);pickClub(m.club);['s1a','s1b','s2a','s2b','s3a','s3b'].forEach(id=>document.getElementById(id).value='');document.getElementById('s3-row').style.display='none';m.sets.forEach((s,i)=>{const a=document.getElementById(`s${i+1}a`),b=document.getElementById(`s${i+1}b`);if(a)a.value=s[0];if(b)b.value=s[1];if(i===2)document.getElementById('s3-row').style.display='flex';});document.getElementById('f-fecha').value=m.date;}

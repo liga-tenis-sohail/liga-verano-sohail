@@ -166,9 +166,8 @@ async function initLogin(){
     if(c){ pintarLogin(JSON.parse(c)); hayCache=true; }
   }catch(_){ /* caché corrupta: se ignora y se pide de nuevo */ }
 
-  // 2) Precalentar las dos funciones en paralelo. Un GET a /api/login devuelve
-  //    405 al instante sin tocar la base, pero deja la función levantada.
-  fetch('/api/login',{method:'GET'}).catch(()=>{});
+  // No enviar GET de precalentamiento al endpoint de login: solo admite POST.
+  // La lista pública de usuarios se consulta abajo sin generar un 405 artificial.
 
   // 3) Traer la lista de verdad (modo GLOBAL: sin ?liga=, junta todas las
   //    ligas activas en un único dropdown alfabético) y refrescar por detrás.
