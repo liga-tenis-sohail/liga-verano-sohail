@@ -1,4 +1,4 @@
-/* Sohail v3.7 — historial y estadísticas de la liga seleccionada.
+/* Sohail v3.7.1 — historial y estadísticas de la liga seleccionada.
    SOLO lectura de matches: no cambia puntuación, rating, permisos ni estado.
    Se incluyen todos los ciclos y ambos cuadros, independientes de viewCycle.
    El historial conserva W.O./NJ; las estadísticas de juego los separan.
@@ -66,7 +66,37 @@
   out.pct=name&&out.wins+out.losses?Math.round(100*out.wins/(out.wins+out.losses)):null;
   return out;
  }
- return Object.freeze({players,subject,pairs,kind,dateKey,newest,records,winner,summarize});
+
+ // H2H identity is a profile ID across leagues, or a name scoped to ONE league.
+ // Equal names without a shared ID are never merged across seasons.
+ function person(name,context={}){
+  const u=context.users&&Object.prototype.hasOwnProperty.call(context.users,name)?context.users[name]:null;
+  const id=typeof u?.jugadorId==='string'&&u.jugadorId.trim()?u.jugadorId:null;
+  return {name,id,leagueId:String(context.id||''),key:JSON.stringify(id?['profile',id]:['league',String(context.id||''),name])};
+ }
+ function opponent(m,name,context={}){
+  const ns=players(m),i=ns.indexOf(subject(m,name));
+  if(i<0||ns.length!==2||ns[0]===ns[1])return null;
+  const j=1-i,leagueId=String(m._mhLeagueId||context.id||'');
+  const stored=Array.isArray(m._mhPlayerIds)?m._mhPlayerIds[j]:null;
+  const local=!m._mhLeagueId||leagueId===String(context.id||'');
+  const id=typeof stored==='string'&&stored.trim()?stored:(local?person(ns[j],context).id:null);
+  return {name:ns[j],id,leagueId,leagueName:m._mhLeagueName||context.nombre||leagueId,
+   key:JSON.stringify(id?['profile',id]:['league',leagueId,ns[j]])};
+ }
+ function headToHead(source,name,rivalKey,context={}){
+  const list=records(source,name).filter(m=>opponent(m,name,context)?.key===rivalKey);
+  let wins=0,losses=0,wo=0,pending=0,disputed=0,np=0,unresolved=0;
+  for(const m of list){
+   if(m.status!=='confirmed'){if(m.status==='disputed')disputed++;else pending++;continue;}
+   const k=kind(m);if(k==='np'){np++;continue;}
+   const w=winner(m);if(!w){unresolved++;continue;}
+   if(w===subject(m,name))wins++;else losses++;
+   if(k==='wo')wo++;
+  }
+  return {list,wins,losses,decided:wins+losses,wo,pending,disputed,np,unresolved};
+ }
+ return Object.freeze({players,subject,pairs,kind,dateKey,newest,records,winner,summarize,person,opponent,headToHead});
 });
 (function(global){
  'use strict';if(typeof document==='undefined')return;
@@ -77,9 +107,9 @@
  mh_history:'History',mh_stats:'Statistics',mh_scope:'Selected league · All cycles and playoffs',mh_league_note:'This history belongs to the selected league. Use the league selector to view another league.',mh_all:'All cycles and playoffs',mh_filter:'Competition',mh_player:'Player',mh_everyone:'All players',mh_search:'Find opponent, club or score',mh_found:'{n} recorded results',mh_empty:'No results have been recorded in this league yet.',mh_no_filter:'No matches for these filters.',mh_newest:'Newest first, ordered by match date.',mh_unknown_date:'No match date recorded',mh_load_more:'Show more matches',mh_showing:'Showing {shown} of {total}',mh_vs:'vs',mh_played:'Validated matches played',mh_won:'Won',mh_lost:'Lost',mh_pct:'Win rate',mh_win:'Won',mh_loss:'Lost',mh_review:'Result needs review',mh_wo:'W.O. · not played',mh_ret:'RET · retirement',mh_np:'Not played',mh_by_wo_win:'Won by W.O.',mh_by_wo_loss:'Lost by W.O.',mh_stats_note:'Playing statistics use validated results only. W.O. and Not played are shown separately; pending and disputed results do not count as wins or losses. A 1–0 / 0–1 match tiebreak does not add games or regular sets.',mh_stat_empty:'No played, validated matches for this filter yet.',mh_sets:'Sets and games',mh_sf:'Sets won',mh_sa:'Sets lost',mh_balance:'Set balance',mh_gf:'Games won',mh_ga:'Games lost',mh_tbw:'Match tiebreaks won',mh_tbl:'Match tiebreaks lost',mh_summary:'Breakdown by stage',mh_groups:'Group stage',mh_main:'Main draw',mh_cons:'Consolation',mh_registers:'Record status',mh_fullsets:'Regular sets',mh_games:'Games played',mh_tbs:'Match tiebreaks',mh_form:'Last 5 validated matches',mh_missing:'Records with incomplete scores: {n}. They remain in the history without an invented winner.',mh_reset:'Clear filters',mh_all_stats:'Choose a player for personal wins, losses and balances.',mh_validation:'Validation',mh_none:'No matches',mh_method:'How these are calculated',mh_short_note:'Played and validated matches only. W.O. and Not played are separate.',mh_search_active:'Search active'
  }};
  Object.keys(dictionaries).forEach(lang=>Object.assign(TRANSLATIONS[lang],dictionaries[lang]));
- let state={key:'',tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'current'};
+ let state={key:'',tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'current',rival:'',beforeH2H:'history'};
  const skey=()=>_saveSessionKey()+'|'+_ligaActual;
- function ensure(){if(state.key!==skey()){pageArchive?.cancel();pageArchive=null;pageArchiveKey='';state={key:skey(),tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'current'};}return state;}
+ function ensure(){if(state.key!==skey()){pageArchive?.cancel();pageArchive=null;pageArchiveKey='';state={key:skey(),tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'current',rival:'',beforeH2H:'history'};}return state;}
  function selectedPlayer(){return esAdmin(currentUser)?state.player:currentUser?.name||'';}
  const option=(value,label,selected)=>'<option value="'+e(value)+'"'+(String(value)===String(selected)?' selected':'')+'>'+e(label)+'</option>';
  function formatDate(value){const key=D.dateKey(value);if(!key)return t('mh_unknown_date');return new Intl.DateTimeFormat(LANG==='en'?'en-GB':'es-ES',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(key+'T12:00:00Z'));}
@@ -94,7 +124,7 @@
  }
  function matchHTML(m,name,options={}){
   const ns=D.players(m),rival=ns.find(n=>n!==D.subject(m,name)),title=name?rival:ns.join(' vs '),type=D.kind(m),key=D.dateKey(m.date);
-  return '<article class="mh-match" data-history-id="'+e(m.id)+'"><div class="mh-row"><span class="mh-phase">'+e((m._mhLeagueName?m._mhLeagueName+' · ':'')+phase(m,options.groupLabel))+'</span>'+badge(m,name)+'</div><div class="mh-match-players"><div><small>'+e(name?t('mh_vs'):t('re_match'))+'</small><h3>'+e(title)+'</h3></div><strong class="mh-score">'+e(score(m,name)||'—')+'</strong></div>'+(type!=='normal'?'<p class="mh-special">'+e(t('mh_'+type))+'</p>':'')+'<div class="mh-row mh-match-footer"><div class="mh-details"><time'+(key?' datetime="'+key+'"':'')+'>'+e(formatDate(m.date))+'</time><span>'+e(m.club||'—')+'</span></div>'+(options.readOnly?(options.h2h&&rival?'<button class="ui-link-button" type="button" data-mhp-rival="'+e(rival)+'">'+e(t('h2h_title'))+' '+SohailUI.icon('arrow')+'</button>':''):'<button class="ui-link-button" type="button" data-mh-open="'+e(m.id)+'">'+e(t('ui_open_match'))+' '+SohailUI.icon('arrow')+'</button>')+'</div></article>';
+  return '<article class="mh-match" data-history-id="'+e(m.id)+'"><div class="mh-row"><span class="mh-phase">'+e((m._mhLeagueName?m._mhLeagueName+' · ':'')+phase(m,options.groupLabel))+'</span>'+badge(m,name)+'</div><div class="mh-match-players"><div><small>'+e(name?t('mh_vs'):t('re_match'))+'</small><h3>'+e(title)+'</h3></div><strong class="mh-score">'+e(score(m,name)||'—')+'</strong></div>'+(type!=='normal'?'<p class="mh-special">'+e(t('mh_'+type))+'</p>':'')+'<div class="mh-row mh-match-footer"><div class="mh-details"><time'+(key?' datetime="'+key+'"':'')+'>'+e(formatDate(m.date))+'</time><span>'+e(m.club||'—')+'</span></div>'+'<div class="mh-match-actions">'+(options.h2hKey?'<button class="ui-link-button" type="button" data-mh-h2h="'+e(options.h2hKey)+'" aria-label="'+e(tf('hh_between',{a:name,b:rival}))+'">'+e(t('hh_short'))+' '+SohailUI.icon('arrow')+'</button>':'')+(!options.readOnly?'<button class="ui-link-button" type="button" data-mh-open="'+e(m.id)+'">'+e(t('ui_open_match'))+' '+SohailUI.icon('arrow')+'</button>':'')+'</div>'+'</div></article>';
  }
  function metric(label,value,cls=''){return '<div class="mh-stat '+cls+'"><strong>'+e(value)+'</strong><span>'+e(t(label))+'</span></div>';}
  function section(title,body){return '<section class="card mh-section"><h2>'+e(t(title))+'</h2>'+body+'</section>';}
@@ -144,6 +174,64 @@
   mha_current_note:'All cycles and playoffs in the current league. Use the selector to include other leagues.',
   mha_viewonly:'Read only',mha_phase:'Stage',mha_link_notice:'Matching names alone are not used to join different people.'
  });
+
+ Object.assign(TRANSLATIONS.es,{
+  hh_short:'Cara a cara',hh_between:'Cara a cara: {a} contra {b}',hh_mine:'Mi cara a cara con {name}',
+  hh_pick:'Comparar a {name} con',hh_choose:'Elegir rival',hh_intro:'Elegí un rival para ver sus enfrentamientos directos.',
+  hh_player:'Elegí un jugador en Filtros para comparar sus enfrentamientos.',hh_empty:'No hay enfrentamientos registrados entre estos jugadores con este filtro.',
+  hh_balance:'Victorias en enfrentamientos validados',hh_method:'El balance incluye las decisiones validadas por W.O. Los pendientes, las disputas y No jugado no deciden el balance.',
+  hh_totals:'{n} resultados con ganador confirmado · {wo} por W.O.',hh_list:'Partidos entre ambos',hh_back:'Volver a la ficha',
+  hh_records:'Pendientes: {pending} · En disputa: {disputed} · No jugados: {np} · Por revisar: {unresolved}',
+  hh_local:'Vínculo local',hh_identity:'Los rivales sin perfil global se separan por liga; no se unen por coincidencia de nombre.',
+  hh_stale:'El rival seleccionado ya no está disponible en este contexto. Elegí otro rival.'
+ });
+ Object.assign(TRANSLATIONS.en,{
+  hh_short:'Head-to-head',hh_between:'Head-to-head: {a} versus {b}',hh_mine:'My head-to-head with {name}',
+  hh_pick:'Compare {name} with',hh_choose:'Choose opponent',hh_intro:'Choose an opponent to view their head-to-head matches.',
+  hh_player:'Choose a player in Filters to compare their head-to-head matches.',hh_empty:'No head-to-head matches recorded for these players with this filter.',
+  hh_balance:'Wins in validated head-to-head results',hh_method:'The balance includes validated W.O. decisions. Pending, disputed and Not played records do not decide the balance.',
+  hh_totals:'{n} results with a confirmed winner · {wo} by W.O.',hh_list:'Matches between both players',hh_back:'Back to player',
+  hh_records:'{pending} pending · {disputed} disputed · {np} not played · {unresolved} to review',
+  hh_local:'Local link',hh_identity:'Opponents without a global profile are kept separate by league; matching names are not merged.',
+  hh_stale:'The selected opponent is no longer available in this context. Choose another opponent.'
+ });
+ const historyTabs=['history','stats','h2h'];
+ function moveTab(current,key){const i=historyTabs.indexOf(current);return key==='Home'?historyTabs[0]:key==='End'?historyTabs.at(-1):historyTabs[(Math.max(0,i)+(key==='ArrowRight'?1:historyTabs.length-1))%historyTabs.length];}
+ function h2hContext(options={}){return options.otherLeague?{id:options.leagueId||'other:'+options.leagueName,nombre:options.leagueName,users:{}}:currentSnapshot();}
+ function opponents(source,name,context){
+  const mine=D.person(name,context),map=new Map();
+  for(const m of D.records(source,name)){
+   const r=D.opponent(m,name,context);if(r&&r.key!==mine.key&&!map.has(r.key))map.set(r.key,r);
+  }
+  // Include known players even without previous meetings, but never system accounts.
+  for(const [n,u]of Object.entries(context.users||{})){
+   if(!u||typeof u!=='object'||n==='admin'||n==='superadmin'||n===name)continue;
+   const r=D.person(n,context);if(r.key!==mine.key)map.set(r.key,{...r,leagueName:context.nombre});
+  }
+  const all=Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,LANG)||a.key.localeCompare(b.key));
+  return all.map(r=>({...r,label:r.name+(!r.id&&r.leagueId!==context.id?' · '+r.leagueName+' ('+t('hh_local')+')':all.some(x=>x.key!==r.key&&x.name===r.name)?' · '+(r.leagueName||t('mha_current')):'')}));
+ }
+ function h2hPanel(list,name,rivalKey,context,id,limit=30){
+  if(!name)return '<p class="mh-note mh-empty-form">'+e(t('hh_player'))+'</p>';
+  const opts=opponents(list,name,context),selected=opts.find(r=>r.key===rivalKey);
+  let h='<div class="mh-h2h-controls"><label for="'+id+'-rival">'+e(tf('hh_pick',{name}))+'</label><select id="'+id+'-rival" data-mh-rival>'+option('',t('hh_choose'),rivalKey)+opts.map(r=>option(r.key,r.label,rivalKey)).join('')+'</select></div>';
+  if(!selected)return h+'<p class="mh-note mh-empty-form">'+e(t(rivalKey?'hh_stale':'hh_intro'))+'</p>';
+  const total=D.headToHead(list,name,selected.key,context),rows=total.list;
+  h+='<section class="mh-h2h-summary" aria-label="'+e(t('hh_balance'))+'"><p class="mh-h2h-caption">'+e(t('hh_balance'))+'</p><div class="mh-h2h-score"><div><strong>'+e(name)+'</strong><b>'+total.wins+'</b></div><span aria-hidden="true">—</span><div><strong>'+e(selected.name)+'</strong><b>'+total.losses+'</b></div></div><p class="mh-note">'+e(tf('hh_totals',{n:total.decided,wo:total.wo}))+'</p><p class="mh-note">'+e(t('hh_method'))+'</p></section>';
+  if(total.pending||total.disputed||total.np||total.unresolved)h+='<p class="mh-note">'+e(tf('hh_records',total))+'</p>';
+  if(rows.some(m=>m._mhLeagueId&&m._mhLeagueId!==context.id&&!D.opponent(m,name,context)?.id))h+='<p class="mh-note">'+e(t('hh_identity'))+'</p>';
+  h+='<h2 class="mh-h2h-title">'+e(t('hh_list'))+'</h2>';
+  if(!rows.length)return h+'<p class="mh-note mh-empty-form">'+e(t('hh_empty'))+'</p>';
+  h+='<p class="mh-note">'+e(t('mh_newest'))+'</p>'+rows.slice(0,limit).map(m=>matchHTML(m,name,{readOnly:true,groupLabel:context.groupLabel||groupName})).join('');
+  h+='<div class="mh-more"><span>'+e(tf('mh_showing',{shown:Math.min(limit,rows.length),total:rows.length}))+'</span>'+(limit<rows.length?'<button type="button" class="btn" data-hh-more>'+e(t('mh_load_more'))+'</button>':'')+'</div>';
+  return h;
+ }
+ function ownOpponent(name,context){
+  const own=currentUser?.name;
+  if(!own||own===name||!Object.prototype.hasOwnProperty.call(context.users||{},own)||['admin','superadmin'].includes(own))return null;
+  const me=D.person(own,context),other=D.person(name,context);return me.key===other.key?null:me;
+ }
+
  let pageArchive=null,pageArchiveKey='';
  function currentSnapshot(){return {id:_ligaActual,nombre:document.getElementById('hdr-title')?.textContent?.trim()||LEAGUE_NAME,users:USERS,matches};}
  function canAggregate(name){return !!name&&!!_token&&!_ligaReadOnly&&!!currentUser&&!!global.SohailLeagueHistory;}
@@ -182,9 +270,10 @@
   const search=document.getElementById('mh-search-wrap');if(search)search.hidden=state.tab!=='history';
   const notice=archiveStatus(snap);
   if(snap&&(snap.busy||snap.error||!snap.ready)){host.innerHTML=notice;return;}
+  if(state.tab==='h2h'){host.innerHTML=notice+h2hPanel(base,name,state.rival,currentSnapshot(),'mh-h2h',state.limit);return;}
   if(state.tab==='stats'){host.innerHTML=notice+statHTML(base,name,{readOnly:!!snap});return;}
   const visible=list.slice(0,state.limit);let group='',rows='';
-  for(const m of visible){const label=dateGroup(m.date);if(label!==group){rows+='<h2 class="mh-month">'+e(label)+'</h2>';group=label;}rows+=matchHTML(m,name,{readOnly:!!snap});}
+  for(const m of visible){const label=dateGroup(m.date);if(label!==group){rows+='<h2 class="mh-month">'+e(label)+'</h2>';group=label;}rows+=matchHTML(m,name,{readOnly:!!snap,h2hKey:name?D.opponent(m,name,currentSnapshot())?.key:null});}
   host.innerHTML=notice+'<div class="mh-list-heading"><p>'+e(tf('mh_found',{n:list.length}))+'</p><small>'+e(t('mh_newest'))+'</small></div>'+(rows||'<div class="card empty">'+e(t(state.scope!=='all'||state.query?'mh_no_filter':'mh_empty'))+'</div>')+'<div class="mh-more"><span>'+e(tf('mh_showing',{shown:visible.length,total:list.length}))+'</span>'+(visible.length<list.length?'<button type="button" class="btn" data-mh-more>'+e(t('mh_load_more'))+'</button>':'')+'</div>';
  }
  function render(){
@@ -194,19 +283,21 @@
   const scopes=state.leagueScope==='all'?aggregateScopes():[['all',t('mh_all')],...cy.map(c=>['cycle:'+c.n,t('cycle')+' '+c.n]),['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
   const people=[...new Set((matches||[]).flatMap(m=>D.players(m)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,LANG));
   if(!scopes.some(s=>s[0]===state.scope))state.scope='all';if(admin&&state.player&&!people.includes(state.player))state.player='';
-  host.innerHTML='<header class="ui-page-head mh-page-head"><div><p class="ui-eyebrow">'+e(document.getElementById('hdr-title')?.textContent?.trim()||(typeof LEAGUE_NAME==='string'?LEAGUE_NAME:''))+'</p><h1>'+e(t(admin?'ui_matches':'ui_my_matches'))+'</h1><p>'+e(t(state.leagueScope==='all'?'mha_scope_all':'mh_scope'))+'</p></div><button type="button" class="btn btn-primary" data-ui-route="cargar">'+SohailUI.icon('matches')+e(t('ui_start'))+'</button></header><div class="mh-tabs" role="tablist" aria-label="'+e(t('ui_matches'))+'"><button type="button" id="mh-tab-history" role="tab" data-mh-tab="history" aria-controls="mh-panel">'+SohailUI.icon('matches')+e(t('mh_history'))+'</button><button type="button" id="mh-tab-stats" role="tab" data-mh-tab="stats" aria-controls="mh-panel">'+SohailUI.icon('league')+e(t('mh_stats'))+'</button></div>'+leagueControl('mh-leagues',state.leagueScope,canAggregate(selectedPlayer()))+'<details class="mh-filter-panel"'+(state.filtersOpen?' open':'')+'><summary><span>'+e(t('ui_filters'))+'</span><small id="mh-filter-label"></small></summary><div class="mh-filters"><label for="mh-scope">'+e(t('mh_filter'))+'<select id="mh-scope">'+scopes.map(([v,n])=>option(v,n,state.scope)).join('')+'</select></label>'+(admin?'<label for="mh-player">'+e(t('mh_player'))+'<select id="mh-player">'+option('',t('mh_everyone'),state.player)+people.map(n=>option(n,n,state.player)).join('')+'</select></label>':'')+'<label id="mh-search-wrap" for="mh-search">'+e(t('mh_search'))+'<input type="search" id="mh-search" value="'+e(state.query)+'" autocomplete="off"></label><button type="button" class="ui-link-button" data-mh-clear>'+e(t('mh_reset'))+'</button></div></details><div id="mh-panel" role="tabpanel" tabindex="0"></div><p class="mh-note mh-league-note">'+e(t(state.leagueScope==='all'?'mha_all_note':'mha_current_note'))+'</p>';
+  host.innerHTML='<header class="ui-page-head mh-page-head"><div><p class="ui-eyebrow">'+e(document.getElementById('hdr-title')?.textContent?.trim()||(typeof LEAGUE_NAME==='string'?LEAGUE_NAME:''))+'</p><h1>'+e(t(admin?'ui_matches':'ui_my_matches'))+'</h1><p>'+e(t(state.leagueScope==='all'?'mha_scope_all':'mh_scope'))+'</p></div><button type="button" class="btn btn-primary" data-ui-route="cargar">'+SohailUI.icon('matches')+e(t('ui_start'))+'</button></header><div class="mh-tabs" role="tablist" aria-label="'+e(t('ui_matches'))+'"><button type="button" id="mh-tab-history" role="tab" data-mh-tab="history" aria-controls="mh-panel">'+SohailUI.icon('matches')+e(t('mh_history'))+'</button><button type="button" id="mh-tab-stats" role="tab" data-mh-tab="stats" aria-controls="mh-panel">'+SohailUI.icon('league')+e(t('mh_stats'))+'</button><button type="button" id="mh-tab-h2h" role="tab" data-mh-tab="h2h" aria-controls="mh-panel">'+e(t('hh_short'))+'</button></div>'+leagueControl('mh-leagues',state.leagueScope,canAggregate(selectedPlayer()))+'<details class="mh-filter-panel"'+(state.filtersOpen?' open':'')+'><summary><span>'+e(t('ui_filters'))+'</span><small id="mh-filter-label"></small></summary><div class="mh-filters"><label for="mh-scope">'+e(t('mh_filter'))+'<select id="mh-scope">'+scopes.map(([v,n])=>option(v,n,state.scope)).join('')+'</select></label>'+(admin?'<label for="mh-player">'+e(t('mh_player'))+'<select id="mh-player">'+option('',t('mh_everyone'),state.player)+people.map(n=>option(n,n,state.player)).join('')+'</select></label>':'')+'<label id="mh-search-wrap" for="mh-search">'+e(t('mh_search'))+'<input type="search" id="mh-search" value="'+e(state.query)+'" autocomplete="off"></label><button type="button" class="ui-link-button" data-mh-clear>'+e(t('mh_reset'))+'</button></div></details><div id="mh-panel" role="tabpanel" tabindex="0"></div><p class="mh-note mh-league-note">'+e(t(state.leagueScope==='all'?'mha_all_note':'mha_current_note'))+'</p>';
   const filters=host.querySelector('.mh-filter-panel');filters.ontoggle=()=>state.filtersOpen=filters.open;
   host.onclick=ev=>{const b=ev.target.closest('button');if(!b)return;
    if(b.hasAttribute('data-history-leagues')){const mode=b.dataset.historyLeagues;if(mode==='all'&&!canAggregate(selectedPlayer()))return;state.leagueScope=mode;state.scope='all';state.query='';state.limit=30;if(mode==='all'&&!forPage()?.snapshot().ready)loadPageArchive();else redrawPage();}
    else if(b.hasAttribute('data-history-retry'))loadPageArchive();
    else if(b.dataset.mhTab){state.tab=b.dataset.mhTab;paint();}
+   else if(b.hasAttribute('data-mh-h2h')){const d=dataset();if(!opponents(d.base,d.name,currentSnapshot()).some(r=>r.key===b.dataset.mhH2h))return;state.rival=b.dataset.mhH2h;state.tab='h2h';state.limit=30;paint();document.getElementById('mh-tab-h2h')?.focus({preventScroll:true});}
+   else if(b.hasAttribute('data-hh-more')){state.limit+=30;paint();}
    else if(b.hasAttribute('data-mh-more')){state.limit+=30;const scroll=window.scrollY;paint();window.scrollTo({top:scroll,behavior:'auto'});host.querySelector('[data-mh-more]')?.focus({preventScroll:true});}
    else if(b.hasAttribute('data-mh-open')){const m=dataset().base.find(m=>String(m.id)===b.dataset.mhOpen);if(m)openModal(m.id);}
    else if(b.hasAttribute('data-mh-clear')){state.scope='all';state.query='';state.player='';state.leagueScope='current';state.limit=30;forPage();render();document.getElementById('mh-scope')?.focus({preventScroll:true});}
   };
   host.oninput=ev=>{if(ev.target.id==='mh-search'){state.query=ev.target.value;state.limit=30;paint();}};
-  host.onchange=ev=>{if(ev.target.id==='mh-scope')state.scope=ev.target.value;else if(ev.target.id==='mh-player'){state.player=ev.target.value;forPage();if(state.leagueScope==='all'&&canAggregate(selectedPlayer())){loadPageArchive();return;}state.leagueScope='current';render();return;}else return;state.limit=30;paint();};
-  host.onkeydown=ev=>{const b=ev.target.closest('[data-mh-tab]');if(!b||!['ArrowLeft','ArrowRight','Home','End'].includes(ev.key))return;ev.preventDefault();state.tab=ev.key==='Home'?'history':ev.key==='End'?'stats':state.tab==='history'?'stats':'history';paint();document.getElementById('mh-tab-'+state.tab)?.focus({preventScroll:true});};
+  host.onchange=ev=>{if(ev.target.hasAttribute('data-mh-rival')){state.rival=ev.target.value;state.limit=30;paint();document.getElementById('mh-h2h-rival')?.focus({preventScroll:true});return;}if(ev.target.id==='mh-scope')state.scope=ev.target.value;else if(ev.target.id==='mh-player'){state.player=ev.target.value;state.rival='';forPage();if(state.leagueScope==='all'&&canAggregate(selectedPlayer())){loadPageArchive();return;}state.leagueScope='current';render();return;}else return;state.limit=30;paint();};
+  host.onkeydown=ev=>{const b=ev.target.closest('[data-mh-tab]');if(!b||!['ArrowLeft','ArrowRight','Home','End'].includes(ev.key))return;ev.preventDefault();state.tab=moveTab(state.tab,ev.key);paint();document.getElementById('mh-tab-'+state.tab)?.focus({preventScroll:true});};
   paint();
  }
  // v3.3 — per-player sporting card. Uses the same read-only data engine and
@@ -228,7 +319,7 @@
   if(!host||!options||typeof options.name!=='string'||!options.name.trim())return false;
   if(typeof host._mhPlayerDispose==='function')host._mhPlayerDispose();
   const name=options.name,id='mhp-'+(++playerViewId),key=_saveSessionKey(),league=_ligaActual;
-  const view={tab:'history',scope:'all',limit:30,leagueScope:'current'};
+  const view={tab:options.startTab==='h2h'?'h2h':'history',scope:'all',limit:30,leagueScope:'current',rival:options.rivalKey||'',beforeH2H:'history',beforeLimit:30,beforeScroll:0};
   const groupLabel=options.groupLabel||groupName;
   // Capture only match records and cycle descriptors supplied by existing readers.
   // No fetch is needed to inspect somebody in the currently selected league.
@@ -236,8 +327,10 @@
   const valid=()=>host.isConnected&&key===_saveSessionKey()&&league===_ligaActual;
   const cyclesList=Array.isArray(options.cycles)?options.cycles:[];
   const scopeOptions=()=>view.leagueScope==='all'?aggregateScopes():[['all',t('mh_all')],...cyclesList.filter(c=>c&&c.n!=null).map(c=>['cycle:'+c.n,t('cycle')+' '+c.n]),['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
+  const context=()=>({...h2hContext(options),groupLabel});
   const aggregateAllowed=canAggregate(name)&&!options.otherLeague;
   const archive=aggregateAllowed?archiveController(name,()=>valid()&&!!_token&&!!currentUser&&host._mhPlayerDispose===dispose):null;
+  if(aggregateAllowed&&options.startLeagueScope==='all')view.leagueScope='all';
   function loadPlayerArchive(){
    if(!archive)return;
    const job=archive.load();redraw();job.finally(()=>{if(valid()&&host._mhPlayerDispose===dispose&&view.leagueScope==='all')redraw();});
@@ -249,15 +342,16 @@
    const snapshot=view.leagueScope==='all'&&archive?archive.snapshot():null;
    const list=D.records(snapshot?snapshot.records:source(),name,view.scope),notice=archiveStatus(snapshot);
    host.querySelectorAll('[data-mhp-tab]').forEach(b=>{const on=b.dataset.mhpTab===view.tab;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
-   const history=host.querySelector('[data-mhp-panel=history]'),stats=host.querySelector('[data-mhp-panel=stats]');
-   history.hidden=view.tab!=='history';stats.hidden=view.tab!=='stats';
-   if(snapshot&&(snapshot.busy||snapshot.error||!snapshot.ready)){(view.tab==='stats'?stats:history).innerHTML=notice;return;}
+   const history=host.querySelector('[data-mhp-panel=history]'),stats=host.querySelector('[data-mhp-panel=stats]'),h2h=host.querySelector('[data-mhp-panel=h2h]');
+   history.hidden=view.tab!=='history';stats.hidden=view.tab!=='stats';h2h.hidden=view.tab!=='h2h';
+   if(snapshot&&(snapshot.busy||snapshot.error||!snapshot.ready)){(view.tab==='h2h'?h2h:view.tab==='stats'?stats:history).innerHTML=notice;return;}
+   if(view.tab==='h2h'){h2h.innerHTML='<button type="button" class="ui-link-button mh-h2h-back" data-hh-back>'+e(t('hh_back'))+'</button>'+notice+h2hPanel(list,name,view.rival,context(),id+'-h2h',view.limit);return;}
    if(view.tab==='stats'){stats.innerHTML=notice+statHTML(list,name,{readOnly:true});return;}
    let month='',rows='';
    for(const m of list.slice(0,view.limit)){
     const label=dateGroup(m.date);
     if(label!==month){rows+='<h2 class="mh-month">'+e(label)+'</h2>';month=label;}
-    rows+=matchHTML(m,name,{readOnly:true,h2h:!!options.h2h&&!snapshot,groupLabel});
+    rows+=matchHTML(m,name,{readOnly:true,h2hKey:D.opponent(m,name,context())?.key,groupLabel});
    }
    history.innerHTML=notice+'<div class="mh-list-heading"><p>'+e(tf('mh_found',{n:list.length}))+'</p><small>'+e(t('mh_newest'))+'</small></div>'+
     (rows||'<p class="mh-note mh-player-empty">'+e(t('mhp_empty'))+'</p>')+
@@ -270,31 +364,35 @@
    const rating=options.rating&&typeof ratingFichaHTML==='function'?ratingFichaHTML(name):'';
    host.innerHTML='<div class="mh-player-context"><span class="mh-player-caption">'+e(t(view.leagueScope==='all'?'mha_range':options.otherLeague?'mhp_past':'mhp_current'))+'</span><strong>'+e(view.leagueScope==='all'?t('mha_scope_all'):options.leagueName||'—')+'</strong><p>'+e(tf('mhp_context',{name}))+'</p><small>'+e(t('mhp_scope'))+'</small></div>'+
     '<div class="mh-tabs mh-player-tabs" role="tablist" aria-label="'+e(t('mhp_title')+' · '+name)+'">'+
-    [['history','mh_history','matches'],['stats','mh_stats','league']].map(([tab,label,ic])=>'<button type="button" id="'+id+'-tab-'+tab+'" role="tab" data-mhp-tab="'+tab+'" aria-controls="'+id+'-panel-'+tab+'">'+SohailUI.icon(ic)+e(t(label))+'</button>').join('')+'</div>'+
+    [['history','mh_history','matches'],['stats','mh_stats','league'],['h2h','hh_short','matches']].map(([tab,label,ic])=>'<button type="button" id="'+id+'-tab-'+tab+'" role="tab" data-mhp-tab="'+tab+'" aria-controls="'+id+'-panel-'+tab+'">'+SohailUI.icon(ic)+e(t(label))+'</button>').join('')+'</div>'+
+    (ownOpponent(name,context())?'<button type="button" class="btn mh-my-h2h" data-hh-mine>'+e(tf('hh_mine',{name}))+'</button>':'')+
     (aggregateAllowed?leagueControl(id+'-leagues',view.leagueScope):'')+
     '<label class="mh-player-filter" for="'+id+'-scope">'+e(t('mh_filter'))+'<select id="'+id+'-scope" data-mhp-scope>'+scopeOptions().map(([v,lab])=>option(v,lab,view.scope)).join('')+'</select></label>'+
     (rating?'<details class="mh-player-rating"><summary>'+e(t('mhp_rating'))+'</summary>'+rating+'</details>':'')+
     '<div id="'+id+'-panel-history" role="tabpanel" tabindex="0" aria-labelledby="'+id+'-tab-history" data-mhp-panel="history"></div>'+
-    '<div id="'+id+'-panel-stats" role="tabpanel" tabindex="0" aria-labelledby="'+id+'-tab-stats" data-mhp-panel="stats" hidden></div>';
+    '<div id="'+id+'-panel-stats" role="tabpanel" tabindex="0" aria-labelledby="'+id+'-tab-stats" data-mhp-panel="stats" hidden></div>'+
+    '<div id="'+id+'-panel-h2h" role="tabpanel" tabindex="0" aria-labelledby="'+id+'-tab-h2h" data-mhp-panel="h2h" hidden></div>';
    paintPanels();
   }
   host.onclick=ev=>{
    const b=ev.target.closest('button');if(!valid()||!b||!host.contains(b))return;
    if(b.hasAttribute('data-history-leagues')&&aggregateAllowed){view.leagueScope=b.dataset.historyLeagues;view.scope='all';view.limit=30;if(view.leagueScope==='all'&&!archive.snapshot().ready)loadPlayerArchive();else redraw();}
    else if(b.hasAttribute('data-history-retry'))loadPlayerArchive();
-   else if(b.dataset.mhpTab){view.tab=b.dataset.mhpTab;paintPanels();}
+   else if(b.dataset.mhpTab){if(b.dataset.mhpTab==='h2h')selectH2H(view.rival);else{view.tab=b.dataset.mhpTab;paintPanels();}}
+   else if(b.hasAttribute('data-hh-back')){view.tab=view.beforeH2H||'history';view.limit=view.beforeLimit||30;paintPanels();host.querySelector('[data-mhp-tab="'+view.tab+'"]')?.focus({preventScroll:true});const scroller=host.closest('#modal-body');if(scroller)scroller.scrollTop=view.beforeScroll||0;}
+   else if(b.hasAttribute('data-hh-mine')){const me=ownOpponent(name,context());if(me)selectH2H(me.key);}
+   else if(b.hasAttribute('data-hh-more')){view.limit+=30;paintPanels();}
    else if(b.hasAttribute('data-mhp-more')){
     view.limit+=30;paintPanels();host.querySelector('[data-mhp-more]')?.focus({preventScroll:true});
-   }else if(b.hasAttribute('data-mhp-rival')&&options.h2h){
-    const rival=b.dataset.mhpRival;
-    if(D.records(source(),name).some(m=>D.players(m).includes(rival)))options.h2h(name,rival);
-   }
+   }else if(b.hasAttribute('data-mh-h2h')){const data=view.leagueScope==='all'&&archive?archive.snapshot().records:source();if(opponents(data,name,context()).some(r=>r.key===b.dataset.mhH2h))selectH2H(b.dataset.mhH2h);}
+  
   };
-  host.onchange=ev=>{if(valid()&&ev.target.matches('[data-mhp-scope]')){view.scope=ev.target.value;view.limit=30;paintPanels();}};
+  function selectH2H(key){if(view.tab!=='h2h'){view.beforeH2H=view.tab;view.beforeLimit=view.limit;view.beforeScroll=host.closest('#modal-body')?.scrollTop||0;}view.rival=key;view.tab='h2h';view.limit=30;paintPanels();host.querySelector('[data-mhp-tab=h2h]')?.focus({preventScroll:true});const scroller=host.closest('#modal-body');if(scroller)scroller.scrollTop=0;}
+  host.onchange=ev=>{if(!valid())return;if(ev.target.matches('[data-mh-rival]')){view.rival=ev.target.value;view.limit=30;paintPanels();document.getElementById(id+'-h2h-rival')?.focus({preventScroll:true});}else if(ev.target.matches('[data-mhp-scope]')){view.scope=ev.target.value;view.limit=30;paintPanels();}};
   host.onkeydown=ev=>{
    const tab=ev.target.closest('[data-mhp-tab]');
    if(!valid()||!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(ev.key))return;
-   ev.preventDefault();view.tab=ev.key==='Home'?'history':ev.key==='End'?'stats':view.tab==='history'?'stats':'history';
+   ev.preventDefault();if(view.tab!=='h2h')view.beforeH2H=view.tab;view.tab=moveTab(view.tab,ev.key);
    paintPanels();host.querySelector('[data-mhp-tab="'+view.tab+'"]')?.focus({preventScroll:true});
   };
   draw();
@@ -311,9 +409,10 @@
   host._mhPlayerDispose=dispose;
   languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
   if(modal){lifecycleObserver.observe(modal,{attributes:true,attributeFilter:['class']});if(body)lifecycleObserver.observe(body,{childList:true,subtree:true});}
+  if(view.leagueScope==='all'&&archive)loadPlayerArchive();
   return true;
  }
- function openPlayer(name){
+ function openPlayer(name,initial={}){
   if(typeof name!=='string'||!name.trim())return false;
   const overlay=document.getElementById('modal-bg'),body=document.getElementById('modal-body'),actions=document.getElementById('modal-actions'),title=document.getElementById('modal-title');
   if(!overlay||!body||!actions||!title)return false;
@@ -328,14 +427,15 @@
   if(!_ligaReadOnly){const button=document.createElement('button');button.type='button';button.className='btn btn-past';button.textContent=t('past_player_btn');button.onclick=()=>togglePlayerPast(name);actions.appendChild(button);}
   const close=document.createElement('button');close.type='button';close.className='btn';close.textContent=t('close');close.onclick=()=>closeM();actions.appendChild(close);
   overlay.classList.add('open');
-  mountPlayer(current,{name,leagueName,cycles,records:()=>matches,rating:RATING_ON,h2h:(a,b)=>{
-   // Reuse the existing head-to-head reader, keeping an explicit way back.
-   abrirH2H(a,b);
-   const back=document.createElement('button');back.type='button';back.className='btn';back.textContent=t('mhp_back');back.onclick=()=>showPlayerHistory(name);actions.prepend(back);
-  }});
+  mountPlayer(current,{name,leagueName,cycles,records:()=>matches,rating:RATING_ON,startTab:initial.tab,rivalKey:initial.rival,startLeagueScope:initial.leagueScope});
   overlay.querySelector('.modal').scrollTop=0;
   return true;
  }
 
- global.SohailHistory=Object.freeze({render,openPlayer,mountPlayer});
+ function openH2H(a,b){
+  if(typeof a!=='string'||typeof b!=='string'||!a.trim()||!b.trim()||a===b)return false;
+  const ctx=currentSnapshot(),me=D.person(a,ctx),rival=D.person(b,ctx);if(me.key===rival.key)return false;
+  return openPlayer(a,{tab:'h2h',rival:rival.key,leagueScope:'all'});
+ }
+ global.SohailHistory=Object.freeze({render,openPlayer,mountPlayer,openH2H});
 })(typeof window!=='undefined'?window:globalThis);

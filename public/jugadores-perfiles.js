@@ -528,6 +528,8 @@ function partidosEntre(a, b, estado, ligaNombre){
 }
 // Abre el modal H2H entre dos jugadores, sumando la liga actual + las pasadas.
 async function abrirH2H(a, b){
+  // v3.7.1: keep every legacy H2H link, using the identity-safe viewer.
+  if(window.SohailHistory&&typeof SohailHistory.openH2H==='function'&&SohailHistory.openH2H(a,b))return;
   document.getElementById('modal-title').textContent=t('h2h_title');
   document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
   document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';

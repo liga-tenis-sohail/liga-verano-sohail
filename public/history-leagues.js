@@ -1,4 +1,4 @@
-/* Sohail v3.7 — lectura deportiva entre ligas. No escribe ni cambia de sesión.
+/* Sohail v3.7.1 — lectura deportiva entre ligas. No escribe ni cambia de sesión.
    Usa exclusivamente listar/ver y GET state (NUNCA elegir=1). La identidad
    entre temporadas se resuelve por jugadorId, no por similitud de nombres.
    No se guardan estados, credenciales ni historiales en localStorage. */
@@ -54,7 +54,7 @@
     if(byKey.get(key).signature!==signature){conflicts.add(key);issues.push('duplicate-conflict');}
     return;
    }
-   Object.assign(out,{_mhKey:key,_mhLeagueId:entry.id,_mhLeagueName:entry.nombre||entry.id,_mhLeagueState:entry.estado||'',_mhSubject:found[0]});
+   Object.assign(out,{_mhKey:key,_mhLeagueId:entry.id,_mhLeagueName:entry.nombre||entry.id,_mhLeagueState:entry.estado||'',_mhSubject:found[0],_mhPlayerIds:ns.map(n=>pid(users[n]))});
    byKey.set(key,{signature,record:out});
   });
   return {records:Array.from(byKey).filter(([k])=>!conflicts.has(k)).map(([,v])=>v.record),issues:Array.from(new Set(issues))};
