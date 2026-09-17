@@ -56,6 +56,15 @@ function protectState(current,incoming,session,admin,manage){
   safeTree(incoming);
   if(!Array.isArray(incoming.cycles)||!Array.isArray(incoming.matches)||!incoming.users||Array.isArray(incoming.users))bad('Formato de estado inválido.');
   const curUsers=current.users||{}, inUsers=incoming.users;
+  // Optional cosmetic field: an older client omitting it must not erase it.
+  if(!own(incoming,'LEAGUE_TEXT_COLORS')&&own(current,'LEAGUE_TEXT_COLORS'))
+    incoming.LEAGUE_TEXT_COLORS=structuredClone(current.LEAGUE_TEXT_COLORS);
+  if(admin&&own(incoming,'LEAGUE_TEXT_COLORS')){
+    const c=incoming.LEAGUE_TEXT_COLORS;
+    if(!c||typeof c!=='object'||Array.isArray(c)||Object.keys(c).some(k=>
+      !['light','dark','header'].includes(k)||typeof c[k]!=='string'||!/^#[0-9a-f]{6}$/i.test(c[k])))
+      bad('Colores de texto inválidos. Usá el selector de color o el modo automático.');
+  }
   if(!admin){
     // Todo lo no permitido se rechaza o se restaura si es una proyección privada.
     for(const k of new Set([...Object.keys(current),...Object.keys(incoming)])){
