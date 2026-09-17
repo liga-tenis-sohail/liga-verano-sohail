@@ -860,3 +860,45 @@ Object.assign(TRANSLATIONS.en,{
   rg_hl_applied:'Highlight applied. Save your changes to publish it.',rg_hl_removed:'Highlight removed from the selection. Save your changes.',
   rg_hl_unsupported:'This browser could not apply the highlight. Your text has been kept.'
 });
+
+// v3.9.2 — independent rules foreground colour.
+Object.assign(TRANSLATIONS.es,{
+  "rg_ink_title": "Color del texto",
+  "rg_ink_blue": "Azul",
+  "rg_ink_green": "Verde",
+  "rg_ink_red": "Rojo",
+  "rg_ink_orange": "Naranja",
+  "rg_ink_purple": "Violeta",
+  "rg_ink_gray": "Gris",
+  "rg_ink_custom": "Personalizado",
+  "rg_ink_hex": "Código HEX",
+  "rg_ink_apply": "Aplicar color",
+  "rg_ink_auto": "Automático",
+  "rg_ink_hint": "Seleccioná un fragmento y elegí el color de las letras. El tono se adapta al fondo para mantener la legibilidad. El sombreado se cambia por separado. Después, guardá el reglamento.",
+  "rg_ink_select": "Seleccioná primero el texto que querés colorear.",
+  "rg_ink_invalid": "Usá un código HEX válido, por ejemplo #1d4ed8.",
+  "rg_ink_ready": "Color preparado. Pulsá Aplicar color para usarlo en la selección.",
+  "rg_ink_applied": "Color aplicado al texto seleccionado. Falta guardar el reglamento.",
+  "rg_ink_reset": "Color automático restaurado; se conservan el sombreado y el formato. Falta guardar.",
+  "rg_ink_unsupported": "Este navegador no permite aplicar el color en esta selección. El texto no se reemplazó."
+});
+Object.assign(TRANSLATIONS.en,{
+  "rg_ink_title": "Text colour",
+  "rg_ink_blue": "Blue",
+  "rg_ink_green": "Green",
+  "rg_ink_red": "Red",
+  "rg_ink_orange": "Orange",
+  "rg_ink_purple": "Purple",
+  "rg_ink_gray": "Grey",
+  "rg_ink_custom": "Custom",
+  "rg_ink_hex": "HEX code",
+  "rg_ink_apply": "Apply colour",
+  "rg_ink_auto": "Automatic",
+  "rg_ink_hint": "Select some text and choose its letter colour. The shade adapts to the background for readability. Highlighting is a separate control. Then save the rules.",
+  "rg_ink_select": "First select the text you want to colour.",
+  "rg_ink_invalid": "Enter a valid HEX code, for example #1d4ed8.",
+  "rg_ink_ready": "Colour ready. Choose Apply colour to use it on your selection.",
+  "rg_ink_applied": "Colour applied to the selected text. Save the rules to publish it.",
+  "rg_ink_reset": "Automatic colour restored; highlighting and formatting are preserved. Save to publish.",
+  "rg_ink_unsupported": "This browser cannot apply colour to this selection. The text has not been replaced."
+});

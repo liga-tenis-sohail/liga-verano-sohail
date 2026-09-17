@@ -770,3 +770,21 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 #view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(233, 213, 255)"] *{color:#172033!important;-webkit-text-fill-color:#172033!important}
 @media(max-width:600px){#view-reglamento .rg-highlight-label{flex-basis:100%}}
 @media print{#view-reglamento .rg-highlight-tools{display:none!important}}
+
+/* v3.9.2 — independent text colour. Derived contrast belongs to presentation,
+   not to the stored requested colour. No effect outside the rules component. */
+#view-reglamento .rg-text-tools{flex:1 0 100%;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px solid var(--border);min-width:0}
+#view-reglamento .rg-text-tools>.rg-highlight-label{flex-basis:100%}
+#view-reglamento .rg-ink-swatch{display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:44px;flex:0 0 40px;padding:4px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer}
+#view-reglamento .rg-ink-swatch span{display:inline-flex;align-items:center;justify-content:center;width:28px;height:30px;border-radius:4px;background:#fff!important;color:var(--rg-swatch)!important;-webkit-text-fill-color:var(--rg-swatch)!important;font-weight:800;font-size:19px;border-bottom:3px solid var(--rg-swatch)}
+#view-reglamento .rg-text-custom{display:flex;align-items:flex-end;flex-wrap:wrap;gap:8px;min-width:0}
+#view-reglamento .rg-text-custom label{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:11px;line-height:1.5;color:var(--text2)}
+#view-reglamento #rg-text-picker{width:48px;height:44px;min-height:44px;padding:3px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer}
+#view-reglamento #rg-text-hex{width:100px;min-height:44px;max-width:100%;padding:8px;border:1px solid var(--border2);border-radius:8px;font:13px ui-monospace,monospace;background:var(--surface);color:var(--text)}
+#view-reglamento #rg-text-hex[aria-invalid=true]{outline:2px solid var(--danger);outline-offset:1px}
+#view-reglamento .rg-text-tools :is(button,input):focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+#view-reglamento .rg-text-tools .rg-highlight-hint,#view-reglamento .rg-text-tools .rg-highlight-status{flex-basis:100%;min-width:0;font-size:12px;line-height:1.5;color:var(--text2);margin:0;overflow-wrap:anywhere}
+#view-reglamento .rg-text-tools .rg-highlight-status:empty{display:none}
+#view-reglamento :is(.rg-editor,.rg-content) [data-rg-ink-rendered]{color:var(--rg-visible-ink)!important;-webkit-text-fill-color:var(--rg-visible-ink)!important}
+@media(max-width:600px){#view-reglamento .rg-text-custom{flex-basis:100%}}
+@media print{#view-reglamento .rg-text-tools{display:none!important}#view-reglamento .rg-reader [data-rg-ink-rendered]{color:#111!important;-webkit-text-fill-color:#111!important}}

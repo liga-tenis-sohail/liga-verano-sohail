@@ -15,6 +15,124 @@ const RG_HIGHLIGHT_COLORS=Object.freeze([
   {value:'#bfdbfe',key:'rg_hl_blue'}, {value:'#fbcfe8',key:'rg_hl_pink'},
   {value:'#e9d5ff',key:'rg_hl_purple'}
 ]);
+// v3.9.2: foreground is independent from highlighting and league-wide colours.
+// Only opaque hex/RGB and the internal "initial" reset survive sanitization.
+const RG_TEXT_COLORS=Object.freeze([
+  {value:'#1d4ed8',key:'rg_ink_blue'}, {value:'#15803d',key:'rg_ink_green'},
+  {value:'#b91c1c',key:'rg_ink_red'}, {value:'#c2410c',key:'rg_ink_orange'},
+  {value:'#7e22ce',key:'rg_ink_purple'}, {value:'#475569',key:'rg_ink_gray'}
+]);
+let _rgTextChoice='#1d4ed8';
+function rgTextColor(value){
+  if(typeof value!=='string')return '';
+  let v=value.trim().toLowerCase();
+  if(/^#[0-9a-f]{3}$/.test(v))v='#'+Array.from(v.slice(1),x=>x+x).join('');
+  if(/^#[0-9a-f]{6}$/.test(v))return v;
+  const rgb=/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/.exec(v);
+  if(!rgb)return '';
+  const a=rgb.slice(1).map(Number);return a.some(n=>n>255)?'':'#'+a.map(n=>n.toString(16).padStart(2,'0')).join('');
+}
+function rgTextLuminance(hex){
+  const a=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);
+  return a[0]*.2126+a[1]*.7152+a[2]*.0722;
+}
+function rgTextContrast(a,b){const x=rgTextLuminance(a),y=rgTextLuminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
+function rgReadableTextColor(requested,background){
+  const fg=rgTextColor(requested),bg=rgTextColor(background);if(!fg||!bg)return '#172033';
+  if(rgTextContrast(fg,bg)>=4.5)return fg;
+  const target=rgTextContrast('#000000',bg)>=rgTextContrast('#ffffff',bg)?0:255;
+  const rgb=[1,3,5].map(i=>parseInt(fg.slice(i,i+2),16));
+  // At most 256 tiny operations, memoized by the caller per paint. An opaque
+  // black/white endpoint always meets 4.5:1; stored requested colour is untouched.
+  for(let step=1;step<=255;step++){
+    const v='#'+rgb.map(n=>Math.round(n+(target-n)*step/255).toString(16).padStart(2,'0')).join('');
+    if(rgTextContrast(v,bg)>=4.55)return v;
+  }
+  return target===0?'#000000':'#ffffff';
+}
+function rgTextStatus(key){const el=document.getElementById('rg-text-status');if(el)el.textContent=t(key);}
+function rgSyncTextPicker(source){
+  const picker=document.getElementById('rg-text-picker'),hex=document.getElementById('rg-text-hex');
+  if(!picker||!hex)return;
+  const v=rgTextColor(source==='picker'?picker.value:hex.value);
+  hex.setAttribute('aria-invalid',v?'false':'true');
+  if(!v){rgTextStatus('rg_ink_invalid');return;}
+  _rgTextChoice=v;picker.value=v;
+  if(source==='picker')hex.value=v;
+  rgTextStatus('rg_ink_ready');
+}
+function rgApplyTextColor(value){
+  const ed=document.getElementById('rg-editor');
+  if(!_rgEdit||_ligaReadOnly||!esAdmin(currentUser)||ed!==_rgHighlightEditor||String(_ligaActual)!==_rgHighlightLeague)return false;
+  const raw=value===undefined?document.getElementById('rg-text-hex')?.value:value;
+  const colour=raw==='auto'?'initial':rgTextColor(raw);
+  if(!colour){rgTextStatus('rg_ink_invalid');return false;}
+  rgRememberHighlightRange();const r=_rgHighlightRange;
+  if(!rgHighlightInside(r,ed)||r.collapsed||!r.toString().trim()){rgTextStatus('rg_ink_select');return false;}
+  const sel=window.getSelection();if(!sel)return false;
+  if(typeof document.execCommand!=='function'||(document.queryCommandSupported&&!document.queryCommandSupported('foreColor'))){rgTextStatus('rg_ink_unsupported');return false;}
+  const top=ed.scrollTop;let css=false,changed=false;
+  try{
+    ed.focus({preventScroll:true});sel.removeAllRanges();sel.addRange(r);
+    try{css=document.queryCommandState('styleWithCSS');}catch(_){}
+    document.execCommand('styleWithCSS',false,true);
+    changed=document.execCommand('foreColor',false,colour);
+  }catch(_){changed=false;}
+  finally{try{document.execCommand('styleWithCSS',false,css);}catch(_){}ed.scrollTop=top;}
+  if(changed&&colour!=='initial'){
+    _rgTextChoice=colour;
+    const picker=document.getElementById('rg-text-picker'),hex=document.getElementById('rg-text-hex');
+    if(picker)picker.value=colour;if(hex){hex.value=colour;hex.setAttribute('aria-invalid','false');}
+  }
+  rgRefreshTextColors();rgRememberHighlightRange();
+  rgTextStatus(changed?(raw==='auto'?'rg_ink_reset':'rg_ink_applied'):'rg_ink_unsupported');
+  return changed;
+}
+function rgQueueTextPaint(){
+  // Run only after native editing finishes, never nest another execCommand.
+  Promise.resolve().then(rgRefreshTextColors);
+}
+function rgRefreshTextColors(){
+  const host=document.getElementById('view-reglamento');if(!host)return;
+  const memo=new Map();
+  const readable=(ink,bg)=>{const k=ink+'|'+bg;if(!memo.has(k))memo.set(k,rgReadableTextColor(ink,bg));return memo.get(k);};
+  for(const root of host.querySelectorAll('.rg-editor,.rg-content')){
+    const surface=root.closest('.rg-reader')||root;
+    const baseBg=rgTextColor(getComputedStyle(surface).backgroundColor)||(document.documentElement.dataset.theme==='dark'?'#191919':'#ffffff');
+    const baseInk=rgTextColor(getComputedStyle(root).color)||(document.documentElement.dataset.theme==='dark'?'#f1f5f9':'#172033');
+    const stack=Array.from(root.children,el=>({el,ink:null,bg:baseBg,marked:false,reset:false}));
+    while(stack.length){
+      let {el,ink,bg,marked,reset}=stack.pop();
+      const raw=el.style.getPropertyValue('color').trim().toLowerCase();
+      const own=rgTextColor(raw||(el.tagName==='FONT'?el.getAttribute('color'):''));
+      if(raw==='initial'){ink=null;reset=true;}else if(own){ink=own;reset=false;}
+      const highlight=rgHighlightColor(el.style.getPropertyValue('background-color'));
+      if(highlight){bg=highlight;marked=true;}
+      if(el.tagName!=='IMG'&&(ink||marked||reset)){
+        el.setAttribute('data-rg-ink-rendered','');
+        el.style.setProperty('--rg-visible-ink',readable(ink||(marked?'#172033':baseInk),bg));
+      }else{el.removeAttribute('data-rg-ink-rendered');el.style.removeProperty('--rg-visible-ink');}
+      for(const child of el.children)stack.push({el:child,ink,bg,marked,reset});
+    }
+  }
+}
+function rgTextToolbar(){
+  let h='<div class="rg-text-tools" role="group" aria-labelledby="rg-text-label">';
+  h+='<span id="rg-text-label" class="rg-highlight-label"><i class="ti ti-letter-a" aria-hidden="true"></i> '+t('rg_ink_title')+'</span>';
+  h+='<div class="rg-highlight-palette">';
+  for(const c of RG_TEXT_COLORS){const label=t('rg_ink_title')+': '+t(c.key);
+    h+='<button type="button" class="rg-ink-swatch" style="--rg-swatch:'+c.value+'" data-rg-ink-choice="'+c.value+'" title="'+label+'" aria-label="'+label+'" aria-describedby="rg-text-hint" onmousedown="rgKeepHighlightSelection(event)" ontouchstart="rgKeepHighlightSelection(event)" onclick="rgApplyTextColor(this.dataset.rgInkChoice)"><span aria-hidden="true">A</span></button>';
+  }
+  h+='</div><div class="rg-text-custom">';
+  h+='<label class="rg-text-picker-label">'+t('rg_ink_custom')+'<input id="rg-text-picker" type="color" value="'+_rgTextChoice+'" onpointerdown="rgRememberHighlightRange()" oninput="rgSyncTextPicker(\'picker\')"></label>';
+  h+='<label class="rg-text-hex-label">'+t('rg_ink_hex')+'<input id="rg-text-hex" type="text" maxlength="7" value="'+_rgTextChoice+'" spellcheck="false" autocapitalize="off" autocomplete="off" aria-describedby="rg-text-hint rg-text-status" oninput="rgSyncTextPicker(\'hex\')"></label>';
+  h+='<button type="button" class="rg-highlight-clear" onmousedown="rgKeepHighlightSelection(event)" ontouchstart="rgKeepHighlightSelection(event)" onclick="rgApplyTextColor()">'+t('rg_ink_apply')+'</button>';
+  h+='<button type="button" class="rg-highlight-clear" data-rg-ink-choice="auto" onmousedown="rgKeepHighlightSelection(event)" ontouchstart="rgKeepHighlightSelection(event)" onclick="rgApplyTextColor(\'auto\')">'+t('rg_ink_auto')+'</button>';
+  h+='</div><p id="rg-text-hint" class="rg-highlight-hint">'+t('rg_ink_hint')+'</p>';
+  h+='<p id="rg-text-status" class="rg-highlight-status" role="status" aria-live="polite" aria-atomic="true"></p></div>';
+  return h;
+}
+
 let _rgHighlightRange=null, _rgHighlightEditor=null, _rgHighlightLeague=null;
 let _rgHighlightListening=false;
 function rgHighlightColor(value){
@@ -36,7 +154,7 @@ function rgRememberHighlightRange(){
   if(rgHighlightInside(r,ed)&&!r.collapsed){_rgHighlightRange=r.cloneRange();return;}
   // Keyboard focus moving to a toolbar button must not discard the saved range.
   // A new caret/selection in the editor or elsewhere invalidates the old one.
-  if(document.activeElement?.closest('.rg-highlight-tools'))return;
+  if(document.activeElement?.closest('.rg-highlight-tools,.rg-text-tools'))return;
   _rgHighlightRange=null;
 }
 function rgKeepHighlightSelection(ev){
@@ -67,14 +185,14 @@ function rgApplyHighlight(value){
     changed=document.execCommand('hiliteColor',false,colour);
   }catch(_){changed=false;}
   finally{try{document.execCommand('styleWithCSS',false,css);}catch(_){}ed.scrollTop=top;}
-  rgRememberHighlightRange();
+  rgRefreshTextColors();rgRememberHighlightRange();
   rgHighlightStatus(changed?(value==='none'?'rg_hl_removed':'rg_hl_applied'):'rg_hl_unsupported');
   return changed;
 }
 function rgBindHighlightEditor(ed){
   _rgHighlightRange=null;_rgHighlightEditor=ed;_rgHighlightLeague=String(_ligaActual);
-  if(!_rgHighlightListening){document.addEventListener('selectionchange',rgRememberHighlightRange);_rgHighlightListening=true;}
-  if(ed){ed.addEventListener('keyup',rgRememberHighlightRange);ed.addEventListener('mouseup',rgRememberHighlightRange);ed.addEventListener('touchend',rgRememberHighlightRange);}
+  if(!_rgHighlightListening){document.addEventListener('selectionchange',rgRememberHighlightRange);document.addEventListener('sohail-theme-change',rgQueueTextPaint);_rgHighlightListening=true;}
+  if(ed){ed.addEventListener('input',rgQueueTextPaint);ed.addEventListener('keyup',rgRememberHighlightRange);ed.addEventListener('mouseup',rgRememberHighlightRange);ed.addEventListener('touchend',rgRememberHighlightRange);}
 }
 function renderReglamento(resetDraft=false){
   const cont=document.getElementById('view-reglamento');
@@ -102,6 +220,7 @@ function renderReglamento(resetDraft=false){
     h+=' <button type="button" class="rg-tb" title="'+t('rg_ol')+'" onmousedown="rgCmd(event,\'insertOrderedList\')"><i class="ti ti-list-numbers"></i></button>';
     h+=' <span class="rg-sep"></span>';
     h+=' <button type="button" class="rg-tb" title="'+t('rg_img')+'" onmousedown="rgPickImg(event)"><i class="ti ti-photo"></i></button>';
+    h+=rgTextToolbar();
     h+=' <div class="rg-highlight-tools" role="group" aria-labelledby="rg-highlight-label">';
     h+='<span id="rg-highlight-label" class="rg-highlight-label"><i class="ti ti-highlight" aria-hidden="true"></i> '+t('rg_hl_title')+'</span>';
     h+='<div class="rg-highlight-palette">';
@@ -143,11 +262,12 @@ function renderReglamento(resetDraft=false){
   const ed=document.getElementById('rg-editor');
   rgBindHighlightEditor(ed);
   if(ed){ ed.addEventListener('paste', rgOnPaste);ed.scrollTop=draftTop; }
+  rgRefreshTextColors();
 }
 // Comandos de formato (negrita, listas, etc.). onmousedown + preventDefault para
 // no perder la selección del texto en el editor.
-function rgCmd(ev, cmd){ ev.preventDefault(); document.execCommand(cmd,false,null); document.getElementById('rg-editor')?.focus(); }
-function rgSize(sel){ if(sel.value){ document.execCommand('fontSize',false,sel.value); sel.value=''; } document.getElementById('rg-editor')?.focus(); }
+function rgCmd(ev, cmd){ ev.preventDefault(); document.execCommand(cmd,false,null); document.getElementById('rg-editor')?.focus();rgQueueTextPaint(); }
+function rgSize(sel){ if(sel.value){ document.execCommand('fontSize',false,sel.value); sel.value=''; } document.getElementById('rg-editor')?.focus();rgQueueTextPaint(); }
 function rgPickImg(ev){ ev.preventDefault(); document.getElementById('rg-file')?.click(); }
 // Límite de tamaño por imagen (para no inflar el estado guardado).
 const RG_IMG_MAX = 2*1024*1024;  // 2 MB
@@ -251,6 +371,11 @@ function sanitizarReglamento(html,pegado){
         // user supplied CSS, opacity, positioning, handlers or arbitrary colours.
         const bg=rgHighlightColor(n.style.getPropertyValue('background-color'));
         if(bg&&n.tagName!=='IMG')el.style.setProperty('background-color',bg);
+        // Keep only opaque colours. UI-only derived ink and all data attributes
+        // are deliberately regenerated, not trusted or persisted.
+        const raw=n.style.getPropertyValue('color').trim().toLowerCase();
+        const ink=rgTextColor(raw||(n.tagName==='FONT'?n.getAttribute('color'):''));
+        if(n.tagName!=='IMG'&&(ink||raw==='initial'))el.style.setProperty('color',ink||'initial');
       }
       walk(n,el,depth+1);dest.appendChild(el);
     }
