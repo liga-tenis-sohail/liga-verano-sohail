@@ -267,6 +267,8 @@ function removeClub(i){
   redibujarClubs();
 }
 function syncHex(which,source){
+  // Deferred until the original picker/hex synchronisation has completed.
+  if(which==='pri'||which==='acc')queueMicrotask(()=>refreshLeagueTextPreviews());
   const picker=document.getElementById('sa-color-'+which);
   const txt=document.getElementById('sa-'+which+'-hex');
   if(!picker||!txt)return;
@@ -298,6 +300,8 @@ function previewLeagueColors(){
   toast((""+t('ui36_text_120')+""));
 }
 function resetLeagueColors(){
+  if(!currentUser||!esAdmin(currentUser)||_ligaReadOnly||_leagueAppearanceSaving)return;
+  LEAGUE_TEXT_COLORS={};
   LEAGUE_COLOR_PRI='#1B4F9C';LEAGUE_COLOR_ACC='#F5C518';LEAGUE_COLOR_HL='#FFEDD5';
   COLOR_DISPUTA='#FDE68A';
   try{localStorage.removeItem('lsc');}catch(e){}
@@ -313,6 +317,7 @@ function resetLeagueColors(){
   const dc=document.getElementById('sa-color-disp');if(dc)dc.value='#FDE68A';
   const dh=document.getElementById('sa-disp-hex');if(dh){dh.value='#FDE68A';dh.style.borderColor='';}
   const dd=document.getElementById('sa-disp-demo');if(dd){dd.style.background='#FDE68A';dd.style.color=autoTxt('#FDE68A');}
+  const panel=document.getElementById('league-text-editor');if(panel)panel.outerHTML=leagueTextEditorHTML();
   persist(true);toast((""+t('ui36_text_121')+""));
 }
 
@@ -322,6 +327,7 @@ function applyLeagueColors(pri, acc, hl){
   hl=(hl&&/^#[0-9a-fA-F]{6}$/.test(hl))?hl:((typeof LEAGUE_COLOR_HL!=='undefined'&&LEAGUE_COLOR_HL)||'#FFEDD5');
   // La marca se conserva, pero ya no invade superficies, enlaces y acciones.
   // Preferencia y color-scheme se resuelven en el módulo sin reconstruir vistas.
+  SohailAppearance.setTextColors(LEAGUE_TEXT_COLORS);
   SohailAppearance.setBrand(pri,acc,hl);
 }
 function shadeColor(hex,pct){
@@ -341,7 +347,9 @@ function tintColor(hex,pct){
   return '#'+[r,g,b].map(x=>Math.min(255,x).toString(16).padStart(2,'0')).join('');
 }
 
-function saveLeagueName(){
+async function saveLeagueName(){
+  if(!currentUser||!esAdmin(currentUser)||_ligaReadOnly||_leagueAppearanceSaving)return false;
+  const textColors=readLeagueTextControls();if(!textColors)return false;
   const sub=document.getElementById('sa-league-sub');
   const loginTit=document.getElementById('sa-login-title');
   const pri=document.getElementById('sa-color-pri');
@@ -386,6 +394,7 @@ function saveLeagueName(){
     return (id && idToNewName[id] !== undefined) ? idToNewName[id] : m.club;
   });
   matches.forEach((m,i)=>{ m.club = nuevos[i]; });
+  LEAGUE_TEXT_COLORS=textColors;
   // Aplicar colores
   applyLeagueColors(LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL);
   // Actualizar textos. El nombre "oficial" (header, login post-selección) es
@@ -400,8 +409,84 @@ function saveLeagueName(){
   addLog('Config: apariencia actualizada',{po:null,a:LOGIN_TITLE,b:LEAGUE_SUBTITLE});
   // Guardar en localStorage para recuperación inmediata sin flash
   try{localStorage.setItem('lsn',JSON.stringify({n:nombreOficial,s:LEAGUE_SUBTITLE,lt:LOGIN_TITLE||''}));}catch(e){}
-  persist(true);
-  if(al)al.innerHTML=("<span style=\"color:#22c55e\">"+t('ui36_text_122')+"</span>");
-  setTimeout(()=>{if(al)al.innerHTML='';},3000);
+  const key=_saveSessionKey(),league=_ligaActual;
+  _leagueAppearanceSaving=true;
+  const buttons=Array.from(document.querySelectorAll('[onclick="saveLeagueName()"]'));
+  buttons.forEach(b=>b.disabled=true);
+  if(al){al.textContent=t('lt_saving');al.setAttribute('role','status');}
+  try{
+    const saved=await _criticalSave();
+    if(key!==_saveSessionKey()||league!==_ligaActual)return false;
+    if(al?.isConnected){al.textContent=t(saved?'lt_saved':'fix_save_failed');al.setAttribute('role',saved?'status':'alert');}
+    return !!saved;
+  }finally{_leagueAppearanceSaving=false;buttons.forEach(b=>{if(b.isConnected)b.disabled=false;});}
 }
 
+
+
+// v3.9: league text controls. Only explicit Save changes serialized settings.
+let _leagueAppearanceSaving=false;
+function leagueTextDraft(){
+  const out={};
+  for(const mode of ['light','dark','header']){
+    const auto=document.getElementById('lt-auto-'+mode),input=document.getElementById('lt-hex-'+mode);
+    if(auto&&!auto.checked&&input)out[mode]=input.value.trim();
+  }
+  return out;
+}
+function leagueTextPreview(mode,draft){
+  const pri=document.getElementById('sa-color-pri')?.value||LEAGUE_COLOR_PRI;
+  const acc=document.getElementById('sa-color-acc')?.value||LEAGUE_COLOR_ACC;
+  const palette=SohailAppearance.textPalette(mode==='dark'?'dark':'light',draft,pri,acc);
+  return {ink:mode==='header'?palette.header:palette.main,
+    bg:mode==='dark'?'#1b1b1b':mode==='header'?pri:'#ffffff',
+    ok:mode==='header'?palette.headerAccepted:palette.accepted,
+    ratio:mode==='header'?palette.headerRatio:palette.ratio};
+}
+function leagueTextEditorHTML(){
+  const colors=SohailAppearance.normalizeTextColors(LEAGUE_TEXT_COLORS);
+  const escape=v=>attr(String(v));
+  const cards=['light','dark','header'].map(mode=>{
+    const defaults={light:'#1b2433',dark:'#f3f3f3',header:SohailAppearance.textOn(LEAGUE_COLOR_PRI,'#ffffff')};
+    const manual=!!colors[mode],value=colors[mode]||defaults[mode],v=leagueTextPreview(mode,colors);
+    return '<fieldset class="lt-card" data-lt-mode="'+mode+'"><legend>'+t('lt_'+mode)+'</legend>'+
+      '<label class="lt-auto" for="lt-auto-'+mode+'"><input id="lt-auto-'+mode+'" type="checkbox"'+(!manual?' checked':'')+' onchange="syncLeagueText(\''+mode+'\',\'auto\')">'+t('lt_auto')+'</label>'+
+      '<div class="lt-fields"><label class="ui-sr-only" for="lt-picker-'+mode+'">'+t('lt_'+mode)+'</label><input id="lt-picker-'+mode+'" type="color" value="'+escape(value)+'"'+(!manual?' disabled':'')+' aria-describedby="lt-status-'+mode+'" oninput="syncLeagueText(\''+mode+'\',\'picker\')">'+
+      '<label class="ui-sr-only" for="lt-hex-'+mode+'">'+t('lt_hex')+' · '+t('lt_'+mode)+'</label><input id="lt-hex-'+mode+'" type="text" value="'+escape(value)+'" maxlength="7" spellcheck="false" autocapitalize="off" autocomplete="off"'+(!manual?' disabled':'')+' aria-describedby="lt-status-'+mode+'" oninput="syncLeagueText(\''+mode+'\',\'hex\')"></div>'+
+      '<div class="lt-sample" id="lt-sample-'+mode+'" style="--lt-ink:'+escape(v.ink)+';--lt-bg:'+escape(v.bg)+'"><strong>'+t('lt_sample_title')+'</strong><span>'+t('lt_sample_copy')+'</span></div>'+
+      '<p id="lt-status-'+mode+'" class="lt-status" role="status" aria-live="polite">'+t('lt_auto_note')+'</p></fieldset>';
+  }).join('');
+  return '<section id="league-text-editor" class="lt-editor" aria-labelledby="lt-title"><h3 id="lt-title">'+t('lt_title')+'</h3><p class="lt-intro">'+t('lt_intro')+'</p><div class="lt-grid">'+cards+'</div><p class="lt-note">'+t('lt_scope')+'</p></section>';
+}
+function syncLeagueText(mode,source){
+  if(!['light','dark','header'].includes(mode))return;
+  const auto=document.getElementById('lt-auto-'+mode),pick=document.getElementById('lt-picker-'+mode),hex=document.getElementById('lt-hex-'+mode);
+  if(!auto||!pick||!hex)return;
+  if(source==='auto'){pick.disabled=hex.disabled=auto.checked;}
+  if(source==='picker')hex.value=pick.value;
+  if(source==='hex'){const normalized=SohailAppearance.hex(hex.value);if(normalized)pick.value=normalized;}
+  refreshLeagueTextPreviews();
+}
+function refreshLeagueTextPreviews(){
+  const draft=leagueTextDraft();
+  for(const mode of ['light','dark','header']){
+    const auto=document.getElementById('lt-auto-'+mode),sample=document.getElementById('lt-sample-'+mode),status=document.getElementById('lt-status-'+mode),input=document.getElementById('lt-hex-'+mode);
+    if(!auto||!sample||!status||!input)continue;
+    const valid=auto.checked||!!SohailAppearance.hex(draft[mode]);const v=leagueTextPreview(mode,draft);
+    sample.style.setProperty('--lt-ink',v.ink);sample.style.setProperty('--lt-bg',v.bg);
+    const ok=valid&&v.ok;input.setAttribute('aria-invalid',String(!ok));status.classList.toggle('lt-error',!ok);
+    status.textContent=!valid?t('lt_invalid'):!v.ok?t('lt_contrast_error'):auto.checked?t('lt_auto_note'):tf('lt_contrast_ok',{ratio:v.ratio.toFixed(1).replace('.',LANG==='es'?',':'.')});
+  }
+}
+function readLeagueTextControls(){
+  if(!document.getElementById('league-text-editor'))return {...LEAGUE_TEXT_COLORS};
+  refreshLeagueTextPreviews();const draft=leagueTextDraft();
+  for(const mode of ['light','dark','header']){
+    if(!(mode in draft))continue;
+    if(!SohailAppearance.hex(draft[mode])||!leagueTextPreview(mode,draft).ok){
+      const al=document.getElementById('sa-league-alert');if(al){al.textContent=t('lt_fix_color');al.setAttribute('role','alert');}
+      document.getElementById('lt-hex-'+mode)?.focus();return null;
+    }
+  }
+  return SohailAppearance.normalizeTextColors(draft);
+}

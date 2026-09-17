@@ -802,3 +802,45 @@ Object.assign(TRANSLATIONS.en,{
   "ui36_text_258": "This overwrites position points for ALL groups in the active cycle with the standard scale (increment 3). Confirm?",
   "ui36_text_259": "Points recalculated with the standard scale (increment 3, last position of the last group = 1 point)."
 });
+
+// v3.9 — rule panel and per-league text colours.
+Object.assign(TRANSLATIONS.es,{
+  "rg_scroll_hint": "Deslizá dentro del cuadro para leer el reglamento completo. Al llegar al borde, podés continuar desplazando la página.",
+  "lt_title": "Color del texto de la liga",
+  "lt_intro": "Elegí el texto para fondos claros, oscuros y la cabecera. La muestra no guarda cambios; confirmalos con «Guardar apariencia y clubes».",
+  "lt_light": "Texto sobre fondos claros",
+  "lt_dark": "Texto sobre fondos oscuros",
+  "lt_header": "Texto de la cabecera",
+  "lt_auto": "Automático (recomendado)",
+  "lt_hex": "Color hexadecimal",
+  "lt_sample_title": "Así se verá el texto",
+  "lt_sample_copy": "Reglamento, información y contenido de la liga.",
+  "lt_auto_note": "El modo automático mantiene el contraste.",
+  "lt_invalid": "Escribí un color como #123456 o #abc.",
+  "lt_contrast_error": "Este color no se lee bien sobre el fondo. Elegí otro o activá Automático; la muestra usa el color seguro.",
+  "lt_contrast_ok": "Contraste mínimo de la muestra: {ratio}:1.",
+  "lt_fix_color": "Revisá los colores de texto señalados antes de guardar.",
+  "lt_scope": "Afecta al texto general y a la cabecera de esta liga. Botones, enlaces, estados, colores de club y tarjetas de campeón conservan sus colores de contraste.",
+  "lt_saving": "Guardando apariencia y clubes…",
+  "lt_saved": "Apariencia y clubes guardados."
+});
+Object.assign(TRANSLATIONS.en,{
+  "rg_scroll_hint": "Scroll inside the panel to read the full rules. At its edge, you can continue scrolling the page.",
+  "lt_title": "League text colours",
+  "lt_intro": "Choose text colours for light backgrounds, dark backgrounds and the header. The preview does not save changes; confirm with “Save appearance and clubs”.",
+  "lt_light": "Text on light backgrounds",
+  "lt_dark": "Text on dark backgrounds",
+  "lt_header": "Header text",
+  "lt_auto": "Automatic (recommended)",
+  "lt_hex": "Hex colour",
+  "lt_sample_title": "Your text will look like this",
+  "lt_sample_copy": "Rules, information and league content.",
+  "lt_auto_note": "Automatic mode maintains contrast.",
+  "lt_invalid": "Enter a colour such as #123456 or #abc.",
+  "lt_contrast_error": "This colour is hard to read on the background. Choose another or enable Automatic; the preview uses a safe colour.",
+  "lt_contrast_ok": "Minimum preview contrast: {ratio}:1.",
+  "lt_fix_color": "Check the highlighted text colours before saving.",
+  "lt_scope": "Applies to general text and the header of this league. Buttons, links, statuses, club colours and champion cards retain their contrast colours.",
+  "lt_saving": "Saving appearance and clubs…",
+  "lt_saved": "Appearance and clubs saved."
+});

@@ -373,6 +373,7 @@ let REGLAMENTO=''; // reglamento de la liga (texto), editable por admin, visible
 // que cualquier otro dato del state: viajan con el hydrate/persist normal.
 let JOIN_REQUESTS = [];
 let LEAGUE_SUBTITLE='Verano 2026'; // subtítulo editable
+let LEAGUE_TEXT_COLORS={}; // optional light/dark/header hex colours; absent = automatic
 let LEAGUE_COLOR_PRI='#1B4F9C';   // color primario (azul)
 let LEAGUE_COLOR_ACC='#F5C518';   // color acento (amarillo)
 let LEAGUE_COLOR_HL='#FFEDD5';    // color de resaltado (fondo de botones No jugado / W.O.)

@@ -368,6 +368,7 @@ function renderAdmin(){
             </div>
           </div>
         </div>
+        ${leagueTextEditorHTML()}
         <div class="section-lbl" style="color:var(--pri);margin-top:1rem">${t('clubs_title')}</div>
         <div style="font-size:12px;color:var(--text2);margin-bottom:.6rem">${t('clubs_hint')}</div>
         <div id="clubs-editor">${clubsEditorHTML()}</div>

@@ -35,7 +35,36 @@
   for(let r=0;r<=1;r+=0.025){const c=mix(bg,'#000000',r);if(contrast(c,'#ffffff')>=4.6)return c;}
   return '#1b4f9c';
  }
- let preference='light',brand={...defaults};
+ // League text preferences are separate from device theme preference and brand.
+ // No league text colour is cached between visits/leagues: hydration supplies it.
+ function normalizeTextColors(value){
+  const out={};
+  if(!value||typeof value!=='object'||Array.isArray(value))return out;
+  for(const key of ['light','dark','header']){
+   if(Object.prototype.hasOwnProperty.call(value,key)&&typeof value[key]==='string'){
+    const c=hex(value[key]);if(c)out[key]=c;
+   }
+  }
+  return out;
+ }
+ function textPalette(mode,requested,p,a){
+  const dark=mode==='dark',colors=normalizeTextColors(requested);
+  p=hex(p,defaults.p);a=hex(a,defaults.a);
+  const surfaces=dark?['#121212','#1b1b1b','#242424','#20334d','#403318','#302919']:
+   ['#eef2f7','#ffffff','#edf1f6',mix(p,'#ffffff',.90),mix(a,'#ffffff',.92),mix(a,'#ffffff',.95)];
+  const wanted=colors[dark?'dark':'light'];
+  const min=c=>Math.min(...surfaces.map(bg=>contrast(bg,c)));
+  const fallback=dark?'#f3f3f3':'#1b2433';
+  const accepted=!wanted||min(wanted)>=4.5;
+  const main=accepted&&wanted?wanted:fallback;
+  const mutedCandidate=wanted&&accepted?mix(main,dark?'#1b1b1b':'#ffffff',.22):(dark?'#b9c0c9':'#5b6675');
+  const muted=min(mutedCandidate)>=4.5?mutedCandidate:main;
+  const headerWanted=colors.header,header=textOn(p,headerWanted||'#ffffff');
+  return {main,muted,accepted,ratio:min(wanted||main),header,
+   headerAccepted:!headerWanted||contrast(p,headerWanted)>=4.5,
+   headerRatio:contrast(p,headerWanted||header),surfaces};
+ }
+ let preference='light',brand={...defaults},textColors={};
  try{const v=global.localStorage.getItem('theme');if(['light','dark','system'].includes(v))preference=v;}catch(_){}
  try{const c=JSON.parse(global.localStorage.getItem('lsc')||'null');if(c&&hex(c.p)&&hex(c.a))brand={p:hex(c.p),a:hex(c.a),hl:hex(c.hl,defaults.hl)};}catch(_){}
  const mq=global.matchMedia?global.matchMedia('(prefers-color-scheme: dark)'):null;
@@ -45,8 +74,10 @@
   root.setAttribute('data-theme',dark?'dark':'light');
   root.setAttribute('data-theme-preference',preference);
   root.style.colorScheme=dark?'dark':'light';
+  const ink=textPalette(dark?'dark':'light',textColors,p,a);
   const tokens={
-   '--brand-bg':p,'--brand-ink':textOn(p,'#ffffff'),'--brand-accent':a,'--brand-accent-ink':textOn(a),
+   '--text':ink.main,'--text2':ink.muted,
+   '--brand-bg':p,'--brand-ink':ink.header,'--brand-accent':a,'--brand-accent-ink':textOn(a),
    '--action':dark?'#245edb':action,'--action-hover':dark?'#1e4fbb':mix(action,'#000000',.16),'--on-action':'#ffffff',
    '--link':dark?'#9bc7ff':action,'--acc':a,'--accD':mix(a,'#000000',.15),'--accT':textOn(a),
    '--pri':dark?'#93c5fd':action,'--priD':dark?'#bfdbfe':mix(action,'#000000',.2),
@@ -69,7 +100,8 @@
   try{global.localStorage.setItem('lsc',JSON.stringify(brand));}catch(_){}
   return true;
  }
- global.SohailAppearance=Object.freeze({hex,luminance,contrast,mix,textOn,actionFor,preference:()=>preference,effective,setPreference,setBrand});
+ function setTextColors(value){textColors=normalizeTextColors(value);paint(false);return {...textColors};}
+ global.SohailAppearance=Object.freeze({hex,luminance,contrast,mix,textOn,actionFor,normalizeTextColors,textPalette,setTextColors,preference:()=>preference,effective,setPreference,setBrand});
  paint(false);
  const listener=()=>{if(preference==='system')paint(true);};
  if(mq){if(mq.addEventListener)mq.addEventListener('change',listener);else if(mq.addListener)mq.addListener(listener);}

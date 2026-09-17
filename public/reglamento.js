@@ -14,8 +14,10 @@ function renderReglamento(){
   if(!cont)return;
   const admin=!_ligaReadOnly && esAdmin(currentUser);
   const vacio=!REGLAMENTO||!REGLAMENTO.trim();
-  let h='<div class="card">';
-  h+='<div class="section-lbl"><i class="ti ti-book"></i> '+t('rg_title')+'</div>';
+  const old=cont.querySelector('.rg-reader');
+  const oldTop=old&&cont.dataset.rgLeague===String(_ligaActual)?old.scrollTop:0;
+  let h='<div class="card rg-card">';
+  h+='<div id="rg-title" class="section-lbl"><i class="ti ti-book"></i> '+t('rg_title')+'</div>';
   if(_rgEdit && admin){
     // Barra de herramientas del editor enriquecido.
     h+='<div class="rg-toolbar">';
@@ -30,7 +32,7 @@ function renderReglamento(){
     h+=' <span class="rg-sep"></span>';
     h+=' <button type="button" class="rg-tb" title="'+t('rg_img')+'" onmousedown="rgPickImg(event)"><i class="ti ti-photo"></i></button>';
     h+='</div>';
-    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(REGLAMENTO||'')+'</div>';
+    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rg-title" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(REGLAMENTO||'')+'</div>';
     h+='<input type="file" id="rg-file" accept="image/*" style="display:none" onchange="rgInsertFile(this)">';
     h+='<div class="rg-hint">'+t('rg_img_hint')+'</div>';
     h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:10px">';
@@ -42,7 +44,8 @@ function renderReglamento(){
     if(vacio){
       h+='<p class="legend-txt">'+t('rg_empty')+'</p>';
     } else {
-      h+='<div class="rg-content">'+sanitizarReglamento(REGLAMENTO)+'</div>';   // sanitizado al vuelo (limpia contenido viejo)
+      h+='<p id="rg-scroll-hint" class="rg-scroll-hint">'+t('rg_scroll_hint')+'</p>';
+      h+='<div class="rg-reader" tabindex="0" role="region" aria-labelledby="rg-title" aria-describedby="rg-scroll-hint"><div class="rg-content">'+sanitizarReglamento(REGLAMENTO)+'</div></div>';   // sanitizado al vuelo (limpia contenido viejo)
     }
     if(admin){
       h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:12px">';
@@ -53,6 +56,8 @@ function renderReglamento(){
   }
   h+='</div>';
   cont.innerHTML=h;
+  cont.dataset.rgLeague=String(_ligaActual);
+  const reader=cont.querySelector('.rg-reader');if(reader)reader.scrollTop=oldTop;
   // Enganchar el pegado de imágenes en el editor.
   const ed=document.getElementById('rg-editor');
   if(ed){ ed.addEventListener('paste', rgOnPaste); }
