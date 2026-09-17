@@ -26,7 +26,7 @@ function persistenceContext(fetcher){
  const ctx={console:{log(){},warn(){},error(){}},fetch:fetcher,AbortSignal,JSON,Promise,Blob,setTimeout:()=>0,setInterval:()=>0,clearTimeout(){},structuredClone,atob:s=>Buffer.from(s,'base64').toString(),t:k=>k,
    document:{getElementById:()=>null,addEventListener(){},createElement:()=>({style:{},appendChild(){},replaceChildren(){},setAttribute(){}}),body:{appendChild(){}}},window:{addEventListener(){}},
    currentUser:{name:'Alicia'},_token:'token-test',_ligaActual:'liga-test',_ligaReadOnly:false,RATING_ON:false,
-   cycles:base.cycles,matches:[],matchId:1,activeN:1,playoff:base.playoff,DESTINO:{},FECHAS:{},PO_FECHAS:{},ALLNAMES:base.ALLNAMES,USERS:base.users,PUNTOS:{},AJUSTES_PUNTOS:{},LOG:[],LEAGUE_NAME:'Prueba',LEAGUE_SUBTITLE:'',LOGIN_TITLE:'',LEAGUE_COLOR_PRI:'#123456',LEAGUE_COLOR_ACC:'#123456',LEAGUE_COLOR_HL:'#123456',CLUBS:base.CLUBS,COLOR_DISPUTA:'#123456',RATING_SEEDS:{},RATING_OVERRIDES:{},REGLAMENTO:'',LOGIN_HEADER:{},JOIN_REQUESTS:[]};
+   cycles:base.cycles,matches:[],matchId:1,activeN:1,playoff:base.playoff,DESTINO:{},FECHAS:{},PO_FECHAS:{},ALLNAMES:base.ALLNAMES,USERS:base.users,PUNTOS:{},AJUSTES_PUNTOS:{},LOG:[],LEAGUE_NAME:'Prueba',LEAGUE_SUBTITLE:'',LOGIN_TITLE:'',LEAGUE_COLOR_PRI:'#123456',LEAGUE_COLOR_ACC:'#123456',LEAGUE_COLOR_HL:'#123456',LEAGUE_TEXT_COLORS:{},CLUBS:base.CLUBS,COLOR_DISPUTA:'#123456',RATING_SEEDS:{},RATING_OVERRIDES:{},REGLAMENTO:'',LOGIN_HEADER:{},JOIN_REQUESTS:[]};
  vm.createContext(ctx);vm.runInContext(fs.readFileSync(path.join(__dirname,'../public/persistencia.js'),'utf8'),ctx);vm.runInContext('_loadOK=true;_stateV=3;_lastSaved=_serialize();',ctx);return ctx;
 }
 test('R2: RPC utiliza versión leída y actualiza versión recibida',async()=>{
