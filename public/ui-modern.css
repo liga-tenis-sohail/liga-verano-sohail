@@ -788,3 +788,22 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 #view-reglamento :is(.rg-editor,.rg-content) [data-rg-ink-rendered]{color:var(--rg-visible-ink)!important;-webkit-text-fill-color:var(--rg-visible-ink)!important}
 @media(max-width:600px){#view-reglamento .rg-text-custom{flex-basis:100%}}
 @media print{#view-reglamento .rg-text-tools{display:none!important}#view-reglamento .rg-reader [data-rg-ink-rendered]{color:#111!important;-webkit-text-fill-color:#111!important}}
+
+/* v3.9.3 — external links. Scoped to the rules; no global style/permissions change. */
+#view-reglamento .rg-link-button{display:inline-flex;align-items:center;gap:6px;min-height:44px;height:auto;max-width:100%;white-space:normal;font-size:12px;padding:7px 10px;color:var(--text);background:var(--surface)}
+#view-reglamento .rg-link-panel{scroll-margin-block:90px;display:flex;flex-direction:column;gap:8px;min-width:0;margin:10px 0;padding:14px;border:1px solid var(--border2);border-radius:12px;background:var(--surface2);color:var(--text)}
+#view-reglamento .rg-link-panel[hidden],#view-reglamento #rg-link-label-wrap[hidden]{display:none!important}
+#view-reglamento .rg-link-panel label{display:block;margin:0;font-weight:600;font-size:13px;color:var(--text)}
+#view-reglamento .rg-link-panel input{box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px;padding:9px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:16px}
+#view-reglamento .rg-link-help{margin:0;font-size:12px;line-height:1.5;color:var(--text2);overflow-wrap:anywhere}
+#view-reglamento #rg-link-selection{max-height:4.5em;overflow:auto}
+#view-reglamento .rg-link-actions{display:flex;flex-wrap:wrap;gap:8px}
+#view-reglamento .rg-link-actions button{min-height:44px;white-space:normal;max-width:100%}
+#view-reglamento .rg-link-error{margin:0;color:var(--danger);font-size:13px;font-weight:600}
+#view-reglamento .rg-link-error:empty,#view-reglamento .rg-link-status:empty{display:none}
+#view-reglamento .rg-link-status:not(:empty){margin:8px 0;font-weight:600}
+#view-reglamento .rg-link-panel [aria-invalid=true]{outline:2px solid var(--danger)}
+#view-reglamento :is(.rg-link-panel input,.rg-link-panel button,.rg-link-button):focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+#view-reglamento :is(.rg-content,.rg-editor) a[href]{color:var(--link);text-decoration-line:underline!important;text-decoration-thickness:1.5px;text-underline-offset:3px;overflow-wrap:anywhere;cursor:pointer}
+#view-reglamento :is(.rg-content,.rg-editor) a[href]:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:2px}
+@media print{#view-reglamento :is(.rg-link-panel,.rg-link-button,.rg-link-status){display:none!important}}

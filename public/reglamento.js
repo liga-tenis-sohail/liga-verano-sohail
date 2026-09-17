@@ -9,6 +9,171 @@
 // ==================== REGLAMENTO ====================
 // Visible para todos (incluso en ligas pasadas). Editable solo por admin.
 let _rgEdit=false;
+// v3.9.3 — hyperlinks are limited to explicit HTTP(S) URLs. This function is
+// shared by the form and HTML sanitizer: never trust an existing href/target.
+function rgLinkUrl(value, inferHttps=false){
+  if(typeof value!=='string'||value.length>2048)return '';
+  const raw=value.trim();
+  if(!raw||/[\u0000-\u0020\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\\<>"`]/.test(raw))return '';
+  let candidate=raw;
+  if(!/^https?:\/\//i.test(candidate)){
+    // Convenience applies only to a domain entered in our form, never to HTML
+    // copied from elsewhere. No relative, protocol-relative or custom schemes.
+    if(!inferHttps||!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:[/?#]|$)/i.test(raw))return '';
+    candidate='https://'+raw;
+  }
+  try{
+    const url=new URL(candidate);
+    if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password||url.href.length>2048)return '';
+    return url.href;
+  }catch(_){return '';}
+}
+let _rgLinkRange=null, _rgLinkEditor=null, _rgLinkLeague=null, _rgLinkDraft=null, _rgLinkListening=false;
+function rgMayEditLinks(){
+  const ed=document.getElementById('rg-editor');
+  return !!(_rgEdit&&!_ligaReadOnly&&esAdmin(currentUser)&&ed&&ed===_rgLinkEditor&&ed.isConnected&&String(_ligaActual)===_rgLinkLeague);
+}
+function rgLinkStatus(key){const el=document.getElementById('rg-link-status');if(el)el.textContent=t(key);}
+function rgRememberLinkRange(){
+  if(!rgMayEditLinks()){_rgLinkRange=null;return;}
+  const sel=window.getSelection();if(!sel||!sel.rangeCount)return;
+  const r=sel.getRangeAt(0);
+  if(rgHighlightInside(r,_rgLinkEditor)){_rgLinkRange=r.cloneRange();return;}
+  if(document.activeElement?.closest('.rg-toolbar,.rg-link-panel'))return;
+  _rgLinkRange=null;
+}
+function rgKeepLinkSelection(ev){rgRememberLinkRange();if(ev.type==='mousedown')ev.preventDefault();}
+function rgLinkAtRange(range,ed){
+  function anchor(node){const el=node?.nodeType===1?node:node?.parentElement;const a=el?.closest('a');return a&&ed.contains(a)?a:null;}
+  const a=anchor(range.startContainer),b=anchor(range.endContainer);
+  if(a&&a===b)return a;
+  return null;
+}
+// Keep a pending URL while the same editor is re-rendered for a language change.
+// Bookmarks are local DOM paths and are discarded on league/user/context changes.
+function rgSnapshotLinkDraft(){
+  const d=_rgLinkDraft;if(!rgLinkDraftValid(d))return null;
+  function path(node){const steps=[];while(node!==d.editor){const parent=node.parentNode;if(!parent)return null;steps.unshift(Array.prototype.indexOf.call(parent.childNodes,node));node=parent;}return steps;}
+  return {start:path(d.range.startContainer),end:path(d.range.endContainer),startOffset:d.range.startOffset,endOffset:d.range.endOffset,
+    text:d.text,league:d.league,user:d.user,url:document.getElementById('rg-link-url')?.value||'',label:document.getElementById('rg-link-label')?.value||''};
+}
+function rgRestoreLinkDraft(saved){
+  if(!saved||!rgMayEditLinks()||saved.league!==String(_ligaActual)||saved.user!==String(currentUser.key||currentUser.name||''))return;
+  const ed=_rgLinkEditor;
+  function node(path){return path&&path.reduce((n,i)=>n?.childNodes[i],ed);}
+  try{
+    const start=node(saved.start),end=node(saved.end);if(!start||!end)return;
+    const r=document.createRange();r.setStart(start,saved.startOffset);r.setEnd(end,saved.endOffset);if(r.toString()!==saved.text)return;
+    ed.focus({preventScroll:true});const s=window.getSelection();s.removeAllRanges();s.addRange(r);_rgLinkRange=r;
+    if(rgOpenLink()){document.getElementById('rg-link-url').value=saved.url;document.getElementById('rg-link-label').value=saved.label;}
+  }catch(_){rgCloseLinkPanel();rgLinkStatus('rg_link_stale');}
+}
+
+function rgLinkButtons(){
+  return '<span class="rg-sep"></span><button id="rg-link-open" type="button" class="rg-tb rg-link-button" aria-expanded="false" aria-controls="rg-link-panel" onmousedown="rgKeepLinkSelection(event)" ontouchstart="rgKeepLinkSelection(event)" onclick="rgOpenLink()"><i class="ti ti-link" aria-hidden="true"></i> '+t('rg_link_insert_edit')+'</button>'
+    +'<button type="button" class="rg-tb rg-link-button" onmousedown="rgKeepLinkSelection(event)" ontouchstart="rgKeepLinkSelection(event)" onclick="rgRemoveLink()"><i class="ti ti-unlink" aria-hidden="true"></i> '+t('rg_link_remove')+'</button>';
+}
+function rgLinkPanel(){
+  return '<div id="rg-link-panel" class="rg-link-panel" role="group" aria-labelledby="rg-link-panel-title" hidden>'
+    +'<strong id="rg-link-panel-title">'+t('rg_link_insert_edit')+'</strong>'
+    +'<p id="rg-link-selection" class="rg-link-help"></p>'
+    +'<label for="rg-link-url">'+t('rg_link_url')+'</label>'
+    +'<input id="rg-link-url" type="url" inputmode="url" maxlength="2048" placeholder="https://www.ejemplo.com" spellcheck="false" autocapitalize="none" autocomplete="off" aria-describedby="rg-link-hint rg-link-error">'
+    +'<div id="rg-link-label-wrap"><label for="rg-link-label">'+t('rg_link_label')+'</label><input id="rg-link-label" type="text" maxlength="300" autocomplete="off" aria-describedby="rg-link-label-hint"><p id="rg-link-label-hint" class="rg-link-help">'+t('rg_link_label_hint')+'</p></div>'
+    +'<p id="rg-link-hint" class="rg-link-help">'+t('rg_link_hint')+'</p>'
+    +'<p id="rg-link-error" class="rg-link-error" role="alert"></p>'
+    +'<div class="rg-link-actions"><button type="button" class="btn btn-primary" onclick="rgApplyLink()">'+t('rg_link_apply')+'</button><button type="button" class="btn" onclick="rgCancelLink()">'+t('cancel')+'</button></div></div>'
+    +'<p id="rg-link-status" class="rg-link-help rg-link-status" role="status" aria-live="polite" aria-atomic="true"></p>';
+}
+function rgOpenLink(){
+  if(!rgMayEditLinks())return false;
+  if(_rgLinkDraft){document.getElementById('rg-link-url')?.focus();return true;}
+  rgRememberLinkRange();
+  const ed=_rgLinkEditor,r=_rgLinkRange?.cloneRange();
+  if(!rgHighlightInside(r,ed)){rgLinkStatus('rg_link_select');return false;}
+  const a=rgLinkAtRange(r,ed);
+  if(a)r.selectNodeContents(a);
+  else if(Array.from(ed.querySelectorAll('a')).some(el=>r.intersectsNode(el))){rgLinkStatus('rg_link_one');return false;}
+  if(!r.collapsed&&!r.toString().trim()){rgLinkStatus('rg_link_select');return false;}
+  _rgLinkDraft={editor:ed,league:String(_ligaActual),user:String(currentUser.key||currentUser.name||''),range:r,anchor:a,text:r.toString(),top:ed.scrollTop};
+  const panel=document.getElementById('rg-link-panel'),input=document.getElementById('rg-link-url');
+  panel.hidden=false;document.getElementById('rg-link-open')?.setAttribute('aria-expanded','true');
+  input.value=a?rgLinkUrl(a.getAttribute('href')):'';input.removeAttribute('aria-invalid');
+  document.getElementById('rg-link-label').value='';document.getElementById('rg-link-label-wrap').hidden=!r.collapsed;
+  document.getElementById('rg-link-selection').textContent=r.collapsed?t('rg_link_at_cursor'):t('rg_link_selected')+' '+r.toString();
+  document.getElementById('rg-link-error').textContent='';rgLinkStatus('rg_link_draft_hint');
+  input.focus({preventScroll:true});panel.scrollIntoView({block:'nearest'});return true;
+}
+function rgLinkDraftValid(d){
+  return !!(d&&rgMayEditLinks()&&d.editor===_rgLinkEditor&&d.league===String(_ligaActual)&&d.user===String(currentUser.key||currentUser.name||'')&&rgHighlightInside(d.range,d.editor)&&d.range.toString()===d.text&&(!d.anchor||(d.anchor.isConnected&&d.editor.contains(d.anchor))));
+}
+function rgCloseLinkPanel(){
+  _rgLinkDraft=null;const panel=document.getElementById('rg-link-panel');if(panel)panel.hidden=true;
+  document.getElementById('rg-link-open')?.setAttribute('aria-expanded','false');
+}
+function rgCancelLink(){
+  const d=_rgLinkDraft;rgCloseLinkPanel();
+  if(rgLinkDraftValid(d)){d.editor.focus({preventScroll:true});const s=window.getSelection();s.removeAllRanges();s.addRange(d.range);d.editor.scrollTop=d.top;rgRememberLinkRange();}
+  rgLinkStatus('rg_link_cancelled');return false;
+}
+function rgApplyLink(){
+  const d=_rgLinkDraft;
+  if(!rgLinkDraftValid(d)){rgCloseLinkPanel();rgLinkStatus('rg_link_stale');return false;}
+  const input=document.getElementById('rg-link-url'),url=rgLinkUrl(input?.value,true);
+  if(!url){input?.setAttribute('aria-invalid','true');document.getElementById('rg-link-error').textContent=t('rg_link_invalid');input?.focus();return false;}
+  const command=d.range.collapsed?'insertHTML':'createLink';
+  if(typeof document.execCommand!=='function'||(document.queryCommandSupported&&!document.queryCommandSupported(command))){document.getElementById('rg-link-error').textContent=t('rg_link_unsupported');return false;}
+  let value=url,changed=false;
+  if(d.range.collapsed){
+    const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';
+    a.textContent=document.getElementById('rg-link-label').value.trim()||url;value=a.outerHTML;
+  }
+  try{
+    d.editor.focus({preventScroll:true});const s=window.getSelection();s.removeAllRanges();s.addRange(d.range);
+    changed=document.execCommand(command,false,value);
+  }catch(_){changed=false;}
+  finally{d.editor.scrollTop=d.top;}
+  if(!changed){document.getElementById('rg-link-error').textContent=t('rg_link_unsupported');return false;}
+  rgCloseLinkPanel();rgRefreshLinks();rgRefreshTextColors();rgRememberLinkRange();rgRememberHighlightRange();rgLinkStatus('rg_link_applied');return true;
+}
+function rgRemoveLink(){
+  if(!rgMayEditLinks())return false;
+  rgRememberLinkRange();const ed=_rgLinkEditor;
+  const r=(_rgLinkDraft&&rgLinkDraftValid(_rgLinkDraft)?_rgLinkDraft.range:_rgLinkRange)?.cloneRange();
+  if(!rgHighlightInside(r,ed)){rgLinkStatus('rg_link_select');return false;}
+  const a=rgLinkAtRange(r,ed);
+  if(!a){rgLinkStatus('rg_link_select_existing');return false;}
+  if(typeof document.execCommand!=='function'||(document.queryCommandSupported&&!document.queryCommandSupported('unlink'))){rgLinkStatus('rg_link_unsupported');return false;}
+  const top=ed.scrollTop;let changed=false;
+  try{r.selectNodeContents(a);ed.focus({preventScroll:true});const s=window.getSelection();s.removeAllRanges();s.addRange(r);changed=document.execCommand('unlink',false,null);}catch(_){}
+  finally{ed.scrollTop=top;}
+  if(changed){rgCloseLinkPanel();rgRefreshTextColors();rgRememberLinkRange();rgRememberHighlightRange();}
+  rgLinkStatus(changed?'rg_link_removed':'rg_link_unsupported');return changed;
+}
+function rgRefreshLinks(){
+  const host=document.getElementById('view-reglamento');if(!host)return;
+  for(const a of host.querySelectorAll('.rg-editor a,.rg-content a')){
+    const url=rgLinkUrl(a.getAttribute('href'));
+    if(!url){a.removeAttribute('href');a.removeAttribute('target');a.removeAttribute('rel');continue;}
+    a.setAttribute('href',url);a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');
+    a.title=t('rg_link_new_tab');
+  }
+}
+function rgBindLinkEditor(ed){
+  _rgLinkRange=null;_rgLinkDraft=null;_rgLinkEditor=ed;_rgLinkLeague=String(_ligaActual);
+  if(!_rgLinkListening){document.addEventListener('selectionchange',rgRememberLinkRange);_rgLinkListening=true;}
+  if(ed){
+    for(const name of ['keyup','mouseup','touchend'])ed.addEventListener(name,rgRememberLinkRange);
+    ed.addEventListener('input',()=>Promise.resolve().then(rgRefreshLinks));
+    const preventNavigation=e=>{if(e.target.closest('a')){e.preventDefault();rgLinkStatus('rg_link_edit_hint');}};
+    ed.addEventListener('click',preventNavigation);ed.addEventListener('auxclick',preventNavigation);
+  }
+  const panel=document.getElementById('rg-link-panel');
+  if(panel)panel.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();rgCancelLink();}else if(e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();rgApplyLink();}});
+  rgRefreshLinks();
+}
+
+
 // Fixed, soft marker colours: no arbitrary CSS or colour expressions are stored.
 const RG_HIGHLIGHT_COLORS=Object.freeze([
   {value:'#fef08a',key:'rg_hl_yellow'}, {value:'#bbf7d0',key:'rg_hl_green'},
@@ -154,7 +319,7 @@ function rgRememberHighlightRange(){
   if(rgHighlightInside(r,ed)&&!r.collapsed){_rgHighlightRange=r.cloneRange();return;}
   // Keyboard focus moving to a toolbar button must not discard the saved range.
   // A new caret/selection in the editor or elsewhere invalidates the old one.
-  if(document.activeElement?.closest('.rg-highlight-tools,.rg-text-tools'))return;
+  if(document.activeElement?.closest('.rg-highlight-tools,.rg-text-tools,.rg-link-panel'))return;
   _rgHighlightRange=null;
 }
 function rgKeepHighlightSelection(ev){
@@ -202,6 +367,7 @@ function renderReglamento(resetDraft=false){
   const oldEditor=cont.querySelector('#rg-editor');
   const sameLeague=cont.dataset.rgLeague===String(_ligaActual);
   const draft=!resetDraft&&_rgEdit&&admin&&sameLeague&&oldEditor?oldEditor.innerHTML:null;
+  const linkDraft=!resetDraft&&_rgEdit&&admin&&sameLeague?rgSnapshotLinkDraft():null;
   const draftTop=oldEditor&&sameLeague?oldEditor.scrollTop:0;
   const old=cont.querySelector('.rg-reader');
   const oldTop=old&&cont.dataset.rgLeague===String(_ligaActual)?old.scrollTop:0;
@@ -220,6 +386,7 @@ function renderReglamento(resetDraft=false){
     h+=' <button type="button" class="rg-tb" title="'+t('rg_ol')+'" onmousedown="rgCmd(event,\'insertOrderedList\')"><i class="ti ti-list-numbers"></i></button>';
     h+=' <span class="rg-sep"></span>';
     h+=' <button type="button" class="rg-tb" title="'+t('rg_img')+'" onmousedown="rgPickImg(event)"><i class="ti ti-photo"></i></button>';
+    h+=rgLinkButtons();
     h+=rgTextToolbar();
     h+=' <div class="rg-highlight-tools" role="group" aria-labelledby="rg-highlight-label">';
     h+='<span id="rg-highlight-label" class="rg-highlight-label"><i class="ti ti-highlight" aria-hidden="true"></i> '+t('rg_hl_title')+'</span>';
@@ -232,6 +399,7 @@ function renderReglamento(resetDraft=false){
     h+='<p id="rg-highlight-hint" class="rg-highlight-hint">'+t('rg_hl_hint')+'</p>';
     h+='<p id="rg-highlight-status" class="rg-highlight-status" role="status" aria-live="polite" aria-atomic="true"></p></div>';
     h+='</div>';
+    h+=rgLinkPanel();
     h+='<div id="rg-editor" class="rg-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rg-title" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(draft!==null?draft:(REGLAMENTO||''))+'</div>';
     h+='<input type="file" id="rg-file" accept="image/*" style="display:none" onchange="rgInsertFile(this)">';
     h+='<div class="rg-hint">'+t('rg_img_hint')+'</div>';
@@ -261,7 +429,9 @@ function renderReglamento(resetDraft=false){
   // Enganchar el pegado de imágenes en el editor.
   const ed=document.getElementById('rg-editor');
   rgBindHighlightEditor(ed);
-  if(ed){ ed.addEventListener('paste', rgOnPaste);ed.scrollTop=draftTop; }
+  rgBindLinkEditor(ed);
+  if(ed){ ed.addEventListener('paste', rgOnPaste);ed.scrollTop=draftTop;rgRestoreLinkDraft(linkDraft); }
+  if(!ed&&cont.querySelector('.rg-content a[href]')){const hint=document.createElement('p');hint.className='rg-link-help';hint.textContent=t('rg_link_reader_hint');cont.querySelector('.rg-reader').before(hint);}
   rgRefreshTextColors();
 }
 // Comandos de formato (negrita, listas, etc.). onmousedown + preventDefault para
@@ -332,6 +502,7 @@ function formatearReglamento(txt){
 async function guardarReglamento(){
   const ed=document.getElementById('rg-editor');
   if(!ed||!_rgEdit||_ligaReadOnly||!esAdmin(currentUser))return;
+  if(_rgLinkDraft){rgLinkStatus('rg_link_pending');document.getElementById('rg-link-url')?.focus();return;}
   REGLAMENTO=sanitizarReglamento(ed.innerHTML);
   if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
   _rgEdit=false;
@@ -346,7 +517,7 @@ function sanitizarReglamento(html,pegado){
   // puede sobrevivir al desenvolver etiquetas anidadas.
   const doc=new DOMParser().parseFromString(String(html||''),'text/html');
   const out=document.createElement('div');
-  const allowed=new Set('B STRONG I EM U BR P DIV SPAN UL OL LI FONT IMG H1 H2 H3 H4'.split(' '));
+  const allowed=new Set('B STRONG I EM U BR P DIV SPAN UL OL LI FONT IMG H1 H2 H3 H4 A'.split(' '));
   const discard=new Set('SCRIPT STYLE IFRAME OBJECT EMBED SVG MATH TEMPLATE NOSCRIPT'.split(' '));
   function walk(src,dest,depth){
     if(depth>60)return;
@@ -355,7 +526,10 @@ function sanitizarReglamento(html,pegado){
       if(n.nodeType!==1||discard.has(n.tagName)||n.namespaceURI!=='http://www.w3.org/1999/xhtml')continue;
       if(!allowed.has(n.tagName)){walk(n,dest,depth+1);continue;}
       if(pegado&&n.tagName==='IMG')continue;
+      const href=n.tagName==='A'?rgLinkUrl(n.getAttribute('href')):'';
+      if(n.tagName==='A'&&!href){walk(n,dest,depth+1);continue;}
       const el=document.createElement(n.tagName.toLowerCase());
+      if(href){el.setAttribute('href',href);el.setAttribute('target','_blank');el.setAttribute('rel','noopener noreferrer');}
       if(n.tagName==='IMG'){
         const src=n.getAttribute('src')||'';
         if(!/^data:image\/(?:png|jpeg|gif|webp);base64,[a-zA-Z0-9+/=]+$/.test(src))continue;

@@ -902,3 +902,55 @@ Object.assign(TRANSLATIONS.en,{
   "rg_ink_reset": "Automatic colour restored; highlighting and formatting are preserved. Save to publish.",
   "rg_ink_unsupported": "This browser cannot apply colour to this selection. The text has not been replaced."
 });
+
+// v3.9.3 — links inside the rules, not user-authored text.
+Object.assign(TRANSLATIONS.es,{
+  "rg_link_insert_edit": "Insertar / editar enlace",
+  "rg_link_remove": "Quitar enlace",
+  "rg_link_url": "Dirección del sitio web",
+  "rg_link_label": "Texto del enlace (opcional)",
+  "rg_link_label_hint": "Si lo dejás vacío, se mostrará la dirección.",
+  "rg_link_hint": "Pegá una dirección https:// o http://. Los enlaces se abren en otra pestaña. Aplicar modifica el borrador; Guardar reglamento publica el cambio.",
+  "rg_link_apply": "Aplicar enlace",
+  "rg_link_selected": "Texto seleccionado:",
+  "rg_link_at_cursor": "Se insertará un enlace donde dejaste el cursor.",
+  "rg_link_draft_hint": "Completá el enlace y pulsá Aplicar, o cancelá para conservar el texto.",
+  "rg_link_select": "Seleccioná un texto o colocá el cursor dentro del reglamento antes de insertar un enlace.",
+  "rg_link_one": "Editá un enlace por vez. Colocá el cursor dentro del enlace que querés cambiar.",
+  "rg_link_cancelled": "Enlace cancelado. No se modificó el texto.",
+  "rg_link_stale": "La selección o la liga cambió. Volvé a seleccionar el texto y abrí el enlace.",
+  "rg_link_invalid": "Ingresá una dirección web válida, por ejemplo https://www.ejemplo.com. No se permiten otros protocolos, espacios ni credenciales dentro de la dirección.",
+  "rg_link_unsupported": "Este navegador no pudo aplicar el enlace. El texto no se reemplazó.",
+  "rg_link_applied": "Enlace aplicado al borrador. Guardá el reglamento para publicarlo.",
+  "rg_link_select_existing": "Colocá el cursor dentro del enlace que querés quitar.",
+  "rg_link_removed": "Enlace quitado; se conserva el texto. Falta guardar el reglamento.",
+  "rg_link_new_tab": "Se abre en otra pestaña",
+  "rg_link_edit_hint": "Para cambiar el destino, colocá el cursor en el enlace y pulsá Insertar / editar enlace.",
+  "rg_link_pending": "Primero aplicá o cancelá el enlace que estás preparando. Después guardá el reglamento.",
+  "rg_link_reader_hint": "Los enlaces del reglamento se abren en otra pestaña."
+});
+Object.assign(TRANSLATIONS.en,{
+  "rg_link_insert_edit": "Insert / edit link",
+  "rg_link_remove": "Remove link",
+  "rg_link_url": "Website address",
+  "rg_link_label": "Link text (optional)",
+  "rg_link_label_hint": "Leave blank to show the address.",
+  "rg_link_hint": "Paste an https:// or http:// address. Links open in a new tab. Apply changes the draft; Save rules publishes your changes.",
+  "rg_link_apply": "Apply link",
+  "rg_link_selected": "Selected text:",
+  "rg_link_at_cursor": "A link will be inserted at the cursor.",
+  "rg_link_draft_hint": "Complete the link and choose Apply, or cancel to keep the text unchanged.",
+  "rg_link_select": "Select some text or place the cursor in the rules before inserting a link.",
+  "rg_link_one": "Edit one link at a time. Place the cursor inside the link you want to change.",
+  "rg_link_cancelled": "Link cancelled. The text is unchanged.",
+  "rg_link_stale": "The selection or league changed. Select the text again and reopen the link form.",
+  "rg_link_invalid": "Enter a valid web address, such as https://www.example.com. Other protocols, spaces and credentials within the address are not allowed.",
+  "rg_link_unsupported": "This browser could not apply the link. Your text was not replaced.",
+  "rg_link_applied": "Link applied to the draft. Save the rules to publish it.",
+  "rg_link_select_existing": "Place the cursor inside the link you want to remove.",
+  "rg_link_removed": "Link removed; the text is kept. Save the rules to publish your changes.",
+  "rg_link_new_tab": "Opens in a new tab",
+  "rg_link_edit_hint": "To change the destination, place the cursor in the link and choose Insert / edit link.",
+  "rg_link_pending": "First apply or cancel the link you are preparing. Then save the rules.",
+  "rg_link_reader_hint": "Links in the rules open in a new tab."
+});
