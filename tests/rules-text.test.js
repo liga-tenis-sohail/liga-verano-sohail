@@ -27,4 +27,12 @@ for(const role of ['admin','superadmin'])test('INK07: '+role+' can persist and r
 test('INK08: player cannot publish a coloured rule',async()=>{const oldFetch=global.fetch,db=createDB();global.fetch=db.fetch;try{const old=JSON.stringify(db.state()),s=structuredClone(db.state());s.REGLAMENTO=markup;assert.equal((await call(require('../api/save'),req(db,'Alicia',{ligaId:'liga-actual',state:s}))).status,403);assert.equal(JSON.stringify(db.state()),old);}finally{global.fetch=oldFetch;}});
 test('INK09: finalized league remains read only',async()=>{const oldFetch=global.fetch,db=createDB([{id:'liga-actual',estado:'finalizada',state:fixture()}]);global.fetch=db.fetch;try{const s=structuredClone(db.state());s.REGLAMENTO=markup;assert.equal((await call(require('../api/save'),req(db,'admin',{ligaId:'liga-actual',state:s}))).status,403);}finally{global.fetch=oldFetch;}});
 test('INK10: a foreground write leaves a second league intact',async()=>{const oldFetch=global.fetch,db=createDB([{id:'liga-actual',state:fixture()},{id:'otra-liga',state:fixture()}]);global.fetch=db.fetch;try{const old=JSON.stringify(db.state('otra-liga')),s=structuredClone(db.state());s.REGLAMENTO=markup;assert.equal((await call(require('../api/save'),req(db,'superadmin',{ligaId:'liga-actual',state:s}))).status,200);assert.equal(JSON.stringify(db.state('otra-liga')),old);}finally{global.fetch=oldFetch;}});
-test('INK11: no fixed line number or dependency is introduced into existing workflow',()=>{const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');assert.match(html,/reglamento\.js\?v=sohail-reglamento-texto-v392-/);assert.match(html,/i18n-revision\.js\?v=sohail-reglamento-texto-v392-/);});
+test('INK11: editor resources have one versioned local reference and valid dependency order',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
+ for(const file of ['reglamento.js','i18n-revision.js']){
+   const refs=Array.from(html.matchAll(/<script[^>]*src="([^"]+)"/g),m=>m[1]).filter(x=>x.split('?')[0]===file);
+   assert.equal(refs.length,1);assert.match(refs[0],/\?v=[a-z0-9-]+$/i);
+   assert.ok(fs.existsSync(path.join(__dirname,'../public',file)));
+ }
+ assert.ok(html.indexOf('i18n-revision.js?')<html.indexOf('reglamento.js?'));
+});
