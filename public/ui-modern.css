@@ -732,3 +732,41 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 @media print{#view-reglamento .rg-reader,#view-reglamento .rg-editor{max-height:none!important;height:auto!important;overflow:visible!important;border:0;scrollbar-gutter:auto}#view-reglamento .rg-toolbar,#view-reglamento .rg-scroll-hint{display:none!important}}
 
 @media print{#view-reglamento .rg-reader,#view-reglamento .rg-reader *{background:#fff!important;color:#111!important}}
+
+/* v3.9.1 — rules markers, scoped to this editor and reader only. */
+#view-reglamento .rg-highlight-tools{flex:1 0 100%;display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:8px;border-top:1px solid var(--border);min-width:0}
+#view-reglamento .rg-highlight-label{font-size:12px;font-weight:700;color:var(--text);display:inline-flex;align-items:center;gap:6px}
+#view-reglamento .rg-highlight-palette{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+#view-reglamento .rg-highlight-swatch{display:inline-flex;align-items:center;justify-content:center;width:44px;min-height:44px;flex:0 0 44px;padding:5px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);cursor:pointer}
+#view-reglamento .rg-highlight-swatch span{display:inline-flex;align-items:center;justify-content:center;min-width:30px;height:28px;border-radius:4px;background:var(--rg-swatch)!important;color:#172033!important;font-weight:700;font-size:14px}
+#view-reglamento .rg-highlight-clear{min-height:44px;padding:7px 10px;border:1px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);font:inherit;font-size:12px;cursor:pointer;white-space:normal}
+#view-reglamento .rg-highlight-swatch:hover,#view-reglamento .rg-highlight-clear:hover{border-color:var(--action)}
+#view-reglamento .rg-highlight-tools button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+#view-reglamento .rg-highlight-hint,#view-reglamento .rg-highlight-status{flex-basis:100%;min-width:0;font-size:12px;line-height:1.5;color:var(--text2);margin:0;overflow-wrap:anywhere}
+#view-reglamento .rg-highlight-status:empty{display:none}
+#view-reglamento .rg-highlight-status{color:var(--text);font-weight:600}
+/* The sanitizer only keeps the five light backgrounds. Descendants inherit the
+   dark foreground even when a league has chosen light text for its dark theme.
+   Transparent native spans from Remove highlight must keep the normal colour. */
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #fef08a"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #fef08a"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(254, 240, 138)"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(254, 240, 138)"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #bbf7d0"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #bbf7d0"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(187, 247, 208)"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(187, 247, 208)"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #bfdbfe"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #bfdbfe"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(191, 219, 254)"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(191, 219, 254)"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #fbcfe8"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #fbcfe8"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(251, 207, 232)"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(251, 207, 232)"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #e9d5ff"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: #e9d5ff"] *,
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(233, 213, 255)"],
+#view-reglamento :is(.rg-editor,.rg-content) [style*="background-color: rgb(233, 213, 255)"] *{color:#172033!important;-webkit-text-fill-color:#172033!important}
+@media(max-width:600px){#view-reglamento .rg-highlight-label{flex-basis:100%}}
+@media print{#view-reglamento .rg-highlight-tools{display:none!important}}

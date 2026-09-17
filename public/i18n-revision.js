@@ -844,3 +844,19 @@ Object.assign(TRANSLATIONS.en,{
   "lt_saving": "Saving appearance and clubs…",
   "lt_saved": "Appearance and clubs saved."
 });
+
+// v3.9.1 — markers in the league rules editor. User-authored rules are not translated.
+Object.assign(TRANSLATIONS.es,{
+  rg_hl_title:'Sombrear texto',rg_hl_yellow:'Amarillo',rg_hl_green:'Verde',rg_hl_blue:'Azul',rg_hl_pink:'Rosa',rg_hl_purple:'Lila',
+  rg_hl_clear:'Quitar sombreado',rg_hl_hint:'Seleccioná un texto y elegí un color. Guardá para publicarlo.',
+  rg_hl_select:'Primero seleccioná el texto que querés sombrear o limpiar.',
+  rg_hl_applied:'Sombreado aplicado. Guardá los cambios para publicarlo.',rg_hl_removed:'Sombreado quitado de la selección. Guardá los cambios.',
+  rg_hl_unsupported:'Este navegador no pudo aplicar el sombreado. El texto se conserva.'
+});
+Object.assign(TRANSLATIONS.en,{
+  rg_hl_title:'Highlight text',rg_hl_yellow:'Yellow',rg_hl_green:'Green',rg_hl_blue:'Blue',rg_hl_pink:'Pink',rg_hl_purple:'Purple',
+  rg_hl_clear:'Remove highlight',rg_hl_hint:'Select some text and choose a colour. Save to publish your changes.',
+  rg_hl_select:'First select the text you want to highlight or clear.',
+  rg_hl_applied:'Highlight applied. Save your changes to publish it.',rg_hl_removed:'Highlight removed from the selection. Save your changes.',
+  rg_hl_unsupported:'This browser could not apply the highlight. Your text has been kept.'
+});

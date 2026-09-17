@@ -9,11 +9,82 @@
 // ==================== REGLAMENTO ====================
 // Visible para todos (incluso en ligas pasadas). Editable solo por admin.
 let _rgEdit=false;
-function renderReglamento(){
+// Fixed, soft marker colours: no arbitrary CSS or colour expressions are stored.
+const RG_HIGHLIGHT_COLORS=Object.freeze([
+  {value:'#fef08a',key:'rg_hl_yellow'}, {value:'#bbf7d0',key:'rg_hl_green'},
+  {value:'#bfdbfe',key:'rg_hl_blue'}, {value:'#fbcfe8',key:'rg_hl_pink'},
+  {value:'#e9d5ff',key:'rg_hl_purple'}
+]);
+let _rgHighlightRange=null, _rgHighlightEditor=null, _rgHighlightLeague=null;
+let _rgHighlightListening=false;
+function rgHighlightColor(value){
+  let v=String(value||'').trim().toLowerCase();
+  if(/^#[0-9a-f]{3}$/.test(v))v='#'+Array.from(v.slice(1),x=>x+x).join('');
+  const rgb=/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/.exec(v);
+  if(rgb){const a=rgb.slice(1).map(Number);if(a.some(n=>n>255))return '';v='#'+a.map(n=>n.toString(16).padStart(2,'0')).join('');}
+  return RG_HIGHLIGHT_COLORS.some(c=>c.value===v)?v:'';
+}
+function rgHighlightInside(range,ed){
+  return !!(range&&ed&&ed.isConnected&&ed.contains(range.startContainer)&&ed.contains(range.endContainer));
+}
+function rgRememberHighlightRange(){
+  const ed=document.getElementById('rg-editor');
+  if(!ed||ed!==_rgHighlightEditor||String(_ligaActual)!==_rgHighlightLeague){_rgHighlightRange=null;return;}
+  const sel=window.getSelection();
+  if(!sel||!sel.rangeCount)return;
+  const r=sel.getRangeAt(0);
+  if(rgHighlightInside(r,ed)&&!r.collapsed){_rgHighlightRange=r.cloneRange();return;}
+  // Keyboard focus moving to a toolbar button must not discard the saved range.
+  // A new caret/selection in the editor or elsewhere invalidates the old one.
+  if(document.activeElement?.closest('.rg-highlight-tools'))return;
+  _rgHighlightRange=null;
+}
+function rgKeepHighlightSelection(ev){
+  rgRememberHighlightRange();
+  if(ev.type==='mousedown')ev.preventDefault();
+}
+function rgHighlightStatus(key){
+  const el=document.getElementById('rg-highlight-status');if(el)el.textContent=t(key);
+}
+function rgApplyHighlight(value){
+  const ed=document.getElementById('rg-editor');
+  if(!_rgEdit||_ligaReadOnly||!esAdmin(currentUser)||ed!==_rgHighlightEditor||String(_ligaActual)!==_rgHighlightLeague)return false;
+  const colour=value==='none'?'transparent':rgHighlightColor(value);
+  if(!colour)return false;
+  rgRememberHighlightRange();
+  const r=_rgHighlightRange;
+  if(!rgHighlightInside(r,ed)||r.collapsed||!r.toString().trim()){rgHighlightStatus('rg_hl_select');return false;}
+  const sel=window.getSelection();if(!sel)return false;
+  // Keep the native editing/undo buffer used by the existing rich-text editor.
+  // Do not fall back to backColor: some engines apply that command to a block.
+  if(typeof document.execCommand!=='function'||(document.queryCommandSupported&&!document.queryCommandSupported('hiliteColor'))){rgHighlightStatus('rg_hl_unsupported');return false;}
+  const top=ed.scrollTop;
+  let css=false,changed=false;
+  try{
+    ed.focus({preventScroll:true});sel.removeAllRanges();sel.addRange(r);
+    try{css=document.queryCommandState('styleWithCSS');}catch(_){}
+    document.execCommand('styleWithCSS',false,true);
+    changed=document.execCommand('hiliteColor',false,colour);
+  }catch(_){changed=false;}
+  finally{try{document.execCommand('styleWithCSS',false,css);}catch(_){}ed.scrollTop=top;}
+  rgRememberHighlightRange();
+  rgHighlightStatus(changed?(value==='none'?'rg_hl_removed':'rg_hl_applied'):'rg_hl_unsupported');
+  return changed;
+}
+function rgBindHighlightEditor(ed){
+  _rgHighlightRange=null;_rgHighlightEditor=ed;_rgHighlightLeague=String(_ligaActual);
+  if(!_rgHighlightListening){document.addEventListener('selectionchange',rgRememberHighlightRange);_rgHighlightListening=true;}
+  if(ed){ed.addEventListener('keyup',rgRememberHighlightRange);ed.addEventListener('mouseup',rgRememberHighlightRange);ed.addEventListener('touchend',rgRememberHighlightRange);}
+}
+function renderReglamento(resetDraft=false){
   const cont=document.getElementById('view-reglamento');
   if(!cont)return;
   const admin=!_ligaReadOnly && esAdmin(currentUser);
   const vacio=!REGLAMENTO||!REGLAMENTO.trim();
+  const oldEditor=cont.querySelector('#rg-editor');
+  const sameLeague=cont.dataset.rgLeague===String(_ligaActual);
+  const draft=!resetDraft&&_rgEdit&&admin&&sameLeague&&oldEditor?oldEditor.innerHTML:null;
+  const draftTop=oldEditor&&sameLeague?oldEditor.scrollTop:0;
   const old=cont.querySelector('.rg-reader');
   const oldTop=old&&cont.dataset.rgLeague===String(_ligaActual)?old.scrollTop:0;
   let h='<div class="card rg-card">';
@@ -31,8 +102,18 @@ function renderReglamento(){
     h+=' <button type="button" class="rg-tb" title="'+t('rg_ol')+'" onmousedown="rgCmd(event,\'insertOrderedList\')"><i class="ti ti-list-numbers"></i></button>';
     h+=' <span class="rg-sep"></span>';
     h+=' <button type="button" class="rg-tb" title="'+t('rg_img')+'" onmousedown="rgPickImg(event)"><i class="ti ti-photo"></i></button>';
+    h+=' <div class="rg-highlight-tools" role="group" aria-labelledby="rg-highlight-label">';
+    h+='<span id="rg-highlight-label" class="rg-highlight-label"><i class="ti ti-highlight" aria-hidden="true"></i> '+t('rg_hl_title')+'</span>';
+    h+='<div class="rg-highlight-palette">';
+    for(const c of RG_HIGHLIGHT_COLORS){
+      const label=t('rg_hl_title')+': '+t(c.key);
+      h+='<button type="button" class="rg-highlight-swatch" data-rg-colour="'+c.value+'" style="--rg-swatch:'+c.value+'" title="'+label+'" aria-label="'+label+'" aria-describedby="rg-highlight-hint" onmousedown="rgKeepHighlightSelection(event)" ontouchstart="rgKeepHighlightSelection(event)" onclick="rgApplyHighlight(this.dataset.rgColour)"><span aria-hidden="true">Aa</span></button>';
+    }
+    h+='</div><button type="button" class="rg-highlight-clear" data-rg-colour="none" onmousedown="rgKeepHighlightSelection(event)" ontouchstart="rgKeepHighlightSelection(event)" onclick="rgApplyHighlight(\'none\')">'+t('rg_hl_clear')+'</button>';
+    h+='<p id="rg-highlight-hint" class="rg-highlight-hint">'+t('rg_hl_hint')+'</p>';
+    h+='<p id="rg-highlight-status" class="rg-highlight-status" role="status" aria-live="polite" aria-atomic="true"></p></div>';
     h+='</div>';
-    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rg-title" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(REGLAMENTO||'')+'</div>';
+    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rg-title" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(draft!==null?draft:(REGLAMENTO||''))+'</div>';
     h+='<input type="file" id="rg-file" accept="image/*" style="display:none" onchange="rgInsertFile(this)">';
     h+='<div class="rg-hint">'+t('rg_img_hint')+'</div>';
     h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:10px">';
@@ -60,7 +141,8 @@ function renderReglamento(){
   const reader=cont.querySelector('.rg-reader');if(reader)reader.scrollTop=oldTop;
   // Enganchar el pegado de imágenes en el editor.
   const ed=document.getElementById('rg-editor');
-  if(ed){ ed.addEventListener('paste', rgOnPaste); }
+  rgBindHighlightEditor(ed);
+  if(ed){ ed.addEventListener('paste', rgOnPaste);ed.scrollTop=draftTop; }
 }
 // Comandos de formato (negrita, listas, etc.). onmousedown + preventDefault para
 // no perder la selección del texto en el editor.
@@ -129,7 +211,7 @@ function formatearReglamento(txt){
 }
 async function guardarReglamento(){
   const ed=document.getElementById('rg-editor');
-  if(!ed)return;
+  if(!ed||!_rgEdit||_ligaReadOnly||!esAdmin(currentUser))return;
   REGLAMENTO=sanitizarReglamento(ed.innerHTML);
   if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
   _rgEdit=false;
@@ -165,6 +247,10 @@ function sanitizarReglamento(html,pegado){
       if(!pegado){
         const rules={'font-weight':/^(normal|bold|[1-9]00)$/,'font-style':/^(normal|italic)$/,'text-decoration':/^(none|underline|line-through)$/,'text-align':/^(left|right|center|justify)$/};
         for(const [k,re]of Object.entries(rules)){const v=n.style.getPropertyValue(k).trim().toLowerCase();if(re.test(v))el.style.setProperty(k,v);}
+        // Preserve only marker colours from our palette; never background images,
+        // user supplied CSS, opacity, positioning, handlers or arbitrary colours.
+        const bg=rgHighlightColor(n.style.getPropertyValue('background-color'));
+        if(bg&&n.tagName!=='IMG')el.style.setProperty('background-color',bg);
       }
       walk(n,el,depth+1);dest.appendChild(el);
     }
@@ -203,7 +289,7 @@ async function copiarReglamentoDe(ligaId,nombre){
     REGLAMENTO=regla;
     closeM();
     _rgEdit=true;   // abrir en edición para que el admin revise antes de guardar
-    renderReglamento();
+    renderReglamento(true);
     toast(t('rg_copied').replace('{n}',nombre));
   }catch(_){ alert(t('past_loading_err')); }
 }
