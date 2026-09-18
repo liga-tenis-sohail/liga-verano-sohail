@@ -150,3 +150,124 @@ test('R7: participante puede disputar pendiente sin alterar marcador',()=>{const
 test('R7: no puede disputar y cambiar marcador en la misma solicitud',()=>{const s=fixture();s.matches=[match()];const i=clone(s);i.matches[0].status='disputed';i.matches[0].sets=[[6,1],[6,0]];assert.throws(()=>v.protectState(s,i,{u:'Beto',r:'player'},false,false));});
 test('R7: nueva carga con rival inactivo rechazada',()=>{const s=fixture();s.users.Beto.inactive=true;const i=clone(s);i.matches=[match()];assert.throws(()=>v.protectState(s,i,{u:'Alicia',r:'player'},false,false),/inactivo/);});
 test('R7: fallo de revocación impide vinculación',async()=>{const original=global.fetch;try{global.fetch=async()=>({ok:false,status:503});await assert.rejects(lib.borrarPasskeysDeUsuario('Alicia',true),e=>e.status===503);}finally{global.fetch=original;}});
+
+// v3.9.6 — orden de las opciones POSTERIORES al login. No cambia permisos,
+// sesiones, el índice persistido ni la elección directa cuando hay una liga.
+{
+ const options = [
+  {ligaId:'old',nombre:'Zeta antigua',state:{private:true},u:{pass:'not-for-client'}},
+  {ligaId:'new',nombre:'Alfa nueva'},
+  {ligaId:'mid',nombre:'Liga intermedia'}
+ ];
+ const leagueIndex=[{id:'old',orden:2},{id:'new',orden:10},{id:'mid',orden:9}];
+ const ids=arr=>arr.map(l=>l.id);
+ test('ORDER01: opciones por creación descendente, no por nombre ni orden lexicográfico',()=>{
+  assert.deepEqual(ids(lib.postLoginLeagueChoices(options,leagueIndex)),['new','mid','old']);
+ });
+ test('ORDER02: listas originales y perfiles inmutables; respuesta sólo id/nombre',()=>{
+  const input=Object.freeze(options.map(l=>Object.freeze({...l}))),index=Object.freeze(leagueIndex.map(l=>Object.freeze({...l})));
+  const out=lib.postLoginLeagueChoices(input,index);
+  assert.deepEqual(input.map(l=>l.ligaId),['old','new','mid']);
+  assert.deepEqual(index.map(l=>l.orden),[2,10,9]);
+  assert.ok(out.every(l=>Object.keys(l).sort().join(',')==='id,nombre'));
+  out[0].nombre='No cambiar original';assert.equal(input[1].nombre,'Alfa nueva');
+ });
+ test('ORDER03: empates conservan el orden previo',()=>{
+  assert.deepEqual(ids(lib.postLoginLeagueChoices(options,leagueIndex.map(l=>({...l,orden:5})))),['old','new','mid']);
+ });
+ test('ORDER04: orden cero válido y datos faltantes/inválidos al final sin adivinar fechas',()=>{
+  const o=['zero','missing','null','bad','infinite','nan','new'].map(id=>({ligaId:id,nombre:'Liga 2099 '+id}));
+  const idx=[{id:'zero',orden:0},{id:'null',orden:null},{id:'bad',orden:'9'},{id:'infinite',orden:Infinity},{id:'nan',orden:NaN},{id:'new',orden:1}];
+  assert.deepEqual(ids(lib.postLoginLeagueChoices(o,idx)),['new','zero','missing','null','bad','infinite','nan']);
+ });
+ test('ORDER05: no agrega opciones del índice que el login no haya autorizado',()=>{
+  assert.deepEqual(ids(lib.postLoginLeagueChoices([options[0]],[...leagueIndex,{id:'private',orden:99} ])),['old']);
+ });
+ test('ORDER06: entrada vacía o índice ausente es estable',()=>{
+  assert.deepEqual(lib.postLoginLeagueChoices(null,leagueIndex),[]);
+  assert.deepEqual(ids(lib.postLoginLeagueChoices(options,null)),['old','new','mid']);
+ });
+
+ // Reutilizar la base simulada existente, preservando el entorno de esta suite.
+ const envKeys=['SESSION_SECRET','SUPABASE_URL','SUPABASE_SERVICE_KEY'];
+ const beforeEnv=Object.fromEntries(envKeys.map(k=>[k,process.env[k]]));
+ const mock=require('./support/mock-db.cjs');
+ for(const k of envKeys){if(beforeEnv[k]===undefined)delete process.env[k];else process.env[k]=beforeEnv[k];}
+ function orderDB(){
+  const names=['Zeta antigua 2025','Alfa reciente 2026/2027','Liga intermedia 2026'];
+  const db=mock.createDB(['old','new','mid'].map((id,i)=>({id,state:{...mock.fixture(),LEAGUE_NAME:names[i]}})));
+  for(const row of db.tables.liga_index)row.orden=leagueIndex.find(l=>l.id===row.id).orden;
+  return db;
+ }
+ async function withOrderDB(fn){const prev=global.fetch,db=orderDB();global.fetch=db.fetch;try{return await fn(db);}finally{global.fetch=prev;}}
+ async function passwordLogin(db,user){return mock.call(require('../api/login'),{method:'POST',headers:{host:'sohail.test','x-forwarded-for':'192.0.2.1'},body:{user,pass:'prueba123'},query:{}});}
+ for(const user of ['Alicia','admin','superadmin']){
+  test('ORDER07: login '+user+' devuelve nuevas primero sin cambiar la sesión fuente',()=>withOrderDB(async db=>{
+   const states=clone(db.tables.liga_state),idx=clone(db.tables.liga_index);
+   const r=await passwordLogin(db,user);assert.equal(r.status,200);assert.equal(r.body.eligeLiga,true);
+   assert.deepEqual(ids(r.body.ligas),['new','mid','old']);
+   assert.equal(lib.verifyToken(r.body.token).src,'old');
+   assert.ok(r.body.ligas.every(l=>Object.keys(l).sort().join(',')==='id,nombre'));
+   assert.deepEqual(db.tables.liga_state,states);assert.deepEqual(db.tables.liga_index,idx);
+   assert.equal(r.headers['Cache-Control'],'no-store');
+   // Elegir la antigua sigue siendo posible; no hay preselección de la primera.
+   const chosen=await mock.call(require('../api/state'),{method:'GET',headers:{authorization:'Bearer '+r.body.token},query:{liga:'old',elegir:'1'}});
+   assert.equal(chosen.status,200);assert.equal(chosen.body.state.LEAGUE_NAME,states[0].data.LEAGUE_NAME);
+  }));
+ }
+ test('ORDER08: ligas finalizadas, cuentas ausentes o inactivas no se agregan al selector',()=>withOrderDB(async db=>{
+  db.tables.liga_index.find(l=>l.id==='new').estado='finalizada';
+  db.state('mid').users.Alicia.inactive=true;
+  const r=await passwordLogin(db,'Alicia');assert.equal(r.status,200);assert.equal(r.body.ligaId,'old');assert.equal(r.body.eligeLiga,undefined);
+ }));
+ test('ORDER09: credencial incorrecta no entrega la lista',()=>withOrderDB(async db=>{
+  const r=await mock.call(require('../api/login'),{method:'POST',headers:{'x-forwarded-for':'192.0.2.2'},body:{user:'Alicia',pass:'incorrecta'},query:{}});
+  assert.equal(r.status,401);assert.equal(r.body.ligas,undefined);
+ }));
+ test('ORDER10: cambio de nombre y resultados no cambia la posición de la liga',()=>withOrderDB(async db=>{
+  db.state('old').matches.push(mock.match({id:987,status:'confirmed'}));
+  db.tables.liga_index.find(l=>l.id==='old').nombre='Liga 2099 renombrada';
+  const r=await passwordLogin(db,'Alicia');assert.deepEqual(ids(r.body.ligas),['new','mid','old']);assert.equal(r.body.ligas[2].nombre,'Liga 2099 renombrada');
+ }));
+ test('ORDER11: no incluye ligas activas sin pertenencia del jugador',()=>withOrderDB(async db=>{
+  delete db.state('new').users.Alicia;
+  const r=await passwordLogin(db,'Alicia');assert.equal(r.status,200);assert.deepEqual(ids(r.body.ligas),['mid','old']);
+ }));
+ test('ORDER12: nueva liga pasa arriba en el siguiente login sin cambiar las anteriores',()=>withOrderDB(async db=>{
+  const state=clone(db.state('new'));state.LEAGUE_NAME='Nueva liga de pruebas';
+  db.tables.liga_state.push({id:'latest',data:state});db.tables.liga_index.push({id:'latest',nombre:state.LEAGUE_NAME,estado:'activa',orden:11});
+  const r=await passwordLogin(db,'admin');assert.deepEqual(ids(r.body.ligas),['latest','new','mid','old']);
+ }));
+
+ // Sólo se sustituye el verificador WebAuthn para probar la ruta tras verificar
+ // identidad. No es una prueba biométrica ni una auditoría de criptografía.
+ function orderPasskey(spy){
+  const source=fs.readFileSync(path.join(__dirname,'../api/passkey.js'),'utf8');
+  assert.ok(source.includes("await import('@simplewebauthn/server')"));
+  const mod={exports:{}},localRequire=require('node:module').createRequire(path.join(__dirname,'../api/passkey.js'));
+  const ctx={module:mod,exports:mod.exports,require:localRequire,__wa:async()=>spy,Buffer,process,console,fetch:(...args)=>global.fetch(...args),Date,JSON};
+  vm.createContext(ctx);vm.runInContext(source.replace("await import('@simplewebauthn/server')","await __wa()"),ctx);return mod.exports;
+ }
+ async function loginPasskey(db,user,verified=true){
+  db.tables.passkeys=[{credential_id:'order-test-credential',user_name:user,public_key:'AA',counter:0}];
+  const handler=orderPasskey({generateAuthenticationOptions:async o=>{assert.equal(o.userVerification,'required');return {challenge:'order-test-challenge'};},verifyAuthenticationResponse:async o=>{assert.equal(o.requireUserVerification,true);return {verified,authenticationInfo:{newCounter:1}};}});
+  const headers={host:'sohail.test','x-forwarded-proto':'https'};
+  const start=await mock.call(handler,{method:'POST',headers,body:{accion:'auth-start'},query:{}});assert.equal(start.status,200);
+  return mock.call(handler,{method:'POST',headers:{...headers,cookie:start.headers['Set-Cookie'].split(';')[0]},body:{accion:'auth-finish',ligaId:'old',cred:{id:'order-test-credential'}},query:{}});
+ }
+ test('ORDER13: passkey del jugador muestra el mismo orden que contraseña',()=>withOrderDB(async db=>{
+  const p=await passwordLogin(db,'Alicia'),r=await loginPasskey(db,'Alicia');
+  assert.equal(r.status,200);assert.equal(r.body.eligeLiga,true);assert.deepEqual(JSON.parse(JSON.stringify(r.body.ligas)),p.body.ligas);assert.equal(lib.verifyToken(r.body.token).src,'old');
+  assert.equal(r.headers['Cache-Control'],'no-store');
+ }));
+ test('ORDER14: passkey conserva el filtro de cuentas inactivas y la entrada directa de una liga',()=>withOrderDB(async db=>{
+  db.state('new').users.Alicia.inactive=true;db.tables.liga_index.find(l=>l.id==='mid').estado='finalizada';
+  const r=await loginPasskey(db,'Alicia');assert.equal(r.status,200);assert.equal(r.body.ligaId,'old');assert.equal(r.body.eligeLiga,undefined);
+ }));
+ for(const user of ['admin','superadmin'])test('ORDER15: passkey '+user+' conserva la entrada directa administrativa existente',()=>withOrderDB(async db=>{
+  const r=await loginPasskey(db,user);assert.equal(r.status,200);assert.equal(r.body.ligaId,'old');assert.equal(r.body.eligeLiga,undefined);
+ }));
+ test('ORDER16: passkey no verificada no obtiene el selector',()=>withOrderDB(async db=>{
+  const r=await loginPasskey(db,'Alicia',false);assert.equal(r.status,401);assert.equal(r.body.ligas,undefined);
+ }));
+}
