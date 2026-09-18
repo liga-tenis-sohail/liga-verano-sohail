@@ -2,6 +2,7 @@
 const {isDeepStrictEqual:equal}=require('node:util');
 const crypto=require('node:crypto');
 const score=require('../public/score-rules.js');
+const resultPolicy=require('../public/result-policy.js');
 class AppError extends Error{
   constructor(status,code,message,extra){super(message);this.status=status;this.code=code;Object.assign(this,extra||{});}
 }
@@ -133,9 +134,16 @@ function protectState(current,incoming,session,admin,manage){
     // Never let a supplied subject/profile override the participants in statistics.
     for(const key of Object.keys(m))if(key.startsWith('_mh'))delete m[key];
     const ps=participants(m);
+    if(!before){
+      // Check the stored stage, never a client-supplied editMode or simultaneous
+      // reopening. An old client cannot replace a saved match using a new ID.
+      if(!resultPolicy.phaseOpen(current,m))throw new AppError(403,'RESULT_STAGE_CLOSED','Esta etapa está cerrada para nuevas cargas. Solo el administrador puede corregir un resultado ya guardado.');
+      if(resultPolicy.existing(current,m)||resultPolicy.slotRecorded(current,m))throw new AppError(409,'RESULT_ALREADY_SAVED','Este cruce ya tiene un resultado. Abrí el resultado existente para consultarlo o corregirlo como administrador.');
+    }
     if(!admin){
       if(!Array.isArray(ps)||!ps.includes(session.u))deny('No podés cargar o modificar partidos ajenos.');
       if(before){
+        if(!resultPolicy.phaseOpen(current,before))throw new AppError(403,'RESULT_STAGE_CLOSED','El ciclo cerrado es de solo consulta para jugadores.');
         // A pending record remains the same match; it cannot be moved by a player.
         if(!!m.po!==!!before.po||
           (m.po?['ti','which','ri','mi']:['cycle','g']).some(k=>!equal(m[k],before[k])))deny('No podés cambiar el ciclo, grupo o cruce de un partido existente.');
@@ -146,6 +154,7 @@ function protectState(current,incoming,session,admin,manage){
           continue;
         }
         if(before.status==='disputed'&&!equal(before,m))deny('El administrador debe resolver la disputa.');
+        throw new AppError(403,'RESULT_ALREADY_SAVED','El resultado ya está guardado. Solo el administrador puede corregirlo; podés solicitar una revisión.');
       }
       if(m.status!=='pending'||m.locked||m.vBy||m.np)deny('Solo el administrador confirma resultados.');
       m.reporter=session.u;delete m.vBy;m.locked=false;
@@ -158,7 +167,7 @@ function protectState(current,incoming,session,admin,manage){
 
   }
   if(!admin)for(const [id,m]of old)if(!seen.has(id)){
-    if(!participants(m).includes(session.u)||m.status==='confirmed'||m.status==='disputed')deny('No podés eliminar ese partido.');
+    deny('Solo el administrador puede eliminar un resultado ya guardado.');
   }
   incoming.matchId=Math.max(Number.isSafeInteger(incoming.matchId)?incoming.matchId:0,...incoming.matches.map(m=>m.id+1),1);
   // El log que trae un jugador no es una fuente confiable de auditoría.
