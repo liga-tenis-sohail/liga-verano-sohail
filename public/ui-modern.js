@@ -36,10 +36,13 @@
  // The shared result editor keeps its original DOM and save/permission paths.
  let leagueResultsKey='';
  const resultContextKey=()=>[typeof _ligaActual==='undefined'?'':_ligaActual,currentUser?.key||currentUser?.name,currentUser?.role].join('|');
- function inLeagueResults(){return activeAdmin()&&leagueResultsKey===resultContextKey()&&['cargar','pendientes'].includes(subView);}
+ // v3.9.4: this is a shared navigation entry, not an admin permission.
+ // The existing editor, personal review filter and server keep enforcing rights.
+ function canUseLeagueResults(){return !!currentUser&&!_ligaReadOnly&&(esAdmin(currentUser)||currentUser.role==='player');}
+ function inLeagueResults(){return canUseLeagueResults()&&leagueResultsKey===resultContextKey()&&['cargar','pendientes'].includes(subView);}
  function openLeagueResults(mode){
-  if(!activeAdmin())return;
-  const target=mode==='pendientes'?'pendientes':'cargar';
+  if(!canUseLeagueResults())return;
+  const target=mode==='pendientes'||mode===undefined&&inLeagueResults()&&subView==='pendientes'?'pendientes':'cargar';
   if(!canLeave(target))return;
   leagueResultsKey=resultContextKey();showSub(target);
  }
@@ -48,7 +51,7 @@
   if(!inLeagueResults())return;
   const host=document.getElementById('view-'+subView);if(!host)return;
   const nav=document.createElement('nav');nav.className='ui-league-results-nav';nav.setAttribute('aria-label',t('ui36_result_tools'));
-  const pending=contextMatches().filter(m=>['pending','disputed'].includes(m.status)).length;
+  const pending=contextMatches().filter(m=>['pending','disputed'].includes(m.status)&&(activeAdmin()||ownMatch(m))).length;
   for(const [mode,key] of [['cargar','ui_start'],['pendientes','ui_review']]){
    const b=document.createElement('button');b.type='button';b.className='btn';b.dataset.uiLeagueResult=mode;
    b.textContent=t(key)+(mode==='pendientes'&&pending?' · '+pending:'');
@@ -73,7 +76,7 @@
   }
   return true;
  }
- function allowed(name){if(['admin','jugadores','resumen','historial','liga-resultados'].includes(name))return activeAdmin();if(_ligaReadOnly&&['inicio','partidos','cargar','pendientes','mensajes','perfil','mas'].includes(name))return false;return true;}
+ function allowed(name){if(name==='liga-resultados')return canUseLeagueResults();if(['admin','jugadores','resumen','historial'].includes(name))return activeAdmin();if(_ligaReadOnly&&['inicio','partidos','cargar','pendientes','mensajes','perfil','mas'].includes(name))return false;return true;}
  function go(name){if(name==='liga-resultados'){openLeagueResults();return;}if(!allowed(name)||!canLeave(name))return;leagueResultsKey=''; if(name==='po'||name==='playoff')viewCyc('po');else showSub(name);}
  function chooseCycle(n){
   if(!canLeave(n==='po'?'po':'grupos'))return;
@@ -100,7 +103,7 @@
   const opts=_ligaReadOnly?[[ 'grupos',t('ui_league'),'league'],['general',t('tab_general'),'matches']]:[
    [home,admin?t('ui_summary'):t('ui_home'),'home'],['partidos',admin?t('ui_matches'):t('ui_my_matches'),'matches'],['grupos',t('ui_league'),'league'],['mensajes',t('tab_mensajes'),'messages'],['perfil',t('ui_profile'),'profile']];
   let nav=opts.map(([id,lab,ic])=>navButton(id,lab,ic,id==='grupos'?area==='league':id===subView)).join('');
-  if(admin)nav+='<div class="ui-nav-label">'+e(t('role_admin'))+'</div>'+[['pendientes','ui_review','check'],['jugadores','ui_players','profile'],['admin','ui_settings','settings'],['historial','hist_title','matches']].map(([id,key,ic])=>navButton(id,t(key),ic,subView===id)).join('');
+  if(admin)nav+='<div class="ui-nav-label">'+e(t('role_admin'))+'</div>'+[['pendientes','ui_review','check'],['jugadores','ui_players','profile'],['admin','ui_settings','settings'],['historial','hist_title','matches']].map(([id,key,ic])=>navButton(id,t(key),ic,subView===id&&!inLeagueResults())).join('');
   document.getElementById('ui-side').innerHTML='<div class="ui-brand"><span class="ui-brand-mark">'+icon('league')+'</span><div><strong>SOHAIL</strong><small>'+e(t('ui_your_league'))+'</small></div></div><div class="ui-side-league"><span>'+e(t('ui_current_context'))+'</span><strong>'+e(leagueName())+'</strong><button type="button" class="ui-link-button" data-ui-leagues>'+e(t('lsel_current'))+' '+icon('arrow')+'</button></div><nav aria-label="'+e(t('ui_more'))+'">'+nav+'</nav><div class="ui-sidebar-bottom">'+(!_ligaReadOnly?'<button class="ui-nav-item" type="button" data-ui-help>'+icon('help')+'<span>'+e(t('ui_help'))+'</span></button>':'')+'<span class="ui-user-name">'+e(currentUser?.name||t('ui_readonly'))+'</span></div>';
   const bottom=document.getElementById('ui-bottom');bottom.setAttribute('aria-label',t('ui_more'));
   bottom.innerHTML=_ligaReadOnly?'':[[home,t('ui_home'),'home'],['partidos',t('ui_matches'),'matches'],['grupos',t('ui_league'),'league'],['mensajes',t('tab_mensajes'),'messages'],['mas',t('ui_more'),'more']].map(([id,lab,ic])=>navButton(id,lab,ic,area===ic)).join('');
@@ -111,7 +114,9 @@
   if(area==='league'){
    defs=[['grupos','tab_grupos'],['general','tab_general']];if(RATING_ON)defs.push(['rating','rating_title']);
    if(playoff.started||playoff.preview&&activeAdmin())defs.push(['po','playoffs']);
-   if(REGLAMENTO?.trim()||activeAdmin())defs.push(['reglamento','rg_tab']);if(activeAdmin())defs.push(['liga-resultados','ui36_result_tools']);
+   if(canUseLeagueResults())defs.push(['liga-resultados','ui36_result_tools']);
+   // Rules always closes the League tab list, including when playoffs is visible.
+   if(REGLAMENTO?.trim()||activeAdmin())defs.push(['reglamento','rg_tab']);
   }else if(area==='matches')defs=[['partidos','ui_matches'],['cargar','ui_start'],['pendientes','ui_review']];
   else if(subView==='jugadores')defs=[['jugadores','ui_players'],['perfil','ui_profile']];
   const tabs=document.getElementById('tabs');tabs.style.display=defs.length?'flex':'none';
