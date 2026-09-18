@@ -68,8 +68,19 @@ function renderGrupos(){
       document.getElementById('view-grupos').innerHTML=`<div class="card"><div class="alert alert-err">${t('ui36_text_230')}</div><pre style="font-size:10px;color:var(--danger);margin-top:10px">${e.message}</pre></div>`;
   }
 }
-function canCreate(gid,n1,n2){if(_ligaReadOnly||!currentUser)return false;const cy=cycles.find(c=>c.n===viewCycle);if(!cy||!(cy.status==='active'||esAdmin(currentUser)&&cy.editMode))return false;if(esAdmin(currentUser))return true;if(viewCycle!==activeN||playoff.started)return false;const rival=currentUser.name===n1?n2:n1;if(USERS[rival]?.inactive||USERS[currentUser.name]?.inactive)return false;return cy.groups?.[gid-1]?.players.includes(currentUser.name)&&(currentUser.name===n1||currentUser.name===n2);}
+function canCreate(gid,n1,n2){
+  if(_ligaReadOnly||!currentUser||!window.SohailResultPolicy)return false;
+  const ctx={cycle:viewCycle,gid,a:n1,b:n2};
+  if(SohailResultPolicy.newBlock({cycles,matches,activeN,playoff},ctx))return false;
+  if(esAdmin(currentUser))return true;
+  const cy=cycles.find(c=>c.n===viewCycle),rival=currentUser.name===n1?n2:n1;
+  if(USERS[rival]?.inactive||USERS[currentUser.name]?.inactive)return false;
+  return !!cy?.groups?.[gid-1]?.players.includes(currentUser.name)&&(currentUser.name===n1||currentUser.name===n2);
+}
 function renderGeneral(){
+const region=document.querySelector('#view-general .overflow-x');
+if(region){region.tabIndex=0;region.setAttribute('role','region');region.setAttribute('aria-label',t('general_title'));region.setAttribute('aria-describedby','gen-scroll-help');
+ let hint=document.getElementById('gen-scroll-help');if(!hint){hint=document.createElement('p');hint.id='gen-scroll-help';hint.className='ui-scroll-note';region.after(hint);}hint.textContent=t('ui_scroll_hint');}
 const all=computeGeneral();const pc=['p1','p2','p3'];
 const title=document.getElementById('gen-title');if(title)title.textContent=t('general_title');
 const tb=document.getElementById('gen-tiebreak');if(tb)tb.innerHTML=t('gen_tiebreak_note');
@@ -101,7 +112,7 @@ document.getElementById('gen-body').innerHTML=all.map((p,i)=>{const me=currentUs
   const celdaEditor=esAdmin(currentUser)
     ? '<td class="gen-edit">'+(cycles.length?'<button class="pts-ajuste-btn" title="'+attr(t('pts_ajuste_btn'))+'" onclick="editAjustePuntosGeneralUI(\''+jsq(p.name)+'\')"><i class="ti ti-edit"></i></button>':'')+'</td>'
     : '';
-  return '<tr class="'+(me?'me-row':'')+'" style="'+(p.inactive?'opacity:.55':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong></td>'+celdasCiclos+celdaPO+celdaEditor+'</tr>';}).join('');}
+  return '<tr class="'+(me?'me-row':'')+(p.inactive?' gen-inactive':'')+'"><td>'+(p.inactive?'<span class="pos pn">—</span>':'<span class="pos '+(pc[i]||'pn')+'">'+(i+1)+'</span>')+'</td><td><span class="avatar">'+getInitials(p.name)+'</span><span class="nm-link" onclick="showPlayerHistory(\''+jsq(p.name)+'\')">'+p.name+'</span>'+(me?' <span class="badge badge-ok">'+t('me_label')+'</span>':'')+inactBadge+'</td><td>'+(p.inactive?'—':(loc?groupName(loc.g):'—'))+'</td><td><strong>'+p.total+'</strong></td>'+celdasCiclos+celdaPO+celdaEditor+'</tr>';}).join('');}
 
 // Dibuja un botón por club en el formulario de carga, desde CLUBS. Reemplaza a los
 // dos botones fijos Sohail/Haza. Cada botón lleva el color del club como fondo.
@@ -754,15 +765,15 @@ const statusLabel = m.status === 'confirmed' ?
 t('confirmed_label') : m.status === 'disputed' ? t('legend_disputed') : t('legend_pending');
 if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${attr(p1)} &nbsp;vs&nbsp; ${attr(p2)}</p></div><p class="modal-meta" style="text-align:center"><strong>${t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${attr(rep)}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${attr(m.club)}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${attr(p1)} ${attr(sc)} ${attr(p2)}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
-const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser);const isPend=m.status==='pending';
+const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser)&&!_ligaReadOnly;const isPend=m.status==='pending';
 if(isAdmin){
   // El botón no se dibuja si el partido es propio: confirmM() lo rechazaría igual,
   // y un botón que existe pero no funciona confunde más que no tenerlo.
   if(isPend) h+=`<button class="btn btn-success" onclick="confirmM()"><i class="ti ti-check"></i> ${t('validate')}</button>`;
-  if(!m.po&&!m.np) h+=`<button class="btn btn-primary" onclick="adminEdit(${mid})"><i class="ti ti-edit"></i> ${t('edit')}</button>`;
+  if(!_ligaReadOnly) h+=`<button class="btn btn-primary" onclick="adminEdit(${mid})"><i class="ti ti-edit"></i> ${t('edit')}</button>`;
   h+=`<button class="btn btn-danger" onclick="deleteMatch(${mid})"><i class="ti ti-trash"></i> ${t('delete_match')}</button>`;
 } else {
-  if(isPend&&involvedPend(m)) h+=`<button class="btn btn-danger" onclick="disputeM()"><i class="ti ti-x"></i> ${t('dispute')}</button>`;
+  if(isPend&&!_ligaReadOnly&&window.SohailResultPolicy&&SohailResultPolicy.phaseOpen({cycles,activeN,playoff},m)&&involvedPend(m)) h+=`<button class="btn btn-danger" onclick="disputeM()"><i class="ti ti-x"></i> ${t('dispute')}</button>`;
   else if(m.status==='confirmed'&&!m.po) h+=`<span class="lock-note" style="align-self:center">${t('validated_only_admin')}</span>`;
 }
 h+=`<button class="btn" onclick="closeM()">${t('close')}</button>`;acts.innerHTML=h;document.getElementById('modal-bg').classList.add('open');}
@@ -774,6 +785,7 @@ if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));return;}const m=mat
 async function disputeM(){
   const id=currentModal,m=matches.find(x=>x.id===id);
   if(!currentUser||!m||_ligaReadOnly||!SohailUI.ownMatch(m)||!['pending','confirmed'].includes(m.status))return false;
+  if(!SohailResultPolicy.phaseOpen({cycles,activeN,playoff},m)){toast(t('guard_review_closed'));return false;}
   const original=JSON.stringify(m);
   const saved=await SohailUI.mutation(()=>{
     const record=matches.find(x=>x.id===id);

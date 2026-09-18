@@ -807,3 +807,29 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 #view-reglamento :is(.rg-content,.rg-editor) a[href]{color:var(--link);text-decoration-line:underline!important;text-decoration-thickness:1.5px;text-underline-offset:3px;overflow-wrap:anywhere;cursor:pointer}
 #view-reglamento :is(.rg-content,.rg-editor) a[href]:focus-visible{outline:3px solid var(--focus);outline-offset:3px;border-radius:2px}
 @media print{#view-reglamento :is(.rg-link-panel,.rg-link-button,.rg-link-status){display:none!important}}
+
+/* v3.9.5 — admission notices and fixed player names in mobile league tables. */
+.re-guard-notice{padding:14px 16px;margin:12px 0;border:1px solid var(--control-border,var(--border));border-radius:12px;background:var(--surface2);color:var(--text);line-height:1.55;overflow-wrap:anywhere;}
+.re-guard-notice h2{font-size:18px;margin:0 0 8px;color:var(--text);}
+.re-guard-notice p{margin:6px 0 0;color:var(--text2);}
+.re-guard-notice .btn{margin-top:12px;white-space:normal;}
+.re-correction-notice{border-inline-start:4px solid var(--warningT,#9a6700);}
+.re-guard-notice[hidden]{display:none!important;}
+#view-general .gen-inactive>td{color:var(--text2);}
+@media screen and (max-width:900px){
+ .ui-v3 :is(#view-general,#view-rating) .overflow-x{position:relative;isolation:isolate;max-width:100%;overscroll-behavior-x:contain;}
+ .ui-v3 :is(#view-general,#view-rating) .gen-table{border-collapse:separate;border-spacing:0;min-width:660px!important;}
+ .ui-v3 :is(#view-general,#view-rating) .gen-table :is(th,td):nth-child(2){
+  position:-webkit-sticky;position:sticky;left:0;z-index:3;
+  width:clamp(118px,38vw,170px);min-width:clamp(118px,38vw,170px);max-width:clamp(118px,38vw,170px);
+  white-space:normal!important;overflow-wrap:anywhere;word-break:normal;
+  background:var(--surface);background-clip:padding-box;box-shadow:6px 0 9px -8px #546b85;
+ }
+ .ui-v3 :is(#view-general,#view-rating) .gen-table thead th:nth-child(2){top:0;z-index:7;background:var(--soft);color:var(--pri);}
+ .ui-v3 :is(#view-general,#view-rating) .gen-table tbody tr.me-row>td:nth-child(2){background:var(--meRowBg,#faeeda)!important;color:var(--meRowText,#183657)!important;}
+ .ui-v3 :is(#view-general,#view-rating) .gen-table td:nth-child(2) .nm-link{white-space:normal!important;overflow-wrap:anywhere;}
+ .ui-v3 :is(#view-general,#view-rating) .overflow-x:focus-visible{outline:2px solid var(--link);outline-offset:3px;}
+}
+@media print{
+ :is(#view-general,#view-rating) .gen-table :is(th,td):nth-child(2){position:static!important;box-shadow:none!important;}
+}

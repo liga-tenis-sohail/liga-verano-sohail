@@ -860,30 +860,11 @@ function resetCycleUI(n){
   persist(true);renderShell();showSub('admin');toast(t('reset_done'));
 }
 
-// Habilita/deshabilita la carga de partidos en un ciclo cerrado.
-// Con editMode=true, jugadores y admins pueden cargar en ese ciclo desde "Cargar".
-// Solo un ciclo puede tener editMode activo a la vez (se desactiva el anterior).
+// Compatibility entry for an old UI: no longer changes editMode or saves.
+// Closed-cycle corrections must start from the existing score instead.
 function toggleEditMode(n){
-  const c2=cycles[n-1]; if(!c2)return;
-  // Solo tiene sentido en ciclos cerrados: el activo ya permite cargar normalmente.
-  if(!c2.editMode && c2.status!=='finished'){toast((""+t('ui36_text_142')+"")+n+(""+t('ui36_text_143')+""));return;}
-  if(c2.editMode){
-    delete c2.editMode;
-    toast((""+t('ui36_text_144')+"")+n+(""+t('ui36_text_145')+""));
-  }else{
-    cycles.forEach(cx=>delete cx.editMode);
-    c2.editMode=true;
-    toast((""+t('ui36_text_146')+"")+n+(""+t('ui36_text_147')+""));
-  }
-  persist(true);
-  // Navegar al ciclo habilitado para que se vean los "+" en la matriz
-  if(c2.editMode){
-    viewCycle=n;
-    renderShell();
-    showSub('grupos');
-  }else{
-    renderAdmin();
-  }
+  if(!currentUser||!esAdmin(currentUser)||_ligaReadOnly)return;
+  toast(t('guard_admin_closed_help'));
 }
 // Los partidos del ciclo N se CONSERVAN, solo se reabre para seguir cargando.
 // Es distinto de resetCycleUI (que borra partidos): esto simplemente "deshace" el

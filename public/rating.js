@@ -347,7 +347,7 @@ function renderRating(){
     <div class="card">
       <div class="section-lbl">${t('rating_title')}</div>
       <div class="rt-sub">${t('rt_desc_utr')}</div>
-      <div class="overflow-x">
+      <div class="overflow-x" tabindex="0" role="region" aria-label="${attr(t('rating_title'))}" aria-describedby="rating-scroll-help">
         <table class="gen-table rt-table">
           <thead><tr>
             <th>#</th><th>${t('player')}</th><th title="${t('rt_grp_t')}">${t('rt_grp')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
@@ -363,6 +363,7 @@ function renderRating(){
           <tbody>${rows}</tbody>
         </table>
       </div>
+      <p id="rating-scroll-help" class="ui-scroll-note">${t('ui_scroll_hint')}</p>
       <div class="rt-cols-leg">
         <span><b>${t('rating_col')}</b> ${t('rt_leg_rating')}</span>
         <span><b>${t('rt_pj')}</b> ${t('rt_leg_pj')}</span>

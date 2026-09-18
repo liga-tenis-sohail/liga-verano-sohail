@@ -263,22 +263,11 @@ function renderAdmin(){
     const faltanJugar = need-done-notC;
     const cyclesDone = allCyclesDone();
 
-    // ¿Hay algún ciclo con editMode activo? (carga habilitada manualmente por admin)
-    const cicloEditMode = cycles.find(c2=>c2.editMode);
-    
     let h=`<div class="card" data-admin-task="cycle-status"><div class="section-lbl">${t('admin_cycle_status')}</div><div class="alert ${ready?'alert-ok':(puedeCerrar?'alert-warn':'alert-info')}">${t('cycle')} ${activeN}: ${tf('validated_count',{done,need})}${notC>0?` · ${notC} ${t('unvalidated_short')}`:''}. ${ready?t('ready_close'):(notC>0?t('missing_results'):tf('close_can_incomplete',{n:faltanJugar}))}</div>`+
     (ready&&activeN===cycles.length&&c.status!=='finished'?`<div class="alert alert-ok" style="margin-top:.4rem;font-weight:600"><i class="ti ti-info-circle"></i> ${t('ui36_text_067')}</div>`:'')+
-    // Banner de ciclo con editMode activo
-    (cicloEditMode?`<div class="alert alert-warn" style="margin-top:.4rem"><i class="ti ti-pencil"></i> <strong>${t('ui36_text_068')} ${cicloEditMode.n}</strong> ${t('ui36_text_069')}</div>`:'')+
     `<div class="gap-sm mt-sm">${activeN<cycles.length?`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar)?'disabled':''} onclick="startNextCycle()"><i class="ti ti-arrow-right-circle"></i> ${t('close_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`:`<button class="btn ${faltanJugar>0&&puedeCerrar?'btn-warn':'btn-accent'}" ${(!puedeCerrar||(c&&c.status==='finished'))?'disabled':''} onclick="finishLastCycle()"><i class="ti ti-flag-check"></i> ${t('finish_last_cycle')}${faltanJugar>0&&puedeCerrar?' ('+t('close_incomplete')+')':''}</button>`}<button class="btn" onclick="demoFillUI()"><i class="ti ti-wand"></i> ${t('simulate')}</button><button class="btn btn-danger" onclick="undoDemoUI()"><i class="ti ti-eraser"></i> ${t('undo_demo')}</button></div>` +
-    // Sección de rehabilitar carga (solo si hay ciclos cerrados)
-    (cycles.some(c2=>c2.status==='finished')?`<div style="border-top:1px solid var(--border2);margin-top:.75rem;padding-top:.75rem">
-      <div style="font-weight:700;font-size:.85rem;margin-bottom:.25rem"><i class="ti ti-pencil"></i> ${t('ui36_text_071')}</div>
-      <p class="legend-txt" style="margin-top:.15rem;margin-bottom:.5rem">${t('ui36_text_072')}</p>
-      <div class="gap-sm" style="flex-wrap:wrap">
-        ${cycles.filter(c2=>c2.status==='finished').map(c2=>`<button class="btn btn-sm ${c2.editMode?'btn-warn':''}" onclick="toggleEditMode(${c2.n})"><i class="ti ti-${c2.editMode?'lock-open':'lock'}"></i> ${t('ui36_text_015')} ${c2.n} ${c2.editMode?(""+t('ui36_text_070')+""):'(cerrado)'}</button>`).join('')}
-      </div>
-    </div>`:'') +
+    // Closed cycles remain closed; corrections start from an existing score.
+    (cycles.some(cx=>cx.status==='finished')?`<div class="re-guard-notice" style="margin-top:.75rem"><strong>${t('guard_admin_closed_title')}</strong><p>${t('guard_admin_closed_help')}</p></div>`:'') +
     `</div>`;
 
     // ==== Solicitudes de acceso (jugadores de OTRAS ligas que piden entrar) ====

@@ -9,31 +9,68 @@
  Object.assign(TRANSLATIONS.en,{
  re_title:'Report result',re_edit:'Edit result',re_intro:'Choose the club, check the date and enter the two sets.',re_club:'Club',re_choose_club:'Choose club',re_club_help:'Required. Choose it for this match; the previous selection is not reused.',re_date:'Match date',re_players:'Players',re_match:'Match',re_a:'Player A',re_b:'Player B',re_choose_player:'Choose player',re_choose_match:'Choose match',re_score:'Match result',re_format:'Two sets. If each player wins one, a match tiebreak decides the winner.',re_stb:'Match tiebreak',re_stb_help:'Match tiebreak: only 1–0 or 0–1 is accepted.',re_tb_help:'7–6 or 6–7 is sufficient; no separate tiebreak score is needed.',re_stb_winner:'Who won the match tiebreak?',re_choose_winner:'Choose winner',re_special:'Result type',re_normal:'Completed match',re_wo:'W.O. · not played',re_ret:'RET · retirement',re_no_show:'Who did not turn up?',re_retired:'Who retired?',re_ret_help:'Keep the league format: record completed sets before retirement. Leave unplayed sets blank.',re_wo_help:'No sets are recorded. Choose who did not turn up; their opponent wins.',re_ret_error:'Check the retirement: completed sets before retirement only, without a third full set.',re_special_need:'Choose the player who did not turn up or retired.',re_review:'Review before saving',re_save:'Save result',re_saving:'Saving…',re_cancel:'Cancel',re_reset:'Clear',re_confirmed:'Result saved and validated.',re_pending:'Result saved. Awaiting validation.',re_failed:'Saving could not be confirmed. Your entries remain in the form.',re_context_changed:'The match or its context changed. Close and reopen it before saving.',re_session:'Your session or league changed. Reopen the form.',re_readonly:'This cycle or league is read only. Editing is not enabled from this form.',re_not_yours:'You can only report your own matches.',re_date_error:'Choose a valid match date.',re_club_error:'Choose a club for this match.',re_discard:'You have an unsent result. Discard this draft?',re_empty:'There are no available matches in this context.',re_scope:'This will be saved in {scope}.',re_different:'Choose two different players in the same group.',re_disputed:'This result is disputed. Only an administrator can resolve it.',re_consolation:'Consolation',re_main:'Main draw',re_saved_scope:'{scope} · {message}',re_field_error:'Check the highlighted fields.',re_no_third:'The match ended in two sets. No match tiebreak is needed.',re_pick_group:'Choose group'
  });
+ Object.assign(TRANSLATIONS.es,{
+  guard_saved:'Resultado ya guardado',guard_saved_help:'Este cruce ya tiene un resultado, aunque esté pendiente o en disputa. Consultalo en Grupos, Playoffs o Revisión. Solo el administrador puede corregirlo abriendo ese resultado.',
+  guard_closed:'Etapa cerrada para nuevas cargas',guard_closed_help:'No se pueden agregar partidos en un ciclo cerrado, bloqueado o anterior. Para corregir un resultado guardado, el administrador debe abrir el marcador y pulsar Editar. No es necesario reabrir el ciclo.',
+  guard_po_closed:'Los playoffs todavía no están abiertos para cargar resultados. La vista previa es solo de consulta.',
+  guard_new_hint:'Esta pestaña es solo para partidos sin resultado de la etapa activa. Los cruces ya guardados aparecen deshabilitados.',
+  guard_saved_option:'ya guardado',guard_correction:'Corrección de un resultado guardado',
+  guard_correction_help:'Modificarlo puede cambiar puntos, clasificación, rating y el avance de los cuadros. Se conserva el mismo partido. Los grupos de ciclos posteriores ya formados no se redistribuyen automáticamente.',
+  guard_confirm_edit:'Vas a modificar un resultado ya guardado: {match}.\n{scope}\n\nLa corrección puede alterar la clasificación, el rating y los cuadros. ¿Confirmás que revisaste el cambio?',
+  guard_save_edit:'Guardar corrección',guard_view_groups:'Ver tablas y resultados',guard_review_closed:'Este ciclo está cerrado. Los jugadores solo pueden consultar; contactá a la organización para pedir una corrección.',
+  guard_admin_closed_title:'Corregir resultados de ciclos cerrados',guard_admin_closed_help:'Los ciclos cerrados no aceptan nuevos partidos. Abrí el ciclo, pulsá el marcador guardado y elegí Editar. Se mostrará una advertencia antes de guardar la corrección.'
+ });
+ Object.assign(TRANSLATIONS.en,{
+  guard_saved:'Result already saved',guard_saved_help:'This match already has a result, including pending or disputed results. Open it in Groups, Playoffs or Review. Only an administrator can correct the saved result.',
+  guard_closed:'This stage is closed to new results',guard_closed_help:'New results cannot be added to a closed, locked or previous cycle. To correct a saved result, an administrator must open its score and select Edit. There is no need to reopen the cycle.',
+  guard_po_closed:'Playoffs are not open for reporting yet. The preview is read only.',
+  guard_new_hint:'This tab is only for unreported matches in the active stage. Matches with saved results are disabled.',
+  guard_saved_option:'already saved',guard_correction:'Correcting a saved result',
+  guard_correction_help:'Changes may affect points, standings, ratings and draw progression. The same match is kept. Groups already formed for later cycles are not redistributed automatically.',
+  guard_confirm_edit:'You are changing a saved result: {match}.\n{scope}\n\nThis correction may affect standings, ratings and draws. Have you reviewed and confirmed the change?',
+  guard_save_edit:'Save correction',guard_view_groups:'View standings and results',guard_review_closed:'This cycle is closed. Players can only view it; contact the organisers to request a correction.',
+  guard_admin_closed_title:'Correct results from closed cycles',guard_admin_closed_help:'Closed cycles do not accept new matches. Open the cycle, select a saved score and choose Edit. A warning will appear before you save the correction.'
+ });
  const e=s=>attr(s==null?'':s), copy=x=>JSON.parse(JSON.stringify(x));
  const instances=new Map();let serial=0;let activeModal=null;
  const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
  const names=m=>m.po?m.poNames:[m.aName,m.bName];
  function scope(c){return c.po?t('playoffs')+' · '+(playoff.tramos[c.ti]?.label||'')+' · '+t(c.which==='cons'?'re_consolation':'re_main'):t('cycle')+' '+c.cycle+' · '+groupName(c.gid||1);}
- function existingFor(c){if(c.editId!=null)return matches.find(m=>m.id===c.editId);return matches.find(m=>c.po?m.po&&m.ti===c.ti&&m.which===c.which&&names(m)?.includes(c.a)&&names(m)?.includes(c.b):!m.po&&m.cycle===c.cycle&&m.g===c.gid&&names(m).includes(c.a)&&names(m).includes(c.b));}
+ const policyState=()=>({cycles,matches,activeN,playoff});
+ function existingFor(c){return c.editId!=null?matches.find(m=>m.id===c.editId):SohailResultPolicy.existing(policyState(),c);}
+ function creationBlock(c){
+  if(_ligaReadOnly||!_loadOK)return 're_readonly';
+  const key=SohailResultPolicy.newBlock(policyState(),c);
+  return key==='stage'?(c.po?'guard_po_closed':'guard_closed_help'):key==='recorded'?'guard_saved_help':'';
+ }
+ function admission(m){
+  if(m.original){
+   if(!m.id.startsWith('re-modal-')||!esAdmin(currentUser)||m.c.editId!==m.original.id)return 'guard_saved_help';
+   if(!existingFor(m.c))return 're_context_changed';
+   return '';
+  }
+  return creationBlock(m.c);
+ }
  function context(c){
   c={...c};if(c.existing!=null){const m=matches.find(m=>m.id===c.existing);if(!m)return null;c={editId:m.id,cycle:m.cycle,gid:m.g,a:names(m)[0],b:names(m)[1],po:!!m.po,ti:m.ti,which:m.which,ri:m.ri,mi:m.mi};}
-  if(c.po){const slot=playoff.tramos[c.ti]?.[c.which]?.[c.ri]?.[c.mi];if(slot){c.a=slot.a;c.b=slot.b;}else if(c.a||c.b)return null;}
+  if(c.po){const slot=playoff.tramos[c.ti]?.[c.which]?.[c.ri]?.[c.mi];if(slot){if(c.editId==null){c.a=slot.a;c.b=slot.b;}}else if(c.a||c.b)return null;}
   if(!c.po){c.cycle=c.cycle||((viewCycle!=='po'&&viewCycle)||activeN);const cy=cycles.find(x=>x.n===c.cycle);c.gid=Number(c.gid)||findLoc(currentUser?.name,c.cycle)?.g||Math.min(selGroup||1,cy?.groups?.length||1);if(!esAdmin(currentUser)&&!c.a)c.a=currentUser?.name;}
   return c;
  }
- function createModel(c,id){const ex=c.a&&c.b?existingFor(c):null;const stored=ex?copy(ex):null;const ns=ex?names(ex):[];let sets=ex?copy(ex.sets||[]):[];if(ns[0]===c.b&&ns[1]===c.a)sets=sets.map(([a,b])=>[b,a]);
+ function createModel(c,id){const ex=c.editId!=null&&id.startsWith('re-modal-')?existingFor(c):null;const stored=ex?copy(ex):null;const ns=ex?names(ex):[];let sets=ex?copy(ex.sets||[]):[];if(ns[0]===c.b&&ns[1]===c.a)sets=sets.map(([a,b])=>[b,a]);
   return{id,c:{...c,editId:ex?.id??c.editId},original:stored,league:_ligaActual,key:_saveSessionKey(),club:ex?.club||'',date:ex?.date||today(),sets:[sets[0]||['',''],sets[1]||['','']],stb:sets[2]?sets[2].slice(0,2):['',''],mode:ex?.wo?(ex.sets?.length?'ret':'wo'):'normal',loser:ex?.retiroDe||'',dirty:false,saving:false,host:null};}
  function readModel(m){if(!m.host)return;const q=n=>m.host.querySelector('[data-field="'+n+'"]');const checked=m.host.querySelector('[data-field="club"]:checked');m.club=checked?checked.value:'';for(const k of ['date','loser'])if(q(k))m[k]=q(k).value;for(let j=0;j<2;j++)if(q('stb'+j))m.stb[j]=q('stb'+j).value;for(let i=0;i<2;i++)for(let j=0;j<2;j++)if(q('s'+i+j))m.sets[i][j]=q('s'+i+j).value;}
- function slotOptions(){const out=[];for(let ti=0;ti<(playoff.tramos||[]).length;ti++){const tr=playoff.tramos[ti];for(const which of ['main','cons'])for(let ri=0;ri<(tr[which]||[]).length;ri++)for(let mi=0;mi<tr[which][ri].length;mi++){const s=tr[which][ri][mi];if(!s.a||!s.b)continue;if(!esAdmin(currentUser)&&(![s.a,s.b].includes(currentUser.name)||s.locked))continue;out.push({value:[ti,which,ri,mi].join(':'),label:tr.label+' · '+t(which==='main'?'re_main':'re_consolation')+' · '+s.a+' vs '+s.b});}}return out;}
- function opt(value,label,selected){return '<option value="'+e(value)+'" '+(String(value)===String(selected)?'selected':'')+'>'+e(label)+'</option>';}
+ function slotOptions(){const out=[];for(let ti=0;ti<(playoff.tramos||[]).length;ti++){const tr=playoff.tramos[ti];for(const which of ['main','cons'])for(let ri=0;ri<(tr[which]||[]).length;ri++)for(let mi=0;mi<tr[which][ri].length;mi++){const s=tr[which][ri][mi];if(!s.a||!s.b)continue;if(!esAdmin(currentUser)&&(![s.a,s.b].includes(currentUser.name)||s.locked))continue;const recorded=!!SohailResultPolicy.existing(policyState(),{po:true,ti,which,ri,mi,a:s.a,b:s.b})||SohailResultPolicy.slotRecorded(policyState(),{po:true,ti,which,ri,mi});out.push({value:[ti,which,ri,mi].join(':'),disabled:recorded,label:tr.label+' · '+t(which==='main'?'re_main':'re_consolation')+' · '+s.a+' vs '+s.b+(recorded?' · '+t('guard_saved_option'):'')});}}return out;}
+ function opt(value,label,selected,disabled=false){return '<option '+(disabled?'disabled ':'')+'value="'+e(value)+'" '+(String(value)===String(selected)?'selected':'')+'>'+e(label)+'</option>';}
  function validation(m){
   const c=m.c;if(m.league!==_ligaActual||m.key!==_saveSessionKey()||!currentUser)return{key:'re_session'};
   if(_ligaReadOnly||!_loadOK)return{key:'re_readonly'};
+  const blocked=admission(m);if(blocked)return{key:blocked};
   if(!c.a||!c.b||c.a===c.b)return{key:'re_different',field:'b'};
   if(!esAdmin(currentUser)&&![c.a,c.b].includes(currentUser.name))return{key:'re_not_yours'};
   const ex=existingFor(c);if(ex&&!esAdmin(currentUser)&&(ex.locked||ex.status==='confirmed'||ex.status==='disputed'))return{key:ex.status==='disputed'?'re_disputed':'re_readonly'};
   if(c.po){const slot=playoff.tramos[c.ti]?.[c.which]?.[c.ri]?.[c.mi];if(!slot||slot.a!==c.a||slot.b!==c.b)return{key:'re_context_changed'};if(!playoff.started&&!(esAdmin(currentUser)&&playoff.preview))return{key:'re_readonly'};}
-  else{const cy=cycles.find(x=>x.n===c.cycle),g=cy?.groups?.[c.gid-1];if(!g||![c.a,c.b].every(n=>g.players.includes(n)))return{key:'re_different',field:'b'};if(!(cy.status==='active'||esAdmin(currentUser)&&cy.editMode)||!esAdmin(currentUser)&&(c.cycle!==activeN||playoff.started))return{key:'re_readonly'};}
+  else{const cy=cycles.find(x=>x.n===c.cycle),g=cy?.groups?.[c.gid-1];if(!g||![c.a,c.b].every(n=>g.players.includes(n)))return{key:'re_different',field:'b'};if(!m.original&&!SohailResultPolicy.phaseOpen(policyState(),c))return{key:'guard_closed_help'};}
   if(!CLUBS.some(c=>c.name===m.club))return{key:'re_club_error',field:'club'};
   if(!/^\d{4}-\d{2}-\d{2}$/.test(m.date)||isNaN(Date.parse(m.date))||new Date(m.date).toISOString().slice(0,10)!==m.date)return{key:'re_date_error',field:'date'};
   if(m.mode!=='normal'&&![c.a,c.b].includes(m.loser))return{key:'re_special_need',field:'loser'};
@@ -66,6 +103,12 @@
   const rev=snapshotForReview(m),summary=root.querySelector('.re-review-data');summary.replaceChildren();
   for(const [k,value]of [[t('re_club'),m.club||'—'],[t('re_date'),m.date||'—'],[t('re_match'),[m.c.a||t('re_a'),m.c.b||t('re_b')].join(' vs ')],[t('re_score'),rev.score]]){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=value;summary.append(dt,dd);}
   const notice=root.querySelector('.re-scope');notice.textContent=tf('re_scope',{scope:scope(m.c)});
+  const blocked=admission(m),guard=root.querySelector('[data-admission]');
+  if(guard){guard.hidden=!blocked;guard.textContent=blocked?t(blocked):'';}
+  // Keep context selectors usable so a new, unreported match can be chosen.
+  root.querySelectorAll('input,select,button[data-mode],button[data-save]').forEach(el=>{
+   if(!el.hasAttribute('data-context'))el.disabled=!!blocked||m.saving||(el.dataset.field?.startsWith('stb')&&!split);
+  });
  }
  function clubButtons(m){
   return CLUBS.map((cl,i)=>{
@@ -77,21 +120,27 @@
  function draw(m,host,isModal){
   m.host=host;host.dataset.editorId=m.id;host.classList.add('result-editor');const c=m.c,id=m.id;
   const cy=cycles.find(x=>x.n===c.cycle),pl=cy?.groups?.[c.gid-1]?.players?.filter(Boolean)||[];
+  if(!m.original&&!SohailResultPolicy.phaseOpen(policyState(),c)){
+   host.oninput=null;host.onchange=null;host.onclick=null;
+   host.innerHTML='<section class="re-guard-notice"><h2>'+e(t('guard_closed'))+'</h2><p>'+e(t(c.po?'guard_po_closed':'guard_closed_help'))+'</p><button type="button" class="btn" data-ui-route="'+(c.po?'po':'grupos')+'">'+e(t('guard_view_groups'))+'</button></section>';
+   return;
+  }
   const choose=!isModal&&!m.original;
   let chooseHtml='';
-  if(choose){if(c.po){chooseHtml='<div class="re-select-context"><label for="'+id+'-pair">'+e(t('re_choose_match'))+'</label><select id="'+id+'-pair" data-context="pair">'+opt('',t('re_choose_match'),'')+slotOptions().map(o=>opt(o.value,o.label,c.ti==null?'':[c.ti,c.which,c.ri,c.mi].join(':'))).join('')+'</select></div>';}
+  if(choose){if(c.po){chooseHtml='<div class="re-select-context"><label for="'+id+'-pair">'+e(t('re_choose_match'))+'</label><select id="'+id+'-pair" data-context="pair">'+opt('',t('re_choose_match'),'')+slotOptions().map(o=>opt(o.value,o.label,c.ti==null?'':[c.ti,c.which,c.ri,c.mi].join(':'),o.disabled)).join('')+'</select></div>';}
    else chooseHtml='<div class="re-select-context"><label for="'+id+'-group">'+e(t('re_pick_group'))+'</label><select id="'+id+'-group" data-context="group">'+(cy?.groups||[]).map((g,i)=>({g,n:i+1})).filter(v=>esAdmin(currentUser)||v.g.players.includes(currentUser.name)).map(v=>opt(v.n,groupName(v.n),c.gid)).join('')+'</select></div>';
   }
-  const player=(side,name)=>choose&&!c.po&&(side==='b'||esAdmin(currentUser))?'<label for="'+id+'-'+side+'" class="ui-sr-only">'+e(t(side==='a'?'re_a':'re_b'))+'</label><select id="'+id+'-'+side+'" data-context="'+side+'" data-field="'+side+'">'+opt('',t('re_choose_player'),name)+pl.filter(n=>(!USERS[n]?.inactive||n===name)&&n!==c[side==='a'?'b':'a']).map(n=>opt(n,n,name)).join('')+'</select>':'<strong>'+e(name||t(side==='a'?'re_a':'re_b'))+'</strong>';
+  const player=(side,name)=>choose&&!c.po&&(side==='b'||esAdmin(currentUser))?'<label for="'+id+'-'+side+'" class="ui-sr-only">'+e(t(side==='a'?'re_a':'re_b'))+'</label><select id="'+id+'-'+side+'" data-context="'+side+'" data-field="'+side+'">'+opt('',t('re_choose_player'),name)+pl.filter(n=>(!USERS[n]?.inactive||n===name)&&n!==c[side==='a'?'b':'a']).map(n=>{const cc={...c,[side]:n};const saved=!!SohailResultPolicy.existing(policyState(),cc);return opt(n,n+(saved?' · '+t('guard_saved_option'):''),name,saved);}).join('')+'</select>':'<strong>'+e(name||t(side==='a'?'re_a':'re_b'))+'</strong>';
   const num=(i,j)=>'<label for="'+id+'-s'+i+j+'" class="ui-sr-only">'+e([c.a||t('re_a'),c.b||t('re_b')][j])+' · Set '+(i+1)+'</label><input id="'+id+'-s'+i+j+'" data-field="s'+i+j+'" type="number" min="0" max="7" step="1" inputmode="numeric" placeholder="—" value="'+e(m.sets[i][j])+'">';
   const tb=j=>'<label for="'+id+'-stb'+j+'" class="ui-sr-only">'+e(t('re_stb')+' · '+[c.a||t('re_a'),c.b||t('re_b')][j])+'</label><input id="'+id+'-stb'+j+'" data-field="stb'+j+'" type="number" min="0" max="1" step="1" inputmode="numeric" placeholder="—" aria-describedby="'+id+'-stb-help" value="'+e(m.stb[j])+'">';
   host.innerHTML='<div class="re-heading"><span class="ui-brand-mark">'+SohailUI.icon('matches')+'</span><div><h2 id="'+id+'-title">'+e(t(m.original?'re_edit':'re_title'))+'</h2><p>'+e(t('re_intro'))+'</p></div>'+(isModal?'<button type="button" class="re-close" data-close aria-label="'+e(t('close'))+'">'+SohailUI.icon('close')+'</button>':'')+'</div><p class="re-scope"></p>'+chooseHtml+
+   (m.original?'<section class="re-guard-notice re-correction-notice"><strong>'+e(t('guard_correction'))+'</strong><p>'+e(t('guard_correction_help'))+'</p></section>':'<p class="re-help">'+e(t('guard_new_hint'))+'</p><p class="re-guard-notice" data-admission role="status" hidden></p>')+
    '<div class="re-metadata"><fieldset class="re-club-fieldset" aria-describedby="'+id+'-club-help"><legend>'+e(t('re_club'))+' <span aria-hidden="true">*</span></legend><div class="re-club-buttons">'+clubButtons(m)+'</div><p id="'+id+'-club-help" class="re-help">'+e(t('re_club_help'))+'</p></fieldset><div><label for="'+id+'-date">'+e(t('re_date'))+' <span aria-hidden="true">*</span></label><input id="'+id+'-date" type="date" data-field="date" required value="'+e(m.date)+'"></div></div>'+
    '<div class="re-player-heading">'+e(t('re_players'))+'</div><div class="re-players"><div>'+SohailUI.icon('profile')+player('a',c.a)+'</div><span class="re-vs">vs</span><div>'+SohailUI.icon('profile')+player('b',c.b)+'</div></div>'+
    '<fieldset class="re-mode"><legend>'+e(t('re_special'))+'</legend><div>'+['normal','wo','ret'].map(k=>'<button type="button" data-mode="'+k+'" aria-pressed="'+(m.mode===k)+'">'+e(t('re_'+k))+'</button>').join('')+'</div></fieldset>'+
    '<div class="re-score"><h3>'+e(t('re_score'))+'</h3><p class="re-help">'+e(t('re_format'))+'</p><div class="re-score-board"><table class="re-score-table"><caption class="ui-sr-only">'+e(t('re_score'))+'</caption><thead><tr><th scope="col">Set</th><th scope="col" data-player="a">'+e(c.a||t('re_a'))+'</th><th scope="col" data-player="b">'+e(c.b||t('re_b'))+'</th></tr></thead><tbody><tr data-score-row="set1"><th scope="row">Set 1</th><td>'+num(0,0)+'</td><td>'+num(0,1)+'</td></tr><tr data-score-row="set2"><th scope="row">Set 2</th><td>'+num(1,0)+'</td><td>'+num(1,1)+'</td></tr><tr class="re-stb" data-score-row="stb" hidden><th scope="row">'+e(t('re_stb'))+'</th><td>'+tb(0)+'</td><td>'+tb(1)+'</td></tr></tbody></table></div><p id="'+id+'-stb-help" class="re-stb-reference" hidden>'+e(t('re_stb_help'))+'</p><p class="re-help re-tb-info">'+e(t('re_tb_help'))+'</p></div>'+
    '<p class="re-two-complete" hidden>'+SohailUI.icon('check')+e(t('re_no_third'))+'</p><section class="re-special-person" hidden><label for="'+id+'-loser"></label><select data-field="loser" id="'+id+'-loser">'+opt('',t('re_choose_player'),m.loser)+[c.a,c.b].filter(Boolean).map(n=>opt(n,n,m.loser)).join('')+'</select><p></p></section>'+
-   '<section class="re-review"><h3>'+SohailUI.icon('check')+e(t('re_review'))+'</h3><dl class="re-review-data"></dl></section><div class="re-error" role="alert" tabindex="-1" hidden></div><div class="re-actions"><button type="button" class="btn" data-close>'+e(t(isModal?'re_cancel':'re_reset'))+'</button><button type="button" class="btn btn-primary" data-save>'+SohailUI.icon('check')+'<span>'+e(t('re_save'))+'</span></button></div>';
+   '<section class="re-review"><h3>'+SohailUI.icon('check')+e(t('re_review'))+'</h3><dl class="re-review-data"></dl></section><div class="re-error" role="alert" tabindex="-1" hidden></div><div class="re-actions"><button type="button" class="btn" data-close>'+e(t(isModal?'re_cancel':'re_reset'))+'</button><button type="button" class="btn btn-primary" data-save>'+SohailUI.icon('check')+'<span>'+e(t(m.original?'guard_save_edit':'re_save'))+'</span></button></div>';
   if(isModal)host.closest('dialog').setAttribute('aria-labelledby',id+'-title');
   update(m);
   host.oninput=ev=>{if(ev.target.dataset.field&&!ev.target.dataset.context){readModel(m);m.dirty=true;update(m);ev.target.removeAttribute('aria-invalid');}};
@@ -115,9 +164,13 @@
  function requestClose(m){if(m.saving)return;if(m.dirty&&!confirm(t('re_discard')))return;activeModal?.close();}
  function open(input){
   if(!_token||_ligaReadOnly||!currentUser||isSaving()||typeof isTutorialRunning==='function'&&isTutorialRunning())return;
-  const c=context(input);if(!c||!c.a||!c.b){toast(t('re_empty'));return;}
+  const explicitEdit=input&&input.existing!=null;
+  const clean={...input};if(!explicitEdit)delete clean.editId;
+  const c=context(clean);if(!c||!c.a||!c.b){toast(t('re_empty'));return;}
   if(!esAdmin(currentUser)&&![c.a,c.b].includes(currentUser.name)){toast(t('re_not_yours'));return;}
-  const existing=existingFor(c);if(existing&&!esAdmin(currentUser)&&['confirmed','disputed'].includes(existing.status)){openModal(existing.id);return;}
+  const existing=existingFor(c);
+  if(existing&&(!explicitEdit||!esAdmin(currentUser))){openModal(existing.id);return;}
+  if(!explicitEdit){const blocked=creationBlock(c);if(blocked){toast(t(blocked));return;}}
   if(activeModal){const old=instances.get(activeModal.dataset.instance);if(old?.dirty&&!confirm(t('re_discard')))return;activeModal.close();}
   closeM();const dlg=document.createElement('dialog'),id='re-modal-'+(++serial);dlg.className='result-dialog';dlg.dataset.instance=id;
   const host=document.createElement('div'),m=createModel(c,id);dlg.append(host);document.body.append(dlg);instances.set(id,m);activeModal=dlg;const previous=document.activeElement;
@@ -127,7 +180,8 @@
  function renderPage(input){
   const view=document.getElementById('view-cargar');if(!view)return;
   let host=document.getElementById('result-page');if(!host){host=document.createElement('div');host.id='result-page';view.append(host);}
-  let c=context(input||{po:viewCycle==='po',cycle:viewCycle==='po'?undefined:viewCycle}),m=instances.get('re-page');
+  const selection={...(input||{po:viewCycle==='po',cycle:viewCycle==='po'?undefined:viewCycle})};delete selection.existing;delete selection.editId;
+  let c=context(selection),m=instances.get('re-page');
   if(!c)return;
   const inTour=typeof isTutorialRunning==='function'&&isTutorialRunning();
   if(inTour){m=createModel(c,'re-tour');draw(m,host,false);return;}
@@ -138,11 +192,13 @@
  async function save(m,modal){
   if(m.saving||SohailUI.isBusy()||typeof isTutorialRunning==='function'&&isTutorialRunning())return;
   readModel(m);const valid=validation(m);if(!valid.ok){showError(m,valid.key,valid.field);return;}
+  if(m.original&&!confirm(tf('guard_confirm_edit',{match:[m.c.a,m.c.b].join(' vs '),scope:scope(m.c)})))return;
   const c={...m.c},read=copy({club:m.club,date:m.date,mode:m.mode,loser:m.loser,sets:valid.sets,winner:valid.winner});const original=m.original?copy(m.original):null;
   m.saving=true;m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=true);m.host.setAttribute('aria-busy','true');m.host.querySelector('[data-save] span').textContent=t('re_saving');
   let record;
   const saved=await SohailUI.mutation(()=>{
    if(m.key!==_saveSessionKey()||m.league!==_ligaActual)throw Error(t('re_session'));
+   const guard=admission(m);if(guard)throw Error(t(guard));
    const current=existingFor(c);if((original&&!current)||(!original&&current)||original&&JSON.stringify(current)!==JSON.stringify(original))throw Error(t('re_context_changed'));
    const admin=validaAlCargar(c.a,c.b),id=current?.id??matchId++;
    record={...(current||{}),id,sets:copy(read.sets),wo:read.mode!=='normal',date:read.date,club:read.club,reporter:currentUser.name,status:admin?'confirmed':'pending',locked:admin};
@@ -154,7 +210,7 @@
    if(c.po)applyPoPending(record); // Pending redraws but never advances; confirmed rebuilds both draws.
    addLog(c.po?(admin?'Playoff: validado (admin)':'Playoff: cargado'):(admin?'Liga: validado (admin)':'Liga: cargado'),{a:c.a,b:c.b,sets:record.sets,wo:record.wo,po:!!c.po,grupo:c.gid,cuadro:record.tLabel,which:c.which});
   });
-  m.saving=false;if(m.host.isConnected&&m.host.dataset.editorId===m.id){m.host.removeAttribute('aria-busy');m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);m.host.querySelector('[data-save] span').textContent=t('re_save');}
+  m.saving=false;if(m.host.isConnected&&m.host.dataset.editorId===m.id){m.host.removeAttribute('aria-busy');m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);m.host.querySelector('[data-save] span').textContent=t(m.original?'guard_save_edit':'re_save');}
   if(saved){m.dirty=false;if(modal)activeModal?.close();else reset(m,m.host);const x=window.scrollX,y=window.scrollY;refreshAll();window.scrollTo({left:x,top:y,behavior:'auto'});toast(tf('re_saved_scope',{scope:scope(c),message:t(record.status==='confirmed'?'re_confirmed':'re_pending')}));}
   else if(m.host.isConnected&&m.host.dataset.editorId===m.id){update(m);showError(m,_saveConflict?'fix_conflict':'re_failed');}
  }
@@ -181,5 +237,5 @@
   window.scrollTo({left:sx,top:sy,behavior:'auto'});
  }
  global.addEventListener('beforeunload',ev=>{if([...instances.values()].some(m=>m.dirty&&m.key===_saveSessionKey()&&m.league===_ligaActual)){ev.preventDefault();ev.returnValue='';}});
- global.SohailResults={open,renderPage,canLeave,isSaving,translate,clearSession,validation,update};
+ global.SohailResults={open,renderPage,canLeave,isSaving,translate,clearSession,validation,update,creationBlock};
 })(window);
