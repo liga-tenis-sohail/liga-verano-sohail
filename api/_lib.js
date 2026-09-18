@@ -525,6 +525,31 @@ async function readLigaIndex(){
   return Array.isArray(rows) ? rows : [];
 }
 
+// v3.9.6 — sólo presentación del selector posterior al login.
+// `orden` aumenta al crear cada liga. No ordenar las listas usadas para resolver
+// la identidad o emitir la sesión: sólo la proyección final ya autorizada.
+function postLoginLeagueChoices(available, index){
+  const orders = new Map();
+  for(const league of Array.isArray(index) ? index : []){
+    if(league && typeof league.id === 'string' &&
+       typeof league.orden === 'number' && Number.isFinite(league.orden)){
+      orders.set(league.id, league.orden);
+    }
+  }
+  return (Array.isArray(available) ? available : []).map((league, position) => ({
+    id: league.ligaId,
+    nombre: league.nombre,
+    order: orders.get(league.ligaId),
+    position
+  })).sort((a, b) => {
+    // Las entradas antiguas sin orden quedan al final, sin inventar fechas a
+    // partir del nombre. Empates y datos ausentes conservan el orden original.
+    if(a.order === undefined) return b.order === undefined ? a.position-b.position : 1;
+    if(b.order === undefined) return -1;
+    return b.order-a.order || a.position-b.position;
+  }).map(({id, nombre}) => ({id, nombre}));
+}
+
 // Crea o actualiza una entrada del índice (al crear/cerrar/reabrir una liga).
 async function upsertLigaIndex(entry){
   if(!entry || !ligaIdOK(entry.id) || !entry.nombre) throw new Error('entrada de índice inválida');
@@ -601,7 +626,7 @@ module.exports = {
   // Sistema unificado (Fase 1):
   LIGA_DEFAULT, ligaIdOK, resolveLigaId, verifyPassword,
   readCatalogo, buscarJugadorPorEmail, upsertJugador, borrarJugador, borrarPasskeysDeUsuario,
-  readLigaIndex, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga,
+  readLigaIndex, postLoginLeagueChoices, upsertLigaIndex, setEstadoLiga, renombrarLigaIndex, borrarLiga,
   // Mensajería (tabla aparte, ver comentario arriba de insertarMensaje):
   insertarMensaje, leerMensajes, leerMensajesDesde
 };

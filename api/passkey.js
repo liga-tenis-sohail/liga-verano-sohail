@@ -345,7 +345,7 @@ module.exports = async (req, res) => {
         exp,
         mustChangePw,
         eligeLiga: true,
-        ligas: disponibles.map(d => ({ id: d.ligaId, nombre: d.nombre }))
+        ligas: lib.postLoginLeagueChoices(disponibles, idx)
       });
     }
 

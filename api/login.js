@@ -44,7 +44,7 @@
 // atacante ganaba N * MAX_FAILS intentos. Ahora el contador es global.
 // =====================================================================
 const { securityFor, makeSession, principalKey, hashV1, hashV2, POR_DEFECTO_V2, signToken, readState, writeState, envOK, filterForSession, SESSION_MIN, SUPER_HASH,
-        readCatalogo, upsertJugador, readLigaIndex, ligaIdOK, LIGA_DEFAULT,
+        readCatalogo, upsertJugador, readLigaIndex, postLoginLeagueChoices, ligaIdOK, LIGA_DEFAULT,
         rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP } = require('./_lib');
 
 const MAX_FAILS = 5;      // por usuario
@@ -204,7 +204,7 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
     exp,
     mustChangePw,
     eligeLiga: true,
-    ligas: encontradoEn.map(d => ({ id: d.ligaId, nombre: d.nombre }))
+    ligas: postLoginLeagueChoices(encontradoEn, idx)
   });
 }
 
@@ -400,7 +400,7 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
     exp,
     mustChangePw,
     eligeLiga: true,
-    ligas: disponibles.map(d => ({ id: d.ligaId, nombre: d.nombre }))
+    ligas: postLoginLeagueChoices(disponibles, idx)
   });
 }
 
