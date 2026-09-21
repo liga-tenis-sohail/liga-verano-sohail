@@ -120,26 +120,38 @@ function descargarPlantillaImport(){
 
 // 2. Importar jugadores desde Excel
 function importarJugadoresExcel(input){
+  if(!currentUser||currentUser.role!=='superadmin')return;
+  if(!window.SohailDuplicates){toast(LANG==='en'?'Reload before importing.':'Recargá antes de importar.');return;}
   const file=input.files[0];
   if(!file)return;
   if(typeof XLSX==='undefined'){toast('Error: librería Excel no cargada.');return;}
+  if(!SohailDuplicates.canReadFile(file)){toast(SohailDuplicates.label('tooMany'));input.value='';return;}
   const reader=new FileReader();
-  reader.onload=function(e){
+  reader.onload=async function(e){
     try{
       const data=new Uint8Array(e.target.result);
       const wb=XLSX.read(data,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
       const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
       if(!rows.length){toast('El archivo está vacío o no tiene el formato correcto.');return;}
+      if(rows.length>SohailDuplicates.LIMITS.rows){toast(SohailDuplicates.label('tooMany'));return;}
+      const duplicateReview=await SohailDuplicates.reviewRows(rows.map((r,i)=>({
+        name:(String(r['Nombre']||r['nombre']||'').trim()+' '+String(r['Apellido']||r['apellido']||'').trim()).trim(),
+        group:r['Grupo']||r['grupo']||'',row:i+2
+      })));
+      if(!duplicateReview)return;
+      if(!duplicateReview.isCurrent()){toast(SohailDuplicates.label('changed'));return;}
+      const allowedRows=new Set(duplicateReview.keepIndexes);
       const c=getActive();if(!c){toast('No hay un ciclo activo.');return;}
       let imported=0,dupes=[],errors=[];
-      const maxGrp=Math.max(...rows.map(r=>parseInt(r['Grupo']||r['grupo']||1)||1));
+      const maxGrp=Math.max(...rows.filter((_,i)=>allowedRows.has(i)).map(r=>parseInt(r['Grupo']||r['grupo']||1)||1));
       while(c.groups.length<maxGrp){
         const gi=c.groups.length;
         c.groups.push({players:[]});
         ensureDestino(gi+1,5);
       }
       rows.forEach((row,idx)=>{
+        if(!allowedRows.has(idx))return;
         const nom=(String(row['Nombre']||row['nombre']||'')).trim();
         const ape=(String(row['Apellido']||row['apellido']||'')).trim();
         const email=(String(row['Email']||row['email']||'')).trim();

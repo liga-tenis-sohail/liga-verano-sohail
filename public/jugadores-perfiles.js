@@ -613,6 +613,7 @@ function renderPerfil(){
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarListaJugadores(this)">
         </label>
         <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
+        <button class="btn btn-sm" type="button" onclick="SohailDuplicates.show()"><i class="ti ti-user-search" aria-hidden="true"></i> ${SohailDuplicates.label('button')}</button>
       </div>
     </div>`;
     h += `<div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end">`;
@@ -623,10 +624,11 @@ function renderPerfil(){
     h += `</div></div>`;
 
     h += `<div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.5rem">
         <div class="section-lbl" style="margin:0">${t('player_mgmt')}</div>
         <div class="gap-sm">
           <button class="btn btn-sm" onclick="renderPerfil()"><i class="ti ti-refresh"></i> ${t('refresh_list')}</button>
+          <button class="btn btn-sm" type="button" onclick="SohailDuplicates.show()"><i class="ti ti-user-search" aria-hidden="true"></i> ${SohailDuplicates.label('button')}</button>
         </div>
       </div>
       <p class="legend-txt" style="margin-top:0">${t('player_mgmt_hint')}</p>
@@ -1368,9 +1370,12 @@ function exportarListaJugadores(){
 // no golpear /api/save por cada jugador — importar 30 filas hace 1 sola
 // request al server, no 30.
 async function importarListaJugadores(inputEl){
+  if(!esAdmin(currentUser))return;
+  if(!window.SohailDuplicates){toast(LANG==='en'?'Reload before importing.':'Recargá antes de importar.');return;}
   if(!inputEl || !inputEl.files || !inputEl.files[0]) return;
   if(typeof XLSX === 'undefined'){ toast('No se pudo cargar el módulo de Excel. Recargá la página.'); return; }
   const file = inputEl.files[0];
+  if(!SohailDuplicates.canReadFile(file)){toast(SohailDuplicates.label('tooMany'));inputEl.value='';return;}
   try{
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
@@ -1397,13 +1402,23 @@ async function importarListaJugadores(inputEl){
     // Confirmar antes de aplicar (import puede pisar/duplicar): mostrar
     // cuántas filas se leyeron y darle una salida al admin si abrió el
     // archivo equivocado. En Sohail (~60 jugadores) esto tarda un segundo.
-    const totalFilas = filas.length;
+    // Suggestions are read-only. Nothing in USERS, groups or credentials changes
+    // until the administrator has reviewed the rows and confirmed the import.
+    if(filas.length>SohailDuplicates.LIMITS.rows){toast(SohailDuplicates.label('tooMany'));inputEl.value='';return;}
+    const duplicateReview=await SohailDuplicates.reviewRows(filas.map((f,i)=>({
+      name:(String(f[claveNom]||'').trim()+' '+String(f[claveApe]||'').trim()).trim(),
+      group:claveGrp?f[claveGrp]:'',row:i+2
+    })));
+    if(!duplicateReview){inputEl.value='';return;}
+    const allowedRows=new Set(duplicateReview.keepIndexes);
+    const totalFilas = allowedRows.size;
     if(typeof confirmarModal === 'function'){
       const ok = await confirmarModal('Se van a procesar '+totalFilas+' filas del archivo. Los jugadores que ya estén en un grupo del ciclo activo se omiten (no se duplican). ¿Continuar?', { titulo: 'Importar jugadores', okTxt: 'Importar' });
       if(!ok){ inputEl.value=''; return; }
     } else if(!confirm('Se van a procesar '+totalFilas+' filas. Los jugadores que ya estén en un grupo del ciclo activo se omiten. ¿Continuar?')){
       inputEl.value=''; return;
     }
+    if(!duplicateReview.isCurrent()){toast(SohailDuplicates.label('changed'));inputEl.value='';return;}
     // Total de grupos válidos en el ciclo activo — se usa para validar el
     // número que trae la columna Grupo. Fuera de rango se trata como "sin
     // grupo" (mismo destino que dejar la celda vacía).
@@ -1411,6 +1426,7 @@ async function importarListaJugadores(inputEl){
     let sumConGrupo = 0, sumSinGrupo = 0, sumSaltados = 0, sumInvalidos = 0;
     const detalleErrores = [];
     filas.forEach((f, idx)=>{
+      if(!allowedRows.has(idx))return;
       const nom = String(f[claveNom]||'').trim();
       const ape = String(f[claveApe]||'').trim();
       const full = (nom+' '+ape).trim();
@@ -1420,12 +1436,9 @@ async function importarListaJugadores(inputEl){
       // completo (no case-insensitive) — igual criterio que el resto.
       const yaEstaEnGrupo = cycles.some(c=>c.groups && c.groups.some(g=>(g.players||[]).includes(full)));
       if(yaEstaEnGrupo){ sumSaltados++; return; }
-      // Si figura en USERS pero no en ningún grupo, limpiar antes de re-agregarlo,
-      // mismo patrón que addPlayerUI (evita quedar con USERS antiguos "colgados"
-      // que puedan traer un password default no deseado).
-      if(USERS[full]) delete USERS[full];
-      const idxA = (ALLNAMES||[]).indexOf(full);
-      if(idxA>=0) ALLNAMES.splice(idxA,1);
+      // Preserve existing ungrouped profiles: a name-review choice must NEVER
+      // drop jugadorId, credentials, contacts or roles. addPlayerToCycle only
+      // creates USERS[full] when it is absent; no cross-league linking here.
       // Grupo: puede venir como número, como string numérico, o vacío.
       // Cualquier cosa que no sea un entero entre 1..nGrupos cae a "sin grupo".
       const raw = f[claveGrp];
