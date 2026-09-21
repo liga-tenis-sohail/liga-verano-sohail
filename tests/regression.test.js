@@ -271,3 +271,86 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
   const r=await loginPasskey(db,'Alicia',false);assert.equal(r.status,401);assert.equal(r.body.ligas,undefined);
  }));
 }
+
+// v3.9.7 — duplicate suggestions are advisory, never identity authority.
+{
+ const dup=require('../public/player-duplicates.js');
+ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+ const cases=[
+  ['Javier López','Javier Lopez','accents'],['MARcos Gavassa','marcos gavassa','format'],
+  [' Juan   Pérez ','juan pérez','format'],['Juan Pe\u0301rez','Juan Pérez','format'],
+  ['Marcos Gavassa','Marcos Gavasa','typo'],['Marcos Gavassa','Marcos Gavaassa','typo'],
+  ['Francisco Sanchez','Franicsco Sanchez','typo'],['Javier Lopez','Javeir Lopez','typo'],
+  ['Luis Gil-Delgado','Luis Gil Delgado','punctuation'],["Alex O’Connor","Alex O'Connor",'punctuation'],
+  ['José Muñoz','Jose Munoz','enye'],['Juan Pérez','Pérez Juan','order'],
+  ['José Luis Martín','José Martín','partial'],['Juan Pérez','Juan Pérez','exact']
+ ];
+ for(const[a,b,reason]of cases)test('DUP names: '+a+' / '+b,()=>{assert.equal(dup.compareNames(a,b)?.reason,reason);assert.equal(dup.compareNames(b,a)?.reason,reason);});
+ for(const[a,b]of [['Juan García','Pedro García'],['Juan','Juana'],['Ana López','Juan López'],['Juan Pérez','Javier López'],['A','Áb']]){
+  test('DUP conservatively avoids weak-only match: '+a+' / '+b,()=>assert.equal(dup.compareNames(a,b),null));
+ }
+ // Carlos Marin/Martin is a one-letter surname difference: it remains a suggestion,
+ // never an automatic identity match.
+ test('DUP never changes original spelling or input objects',()=>{
+  const rows=[Object.freeze({name:' JAVIER  LOPEZ ',group:3})],known=[Object.freeze({name:'Javier López',globalId:'g1'})];
+  const before=JSON.stringify([rows,known]);const r=dup.reviewData(Object.freeze(rows),Object.freeze(known));assert.equal(r.flagged,1);assert.equal(JSON.stringify([rows,known]),before);assert.equal(r.rows[0].record.name,' JAVIER  LOPEZ ');
+ });
+ test('DUP same linked identity is not a duplicate profile',()=>assert.equal(dup.scanData([{name:'José López',globalId:'a'},{name:'JOSE LOPEZ',globalId:'a'}]).pairs.length,0));
+ test('DUP homonyms with different IDs remain a review, not a fusion',()=>{const r=dup.scanData([{name:'Juan Pérez',globalId:'a'},{name:'Juan Pérez',globalId:'b'}]);assert.equal(r.pairs.length,1);assert.equal(r.pairs[0].reason,'exact');assert.ok(!('probability'in r.pairs[0]));});
+ test('DUP detects repetitions within the workbook with original row/group',()=>{const r=dup.reviewData([{name:'Juan Pérez',group:2,row:4},{name:'JUAN PEREZ',group:3,row:9}],[]);assert.equal(r.flagged,1);assert.equal(r.rows[1].matches[0].record.row,4);assert.equal(r.rows[1].matches[0].record.group,2);});
+ test('DUP shows multiple candidates without choosing an identity',()=>{const r=dup.reviewData([{name:'Juan Perez'}],[{name:'Juan Pérez',globalId:'a'},{name:'JUAN PEREZ',globalId:'b'}]);assert.equal(r.rows[0].matches.length,2);assert.equal(dup.chooseKept(r,{}),null);assert.deepEqual(dup.chooseKept(r,{0:'keep'}),[0]);assert.deepEqual(dup.chooseKept(r,{0:'skip'}),[]);});
+ test('DUP invalid names and system accounts cannot proceed',()=>{const r=dup.reviewData(['', '<img src=x>', '__proto__','superadmin','Juan\u202e Pérez','A'.repeat(121)].map(name=>({name})),[]);assert.equal(r.invalid,6);assert.deepEqual(dup.chooseKept(r,{}),[]);});
+ test('DUP file and row bounds are enforced',()=>{assert.ok(dup.canReadFile({size:1}));assert.ok(!dup.canReadFile({size:dup.LIMITS.file+1}));assert.throws(()=>dup.reviewData(Array(1001).fill({name:'Juan Pérez'}),[]));});
+ test('DUP a truncated candidate set is labelled partial and cannot be imported',()=>{const known=Array.from({length:10},(_,i)=>({name:'Juan Pérez',globalId:'p'+i}));const r=dup.reviewData([{name:'Juan Perez'}],known);assert.equal(r.limited,true);assert.equal(dup.chooseKept(r,{0:'keep'}),null);});
+ test('DUP engine is not a probabilistic confidence percentage',()=>{const r=dup.compareNames('Marcos Gavassa','Marcos Gavasa');assert.deepEqual(Object.keys(r).sort(),['level','reason']);});
+ test('DUP ES and EN have the same keys and no empty text',()=>{assert.deepEqual(Object.keys(dup.words.es).sort(),Object.keys(dup.words.en).sort());assert.ok(Object.values(dup.words.en).every(Boolean));});
+ test('DUP script is loaded once before its consumers',()=>{const h=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');assert.equal((h.match(/src="player-duplicates\.js\?v=/g)||[]).length,1);assert.ok(h.indexOf('src="player-duplicates.js')<h.indexOf('src="jugadores-perfiles.js'));});
+ function importContext(rows,review,role='admin'){
+  const users={admin:{role:'admin',name:'Organización'},superadmin:{role:'superadmin',name:'Organización'},'Juan Pérez':{name:'Juan Pérez',role:'player',jugadorId:'id-existing',identityRef:'reference',email:'existing@example.invalid',pass:'KEEP',inactive:true}};
+  const api={...dup,reviewRows:async()=>review};let writes=0;
+  const c={console,Set,Map,Date,JSON,Array,String,Number,Promise,LANG:'es',currentUser:{role},USERS:users,ALLNAMES:['Juan Pérez'],cycles:[{n:1,status:'active',groups:[{players:[]}]}],activeN:1,window:{SohailDuplicates:api},SohailDuplicates:api,
+   esAdmin:u=>u&&['admin','superadmin'].includes(u.role),getActive(){return c.cycles[0];},confirmarModal:async()=>true,confirm:()=>true,toast:()=>{},alert:()=>{},t:s=>s,
+   XLSX:{read:()=>({SheetNames:['Jugadores'],Sheets:{Jugadores:{}}}),utils:{sheet_to_json:()=>structuredClone(rows)}},
+   addPlayerToCycle(name,g){if(!c.USERS[name])c.USERS[name]={name,role:'player'};if(!c.ALLNAMES.includes(name))c.ALLNAMES.push(name);c.cycles[0].groups[g-1].players.push(name);},
+   persist:async()=>{writes++;return true;},ensureDestino:()=>{},DEFAULT_PASS_HASH:'DEFAULT',setTimeout,clearTimeout};
+  vm.createContext(c);vm.runInContext(fs.readFileSync(path.join(__dirname,'../public/jugadores-perfiles.js'),'utf8'),c);c.renderPerfil=()=>{};c.initLogin=()=>{};
+  const input={files:[{size:5,arrayBuffer:async()=>new ArrayBuffer(0)}],value:'fake'};
+  return {c,input,writes:()=>writes};
+ }
+ test('DUP list import cancelled before mutation or save',async()=>{const {c,input,writes}=importContext([{Nombre:'Juan',Apellido:'Pérez',Grupo:1}],null);const before=JSON.stringify([c.USERS,c.cycles]);await c.importarListaJugadores(input);assert.equal(writes(),0);assert.equal(JSON.stringify([c.USERS,c.cycles]),before);});
+ test('DUP stale import review cannot write to a changed league',async()=>{const {c,input,writes}=importContext([{Nombre:'Juan',Apellido:'Pérez',Grupo:1}],{keepIndexes:[0],isCurrent:()=>false});await c.importarListaJugadores(input);assert.equal(writes(),0);assert.equal(c.cycles[0].groups[0].players.length,0);});
+ test('DUP keeping an existing ungrouped name preserves identity, contacts and credentials',async()=>{const {c,input,writes}=importContext([{Nombre:'Juan',Apellido:'Pérez',Grupo:1}],{keepIndexes:[0],isCurrent:()=>true});const before=JSON.stringify(c.USERS['Juan Pérez']);await c.importarListaJugadores(input);assert.equal(writes(),1);assert.equal(JSON.stringify(c.USERS['Juan Pérez']),before);assert.deepEqual(c.cycles[0].groups[0].players,['Juan Pérez']);});
+ test('DUP skipped rows never get imported',async()=>{const {c,input,writes}=importContext([{Nombre:'Juan',Apellido:'Pérez',Grupo:1},{Nombre:'Carla',Apellido:'Soto',Grupo:1}],{keepIndexes:[1],isCurrent:()=>true});await c.importarListaJugadores(input);assert.equal(writes(),1);assert.deepEqual(c.cycles[0].groups[0].players,['Carla Soto']);assert.ok(!c.USERS['Carla Soto'].jugadorId);});
+ test('DUP player cannot invoke list import',async()=>{const {c,input,writes}=importContext([{Nombre:'Juan',Apellido:'Pérez'}],{keepIndexes:[0],isCurrent:()=>true},'player');await c.importarListaJugadores(input);assert.equal(writes(),0);});
+ test('DUP legacy superadmin importer waits for review before extending groups',async()=>{
+  const {c,input,writes}=importContext([{Nombre:'Carla',Apellido:'Soto',Grupo:4}],null,'superadmin');let pending;
+  c.FileReader=class{readAsArrayBuffer(){pending=this.onload({target:{result:new ArrayBuffer(0)}});}};
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../public/admin-ligas-clubes.js'),'utf8'),c);c.renderShell=()=>{};c.showSub=()=>{};
+  c.importarJugadoresExcel(input);await pending;assert.equal(writes(),0);assert.equal(c.cycles[0].groups.length,1);
+ });
+}
+
+{
+ const {createDB,fixture:dupFixture,req:dupReq,call:dupCall}=require('./support/mock-db.cjs');
+ const handler=require('../api/liga');
+ async function withDupDB(fn){const original=global.fetch;const db=createDB();global.fetch=db.fetch;try{return await fn(db);}finally{global.fetch=original;}}
+ for(const user of ['admin','superadmin'])test('DUP catalogue: authorised '+user+' reads names/IDs only, no writes',()=>withDupDB(async db=>{
+  const before=JSON.stringify(db.tables);const r=await dupCall(handler,dupReq(db,user,{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));
+  assert.equal(r.status,200);assert.equal(r.body.complete,true);assert.ok(r.body.jugadores.length>0);
+  assert.ok(r.body.jugadores.every(j=>Object.keys(j).sort().join(',')==='jugadorId,nombre'));
+  assert.equal(JSON.stringify(db.tables),before);
+  assert.ok(db.requests.filter(x=>x.name==='jugadores').every(x=>x.method==='GET'&&x.query.includes('select=id,nombre')));
+ }));
+ test('DUP catalogue: player is forbidden',()=>withDupDB(async db=>{const r=await dupCall(handler,dupReq(db,'Alicia',{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));assert.equal(r.status,403);assert.ok(!db.requests.some(x=>x.name==='jugadores'));}));
+ test('DUP catalogue: unauthenticated request is forbidden',()=>withDupDB(async db=>{const r=await dupCall(handler,{method:'POST',headers:{},body:{accion:'duplicadosCatalogo',ligaId:'liga-actual'}});assert.equal(r.status,401);}));
+ test('DUP catalogue: no access to another league via a shared system username',()=>withDupDB(async db=>{const s=dupFixture();s.users.admin._credentialId='another-admin';db.tables.liga_state.push({id:'private-league',data:s});const r=await dupCall(handler,dupReq(db,'admin',{accion:'duplicadosCatalogo',ligaId:'private-league'}));assert.equal(r.status,403);}));
+ test('DUP catalogue: database failure is not empty success',()=>withDupDB(async db=>{db.fault=({name})=>name==='jugadores';const r=await dupCall(handler,dupReq(db,'admin',{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));assert.equal(r.status,503);assert.equal(r.body.code,'CATALOG_UNAVAILABLE');assert.equal(r.body.jugadores,undefined);}));
+ test('DUP catalogue: reads all pages even when server page size is below request',()=>withDupDB(async db=>{
+  db.tables.jugadores=Array.from({length:613},(_,i)=>({id:'p'+String(i).padStart(4,'0'),nombre:'Jugador '+i,email:'private',pass:'secret'}));
+  const base=db.fetch;global.fetch=(input,opts)=>{const u=new URL(input);if(u.pathname.endsWith('/jugadores'))u.searchParams.set('limit','100');return base(u.toString(),opts);};
+  const r=await dupCall(handler,dupReq(db,'admin',{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));assert.equal(r.status,200);assert.equal(r.body.complete,true);assert.equal(r.body.jugadores.length,613);
+ }));
+ test('DUP catalogue: cap is explicit, never claims full coverage',()=>withDupDB(async db=>{
+  db.tables.jugadores=Array.from({length:2501},(_,i)=>({id:'p'+String(i).padStart(4,'0'),nombre:'Jugador '+i}));const r=await dupCall(handler,dupReq(db,'admin',{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));assert.equal(r.status,200);assert.equal(r.body.complete,false);assert.equal(r.body.jugadores.length,2500);
+ }));
+}
