@@ -494,6 +494,28 @@ module.exports = async function handler(req, res){
   const esAdmin = sesionEsAdmin(session, sesionState && sesionState.users);
   if(!esAdmin) return res.status(403).json({ error: 'Solo un administrador puede gestionar ligas.' });
 
+  // Duplicate suggestions need only names and immutable profile IDs. Unlike the
+  // legacy catalogue reader, page until empty and never treat an error as []:
+  // an unavailable directory must not be reported as "no duplicates".
+  if(accion === 'duplicadosCatalogo'){
+    if(!ligaIdOK(body.ligaId))return res.status(400).json({error:'Indicá la liga autorizada.',code:'INVALID_LEAGUE'});
+    const {SUPA_URL,supaHeaders}=require('./_lib');
+    const cap=2500,rows=[];let offset=0,complete=false;
+    try{
+      while(offset<=cap){
+        const limit=Math.min(250,cap+1-offset);
+        const r=await fetch(SUPA_URL+'/rest/v1/jugadores?select=id,nombre&order=id.asc&limit='+limit+'&offset='+offset,{headers:supaHeaders()});
+        if(!r.ok)throw new Error('CATALOG_UNAVAILABLE');
+        const page=await r.json();
+        if(!Array.isArray(page)||page.some(j=>!j||typeof j.id!=='string'||typeof j.nombre!=='string'))throw new Error('INVALID_CATALOG');
+        if(!page.length){complete=true;break;}
+        rows.push(...page);offset+=page.length;
+      }
+    }catch(_){return res.status(503).json({error:'No se pudo comprobar el catálogo. No se modificó ningún jugador.',code:'CATALOG_UNAVAILABLE'});}
+    res.setHeader('Cache-Control','no-store');
+    return res.status(200).json({jugadores:rows.slice(0,cap).map(j=>({jugadorId:j.id,nombre:j.nombre})),complete});
+  }
+
   if(accion === 'catalogo'){
     let cat = {};
     try { cat = await readCatalogo(); } catch(e){ cat = {}; }
