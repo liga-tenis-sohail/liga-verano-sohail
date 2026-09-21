@@ -440,15 +440,22 @@ async function verJugadorEnLiga(name,ligaId,btn){
     if(!current())return;
     if(r.ok){const d=await r.json();state=d.estado;}
     else if(_token){
-      const r2=await fetch('/api/state?liga='+encodeURIComponent(ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
+      const r2=await fetch('/api/state?liga='+encodeURIComponent(ligaId)+'&historial=1',{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
       if(!current())return;
       if(r2.ok){const d2=await r2.json();state=d2.state;if(d2.ligaNombre)label=d2.ligaNombre;}
     }
     if(!current())return;
     if(!state){box.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>';return;}
+    // A season button must retain the selected person's global identity. An
+    // equal display name in another league is never proof of that identity.
+    const profileId=USERS[name]?.jugadorId;
+    if(!profileId){box.innerHTML='<div class="pm-past-empty">'+t('mha_unlinked')+'</div>';return;}
+    const aliases=Object.entries(state.users||{}).filter(([,u])=>u?.jugadorId===profileId).map(([n])=>n);
+    if(!aliases.length){box.innerHTML='<div class="pm-past-empty">'+t('past_player_nomatch')+'</div>';return;}
+    const seasonName=aliases.includes(name)?name:aliases[0];
     if(window.SohailHistory&&typeof SohailHistory.mountPlayer==='function'){
-      SohailHistory.mountPlayer(box,{name,leagueName:label,otherLeague:true,cycles:state.cycles,records:state.matches,groupLabel:g=>t('group')+' '+g});
-    }else box.innerHTML=resultadosJugadorEnEstado(name,state);
+      SohailHistory.mountPlayer(box,{name:seasonName,leagueId:ligaId,leagueName:label,users:state.users,otherLeague:true,cycles:state.cycles,records:state.matches,groupLabel:g=>t('group')+' '+g});
+    }else box.innerHTML=resultadosJugadorEnEstado(seasonName,state);
   }catch(_){if(current())box.innerHTML='<div class="pm-past-empty" role="status">'+t('past_loading_err')+'</div>';}
 }
 

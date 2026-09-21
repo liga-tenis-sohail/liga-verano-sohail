@@ -85,7 +85,7 @@
   viewCyc(n);
  }
  function remembered(n){return memory.get(_ligaActual+':'+currentUser?.name+':'+n);}
- function setGroup(n){const c=currentCycle();if(!c?.groups?.[n-1])return;selGroup=n;if(!(typeof isTutorialRunning==='function'&&isTutorialRunning()))memory.set(_ligaActual+':'+currentUser?.name+':'+viewCycle,n);renderGrupos();groupControls();if(LAYOUT!=='selector')document.getElementById('ui-group-'+n)?.scrollIntoView({block:'start',behavior:'auto'});}
+ function setGroup(n){const c=currentCycle();if(!c?.groups?.[n-1])return;selGroup=n;if(!(typeof isTutorialRunning==='function'&&isTutorialRunning()))memory.set(_ligaActual+':'+currentUser?.name+':'+viewCycle,n);renderGrupos();groupControls();centerGroupStrip(document.querySelector('#ui-group-controls .ui-group-buttons'));if(LAYOUT!=='selector')document.getElementById('ui-group-'+n)?.scrollIntoView({block:'start',behavior:'auto'});}
  function myGroup(){const loc=findLoc(currentUser?.name,viewCycle);if(loc)setGroup(loc.g);else toast(t('ui_no_group'));}
  function navButton(id,label,ic,active,extra=''){return '<button type="button" class="ui-nav-item '+(active?'is-active':'')+'" data-ui-route="'+id+'" '+(active?'aria-current="page"':'')+'>'+icon(ic)+'<span>'+e(label)+'</span>'+extra+'</button>';}
  function mount(){
@@ -122,14 +122,49 @@
   const tabs=document.getElementById('tabs');tabs.style.display=defs.length?'flex':'none';
   tabs.innerHTML=defs.map(([id,key])=>{const selected=subView===id||(id==='liga-resultados'&&inLeagueResults());return '<button type="button" id="tab-'+id+'" class="tab '+(selected?'active':'')+'" data-ui-route="'+id+'" '+(selected?'aria-current="page"':'')+'>'+e(t(key))+(id==='pendientes'?' <span class="tab-n" id="pend-n" style="display:none">0</span>':'')+'</button>';}).join('');
  }
+ // Keep the horizontal rail itself alive across selection/render cycles.
+ // scrollIntoView would also move ancestor/page scroll positions; scroll only this rail.
+ let groupStripObserver=null,observedGroupStrip=null;
+ function centerGroupStrip(rail){
+  if(!rail||!rail.isConnected||rail.clientWidth<=0)return;
+  const selected=rail.querySelector('[aria-current="true"]');if(!selected)return;
+  const r=rail.getBoundingClientRect(),b=selected.getBoundingClientRect();
+  const left=Math.max(0,Math.min(rail.scrollWidth-rail.clientWidth,
+   rail.scrollLeft+(b.left+b.width/2)-(r.left+rail.clientLeft+rail.clientWidth/2)));
+  rail.scrollLeft=left;
+ }
  function groupControls(){
   const host=document.getElementById('ui-group-controls');if(!host)return;
-  const c=currentCycle();if(subView!=='grupos'||viewCycle==='po'||!c?.groups){host.hidden=true;host.replaceChildren();return;}host.hidden=false;
+  const c=currentCycle();if(subView!=='grupos'||viewCycle==='po'||!c?.groups){host.hidden=true;return;}host.hidden=false;
   if(selGroup<1||selGroup>c.groups.length)selGroup=1;
   const my=findLoc(currentUser?.name,viewCycle)?.g;
-  const desktop='<div class="ui-group-buttons">'+c.groups.map((g,i)=>'<button type="button" data-ui-group="'+(i+1)+'" class="ui-group '+(selGroup===i+1?'is-active ':'')+(my===i+1?'is-mine':'')+'" '+(selGroup===i+1?'aria-current="true"':'')+'>'+e(groupName(i+1))+(my===i+1?'<span class="ui-mine-badge">'+e(t('mine_label'))+'</span>':'')+'</button>').join('')+'</div>';
-  const mob='<div class="ui-group-mobile"><button type="button" data-ui-group="'+(selGroup-1)+'" aria-label="'+e(t('ui_previous_group'))+'" '+(selGroup===1?'disabled':'')+'>‹</button><button type="button" data-ui-group-picker aria-haspopup="dialog">'+e(groupName(selGroup))+(my===selGroup?' <span class="ui-mine-badge">'+e(t('mine_label'))+'</span>':'')+' <span class="ui-group-chevron" aria-hidden="true">⌄</span></button><button type="button" data-ui-group="'+(selGroup+1)+'" aria-label="'+e(t('ui_next_group'))+'" '+(selGroup===c.groups.length?'disabled':'')+'>›</button></div>';
-  host.innerHTML=desktop+mob+'<div class="ui-group-shortcuts">'+(my?'<button type="button" data-ui-my-group>'+e(t('ui_my_group'))+'</button>':'')+'<button type="button" data-ui-group-picker aria-haspopup="dialog">'+e(t('ui_all'))+' · '+c.groups.length+'</button></div>';
+  const signature=JSON.stringify([_ligaActual,currentUser?.key||currentUser?.name,viewCycle,LANG,my,c.groups.map((_,i)=>groupName(i+1))]);
+  let rail=host.querySelector('.ui-group-buttons');
+  const rebuild=host.dataset.groupsKey!==signature||!rail;
+  const changed=rebuild||host.dataset.selectedGroup!==String(selGroup);
+  const focused=host.contains(document.activeElement)?document.activeElement:null;
+  const focusGroup=focused?.dataset.uiGroup;
+  if(rebuild){
+   const desktop='<div class="ui-group-buttons">'+c.groups.map((g,i)=>'<button type="button" data-ui-group="'+(i+1)+'" class="ui-group '+(my===i+1?'is-mine':'')+'">'+e(groupName(i+1))+(my===i+1?'<span class="ui-mine-badge">'+e(t('mine_label'))+'</span>':'')+'</button>').join('')+'</div>';
+   const mob='<div class="ui-group-mobile"><button type="button" data-group-prev aria-label="'+e(t('ui_previous_group'))+'">‹</button><button type="button" data-ui-group-picker aria-haspopup="dialog"></button><button type="button" data-group-next aria-label="'+e(t('ui_next_group'))+'">›</button></div>';
+   host.innerHTML=desktop+mob+'<div class="ui-group-shortcuts">'+(my?'<button type="button" data-ui-my-group>'+e(t('ui_my_group'))+'</button>':'')+'<button type="button" data-ui-group-picker aria-haspopup="dialog">'+e(t('ui_all'))+' · '+c.groups.length+'</button></div>';
+   host.dataset.groupsKey=signature;rail=host.querySelector('.ui-group-buttons');
+  }
+  host.dataset.selectedGroup=String(selGroup);
+  rail.querySelectorAll('[data-ui-group]').forEach(b=>{
+   const active=Number(b.dataset.uiGroup)===selGroup;b.classList.toggle('is-active',active);
+   if(active)b.setAttribute('aria-current','true');else b.removeAttribute('aria-current');
+  });
+  const prev=host.querySelector('[data-group-prev]'),next=host.querySelector('[data-group-next]');
+  prev.dataset.uiGroup=String(selGroup-1);prev.disabled=selGroup===1;
+  next.dataset.uiGroup=String(selGroup+1);next.disabled=selGroup===c.groups.length;
+  host.querySelector('.ui-group-mobile [data-ui-group-picker]').innerHTML=e(groupName(selGroup))+(my===selGroup?' <span class="ui-mine-badge">'+e(t('mine_label'))+'</span>':'')+' <span class="ui-group-chevron" aria-hidden="true">⌄</span>';
+  if(rebuild&&focusGroup)rail.querySelector('[data-ui-group="'+Number(focusGroup)+'"]')?.focus({preventScroll:true});
+  if(changed)centerGroupStrip(rail);
+  if(rail!==observedGroupStrip&&typeof ResizeObserver==='function'){
+   groupStripObserver?.disconnect();observedGroupStrip=rail;
+   groupStripObserver=new ResizeObserver(()=>centerGroupStrip(rail));groupStripObserver.observe(rail);
+  }
  }
  function groupPicker(){
   const c=currentCycle();if(!c?.groups)return;

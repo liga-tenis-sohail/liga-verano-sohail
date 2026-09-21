@@ -57,50 +57,14 @@ function bloqueStatsHTML(titulo, st, cargando){
     +'</div></div>';
 }
 // Suma las stats de la liga actual + todas las pasadas para un jugador (async).
-async function cargarStatsTotales(name, actualSt){
-  const cont=document.getElementById('stat-total');
-  if(!cont)return;
-  let tot={pj:actualSt.pj, pg:actualSt.pg, pp:actualSt.pp};
-  try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-    const d=await r.json().catch(()=>({}));
-    // Antes, si _ligaActual no estaba seteado (null), el filtro caía a
-    // comparar contra el string fijo 'liga-actual' — si la liga real del
-    // jugador tenía otro id, NO se excluía de "las otras ligas" y sus
-    // partidos se sumaban dos veces (una como base 'actualSt', otra de
-    // nuevo dentro de este loop). Ahora, sin _ligaActual confiable, se
-    // prefiere no descartar ninguna liga del listado en vez de descartar
-    // la incorrecta — el bug de fondo (_ligaActual sin asignar tras login
-    // directo) ya se corrigió en doLogin()/entrarConToken(), esto es un
-    // blindaje extra para que un futuro caso similar no vuelva a duplicar.
-    const otras=(d.ligas||[]).filter(l=>_ligaActual ? l.id!==_ligaActual : true);
-    for(const l of otras){
-      try{
-        let est=null;
-        const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-        if(rv.ok){ const dv=await rv.json().catch(()=>({})); est=dv.estado; }
-        else if(_token){
-          const r2=await fetch('/api/state?liga='+encodeURIComponent(l.id),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-          if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
-        }
-        if(est){
-          const st=statsJugadorEnEstado(name, est);
-          tot.pj+=st.pj; tot.pg+=st.pg; tot.pp+=st.pp;
-        }
-      }catch(_){}
-    }
-  }catch(_){}
-  cont.innerHTML=bloqueStatsHTML(t('st_total'), tot, false);
+function cargarStatsTotales(name){
+  const cont=document.getElementById('stat-total');if(!cont)return;
+  if(window.SohailHistory?.mountSummary)SohailHistory.mountSummary(cont,name);
 }
-// Arma los dos bloques (actual + total) y dispara la carga async del total.
 function statsPerfilHTML(name){
-  const actual=statsJugadorEnEstado(name, {matches:matches});
-  setTimeout(()=>cargarStatsTotales(name, actual), 30);   // el total se completa solo
-  return '<div class="card"><div class="section-lbl"><i class="ti ti-chart-bar"></i> '+t('st_title')+'</div>'
-    +'<div class="stat-blocks">'
-    + bloqueStatsHTML(t('st_current'), actual, false)
-    + '<div id="stat-total">'+bloqueStatsHTML(t('st_total'), actual, true)+'</div>'
-    +'</div></div>';
+  setTimeout(()=>cargarStatsTotales(name),0);
+  return '<div class="card"><div class="section-lbl"><i class="ti ti-chart-bar"></i> '+t('st_title')+'</div>'+
+   '<div id="stat-total"><p class="mh-note" role="status">'+t('past_loading')+'</p></div></div>';
 }
 
 // ==================== CATÁLOGO DE JUGADORES (superadmin) ====================

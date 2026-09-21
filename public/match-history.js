@@ -110,9 +110,9 @@
  mh_history:'History',mh_stats:'Statistics',mh_scope:'Selected league · All cycles and playoffs',mh_league_note:'This history belongs to the selected league. Use the league selector to view another league.',mh_all:'All cycles and playoffs',mh_filter:'Competition',mh_player:'Player',mh_everyone:'All players',mh_search:'Find opponent, club or score',mh_found:'{n} recorded results',mh_empty:'No results have been recorded in this league yet.',mh_no_filter:'No matches for these filters.',mh_newest:'Newest first, ordered by match date.',mh_unknown_date:'No match date recorded',mh_load_more:'Show more matches',mh_showing:'Showing {shown} of {total}',mh_vs:'vs',mh_played:'Validated matches played',mh_won:'Won',mh_lost:'Lost',mh_pct:'Win rate',mh_win:'Won',mh_loss:'Lost',mh_review:'Result needs review',mh_wo:'W.O. · not played',mh_ret:'RET · retirement',mh_np:'Not played',mh_by_wo_win:'Won by W.O.',mh_by_wo_loss:'Lost by W.O.',mh_stats_note:'Playing statistics use validated results only. W.O. and Not played are shown separately; pending and disputed results do not count as wins or losses. A 1–0 / 0–1 match tiebreak does not add games or regular sets.',mh_stat_empty:'No played, validated matches for this filter yet.',mh_sets:'Sets and games',mh_sf:'Sets won',mh_sa:'Sets lost',mh_balance:'Set balance',mh_gf:'Games won',mh_ga:'Games lost',mh_tbw:'Match tiebreaks won',mh_tbl:'Match tiebreaks lost',mh_summary:'Breakdown by stage',mh_groups:'Group stage',mh_main:'Main draw',mh_cons:'Consolation',mh_registers:'Record status',mh_fullsets:'Regular sets',mh_games:'Games played',mh_tbs:'Match tiebreaks',mh_form:'Last 5 validated matches',mh_missing:'Records with incomplete scores: {n}. They remain in the history without an invented winner.',mh_reset:'Clear filters',mh_all_stats:'Choose a player for personal wins, losses and balances.',mh_validation:'Validation',mh_none:'No matches',mh_method:'How these are calculated',mh_short_note:'Played and validated matches only. W.O. and Not played are separate.',mh_search_active:'Search active'
  }};
  Object.keys(dictionaries).forEach(lang=>Object.assign(TRANSLATIONS[lang],dictionaries[lang]));
- let state={key:'',tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'current',rival:'',beforeH2H:'history'};
- const skey=()=>_saveSessionKey()+'|'+_ligaActual;
- function ensure(){if(state.key!==skey()){pageArchive?.cancel();pageArchive=null;pageArchiveKey='';state={key:skey(),tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'current',rival:'',beforeH2H:'history'};}return state;}
+ let state={key:'',tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'all',rival:'',beforeH2H:'history'};
+ const skey=()=>_saveSessionKey()+'|'+_ligaActual+'|'+(currentUser?.key||currentUser?.name||'guest')+'|'+_ligaReadOnly;
+ function ensure(){if(state.key!==skey()){pageArchive?.cancel();pageArchive=null;pageArchiveKey='';state={key:skey(),tab:'history',scope:'all',player:'',query:'',limit:30,filtersOpen:false,leagueScope:'all',rival:'',beforeH2H:'history'};}return state;}
  function selectedPlayer(){return esAdmin(currentUser)?state.player:currentUser?.name||'';}
  const option=(value,label,selected)=>'<option value="'+e(value)+'"'+(String(value)===String(selected)?' selected':'')+'>'+e(label)+'</option>';
  function formatDate(value){const key=D.dateKey(value);if(!key)return t('mh_unknown_date');return new Intl.DateTimeFormat(LANG==='en'?'en-GB':'es-ES',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(new Date(key+'T12:00:00Z'));}
@@ -198,9 +198,21 @@
   hh_local:'Local link',hh_identity:'Opponents without a global profile are kept separate by league; matching names are not merged.',
   hh_stale:'The selected opponent is no longer available in this context. Choose another opponent.'
  });
+ Object.assign(TRANSLATIONS.es,{
+  mha_choose_league:'Elegir una liga',mha_specific:'Una liga en particular',mha_active:'Activa',mha_finished:'Finalizada',
+  mha_issue_login:'Iniciá sesión para consultar las ligas activas',mha_unavailable:'No se pudo consultar esta liga. No se muestra un total de cero como si no hubiera partidos.',
+  mha_includes:'Carga automática de las ligas activas y finalizadas. Los filtros no cambian la liga ni la cuenta de tu sesión.',
+  mha_public_includes:'Consulta pública: incluye las ligas finalizadas. Para las activas necesitás iniciar sesión.'
+ });
+ Object.assign(TRANSLATIONS.en,{
+  mha_choose_league:'Choose a league',mha_specific:'One specific league',mha_active:'Active',mha_finished:'Finished',
+  mha_issue_login:'Sign in to view active leagues',mha_unavailable:'This league could not be read. A zero total is not shown as though there were no matches.',
+  mha_includes:'Automatically loads active and finished leagues. Filtering does not change your session league or account.',
+  mha_public_includes:'Public view: includes finished leagues. Sign in to view active leagues.'
+ });
  const historyTabs=['history','stats','h2h'];
  function moveTab(current,key){const i=historyTabs.indexOf(current);return key==='Home'?historyTabs[0]:key==='End'?historyTabs.at(-1):historyTabs[(Math.max(0,i)+(key==='ArrowRight'?1:historyTabs.length-1))%historyTabs.length];}
- function h2hContext(options={}){return options.otherLeague?{id:options.leagueId||'other:'+options.leagueName,nombre:options.leagueName,users:{}}:currentSnapshot();}
+ function h2hContext(options={}){return options.otherLeague?{id:options.leagueId,nombre:options.leagueName,users:options.users||{},cycles:options.cycles||[],matches:typeof options.records==='function'?options.records():options.records||[],estado:options.leagueState||''}:currentSnapshot();}
  function opponents(source,name,context){
   const mine=D.person(name,context),map=new Map();
   for(const m of D.records(source,name)){
@@ -236,30 +248,44 @@
  }
 
  let pageArchive=null,pageArchiveKey='';
- function currentSnapshot(){return {id:_ligaActual,nombre:document.getElementById('hdr-title')?.textContent?.trim()||LEAGUE_NAME,users:USERS,matches};}
- function canAggregate(name){return !!name&&!!_token&&!_ligaReadOnly&&!!currentUser&&!!global.SohailLeagueHistory;}
- function archiveController(name,valid){return SohailLeagueHistory.createController({name,current:currentSnapshot,token:()=>_token,valid,fetcher:(...args)=>fetch(...args)});}
+ function currentSnapshot(){return {id:_ligaActual,nombre:document.getElementById('hdr-title')?.textContent?.trim()||LEAGUE_NAME,estado:_ligaReadOnly?'finalizada':'activa',users:USERS,matches,cycles};}
+ function canAggregate(name,context=currentSnapshot()){return !!name&&!!global.SohailLeagueHistory&&SohailLeagueHistory.validId(context.id)&&!!(currentUser||_ligaReadOnly);}
+ function archiveController(name,valid,current=currentSnapshot){return SohailLeagueHistory.createController({name,current,token:()=>_token,valid,fetcher:(...args)=>fetch(...args)});}
  function forPage(){
   const name=selectedPlayer(),key=skey()+'|'+name+'|'+(USERS[name]?.jugadorId||'');
-  if(pageArchiveKey!==key){pageArchive?.cancel();pageArchiveKey=key;pageArchive=canAggregate(name)?archiveController(name,()=>!!currentUser&&!!_token&&pageArchiveKey===key&&skey()+'|'+selectedPlayer()+'|'+(USERS[selectedPlayer()]?.jugadorId||'')===key):null;}
+  if(pageArchiveKey!==key){pageArchive?.cancel();pageArchiveKey=key;pageArchive=canAggregate(name)?archiveController(name,()=>!!currentUser&&pageArchiveKey===key&&skey()+'|'+selectedPlayer()+'|'+(USERS[selectedPlayer()]?.jugadorId||'')===key):null;}
   return pageArchive;
  }
- function leagueControl(id,value,enabled=true){
-  return '<fieldset class="mh-league-scope"><legend>'+e(t('mha_range'))+'</legend><div class="mh-league-options">'+[['current','mha_current'],['all','mha_all']].map(([v,k])=>'<button type="button" id="'+id+'-'+v+'" data-history-leagues="'+v+'" aria-pressed="'+(value===v)+'"'+(v==='all'&&!enabled?' disabled':'')+'>'+e(t(k))+'</button>').join('')+'</div><p class="mh-note">'+e(t(enabled?'mha_includes':'mha_player_required'))+'</p></fieldset>';
+ const isRemoteScope=value=>value!=='current';
+ function scopeLabel(value,snapshot,context){
+  if(value==='all')return t('mha_scope_all');
+  if(value==='current')return context.nombre||t('mha_current');
+  const id=value.slice(7);return snapshot?.index?.find(l=>l.id===id)?.nombre||id;
+ }
+ function leagueControl(id,value,enabled=true,snapshot=null,context=currentSnapshot()){
+  const entries=snapshot?.index||[{id:context.id,nombre:context.nombre,estado:context.estado}];
+  const selected=value.startsWith('league:')?value.slice(7):'';
+  return '<fieldset class="mh-league-scope"><legend>'+e(t('mha_range'))+'</legend><div class="mh-league-options">'+[['all','mha_all'],['current','mha_current']].map(([v,k])=>'<button type="button" id="'+id+'-'+v+'" data-history-leagues="'+v+'" aria-pressed="'+(value===v)+'"'+(v==='all'&&!enabled?' disabled':'')+'>'+e(t(k))+'</button>').join('')+'</div><label class="mh-specific-league" for="'+id+'-specific">'+e(t('mha_specific'))+'<select id="'+id+'-specific" data-history-league'+(!enabled?' disabled':'')+'>'+option('',t('mha_choose_league'),selected)+entries.map(l=>option(l.id,l.nombre+(l.estado?' · '+t(l.estado==='finalizada'?'mha_finished':'mha_active'):''),selected)).join('')+'</select></label><p class="mh-note">'+e(t(!enabled?'mha_player_required':_token?'mha_includes':'mha_public_includes'))+'</p></fieldset>';
+ }
+ function chosenSnapshot(snapshot,value,context){return snapshot&&isRemoteScope(value)?SohailLeagueHistory.selectScope(snapshot,value,context.id):null;}
+ function scopeChoices(value,snapshot,context){
+  if(value==='all')return aggregateScopes();
+  const cs=value==='current'?context.cycles:snapshot?.leagues?.find(l=>l.id===value.slice(7))?.cycles;
+  return [['all',t('mh_all')],...(cs||[]).filter(c=>c?.n!=null).map(c=>['cycle:'+c.n,t('cycle')+' '+c.n]),['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
  }
  function archiveStatus(snapshot){
   if(!snapshot)return '';
   if(snapshot.busy)return '<p class="mh-archive-status" role="status">'+e(t('mha_loading'))+'</p>';
   if(snapshot.error||!snapshot.ready)return '<div class="mh-archive-status mh-archive-warning" role="status"><p>'+e(t('mha_error'))+'</p><button type="button" class="btn" data-history-retry>'+e(t('mha_retry'))+'</button></div>';
   const count= snapshot.leagues.filter(l=>l.count>0).length;
-  const lines=snapshot.issues.map(i=>i.reason==='no-global-id'?t('mha_unlinked'):(i.name||i.id||'')+' — '+t(i.reason==='unlinked'?'mha_issue_link':i.reason==='unavailable'?'mha_issue_access':i.reason==='read-error'?'mha_issue_read':'mha_issue_data'));
-  return '<div class="mh-archive-status'+(lines.length?' mh-archive-warning':'')+'" role="status"><p>'+e(tf('mha_coverage',{read:snapshot.leagues.length,total:snapshot.total,played:count}))+'</p>'+(lines.length?'<strong>'+e(t('mha_partial'))+'</strong><ul>'+lines.map(v=>'<li>'+e(v)+'</li>').join('')+'</ul><button type="button" class="btn" data-history-retry>'+e(t('mha_retry'))+'</button>':'<button type="button" class="btn" data-history-retry>'+e(t('mha_retry'))+'</button>')+'</div>';
+  const lines=snapshot.issues.map(i=>i.reason==='no-global-id'?t('mha_unlinked'):(i.name||i.id||'')+' — '+t(i.reason==='unlinked'?'mha_issue_link':i.reason==='login-required'?'mha_issue_login':i.reason==='unavailable'?'mha_issue_access':i.reason==='read-error'?'mha_issue_read':'mha_issue_data'));
+  return '<div class="mh-archive-status'+(lines.length?' mh-archive-warning':'')+'" role="status"><p>'+e(snapshot.unavailable?t('mha_unavailable'):tf('mha_coverage',{read:snapshot.leagues.length,total:snapshot.total,played:count}))+'</p>'+(lines.length?'<strong>'+e(t('mha_partial'))+'</strong><ul>'+lines.map(v=>'<li>'+e(v)+'</li>').join('')+'</ul><button type="button" class="btn" data-history-retry>'+e(t('mha_retry'))+'</button>':'<button type="button" class="btn" data-history-retry>'+e(t('mha_retry'))+'</button>')+'</div>';
  }
  const aggregateScopes=()=>[['all',t('mh_all')],['groups',t('mh_groups')],['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
  function redrawPage(){const focus=document.activeElement?.id,scroll=window.scrollY;render();if(focus)document.getElementById(focus)?.focus({preventScroll:true});window.scrollTo({top:scroll,behavior:'auto'});}
- function loadPageArchive(){const c=forPage();if(!c)return;const job=c.load();redrawPage();job.finally(()=>{if(pageArchive===c&&currentUser&&subView==='partidos'&&state.leagueScope==='all')redrawPage();});}
+ function loadPageArchive(){const c=forPage();if(!c)return;const job=c.load();redrawPage();job.finally(()=>{if(pageArchive===c&&currentUser&&subView==='partidos')redrawPage();});}
  function dataset(){
-  const name=selectedPlayer(),c=forPage(),snap=state.leagueScope==='all'&&c?c.snapshot():null;
+  const name=selectedPlayer(),c=forPage(),snap=chosenSnapshot(c?.snapshot(),state.leagueScope,currentSnapshot());
   const base=D.records(snap?snap.records:matches,name,state.scope);
   const list=!state.query?base:base.filter(m=>(D.players(m).join(' ')+' '+(m._mhLeagueName||'')+' '+(m.club||'')+' '+(m.date||'')+' '+score(m,name).replace(/–/g,'-')).toLocaleLowerCase(LANG).includes(state.query.toLocaleLowerCase(LANG).replace(/–/g,'-')));
   return {name,base,list,snap};
@@ -272,7 +298,7 @@
   document.querySelectorAll('[data-mh-tab]').forEach(b=>{const on=b.dataset.mhTab===state.tab;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
   const search=document.getElementById('mh-search-wrap');if(search)search.hidden=state.tab!=='history';
   const notice=archiveStatus(snap);
-  if(snap&&(snap.busy||snap.error||!snap.ready)){host.innerHTML=notice;return;}
+  if(snap&&(snap.busy||snap.error||!snap.ready||snap.unavailable)){host.innerHTML=notice;return;}
   if(state.tab==='h2h'){host.innerHTML=notice+h2hPanel(base,name,state.rival,currentSnapshot(),'mh-h2h',state.limit);return;}
   if(state.tab==='stats'){host.innerHTML=notice+statHTML(base,name,{readOnly:!!snap});return;}
   const visible=list.slice(0,state.limit);let group='',rows='';
@@ -283,25 +309,27 @@
   if(!currentUser||_ligaReadOnly)return;
   ensure();const host=document.getElementById('view-partidos');if(!host)return;
   const admin=esAdmin(currentUser),cy=(cycles||[]).filter(c=>c?.n!=null);
-  const scopes=state.leagueScope==='all'?aggregateScopes():[['all',t('mh_all')],...cy.map(c=>['cycle:'+c.n,t('cycle')+' '+c.n]),['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
-  const people=[...new Set((matches||[]).flatMap(m=>D.players(m)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,LANG));
+  if(!selectedPlayer())state.leagueScope='current';
+  const fullSnapshot=forPage()?.snapshot(),scopes=scopeChoices(state.leagueScope,fullSnapshot,currentSnapshot());
+  const people=[...new Set([...Object.keys(USERS||{}).filter(n=>!['admin','superadmin'].includes(n)),...(matches||[]).flatMap(m=>D.players(m))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,LANG));
   if(!scopes.some(s=>s[0]===state.scope))state.scope='all';if(admin&&state.player&&!people.includes(state.player))state.player='';
-  host.innerHTML='<header class="ui-page-head mh-page-head"><div><p class="ui-eyebrow">'+e(document.getElementById('hdr-title')?.textContent?.trim()||(typeof LEAGUE_NAME==='string'?LEAGUE_NAME:''))+'</p><h1>'+e(t(admin?'ui_matches':'ui_my_matches'))+'</h1><p>'+e(t(state.leagueScope==='all'?'mha_scope_all':'mh_scope'))+'</p></div><button type="button" class="btn btn-primary" data-ui-route="cargar">'+SohailUI.icon('matches')+e(t('ui_start'))+'</button></header><div class="mh-tabs" role="tablist" aria-label="'+e(t('ui_matches'))+'"><button type="button" id="mh-tab-history" role="tab" data-mh-tab="history" aria-controls="mh-panel">'+SohailUI.icon('matches')+e(t('mh_history'))+'</button><button type="button" id="mh-tab-stats" role="tab" data-mh-tab="stats" aria-controls="mh-panel">'+SohailUI.icon('league')+e(t('mh_stats'))+'</button><button type="button" id="mh-tab-h2h" role="tab" data-mh-tab="h2h" aria-controls="mh-panel">'+e(t('hh_short'))+'</button></div>'+leagueControl('mh-leagues',state.leagueScope,canAggregate(selectedPlayer()))+'<details class="mh-filter-panel"'+(state.filtersOpen?' open':'')+'><summary><span>'+e(t('ui_filters'))+'</span><small id="mh-filter-label"></small></summary><div class="mh-filters"><label for="mh-scope">'+e(t('mh_filter'))+'<select id="mh-scope">'+scopes.map(([v,n])=>option(v,n,state.scope)).join('')+'</select></label>'+(admin?'<label for="mh-player">'+e(t('mh_player'))+'<select id="mh-player">'+option('',t('mh_everyone'),state.player)+people.map(n=>option(n,n,state.player)).join('')+'</select></label>':'')+'<label id="mh-search-wrap" for="mh-search">'+e(t('mh_search'))+'<input type="search" id="mh-search" value="'+e(state.query)+'" autocomplete="off"></label><button type="button" class="ui-link-button" data-mh-clear>'+e(t('mh_reset'))+'</button></div></details><div id="mh-panel" role="tabpanel" tabindex="0"></div><p class="mh-note mh-league-note">'+e(t(state.leagueScope==='all'?'mha_all_note':'mha_current_note'))+'</p>';
+  host.innerHTML='<header class="ui-page-head mh-page-head"><div><p class="ui-eyebrow">'+e(document.getElementById('hdr-title')?.textContent?.trim()||(typeof LEAGUE_NAME==='string'?LEAGUE_NAME:''))+'</p><h1>'+e(t(admin?'ui_matches':'ui_my_matches'))+'</h1><p>'+e(scopeLabel(state.leagueScope,fullSnapshot,currentSnapshot()))+'</p></div><button type="button" class="btn btn-primary" data-ui-route="cargar">'+SohailUI.icon('matches')+e(t('ui_start'))+'</button></header><div class="mh-tabs" role="tablist" aria-label="'+e(t('ui_matches'))+'"><button type="button" id="mh-tab-history" role="tab" data-mh-tab="history" aria-controls="mh-panel">'+SohailUI.icon('matches')+e(t('mh_history'))+'</button><button type="button" id="mh-tab-stats" role="tab" data-mh-tab="stats" aria-controls="mh-panel">'+SohailUI.icon('league')+e(t('mh_stats'))+'</button><button type="button" id="mh-tab-h2h" role="tab" data-mh-tab="h2h" aria-controls="mh-panel">'+e(t('hh_short'))+'</button></div>'+leagueControl('mh-leagues',state.leagueScope,canAggregate(selectedPlayer()),fullSnapshot)+'<details class="mh-filter-panel"'+(state.filtersOpen?' open':'')+'><summary><span>'+e(t('ui_filters'))+'</span><small id="mh-filter-label"></small></summary><div class="mh-filters"><label for="mh-scope">'+e(t('mh_filter'))+'<select id="mh-scope">'+scopes.map(([v,n])=>option(v,n,state.scope)).join('')+'</select></label>'+(admin?'<label for="mh-player">'+e(t('mh_player'))+'<select id="mh-player">'+option('',t('mh_everyone'),state.player)+people.map(n=>option(n,n,state.player)).join('')+'</select></label>':'')+'<label id="mh-search-wrap" for="mh-search">'+e(t('mh_search'))+'<input type="search" id="mh-search" value="'+e(state.query)+'" autocomplete="off"></label><button type="button" class="ui-link-button" data-mh-clear>'+e(t('mh_reset'))+'</button></div></details><div id="mh-panel" role="tabpanel" tabindex="0"></div><p class="mh-note mh-league-note">'+e(t(isRemoteScope(state.leagueScope)?'mha_all_note':'mha_current_note'))+'</p>';
   const filters=host.querySelector('.mh-filter-panel');filters.ontoggle=()=>state.filtersOpen=filters.open;
   host.onclick=ev=>{const b=ev.target.closest('button');if(!b)return;
-   if(b.hasAttribute('data-history-leagues')){const mode=b.dataset.historyLeagues;if(mode==='all'&&!canAggregate(selectedPlayer()))return;state.leagueScope=mode;state.scope='all';state.query='';state.limit=30;if(mode==='all'&&!forPage()?.snapshot().ready)loadPageArchive();else redrawPage();}
+   if(b.hasAttribute('data-history-leagues')){const mode=b.dataset.historyLeagues;if(mode==='all'&&!canAggregate(selectedPlayer()))return;state.leagueScope=mode;state.scope='all';state.query='';state.limit=30;if(isRemoteScope(mode)&&!forPage()?.snapshot().attempted)loadPageArchive();else redrawPage();}
    else if(b.hasAttribute('data-history-retry'))loadPageArchive();
    else if(b.dataset.mhTab){state.tab=b.dataset.mhTab;paint();}
    else if(b.hasAttribute('data-mh-h2h')){const d=dataset();if(!opponents(d.base,d.name,currentSnapshot()).some(r=>r.key===b.dataset.mhH2h))return;state.rival=b.dataset.mhH2h;state.tab='h2h';state.limit=30;paint();document.getElementById('mh-tab-h2h')?.focus({preventScroll:true});}
    else if(b.hasAttribute('data-hh-more')){state.limit+=30;paint();}
    else if(b.hasAttribute('data-mh-more')){state.limit+=30;const scroll=window.scrollY;paint();window.scrollTo({top:scroll,behavior:'auto'});host.querySelector('[data-mh-more]')?.focus({preventScroll:true});}
    else if(b.hasAttribute('data-mh-open')){const m=dataset().base.find(m=>String(m.id)===b.dataset.mhOpen);if(m)openModal(m.id);}
-   else if(b.hasAttribute('data-mh-clear')){state.scope='all';state.query='';state.player='';state.leagueScope='current';state.limit=30;forPage();render();document.getElementById('mh-scope')?.focus({preventScroll:true});}
+   else if(b.hasAttribute('data-mh-clear')){state.scope='all';state.query='';state.player='';state.leagueScope='all';state.limit=30;forPage();render();document.getElementById('mh-scope')?.focus({preventScroll:true});}
   };
   host.oninput=ev=>{if(ev.target.id==='mh-search'){state.query=ev.target.value;state.limit=30;paint();}};
-  host.onchange=ev=>{if(ev.target.hasAttribute('data-mh-rival')){state.rival=ev.target.value;state.limit=30;paint();document.getElementById('mh-h2h-rival')?.focus({preventScroll:true});return;}if(ev.target.id==='mh-scope')state.scope=ev.target.value;else if(ev.target.id==='mh-player'){state.player=ev.target.value;state.rival='';forPage();if(state.leagueScope==='all'&&canAggregate(selectedPlayer())){loadPageArchive();return;}state.leagueScope='current';render();return;}else return;state.limit=30;paint();};
+  host.onchange=ev=>{if(ev.target.hasAttribute('data-history-league')){const id=ev.target.value,c=forPage();if(!c||!c.snapshot().index.some(l=>l.id===id))return;state.leagueScope=id===_ligaActual?'current':'league:'+id;state.scope='all';state.query='';state.limit=30;if(!c.snapshot().attempted)loadPageArchive();else redrawPage();return;}if(ev.target.hasAttribute('data-mh-rival')){state.rival=ev.target.value;state.limit=30;paint();document.getElementById('mh-h2h-rival')?.focus({preventScroll:true});return;}if(ev.target.id==='mh-scope')state.scope=ev.target.value;else if(ev.target.id==='mh-player'){state.player=ev.target.value;state.rival='';forPage();state.leagueScope=canAggregate(selectedPlayer())?'all':'current';render();return;}else return;state.limit=30;paint();};
   host.onkeydown=ev=>{const b=ev.target.closest('[data-mh-tab]');if(!b||!['ArrowLeft','ArrowRight','Home','End'].includes(ev.key))return;ev.preventDefault();state.tab=moveTab(state.tab,ev.key);paint();document.getElementById('mh-tab-'+state.tab)?.focus({preventScroll:true});};
   paint();
+  const archive=forPage();if(isRemoteScope(state.leagueScope)&&archive&&!archive.snapshot().attempted)loadPageArchive();
  }
  // v3.3 — per-player sporting card. Uses the same read-only data engine and
  // statHTML as My matches, with independent DOM/filters and NO account switching.
@@ -322,32 +350,32 @@
   if(!host||!options||typeof options.name!=='string'||!options.name.trim())return false;
   if(typeof host._mhPlayerDispose==='function')host._mhPlayerDispose();
   const name=options.name,id='mhp-'+(++playerViewId),key=_saveSessionKey(),league=_ligaActual;
-  const view={tab:options.startTab==='h2h'?'h2h':'history',scope:'all',limit:30,leagueScope:'current',rival:options.rivalKey||'',beforeH2H:'history',beforeLimit:30,beforeScroll:0};
+  const view={tab:historyTabs.includes(options.startTab)?options.startTab:'history',scope:'all',limit:30,leagueScope:'all',rival:options.rivalKey||'',beforeH2H:'history',beforeLimit:30,beforeScroll:0};
   const groupLabel=options.groupLabel||groupName;
   // Capture only match records and cycle descriptors supplied by existing readers.
   // No fetch is needed to inspect somebody in the currently selected league.
   const source=()=>typeof options.records==='function'?options.records():options.records||[];
   const valid=()=>host.isConnected&&key===_saveSessionKey()&&league===_ligaActual;
   const cyclesList=Array.isArray(options.cycles)?options.cycles:[];
-  const scopeOptions=()=>view.leagueScope==='all'?aggregateScopes():[['all',t('mh_all')],...cyclesList.filter(c=>c&&c.n!=null).map(c=>['cycle:'+c.n,t('cycle')+' '+c.n]),['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
   const context=()=>({...h2hContext(options),groupLabel});
-  const aggregateAllowed=canAggregate(name)&&!options.otherLeague;
-  const archive=aggregateAllowed?archiveController(name,()=>valid()&&!!_token&&!!currentUser&&host._mhPlayerDispose===dispose):null;
-  if(aggregateAllowed&&options.startLeagueScope==='all')view.leagueScope='all';
+  const aggregateAllowed=canAggregate(name,context());
+  const archive=aggregateAllowed?archiveController(name,()=>valid()&&host._mhPlayerDispose===dispose,context):null;
+  if(!aggregateAllowed||options.startLeagueScope==='current')view.leagueScope='current';
+  const scopeOptions=()=>scopeChoices(view.leagueScope,archive?.snapshot(),context());
   function loadPlayerArchive(){
    if(!archive)return;
-   const job=archive.load();redraw();job.finally(()=>{if(valid()&&host._mhPlayerDispose===dispose&&view.leagueScope==='all')redraw();});
+   const job=archive.load();redraw();job.finally(()=>{if(valid()&&host._mhPlayerDispose===dispose)redraw();});
   }
   function redraw(){const f=host.contains(document.activeElement)?document.activeElement?.id:'',sc=host.closest('.modal')?.scrollTop;draw();if(f)document.getElementById(f)?.focus({preventScroll:true});const modal=host.closest('.modal');if(modal&&sc!=null)modal.scrollTop=sc;}
   host.classList.add('mh-player-view');host.dataset.playerName=name;
   function paintPanels(){
    if(!valid())return;
-   const snapshot=view.leagueScope==='all'&&archive?archive.snapshot():null;
+   const snapshot=chosenSnapshot(archive?.snapshot(),view.leagueScope,context());
    const list=D.records(snapshot?snapshot.records:source(),name,view.scope),notice=archiveStatus(snapshot);
    host.querySelectorAll('[data-mhp-tab]').forEach(b=>{const on=b.dataset.mhpTab===view.tab;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
    const history=host.querySelector('[data-mhp-panel=history]'),stats=host.querySelector('[data-mhp-panel=stats]'),h2h=host.querySelector('[data-mhp-panel=h2h]');
    history.hidden=view.tab!=='history';stats.hidden=view.tab!=='stats';h2h.hidden=view.tab!=='h2h';
-   if(snapshot&&(snapshot.busy||snapshot.error||!snapshot.ready)){(view.tab==='h2h'?h2h:view.tab==='stats'?stats:history).innerHTML=notice;return;}
+   if(snapshot&&(snapshot.busy||snapshot.error||!snapshot.ready||snapshot.unavailable)){(view.tab==='h2h'?h2h:view.tab==='stats'?stats:history).innerHTML=notice;return;}
    if(view.tab==='h2h'){h2h.innerHTML='<button type="button" class="ui-link-button mh-h2h-back" data-hh-back>'+e(t('hh_back'))+'</button>'+notice+h2hPanel(list,name,view.rival,context(),id+'-h2h',view.limit);return;}
    if(view.tab==='stats'){stats.innerHTML=notice+statHTML(list,name,{readOnly:true});return;}
    let month='',rows='';
@@ -365,11 +393,11 @@
    if(!valid())return;
    host.lang=LANG;
    const rating=options.rating&&typeof ratingFichaHTML==='function'?ratingFichaHTML(name):'';
-   host.innerHTML='<div class="mh-player-context"><span class="mh-player-caption">'+e(t(view.leagueScope==='all'?'mha_range':options.otherLeague?'mhp_past':'mhp_current'))+'</span><strong>'+e(view.leagueScope==='all'?t('mha_scope_all'):options.leagueName||'—')+'</strong><p>'+e(tf('mhp_context',{name}))+'</p><small>'+e(t('mhp_scope'))+'</small></div>'+
+   host.innerHTML='<div class="mh-player-context"><span class="mh-player-caption">'+e(t(view.leagueScope==='all'?'mha_range':options.otherLeague?'mhp_past':'mhp_current'))+'</span><strong>'+e(scopeLabel(view.leagueScope,archive?.snapshot(),context()))+'</strong><p>'+e(tf('mhp_context',{name}))+'</p><small>'+e(t('mhp_scope'))+'</small></div>'+
     '<div class="mh-tabs mh-player-tabs" role="tablist" aria-label="'+e(t('mhp_title')+' · '+name)+'">'+
     [['history','mh_history','matches'],['stats','mh_stats','league'],['h2h','hh_short','matches']].map(([tab,label,ic])=>'<button type="button" id="'+id+'-tab-'+tab+'" role="tab" data-mhp-tab="'+tab+'" aria-controls="'+id+'-panel-'+tab+'">'+SohailUI.icon(ic)+e(t(label))+'</button>').join('')+'</div>'+
     (ownOpponent(name,context())?'<button type="button" class="btn mh-my-h2h" data-hh-mine>'+e(tf('hh_mine',{name}))+'</button>':'')+
-    (aggregateAllowed?leagueControl(id+'-leagues',view.leagueScope):'')+
+    (aggregateAllowed?leagueControl(id+'-leagues',view.leagueScope,true,archive?.snapshot(),context()):'')+
     '<label class="mh-player-filter" for="'+id+'-scope">'+e(t('mh_filter'))+'<select id="'+id+'-scope" data-mhp-scope>'+scopeOptions().map(([v,lab])=>option(v,lab,view.scope)).join('')+'</select></label>'+
     (rating?'<details class="mh-player-rating"><summary>'+e(t('mhp_rating'))+'</summary>'+rating+'</details>':'')+
     '<div id="'+id+'-panel-history" role="tabpanel" tabindex="0" aria-labelledby="'+id+'-tab-history" data-mhp-panel="history"></div>'+
@@ -379,7 +407,7 @@
   }
   host.onclick=ev=>{
    const b=ev.target.closest('button');if(!valid()||!b||!host.contains(b))return;
-   if(b.hasAttribute('data-history-leagues')&&aggregateAllowed){view.leagueScope=b.dataset.historyLeagues;view.scope='all';view.limit=30;if(view.leagueScope==='all'&&!archive.snapshot().ready)loadPlayerArchive();else redraw();}
+   if(b.hasAttribute('data-history-leagues')&&aggregateAllowed){view.leagueScope=b.dataset.historyLeagues;view.scope='all';view.limit=30;if(isRemoteScope(view.leagueScope)&&!archive.snapshot().attempted)loadPlayerArchive();else redraw();}
    else if(b.hasAttribute('data-history-retry'))loadPlayerArchive();
    else if(b.dataset.mhpTab){if(b.dataset.mhpTab==='h2h')selectH2H(view.rival);else{view.tab=b.dataset.mhpTab;paintPanels();}}
    else if(b.hasAttribute('data-hh-back')){view.tab=view.beforeH2H||'history';view.limit=view.beforeLimit||30;paintPanels();host.querySelector('[data-mhp-tab="'+view.tab+'"]')?.focus({preventScroll:true});const scroller=host.closest('#modal-body');if(scroller)scroller.scrollTop=view.beforeScroll||0;}
@@ -387,11 +415,11 @@
    else if(b.hasAttribute('data-hh-more')){view.limit+=30;paintPanels();}
    else if(b.hasAttribute('data-mhp-more')){
     view.limit+=30;paintPanels();host.querySelector('[data-mhp-more]')?.focus({preventScroll:true});
-   }else if(b.hasAttribute('data-mh-h2h')){const data=view.leagueScope==='all'&&archive?archive.snapshot().records:source();if(opponents(data,name,context()).some(r=>r.key===b.dataset.mhH2h))selectH2H(b.dataset.mhH2h);}
+   }else if(b.hasAttribute('data-mh-h2h')){const data=chosenSnapshot(archive?.snapshot(),view.leagueScope,context())?.records||source();if(opponents(data,name,context()).some(r=>r.key===b.dataset.mhH2h))selectH2H(b.dataset.mhH2h);}
   
   };
   function selectH2H(key){if(view.tab!=='h2h'){view.beforeH2H=view.tab;view.beforeLimit=view.limit;view.beforeScroll=host.closest('#modal-body')?.scrollTop||0;}view.rival=key;view.tab='h2h';view.limit=30;paintPanels();host.querySelector('[data-mhp-tab=h2h]')?.focus({preventScroll:true});const scroller=host.closest('#modal-body');if(scroller)scroller.scrollTop=0;}
-  host.onchange=ev=>{if(!valid())return;if(ev.target.matches('[data-mh-rival]')){view.rival=ev.target.value;view.limit=30;paintPanels();document.getElementById(id+'-h2h-rival')?.focus({preventScroll:true});}else if(ev.target.matches('[data-mhp-scope]')){view.scope=ev.target.value;view.limit=30;paintPanels();}};
+  host.onchange=ev=>{if(!valid())return;if(ev.target.hasAttribute('data-history-league')){const leagueId=ev.target.value;if(!archive||!archive.snapshot().index.some(l=>l.id===leagueId))return;view.leagueScope=leagueId===context().id?'current':'league:'+leagueId;view.scope='all';view.limit=30;redraw();return;}if(ev.target.matches('[data-mh-rival]')){view.rival=ev.target.value;view.limit=30;paintPanels();document.getElementById(id+'-h2h-rival')?.focus({preventScroll:true});}else if(ev.target.matches('[data-mhp-scope]')){view.scope=ev.target.value;view.limit=30;paintPanels();}};
   host.onkeydown=ev=>{
    const tab=ev.target.closest('[data-mhp-tab]');
    if(!valid()||!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(ev.key))return;
@@ -412,7 +440,7 @@
   host._mhPlayerDispose=dispose;
   languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
   if(modal){lifecycleObserver.observe(modal,{attributes:true,attributeFilter:['class']});if(body)lifecycleObserver.observe(body,{childList:true,subtree:true});}
-  if(view.leagueScope==='all'&&archive)loadPlayerArchive();
+  if(isRemoteScope(view.leagueScope)&&archive)loadPlayerArchive();
   return true;
  }
  function openPlayer(name,initial={}){
@@ -435,10 +463,47 @@
   return true;
  }
 
+ // Compact profile statistics use the same identities and league filters as the
+ // detailed viewer. Never fall back to summing equal names in unrelated leagues.
+ function mountSummary(host,name){
+  if(!host||!canAggregate(name))return false;
+  host._historySummaryDispose?.();
+  const key=skey();let scope='all';
+  const valid=()=>host.isConnected&&skey()===key;
+  const archive=archiveController(name,valid);
+  const id='profile-history-'+(++playerViewId);
+  function draw(){
+   if(!valid())return;
+   const all=archive.snapshot(),snapshot=chosenSnapshot(all,scope,currentSnapshot());
+   let html=leagueControl(id,scope,true,all)+archiveStatus(snapshot);
+   if(!snapshot||(!snapshot.busy&&!snapshot.error&&snapshot.ready&&!snapshot.unavailable)){
+    const list=D.records(snapshot?snapshot.records:matches,name),stats=D.summarize(list,name);
+    html+=bloqueStatsHTML(e(scopeLabel(scope,all,currentSnapshot())),{pj:stats.played,pg:stats.wins,pp:stats.losses},false);
+    html+='<p class="mh-note">'+e(t('mh_short_note'))+'</p>';
+   }
+   host.innerHTML=html+'<button type="button" class="btn" data-profile-details>'+e(t('mhp_title'))+'</button>';
+  }
+  function load(){const job=archive.load();draw();job.finally(()=>{if(valid())draw();});}
+  host.onclick=ev=>{
+   const b=ev.target.closest('button');if(!b||!valid())return;
+   if(b.hasAttribute('data-history-leagues')){scope=b.dataset.historyLeagues;draw();}
+   else if(b.hasAttribute('data-history-retry'))load();
+   else if(b.hasAttribute('data-profile-details'))openPlayer(name,{tab:'stats'});
+  };
+  host.onchange=ev=>{if(!valid()||!ev.target.hasAttribute('data-history-league'))return;const id=ev.target.value;if(!archive.snapshot().index.some(l=>l.id===id))return;scope=id===_ligaActual?'current':'league:'+id;draw();};
+  const lang=new MutationObserver(()=>{if(valid())draw();else dispose();});
+  const life=new MutationObserver(()=>{if(!valid())dispose();});
+  function dispose(){archive.cancel();lang.disconnect();life.disconnect();if(host._historySummaryDispose===dispose)delete host._historySummaryDispose;}
+  host._historySummaryDispose=dispose;
+  lang.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
+  const parent=document.getElementById('view-perfil');if(parent)life.observe(parent,{childList:true});
+  load();return true;
+ }
+
  function openH2H(a,b){
   if(typeof a!=='string'||typeof b!=='string'||!a.trim()||!b.trim()||a===b)return false;
   const ctx=currentSnapshot(),me=D.person(a,ctx),rival=D.person(b,ctx);if(me.key===rival.key)return false;
   return openPlayer(a,{tab:'h2h',rival:rival.key,leagueScope:'all'});
  }
- global.SohailHistory=Object.freeze({render,openPlayer,mountPlayer,openH2H});
+ global.SohailHistory=Object.freeze({render,openPlayer,mountPlayer,openH2H,mountSummary});
 })(typeof window!=='undefined'?window:globalThis);
