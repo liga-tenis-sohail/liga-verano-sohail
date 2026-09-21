@@ -354,3 +354,124 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
   db.tables.jugadores=Array.from({length:2501},(_,i)=>({id:'p'+String(i).padStart(4,'0'),nombre:'Jugador '+i}));const r=await dupCall(handler,dupReq(db,'admin',{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));assert.equal(r.status,200);assert.equal(r.body.complete,false);assert.equal(r.body.jugadores.length,2500);
  }));
 }
+
+// v3.9.8 — cross-league history uses an explicit sporting-only read.
+// Tests use real controllers, a simulated database and no production requests.
+{
+ const H=require('../public/history-leagues'),D=require('../public/match-history');
+ const M=require('./support/mock-db.cjs'),stateHandler=require('../api/state'),ligaHandler=require('../api/liga');
+ const response=(body,status=200)=>({ok:status>=200&&status<300,status,json:async()=>structuredClone(body)});
+ function setupHistory(){
+  const now=M.fixture(),other=M.fixture(),past=M.fixture();
+  now.LEAGUE_NAME='Actual';other.LEAGUE_NAME='Otra activa';past.LEAGUE_NAME='Finalizada';
+  now.matches=[M.match({status:'confirmed'})];
+  other.matches=[M.match({date:'2026-10-01',status:'confirmed'})];other.users.Alicia.inactive=true;
+  past.matches=[M.match({date:'2025-06-01',status:'confirmed'}),M.match({id:2,date:'2025-07-01',po:true,poNames:['Alicia','Beto'],which:'cons',status:'confirmed'})];past.cycles[0].status='finished';
+  const db=M.createDB([{id:'liga-actual',state:now},{id:'otra-activa',state:other},{id:'anterior',state:past,estado:'finalizada'}]);
+  const current=()=>({id:'liga-actual',nombre:'Actual',users:db.state().users,matches:db.state().matches,cycles:db.state().cycles});
+  return {db,current};
+ }
+ async function usingHistory(fn){const h=setupHistory(),original=global.fetch;global.fetch=h.db.fetch;try{return await fn(h);}finally{global.fetch=original;}}
+ function bridge(db){return async(url,opts={})=>{const u=new URL(url,'https://app.invalid');const res=await M.call(u.pathname==='/api/liga'?ligaHandler:stateHandler,{method:opts.method||'GET',headers:Object.fromEntries(Object.entries(opts.headers||{}).map(([k,v])=>[k.toLowerCase(),v])),query:Object.fromEntries(u.searchParams),body:opts.body?JSON.parse(opts.body):{}});return response(res.body,res.status);};}
+ test('HST01 sporting history reads an inactive target membership but does not grant normal access',()=>usingHistory(async({db})=>{
+  const q={liga:'otra-activa'},req=M.req(db,'Alicia',{},q,'GET');assert.equal((await M.call(stateHandler,req)).status,403);
+  const r=await M.call(stateHandler,{...req,query:{...q,historial:'1'}});assert.equal(r.status,200);assert.equal(r.body.state.matches.length,1);assert.equal(r.body.readOnly,true);
+  assert.equal(r.body.token,undefined);assert.equal(r.body.role,undefined);assert.equal(r.body.name,undefined);
+ }));
+ test('HST02 sporting projection excludes credentials, contacts, requests and logs even for admin',()=>usingHistory(async({db})=>{
+  db.state('otra-activa').LOG=[{secret:'private'}];db.state('otra-activa').JOIN_REQUESTS=[{email:'private@example.invalid'}];
+  const before=structuredClone(db.tables);
+  const r=await M.call(stateHandler,M.req(db,'admin',{}, {liga:'otra-activa',historial:'1'},'GET'));
+  assert.equal(r.status,200);assert.equal(r.body.state.LOG,undefined);assert.equal(r.body.state.JOIN_REQUESTS,undefined);
+  for(const u of Object.values(r.body.state.users))for(const key of ['pass','email','tel','_credentialId','identityRef'])assert.equal(u[key],undefined,key);
+  assert.deepEqual(db.tables,before);
+ }));
+ test('HST03 history read cannot also select the destination league',()=>usingHistory(async({db})=>{
+  const r=await M.call(stateHandler,M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'1',elegir:'1'},'GET'));assert.equal(r.status,400);assert.equal(r.body.token,undefined);
+ }));
+ test('HST04 read-only mode does not bypass authentication',()=>usingHistory(async()=>{
+  const r=await M.call(stateHandler,{method:'GET',query:{liga:'otra-activa',historial:'1'},headers:{}});assert.equal(r.status,401);
+ }));
+ test('HST05 revoked source account cannot read history with an old token',()=>usingHistory(async({db})=>{
+  const req=M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'1'},'GET');db.state().users.Alicia.inactive=true;assert.equal((await M.call(stateHandler,req)).status,401);
+ }));
+ test('HST06 history respects mandatory password change',()=>usingHistory(async({db})=>{
+  db.tables.sohail_account_security.find(a=>a.id==='g:profile-0').must_change=true;
+  assert.equal((await M.call(stateHandler,M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'1'},'GET'))).status,403);
+ }));
+ test('HST07 unsupported history mode is rejected',()=>usingHistory(async({db})=>{
+  assert.equal((await M.call(stateHandler,M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'yes'},'GET'))).status,400);
+ }));
+ test('HST08 an unindexed league is not silently exposed in history mode',()=>usingHistory(async({db})=>{
+  db.tables.liga_index=db.tables.liga_index.filter(l=>l.id!=='otra-activa');assert.equal((await M.call(stateHandler,M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'1'},'GET'))).status,404);
+ }));
+ test('HST09 all history combines current, inactive membership in active league and finished leagues',()=>usingHistory(async({db,current})=>{
+  const before=structuredClone(db.tables),c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});
+  assert.equal(await c.load(),true);const out=c.snapshot();assert.equal(out.records.length,4);assert.equal(out.leagues.length,3);assert.equal(out.issues.length,0);assert.deepEqual(db.tables,before);
+  assert.equal(D.summarize(D.records(out.records,'Alicia'),'Alicia').played,4);
+  assert.equal(new Set(out.records.map(m=>m._mhKey)).size,4);
+ }));
+ test('HST10 renamed linked player keeps old match names without rewriting data',()=>usingHistory(async({db,current})=>{
+  const past=db.state('anterior');past.users['Alicia Antigua']=past.users.Alicia;delete past.users.Alicia;past.users['Alicia Antigua'].name='Alicia Antigua';
+  past.matches=[M.match({aName:'Alicia Antigua',status:'confirmed',date:'2025-01-01'})];
+  const out=await H.collect({current:current(),name:'Alicia',token:db.token(),fetcher:bridge(db)});
+  const old=out.records.find(m=>m._mhLeagueId==='anterior');assert.equal(old._mhSubject,'Alicia Antigua');assert.equal(D.summarize(D.records([old],'Alicia'),'Alicia').wins,1);
+ }));
+ test('HST11 equal names belonging to different profile IDs are never merged',()=>usingHistory(async({db,current})=>{
+  db.state('otra-activa').users.Alicia.jugadorId='different-person';
+  const out=await H.collect({current:current(),name:'Alicia',token:db.token(),fetcher:bridge(db)});assert.equal(out.records.filter(m=>m._mhLeagueId==='otra-activa').length,0);
+ }));
+ test('HST12 missing global identity is explicit, not a guessed name match',()=>usingHistory(async({db,current})=>{
+  delete db.state().users.Alicia.jugadorId;
+  const out=await H.collect({current:current(),name:'Alicia',token:'not-used',fetcher:bridge(db)});assert.equal(out.records.length,0);assert.ok(out.issues.some(i=>i.reason==='no-global-id'));assert.equal(out.index.length,3);
+ }));
+ test('HST13 read errors are retained when selecting a failed league instead of inventing zero',()=>usingHistory(async({db,current})=>{
+  db.fault=({name,url})=>name==='liga_state'&&url.searchParams.get('id')==='eq.otra-activa';
+  const c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});await c.load();const s=H.selectScope(c.snapshot(),'league:otra-activa','liga-actual');assert.equal(s.unavailable,true);assert.ok(s.issues.length);assert.equal(c.snapshot().index.length,3);
+ }));
+ test('HST14 individual league selection filters only that league without changing the source',()=>usingHistory(async({db,current})=>{
+  const c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});await c.load();
+  assert.equal(H.selectScope(c.snapshot(),'league:anterior','liga-actual').records.length,2);assert.equal(H.selectScope(c.snapshot(),'current','liga-actual').records.length,1);assert.equal(current().id,'liga-actual');
+ }));
+ test('HST15 public archived viewer includes closed history but never fetches active states without login',()=>usingHistory(async({db})=>{
+  const past=db.state('anterior'),urls=[];const fetcher=bridge(db);
+  const c=H.createController({current:()=>({id:'anterior',nombre:'Finalizada',estado:'finalizada',users:past.users,matches:past.matches}),name:'Alicia',token:()=>null,valid:()=>true,fetcher:(url,...args)=>{urls.push(url);return fetcher(url,...args);}});
+  await c.load();const out=c.snapshot();assert.equal(out.records.length,2);assert.ok(out.issues.some(i=>i.reason==='login-required'));assert.ok(urls.every(u=>!u.startsWith('/api/state')));
+ }));
+ test('HST16 three participant playoff is rejected as ambiguous, not truncated to two',()=>{
+  const out=H.project({users:{Alicia:{jugadorId:'a'}},matches:[{id:1,po:true,poNames:['Alicia','Beto','Ciro']}]},{id:'old',nombre:'Old'},{id:'a',name:'Alicia'});assert.equal(out.records.length,0);assert.ok(out.issues.includes('ambiguous'));
+ });
+ test('HST17 league metadata is unique, includes finalized entries and is sorted newest first',()=>{
+  const input=[{id:'old',estado:'finalizada',orden:1},{id:'new',estado:'activa',orden:2},{id:'old',orden:1}];const before=structuredClone(input);assert.deepEqual(H.uniqueIndex(input,{id:'old'}).map(e=>e.id),['new','old']);assert.deepEqual(input,before);
+ });
+ test('HST18 failed controller load is attempted and retryable without automatic request loops',async()=>{
+  let calls=0;const c=H.createController({current:()=>({id:'liga',users:{Alicia:{jugadorId:'a'}},matches:[]}),name:'Alicia',token:()=>null,valid:()=>true,fetcher:async()=>{calls++;return response({},503);}});
+  await c.load();assert.equal(c.snapshot().attempted,true);assert.equal(c.snapshot().error,true);await c.load();assert.equal(calls,2);
+ });
+ test('HST19 cancellation discards late history replies and clears cached data',async()=>{
+  let resolve;const c=H.createController({current:()=>({id:'liga',users:{Alicia:{jugadorId:'a'}},matches:[]}),name:'Alicia',token:()=>null,valid:()=>true,fetcher:()=>new Promise(r=>resolve=r)});
+  const job=c.load();c.cancel();resolve(response({ligas:[{id:'liga'}]}));await job;assert.equal(c.snapshot().ready,false);assert.equal(c.snapshot().busy,false);
+ });
+ test('HST20 selecting a league never sends session-selection parameters',()=>usingHistory(async({db,current})=>{
+  const urls=[],f=bridge(db);await H.collect({current:current(),name:'Alicia',token:db.token(),fetcher:(url,...args)=>{urls.push(url);return f(url,...args);}});
+  assert.ok(urls.some(u=>u.endsWith('&historial=1')));assert.ok(urls.every(u=>!u.includes('elegir=')));
+ }));
+}
+
+// The exact centering implementation with geometry-only test doubles: it must
+// never invoke page/ancestor scrolling to keep a group visible.
+for(const example of [
+ {label:'middle',old:0,left:700,button:70,width:500,total:1600,want:485},
+ {label:'first edge',old:500,left:-500,button:70,width:500,total:1600,want:0},
+ {label:'last edge',old:500,left:1000,button:70,width:500,total:1600,want:1100},
+ {label:'hidden mobile rail',old:20,left:100,button:70,width:0,total:1600,want:20}
+])test('GRP centering '+example.label+' changes the rail only',()=>{
+ const text=fs.readFileSync(path.join(__dirname,'../public/ui-modern.js'),'utf8');
+ const fn=text.slice(text.indexOf(' function centerGroupStrip('),text.indexOf(' function groupControls('));
+ assert.ok(fn.includes('centerGroupStrip'));
+ const rail={isConnected:true,clientWidth:example.width,clientLeft:0,scrollWidth:example.total,scrollLeft:example.old,
+  getBoundingClientRect:()=>({left:0}),querySelector:()=>({getBoundingClientRect:()=>({left:example.left,width:example.button})})};
+ const context={rail,Math,document:{},window:{scrollTo:()=>assert.fail('Page must not move')}};
+ vm.createContext(context);vm.runInContext(fn+';centerGroupStrip(rail)',context);
+ assert.equal(rail.scrollLeft,example.want);
+});
