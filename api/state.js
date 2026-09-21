@@ -30,7 +30,13 @@ module.exports = async function handler(req, res){
   if(req.method!=='GET')return res.status(405).json({error:'Método no permitido'});
   if(!envOK(res)) return;
 
-  const session = await auth(req,true);
+  // Dedicated sporting read: no selection, no credentials and no session renewal.
+  // Membership/inactivity in the TARGET league must not hide an old result;
+  // the caller's current source account is still verified by auth().
+  const historyOnly=req.query&&req.query.historial==='1';
+  if(req.query&&req.query.historial!==undefined&&!historyOnly)return res.status(400).json({error:'Modo de historial inválido.'});
+  if(historyOnly&&req.query.elegir!==undefined)return res.status(400).json({error:'El historial no puede cambiar de liga.'});
+  const session = await auth(req,!historyOnly);
   if(!session) return res.status(401).json({ error: 'Sesión inválida o expirada. Volvé a entrar.' });
 
   // Qué liga: viene por query (?liga=anual-2026). Si no, la liga por defecto.
@@ -41,6 +47,17 @@ module.exports = async function handler(req, res){
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la base de datos.' }); }
 
   if(!state) return res.status(200).json({ empty: true });
+
+  if(historyOnly){
+    // Same sporting visibility as the public projection; never use filterForSession
+    // here even for administrators, nor return a token/name/role for another league.
+    let idx;
+    try { idx=await readLigaIndex(); } catch(_){return res.status(503).json({error:'No se pudo comprobar la liga del historial.'});}
+    const entry=idx.find(l=>l.id===ligaId);
+    if(!entry)return res.status(404).json({error:'Esa liga no existe.'});
+    res.setHeader('Cache-Control','no-store');
+    return res.status(200).json({state:filterPublicState(state),ligaId,ligaNombre:entry.nombre,readOnly:true});
+  }
 
   // blockedUser() devuelve error tanto si el jugador NO EXISTE en esta liga
   // como si existe pero está inactivo. Lo primero es un caso legítimo de
