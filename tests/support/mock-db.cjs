@@ -5,8 +5,8 @@ process.env.SUPABASE_URL='https://database.invalid';process.env.SUPABASE_SERVICE
 const lib=require('../../api/_lib');
 function result(data,status=200){return {status,ok:status<400,headers:new Headers(),json:async()=>structuredClone(data),text:async()=>JSON.stringify(data)};}
 function createDB(states){
- const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[]},requests:[],fault:null,latency:0,failWrites:0};
- db.setStates=(list)=>{for(const name of Object.keys(db.tables))db.tables[name]=[];for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}}};
+ const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[]},requests:[],fault:null,latency:0,failWrites:0};
+ db.setStates=(list)=>{for(const name of Object.keys(db.tables))db.tables[name]=[];db.tables.sohail_identity_registry.push({id:1,version:0,data:{links:{},profiles:{},decisions:{}}});for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}}};
  function rows(name,url){return db.tables[name].filter(row=>{for(const[k,v]of url.searchParams){if(['select','limit','offset','order','on_conflict'].includes(k))continue;
    if(v==='is.null'&&row[k]!=null)return false;if(v==='not.is.null'&&row[k]==null)return false;
    if(v.startsWith('eq.')&&String(row[k])!==v.slice(3))return false;
@@ -20,6 +20,29 @@ function createDB(states){
   if(db.latency)await new Promise(r=>setTimeout(r,db.latency));
   if(db.fault&&db.fault({name,method,url,body}))return result({error:'Database failure simulated'},503);
   if(url.pathname.includes('/rpc/')){
+   if(name==='sohail_apply_data_operation'){
+    // Models the transaction's atomic CAS, authorization and idempotency contract.
+    // The SQL implementation still needs its independent database integration test.
+    const p=body,reg=db.tables.sohail_identity_registry[0],prior=db.tables.sohail_data_operations.find(x=>x.id===p.p_id);
+    if(prior)return result(prior.actor_key===p.p_actor_key&&prior.kind===p.p_kind&&prior.request_digest===p.p_digest?prior.result:{ok:false,code:'OPERATION_REUSED'});
+    if(!reg||reg.version!==p.p_registry_version)return result({ok:false,code:'CONFLICT'});
+    const source=db.state(p.p_source),su=source?.users[p.p_actor],account=db.tables.sohail_account_security.find(x=>x.id===p.p_actor_key);
+    if(!account||account.epoch!==p.p_epoch||account.must_change||!su||su.inactive||lib.principalKey(p.p_actor,su)!==p.p_actor_key)return result({ok:false,code:'FORBIDDEN'});
+    const superadmin=su.role==='superadmin';
+    if(!superadmin&&(!lib.sesionEsAdmin({u:p.p_actor,pk:p.p_actor_key},source.users)||p.p_kind==='undo'))return result({ok:false,code:'FORBIDDEN'});
+    const before={},versions={};
+    for(const item of p.p_states){const current=db.state(item.id),idx=db.tables.liga_index.find(x=>x.id===item.id);
+     if(!current||!idx||Number(current._v||0)!==item.expected)return result({ok:false,code:'CONFLICT',currentV:current?._v});
+     if(item.write&&!superadmin&&!lib.sesionEsAdmin({u:p.p_actor,pk:p.p_actor_key},current.users))return result({ok:false,code:'FORBIDDEN'});
+     before[item.id]={state:structuredClone(current),indexName:idx.nombre,write:!!item.write};
+    }
+    if(db.failWrites>0){db.failWrites--;return result({error:'atomic transaction failure simulated'},503);}
+    const oldreg=p.p_registry?structuredClone(reg.data):null;
+    for(const item of p.p_states)if(item.write){db.tables.liga_state.find(x=>x.id===item.id).data={...structuredClone(item.data),_v:item.expected+1};versions[item.id]=item.expected+1;if('indexName' in item)db.tables.liga_index.find(x=>x.id===item.id).nombre=item.indexName;}
+    if(p.p_registry){reg.data=structuredClone(p.p_registry);reg.version++;}
+    const out={ok:true,operationId:p.p_id,versions,registryVersion:reg.version,summary:structuredClone(p.p_summary)};
+    db.tables.sohail_data_operations.push({id:p.p_id,kind:p.p_kind,actor:p.p_actor,actor_key:p.p_actor_key,request_digest:p.p_digest,before_states:before,before_registry:oldreg,after_versions:versions,registry_after:reg.version,result:out,created_at:new Date().toISOString()});return result(out);
+   }
    if(name==='sohail_write_state'){
     if(db.failWrites>0){db.failWrites--;return result({error:'write failed'},503);}
     const row=db.tables.liga_state.find(r=>r.id===body.p_liga),s=row?.data;const v=s?Number(s._v||0):-1;
