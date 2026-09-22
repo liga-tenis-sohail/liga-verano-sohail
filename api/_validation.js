@@ -96,6 +96,10 @@ function protectState(current,incoming,session,admin,manage){
       }
       if(source){
         u.pass=source.pass;
+        for(const k of ['historialId','historialNombre']){
+          if(own(u,k)&&!equal(u[k],source[k]))deny('La identidad deportiva solo se modifica con una revisión confirmada.');
+          if(own(source,k))u[k]=structuredClone(source[k]);else delete u[k];
+        }
         // El vínculo global solo se cambia por las acciones específicas del servidor.
         if(u.jugadorId!==source.jugadorId)deny('El vínculo de identidad solo se modifica desde el catálogo.');
         if(source._credentialId)u._credentialId=source._credentialId;else delete u._credentialId;
@@ -103,6 +107,7 @@ function protectState(current,incoming,session,admin,manage){
       }else{
         if((u.role||'player')!=='player'||u.isAdmin)deny('No se crean cuentas administrativas desde este formulario.');
         if(u.jugadorId)deny('Incorporá los perfiles existentes desde el catálogo.');
+        if(u.historialId||u.historialNombre)deny('Vinculá las fichas deportivas desde la revisión de identidades.');
         // Nunca aceptar una contraseña arbitraria ni un identificador de seguridad del cliente.
         u.pass=require('./_lib').hashV2('tenis');u._credentialId=crypto.randomUUID();
       }

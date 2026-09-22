@@ -157,6 +157,8 @@ function filterPublicState(state){
     out.users[name]={name:u.name||name,role:u.role||'player',inactive:!!u.inactive};
     // ID de enlace deportivo: necesario para sumar estadísticas entre ligas.
     if(u.jugadorId)out.users[name].jugadorId=u.jugadorId;
+    if(u.historialId)out.users[name].historialId=u.historialId;
+    if(u.historialNombre)out.users[name].historialNombre=u.historialNombre;
   }
   return out;
 }

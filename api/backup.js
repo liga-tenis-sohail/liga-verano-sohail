@@ -63,7 +63,7 @@ module.exports = async function handler(req, res){
   try {
     // 1) Exportación paginada de datos persistentes, incluyendo todo audit_log.
     // rate_limits es efímero. Este JSON no es un snapshot transaccional de Postgres.
-    const exports=[['liga_state','order=id.asc'],['liga_index','order=id.asc'],['jugadores','order=id.asc'],['passkeys','order=credential_id.asc'],['audit_log','order=id.asc'],['mensajes','order=id.asc'],['admin_notify_channels','order=id.asc'],['sohail_account_security','order=id.asc']];
+    const exports=[['liga_state','order=id.asc'],['liga_index','order=id.asc'],['jugadores','order=id.asc'],['passkeys','order=credential_id.asc'],['audit_log','order=id.asc'],['mensajes','order=id.asc'],['admin_notify_channels','order=id.asc'],['sohail_account_security','order=id.asc'],['sohail_identity_registry','order=id.asc'],['sohail_data_operations','order=id.asc']];
     const tables={};
     // Sequential to reduce memory pressure and avoid a burst of concurrent queries.
     for(const [name,query]of exports)tables[name]=await fetchAll(name,query);

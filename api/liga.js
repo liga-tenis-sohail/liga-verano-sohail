@@ -132,6 +132,14 @@ module.exports = async function handler(req, res){
   if(req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
   if(!envOK(res)) return;
 
+  // Keep the existing function count: dedicated operation flows are private
+  // modules reached through this endpoint, not additional Vercel Functions.
+  if(req.query && req.query.operacion!==undefined){
+    if(req.query.operacion==='restore')return require('./_restore_route')(req,res);
+    if(req.query.operacion==='identities')return require('./_identities_route')(req,res);
+    return res.status(400).json({code:'INVALID_OPERATION',error:'Operación desconocida.'});
+  }
+
   const body = (req.body && typeof req.body === 'object') ? req.body : {};
   const accion = String(body.accion || '');
 
@@ -257,7 +265,7 @@ module.exports = async function handler(req, res){
       destinoState.JOIN_REQUESTS = destinoState.JOIN_REQUESTS.slice(-500);
     }
 
-    try { await writeState(ligaDestino, destinoState); }
+    try { require('./_identities').annotateState(destinoState,ligaDestino,await require('./_operations').registry()); await writeState(ligaDestino, destinoState); }
     catch(e){ return res.status(503).json({ error: 'No se pudo guardar la solicitud: ' + e.message }); }
 
     logAudit(session.u, 'liga.solicitarAcceso', ligaDestino, { origenLigaId: ligaOrigen }, clientIP(req));
@@ -572,37 +580,10 @@ module.exports = async function handler(req, res){
   // usuario de cada liga NO se toca (sigue siendo "Juan Pérez" en una y
   // "jperez" en la otra) — solo se unifica la identidad/contraseña, que
   // es lo que hacía falta para el login único.
-  if(accion === 'vincularJugador'){
-    if(session.r!=='superadmin')return res.status(403).json({error:'Solo el super administrador puede vincular identidades.'});
-    const name=String(body.nombre||''),id=String(body.jugadorId||'');
-    const u=sesionState.users&&sesionState.users[name];
-    if(!u||name==='admin'||name==='superadmin')return res.status(400).json({error:'Jugador inválido.'});
-    if(body.version!==sesionState._v)return res.status(409).json({error:'La liga cambió. Recargá antes de vincular.'});
-    const catalog=await readCatalogo(),profile=catalog[id];
-    if(!profile)return res.status(404).json({error:'El perfil global no existe.'});
-    if(Object.entries(sesionState.users).some(([n,p])=>n!==name&&p.jugadorId===id))return res.status(409).json({error:'Ese perfil ya está vinculado a otro jugador de la liga.'});
-    const account=await require('./_lib').readAccount('g:'+id);
-    // Un dispositivo de la identidad anterior no hereda acceso al perfil vinculado.
-    // Si falla esta revocación no se aplica el vínculo.
-    await borrarPasskeysDeUsuario(name,true);
-    u.jugadorId=id;u.pass=(account&&account.pass_hash)||profile.pass||hashV2('tenis');
-    // El nombre deportivo se conserva, al igual que todas las referencias históricas.
-    await writeState(body.ligaId||session.src,sesionState);
-    await logAudit(session.u,'jugador.vincular',id,{liga:body.ligaId||session.src,nombre:name},clientIP(req));
-    return res.status(200).json({ok:true,version:sesionState._v});
-  }
-
-  if(accion === 'fusionarJugadores'){
-    if(!(session && session.r === 'superadmin')) return res.status(403).json({ error: 'Solo el super administrador puede fusionar jugadores.' });
-    const mantener   = String(body.jugadorIdMantener || '');
-    const descartar   = String(body.jugadorIdDescartar || '');
-    if(!mantener || !descartar) return res.status(400).json({ error: 'Faltan los dos jugadores a fusionar.' });
-    if(mantener === descartar) return res.status(400).json({ error: 'Elegí dos jugadores distintos.' });
-
-    const result=await require('./_lib').rpc('sohail_merge_profiles',{p_keep:mantener,p_drop:descartar});
-    if(!result.ok)return res.status(409).json({error:'No se pudo completar la fusión. No se eliminó ningún perfil.'});
-    await logAudit(session.u,'jugador.fusionar',mantener,{descartado:descartar,ligas:result.leagues},clientIP(req));
-    return res.status(200).json({ok:true,jugadorId:mantener,ligasActualizadas:result.leagues});
+  // v4.0: the former paths replaced account IDs/passwords or deleted a profile.
+  // Sporting merges now require a preview, explicit choices and a transaction.
+  if(accion === 'vincularJugador' || accion === 'fusionarJugadores'){
+    return res.status(409).json({code:'IDENTITY_REVIEW_REQUIRED',error:'Usá Revisar duplicados o Vincular jugadores históricos. Esta acción necesita una vista previa y no transfiere accesos.'});
   }
 
   const id = String(body.id || '');
@@ -716,7 +697,7 @@ module.exports = async function handler(req, res){
     if(!agregados.length) return res.status(200).json({ ok: true, agregados: [] });
 
     destinosAuto.reconcile(estado);
-    try { await writeState(id, estado); }
+    try { require('./_identities').annotateState(estado,id,await require('./_operations').registry()); await writeState(id, estado); }
     catch(e){ return res.status(503).json({ error: 'No se pudo guardar: ' + e.message }); }
 
     logAudit(session.u, 'liga.agregarJugadores', id, { agregados }, clientIP(req));
@@ -852,6 +833,7 @@ module.exports = async function handler(req, res){
 
     try {
       destinosAuto.reconcile(estado);
+      require('./_identities').annotateState(estado,nuevoId,await require('./_operations').registry());
       await writeState(nuevoId, estado, {expectedVersion:-1}); // creación: la fila aún no existe
       const orden = (idx.length ? Math.max(...idx.map(l => l.orden || 0)) : 0) + 1;
       await upsertLigaIndex({ id: nuevoId, nombre, estado: 'activa', orden });
