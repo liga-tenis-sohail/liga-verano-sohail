@@ -110,7 +110,7 @@ test('R6: backup exports all pages even if server max_rows is smaller than reque
  let status,body;const res={headersSent:false,setHeader(){},status(s){status=s;return this;},json(x){body=x;return this;}};
  try{await require('../api/backup')({method:'GET',headers:{'x-backup-secret':'TESTBACKUP'}},res);
   assert.equal(status,200);assert.equal(body.ok,true);assert.equal(snapshot.tables.mensajes.length,503);
-  assert.deepEqual(Object.keys(snapshot.tables).sort(),['admin_notify_channels','audit_log','jugadores','liga_index','liga_state','mensajes','passkeys','sohail_account_security']);
+  assert.deepEqual(Object.keys(snapshot.tables).sort(),['admin_notify_channels','audit_log','jugadores','liga_index','liga_state','mensajes','passkeys','sohail_account_security','sohail_data_operations','sohail_identity_registry']);
   assert.equal(snapshot.consistency,'logical-export-not-transactional');
  }finally{global.fetch=prev;if(prior===undefined)delete process.env.BACKUP_SECRET;else process.env.BACKUP_SECRET=prior;}
 });
