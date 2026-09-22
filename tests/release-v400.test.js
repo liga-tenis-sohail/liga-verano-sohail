@@ -39,9 +39,9 @@ test('V400 release: changed browser modules use the release cache key', () => {
   for (const file of ['data-operations.js', 'player-identity.js', 'player-duplicates.js',
     'persistencia.js', 'history-leagues.js', 'match-history.js', 'bootstrap.js',
     'ui-modern.css', 'jugadores-perfiles.js', 'jugadores-perfiles-catalogo.js']) {
-    assert.ok(html.includes(file + '?v=' + tag), file);
+    assert.ok(html.includes(file + '?v=' + (file==='player-identity.js'?'sohail-v410-login-bulk':tag)), file);
   }
-  assert.ok(html.includes('content="' + tag + '"'));
+  assert.ok(html.includes('content="sohail-v410-login-bulk"'));
 });
 
 test('V400 release: migration and private handlers have complete file paths', () => {

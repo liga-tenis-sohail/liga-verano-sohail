@@ -33,23 +33,36 @@ function mostrarBotonPasskeyLogin(){
   }catch(_){}
 }
 
+let _loginBusy=false,_loginAttemptVersion=0;
+function setLoginBusy(value){
+  _loginBusy=value;
+  for(const id of ['login-btn','login-btn-pk']){const b=document.getElementById(id);if(b)b.disabled=value;}
+  const form=document.querySelector('.login-body');if(form)form.setAttribute('aria-busy',String(value));
+}
+
 // LOGIN con passkey: pide al dispositivo autenticarse y manda al servidor.
 async function loginConPasskey(){
+  if(_loginBusy)return;
   const e=document.getElementById('login-err');
   const btn=document.getElementById('login-btn-pk');
   if(!passkeySoportada()){ if(e){e.textContent=t('pk_unsupported');e.style.display='block';} return; }
-  if(btn) btn.disabled=true;
+  const attempt=++_loginAttemptVersion;
+  if(typeof cancelLoginInitialization==='function')cancelLoginInitialization();
+  setLoginBusy(true);
   try{
     // 1) Pedir el challenge al servidor
-    const r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-start'})});
+    const r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-start'}),signal:AbortSignal.timeout(20000)});
     const opts=await r1.json();
+    if(attempt!==_loginAttemptVersion)return;
     if(!r1.ok) throw new Error(opts.error||'No se pudo iniciar.');
     // 2) El dispositivo autentica (acá aparece el Face ID / Touch ID)
     const cred=await SimpleWebAuthnBrowser.startAuthentication({optionsJSON:opts});
+    if(attempt!==_loginAttemptVersion)return;
     // 3) Mandar la respuesta firmada al servidor
     const ligaId=(typeof _ligaActual!=='undefined'&&_ligaActual)?_ligaActual:undefined;
-    const r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-finish',cred,ligaId})});
+    const r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-finish',cred,ligaId}),signal:AbortSignal.timeout(20000)});
     const d=await r2.json();
+    if(attempt!==_loginAttemptVersion)return;
     if(!r2.ok) throw new Error(d.error||'No se pudo entrar.');
     // 4) Entrar con el token, igual que el login con clave
     const resuelto=entrarConToken(d);
@@ -60,11 +73,12 @@ async function loginConPasskey(){
     // aplica DESPUÉS de elegir liga (ver elegirLigaTrasLogin), no acá.
     if(resuelto && d && d.mustChangePw) forcePwChange(null);
   }catch(err){
+    if(attempt!==_loginAttemptVersion)return;
     // Si el usuario cancela el Face ID, no es un error para mostrar feo.
     const msg=(err&&err.name==='NotAllowedError')?t('pk_cancelled'):(err.message||t('pk_login_err'));
     if(e){e.textContent=msg;e.style.display='block';}
   }finally{
-    if(btn) btn.disabled=false;
+    if(attempt===_loginAttemptVersion)setLoginBusy(false);
   }
 }
 
@@ -490,19 +504,24 @@ async function renombrarPasskey(credId, labelActual){
 }
 
 async function doLogin(){
+  if(_loginBusy)return;
   const field=document.getElementById('login-pass');if(field)field.type='password';if(window.SohailUI)SohailUI.updateLogin();
   const uv=(document.getElementById('login-user').value||'').trim();
   const pv=document.getElementById('login-pass').value;
   const e=document.getElementById('login-err');
   const btn=document.getElementById('login-btn');
   if(!uv||!pv){e.textContent=t('err_need_both');e.style.display='block';return;}
-  if(btn){btn.disabled=true;btn.textContent=t('login_working');}
+  const attempt=++_loginAttemptVersion;
+  if(typeof cancelLoginInitialization==='function')cancelLoginInitialization();
+  setLoginBusy(true);
+  if(btn)btn.textContent=t('login_working');
   try{
     // LOGIN UNIFICADO: ya no se manda ligaId de antemano para un jugador
     // (admin/superadmin siguen mandando _ligaActual, que el server ignora
     // para 'player'). El server busca al usuario en todas las ligas activas.
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined})});
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined}),signal:AbortSignal.timeout(20000)});
     const d=await r.json().catch(()=>({}));
+    if(attempt!==_loginAttemptVersion)return;
     if(!r.ok){e.textContent=d.error||(""+t('ui36_text_180')+"");e.style.display='block';return;}
     _token=d.token;
 
@@ -545,12 +564,14 @@ async function doLogin(){
       if(d.ligaId) _ligaActual=d.ligaId;
     }else{
       await loadState();
+      if(attempt!==_loginAttemptVersion)return;
     }
     if(!_loadOK){e.textContent=t('err_no_data');e.style.display='block';_token=null;return;}
     const u=USERS[d.name];
     if(!u){e.textContent=t('err_no_user_league');e.style.display='block';_token=null;return;}
     if(u.inactive&&d.role==='player'){e.textContent=t('err_inactive');e.style.display='block';_token=null;return;}
     currentUser=u; currentUser.key=d.name;
+    if(d.role==='player')_sinLigasActivas=false;
     // Si no hay ninguna liga activa, solo admin/superadmin pueden entrar (para
     // reabrir o crear). Un jugador no tiene nada que hacer hasta que haya una liga.
     if(_sinLigasActivas && !esAdmin(currentUser)){
@@ -561,9 +582,10 @@ async function doLogin(){
     // El servidor detectó una contraseña por defecto: se bloquea la app hasta cambiarla.
     if(d.mustChangePw) forcePwChange(pv);
   }catch(err){
+    if(attempt!==_loginAttemptVersion)return;
     e.textContent=t('err_no_server');e.style.display='block';return;
   }finally{
-    if(btn){btn.disabled=false;btn.textContent=t('enter')||'Entrar';}
+    if(attempt===_loginAttemptVersion){setLoginBusy(false);if(btn)btn.textContent=t('enter')||'Entrar';}
   }
   montarAppTrasLogin();
 }
@@ -628,7 +650,7 @@ async function elegirLigaTrasLogin(ligaId){
     if(!d.state||!d.name||!d.state.users?.[d.name])throw Error(t('err_no_user_league'));
     const ok=_hydrate(d.state);if(!ok)throw Error(t('err_hydrate'));
     if(d.token)_token=d.token;
-    _ligaActual=ligaId;_lastSaved=_serialize();_loadOK=true;LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
+    _ligaActual=ligaId;_sinLigasActivas=false;_lastSaved=_serialize();_loadOK=true;LIGA_NOMBRE_OFICIAL=d.ligaNombre||'';
     currentUser=USERS[d.name];currentUser.key=d.name;
     if(box)box.style.display='none';
     if(d.mustChangePw||_pendienteMustChangePw)forcePwChange(_pendientePassPlano);
@@ -716,6 +738,7 @@ function entrarConToken(d){
   if(!u){ if(e){e.textContent=t('err_no_user_league');e.style.display='block';} _token=null; return false; }
   if(u.inactive&&d.role==='player'){ if(e){e.textContent=t('err_inactive');e.style.display='block';} _token=null; return false; }
   currentUser=u; currentUser.key=d.name;
+  if(d.role==='player')_sinLigasActivas=false;
   if(_sinLigasActivas && !esAdmin(currentUser)){
     if(e){e.textContent=t('err_no_active_league');e.style.display='block';} _token=null; currentUser=null; return false;
   }
@@ -723,6 +746,8 @@ function entrarConToken(d){
   return true;
 }
 function doLogout(){
+  _loginAttemptVersion++;setLoginBusy(false);
+  if(typeof cancelLoginInitialization==='function')cancelLoginInitialization();
   if(window.SohailResults)SohailResults.clearSession();
   _postLoginRequest++;_postLoginBusy=false;_postLoginChoices=[];_postLoginName='';
   const pass=document.getElementById('login-pass');if(pass)pass.type='password';

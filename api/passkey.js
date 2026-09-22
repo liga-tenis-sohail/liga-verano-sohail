@@ -294,14 +294,7 @@ module.exports = async (req, res) => {
       const activas = idx.filter(l => l.estado === 'activa');
       if(!activas.length) return res.status(401).json({ error: 'No hay ninguna liga activa en este momento.' });
 
-      const encontradoEn = [];   // [{ ligaId, nombre, state, u }]
-      for(const l of activas){
-        let state;
-        try { state = await lib.readState(l.id); } catch(e){ continue; }
-        if(!state || !state.users) continue;
-        const u = state.users[userName];
-        if(u && u.role === 'player') encontradoEn.push({ ligaId: l.id, nombre: l.nombre, state, u });
-      }
+      const encontradoEn = await require('./_login-read').findMemberships(activas, userName, u => u.role === 'player');
       if(!encontradoEn.length){
         return res.status(404).json({ error: 'Tu usuario no está en ninguna liga activa. Entrá con tu clave.' });
       }

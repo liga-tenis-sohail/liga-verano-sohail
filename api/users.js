@@ -37,6 +37,7 @@ const { readState, readLigaIndex, envOK, ligaIdOK, LIGA_DEFAULT } = require('./_
 // jugadores de A para B.
 const cacheByLiga = new Map();
 const CACHE_MS = 30 * 1000;
+let pendingGlobal = null;
 let cacheGlobal = null;   // { data, at }
 
 module.exports = async function handler(req, res){
@@ -123,10 +124,13 @@ async function handlerGlobal(req, res){
     return res.status(200).json(cacheGlobal.data);
   }
 
-  let idx = [];
-  try { idx = await readLigaIndex(); }
-  catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
-
+  if(!pendingGlobal)pendingGlobal=buildGlobalDirectory().finally(()=>{pendingGlobal=null;});
+  const result=await pendingGlobal;
+  res.setHeader('Cache-Control','no-store');
+  return res.status(200).json(result);
+}
+async function buildGlobalDirectory(){
+  const idx=await readLigaIndex();
   const activas = idx.filter(l => l.estado === 'activa');
 
   // porClave: dedupe. Preferimos jugadorId como clave (misma persona real
@@ -134,10 +138,8 @@ async function handlerGlobal(req, res){
   // todavía (no migrado al catálogo), deduplicamos por nombre normalizado.
   const porClave = new Map();   // clave -> { nombre, inactive }
 
-  for(const l of activas){
-    let state;
-    try { state = await readState(l.id); } catch(e){ continue; }
-    if(!state || !state.users) continue;
+  const leagueStates = await require('./_login-read').readLeagueStates(activas);
+  for(const {state} of leagueStates){
     for(const nombre of Object.keys(state.users)){
       const u = state.users[nombre];
       if(!u || u.role !== 'player') continue;
@@ -150,6 +152,7 @@ async function handlerGlobal(req, res){
         // Si en una liga figura inactivo y en otra activo, se muestra activo:
         // sigue siendo un jugador vigente en la plataforma.
         prev.inactive = false;
+        prev.nombre = nombre;
       }
     }
   }
@@ -168,6 +171,7 @@ async function handlerGlobal(req, res){
       porNombreFinal.set(key, { nombre, inactive });
     } else if(prev.inactive && !inactive){
       prev.inactive = false;
+      prev.nombre = nombre;
     }
   }
 
@@ -180,8 +184,7 @@ async function handlerGlobal(req, res){
 
   const result = { mode: 'global', players };
   cacheGlobal = { data: result, at: Date.now() };
-  res.setHeader('Cache-Control', 'no-store');
-  return res.status(200).json(result);
+  return result;
 }
 
 // Normaliza un nombre para comparar (minúsculas, sin tildes, espacios

@@ -47,6 +47,8 @@ const { securityFor, makeSession, principalKey, hashV1, hashV2, POR_DEFECTO_V2, 
         readCatalogo, upsertJugador, readLigaIndex, postLoginLeagueChoices, ligaIdOK, LIGA_DEFAULT,
         rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP } = require('./_lib');
 
+const {findMemberships} = require('./_login-read');
+
 const MAX_FAILS = 5;      // por usuario
 const MAX_IP    = 12;     // por IP: tolera una familia tras el mismo router
 const LOCK_MS   = 5 * 60 * 1000;
@@ -106,7 +108,7 @@ module.exports = async function handler(req, res){
 async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   let idx;
   try { idx = await readLigaIndex(); }
-  catch(e){ idx = []; }
+  catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
 
   const activas = idx.filter(l => l.estado === 'activa');
 
@@ -116,14 +118,8 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   }
 
   // Buscamos la cuenta en cada liga activa donde haya sido heredada.
-  const encontradoEn = [];   // [{ ligaId, nombre, state, u }]
-  for(const l of activas){
-    let state;
-    try { state = await readState(l.id); } catch(e){ continue; }
-    if(!state || !state.users) continue;
-    const u = state.users[user];
-    if(u && (u.role === 'admin' || u.role === 'superadmin')) encontradoEn.push({ ligaId: l.id, nombre: l.nombre, state, u });
-  }
+  const encontradoEn = await findMemberships(activas, user,
+    u => u.role === 'admin' || u.role === 'superadmin');
 
   // Si la cuenta no aparece en NINGUNA liga activa (caso raro: se creó una
   // liga activa sin heredar admins, o se lo removió a mano), tratamos esto
@@ -166,15 +162,17 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
     }
   }
 
+  const disponibles = encontradoEn.filter(e => !e.u.inactive && principalKey(user,e.u) === authRecord.id);
+  if(!disponibles.length) return res.status(403).json({error:'Tu cuenta está inactiva. Contactá al administrador.'});
   const mustChangePw = !!authRecord.must_change;
-  const role = user === 'superadmin' ? 'superadmin' : 'admin';
+  const role = disponibles[0].u.role;
   const exp = Date.now() + SESSION_MIN * 60 * 1000;
 
-  logAudit(user, 'login.ok.admin', encontradoEn.map(e => e.ligaId).join(','), { role, multiLiga: encontradoEn.length > 1 }, ip);
+  logAudit(user, 'login.ok.admin', disponibles.map(e => e.ligaId).join(','), { role, multiLiga: disponibles.length > 1 }, ip);
 
   // --- Caso simple: una sola liga activa -> login directo ---
-  if(encontradoEn.length === 1){
-    const d = encontradoEn[0];
+  if(disponibles.length === 1){
+    const d = disponibles[0];
     const session = makeSession(user,role,d.ligaId,d.state,authRecord);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
@@ -194,7 +192,7 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   // pero el state se pide después de elegir, vía /api/state?elegir=1
   // (mismo selector que usa un jugador en 2+ ligas). No hay liga por
   // defecto: el admin siempre pasa por esta pantalla si tiene 2+. ---
-  const session = makeSession(user,role,encontradoEn[0].ligaId,encontradoEn[0].state,authRecord);
+  const session = makeSession(user,role,disponibles[0].ligaId,disponibles[0].state,authRecord);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     token: signToken(session),
@@ -204,7 +202,7 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
     exp,
     mustChangePw,
     eligeLiga: true,
-    ligas: postLoginLeagueChoices(encontradoEn, idx)
+    ligas: postLoginLeagueChoices(disponibles, idx)
   });
 }
 
@@ -305,14 +303,7 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   // Buscamos al usuario en cada liga activa. Guardamos su registro (u) y
   // el objeto state completo de esa liga (lo vamos a necesitar si termina
   // siendo la única, para devolver el state ya filtrado sin otro roundtrip).
-  const encontradoEn = [];   // [{ ligaId, nombre, state, u }]
-  for(const l of activas){
-    let state;
-    try { state = await readState(l.id); } catch(e){ continue; }
-    if(!state || !state.users) continue;
-    const u = state.users[user];
-    if(u && u.role === 'player') encontradoEn.push({ ligaId: l.id, nombre: l.nombre, state, u });
-  }
+  const encontradoEn = await findMemberships(activas, user, u => u.role === 'player');
 
   if(!encontradoEn.length){
     await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
@@ -327,15 +318,11 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   const v1 = hashV1(pass);
   const isSuper = user==='superadmin' && !!(SUPER_HASH && v2 === SUPER_HASH);
 
-  let stored, jugGlobal = null;
-  if(conCatalogo){
-    try {
-      const cat = await readCatalogo();
-      jugGlobal = cat[conCatalogo.u.jugadorId] || null;
-    } catch(e){ /* fallback abajo */ }
-  }
+  // The versioned security record is authoritative. A normal login must not
+  // download the entire catalogue (including other players' password hashes).
+  // securityFor still bootstraps a missing legacy security record safely.
   const authRecord=await securityFor(user,(conCatalogo||encontradoEn[0]).state);
-  stored=authRecord.pass_hash;
+  const stored=authRecord.pass_hash;
 
   const isLegacy = !/^v[12]:/.test(stored);
   const match = isSuper || (isLegacy ? stored === pass : (stored === v2 || stored === v1));
@@ -349,6 +336,10 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
 
   // Rehash a v2 si hacía falta (catálogo o, en su defecto, la primera liga).
   if(!isSuper && stored !== v2){
+    let jugGlobal = null;
+    if(conCatalogo){
+      try { jugGlobal = (await readCatalogo())[conCatalogo.u.jugadorId] || null; } catch(_){}
+    }
     if(jugGlobal){
       try { jugGlobal.pass = v2; await upsertJugador(jugGlobal); } catch(e){}
     } else {

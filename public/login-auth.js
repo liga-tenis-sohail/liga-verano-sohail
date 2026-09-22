@@ -53,6 +53,7 @@ function pintarLogin(d){
   saOg.appendChild(new Option('Super Administrador','superadmin'));
   s.appendChild(saOg);
   if(prev)s.value=prev;
+  if(window.SohailLoginSearch)SohailLoginSearch.refresh();
 }
 
 // Renderiza el header configurable de la pantalla de login. Se ejecuta al
@@ -113,93 +114,54 @@ function renderLoginHeader(){
   }).join('');
 }
 
+// Public presentation may refresh in parallel, but never overwrite a new session.
+let _loginInitVersion=0;
+function cancelLoginInitialization(){_loginInitVersion++;}
 async function initLogin(){
+  const request=++_loginInitVersion,token=_token;
+  const valid=()=>request===_loginInitVersion&&!currentUser&&token===_token;
   const e=document.getElementById('login-err');
-
-  // Pintar el header custom del login (config editable por admin, ver
-  // renderLoginHeader). Se hace apenas se abre el login, sin esperar a la
-  // red — usa lo que haya en cache (localStorage 'lh' + memoria).
-  try { renderLoginHeader(); } catch(_){}
-
-  // En PARALELO, refrescar el header consultando al server. Este endpoint
-  // NO requiere login: el header es info pública (color y links a la web
-  // del club). Sin esta llamada, un móvil que nunca se logueó veía la
-  // versión vieja del cache local hasta que alguien se logueara desde ese
-  // dispositivo. Con esta llamada, cualquier cambio del admin se refleja
-  // en todos los dispositivos apenas alguien abre el login.
-  //
-  // Fire-and-forget: no bloqueamos el flujo del login esperando esta
-  // respuesta. Si el server tarda, el header aparece con lo que había en
-  // cache y se actualiza cuando termina el fetch.
-  fetch(_conLiga('/api/login-header'), { cache: 'no-store' })
-    .then(r => r.ok ? r.json() : null)
-    .then(cfg => {
-      if(!cfg || typeof cfg !== 'object') return;
-      // Solo actualizamos si algo cambió, para no re-renderear al pedo
-      const nuevo = JSON.stringify({
-        color: cfg.color || '#0E3470',
-        textColor: cfg.textColor || '',
-        colorDark: cfg.colorDark || '',
-        textColorDark: cfg.textColorDark || '',
-        links: Array.isArray(cfg.links) ? cfg.links : []
-      });
-      const viejo = JSON.stringify(LOGIN_HEADER || {});
-      if(nuevo === viejo) return;
-      LOGIN_HEADER = JSON.parse(nuevo);
-      try { localStorage.setItem('lh', nuevo); } catch(_){}
-      try { renderLoginHeader(); } catch(_){}
-    })
-    .catch(() => { /* si falla, seguimos con lo cacheado */ });
-
-  // 0) LOGIN UNIFICADO: ya no se elige liga antes de loguearse. Solo hace
-  //    falta saber si hay AL MENOS una liga activa (si no hay ninguna, cae
-  //    en el acceso especial de admin). El jugador ya no ve ningún selector
-  //    de liga acá — eso ahora ocurre DESPUÉS del login (ver doLogin y
-  //    mostrarSelectorLigaPostLogin), solo si está en 2+ ligas activas.
-  await detectarLigaActiva();
-
-  // 1) Pintar YA con lo último que sabemos. El desplegable aparece instantáneo
-  //    en recargas y al cambiar de cuenta, sin esperar a la red.
+  try{renderLoginHeader();}catch(_){}
   let hayCache=false;
   try{
-    const c=localStorage.getItem('lsu');
-    if(c){ pintarLogin(JSON.parse(c)); hayCache=true; }
-  }catch(_){ /* caché corrupta: se ignora y se pide de nuevo */ }
+    const cached=JSON.parse(localStorage.getItem('lsu')||'null');
+    if(cached&&typeof cached==='object'){pintarLogin(cached);hayCache=true;}
+  }catch(_){}
+  if(!hayCache)pintarLogin({mode:'global',players:[]});
 
-  // No enviar GET de precalentamiento al endpoint de login: solo admite POST.
-  // La lista pública de usuarios se consulta abajo sin generar un 405 artificial.
-
-  // 3) Traer la lista de verdad (modo GLOBAL: sin ?liga=, junta todas las
-  //    ligas activas en un único dropdown alfabético) y refrescar por detrás.
-  let d={};
+  // Names become usable without waiting for league metadata or archived leagues.
+  // Reuse that metadata for the past-league panel instead of fetching it twice.
+  const metadata=detectarLigaActiva(valid);
+  metadata.then(ligas=>{
+    if(valid()&&Array.isArray(ligas))return cargarLigasPasadas(ligas,valid);
+  }).catch(()=>{});
+  // Resolve the cosmetic header against the detected league, not an old/default
+  // league. Only this cosmetic request waits; the username request below does not.
+  metadata.then(()=>valid()?fetch(_conLiga('/api/login-header'),{cache:'no-store',signal:AbortSignal.timeout(15000)}):null)
+    .then(r=>r?.ok?r.json():null).then(cfg=>{
+      if(!valid()||!cfg||typeof cfg!=='object')return;
+      const next=JSON.stringify({color:cfg.color||'#0E3470',textColor:cfg.textColor||'',
+        colorDark:cfg.colorDark||'',textColorDark:cfg.textColorDark||'',
+        links:Array.isArray(cfg.links)?cfg.links:[]});
+      if(next===JSON.stringify(LOGIN_HEADER||{}))return;
+      LOGIN_HEADER=JSON.parse(next);
+      try{localStorage.setItem('lh',next);}catch(_){}
+      try{renderLoginHeader();}catch(_){}
+    }).catch(()=>{});
   try{
-    const r=await fetch('/api/users',{cache:'no-store'});
-    if(!r.ok){
-      const err=await r.json().catch(()=>({}));
-      const msg=r.status===404 ? t('err_users_404') : t('err_server_said')+r.status+'. '+(err.error||'');
-      // Si ya hay algo pintado de la caché, no se rompe la pantalla por un fallo
-      // de refresco: se puede entrar igual y el servidor valida al final.
-      if(e && !hayCache){e.textContent=t('err_no_users')+' '+msg;e.style.display='block';}
-      console.error('/api/users →',r.status,err);
+    const r=await fetch('/api/users',{cache:'no-store',signal:AbortSignal.timeout(15000)});
+    const d=await r.json().catch(()=>null);
+    if(!valid())return;
+    if(!r.ok||!d||d.mode!=='global'||!Array.isArray(d.players)){
+      if(e&&!hayCache){e.textContent=t('err_no_users')+' '+(d?.error||t('err_no_server'));e.style.display='block';}
       return;
     }
-    d=await r.json().catch(()=>({}));
     if(e)e.style.display='none';
-  }catch(err){
-    if(e && !hayCache){e.textContent=t('err_users_csp');e.style.display='block';}
-    console.error('fetch /api/users falló:',err);
-    return;
-  }
-
-  // 4) Repintar solo si algo cambió, y guardar para la próxima vez.
-  const nuevo=JSON.stringify(d);
-  let viejo=null; try{ viejo=localStorage.getItem('lsu'); }catch(_){}
-  if(nuevo!==viejo){
     pintarLogin(d);
-    // Solo nombres: no viajan hashes ni roles (lo garantiza /api/users).
-    try{ localStorage.setItem('lsu',nuevo); }catch(_){ /* modo privado: sin caché */ }
+    try{localStorage.setItem('lsu',JSON.stringify(d));}catch(_){}
+  }catch(_){
+    if(valid()&&e&&!hayCache){e.textContent=t('err_no_users')+' '+t('err_no_server');e.style.display='block';}
   }
-  cargarLigasPasadas();
 }
 
 // Detecta si hay alguna liga activa. Ya NO elige una liga para el login del
@@ -208,15 +170,18 @@ async function initLogin(){
 // admin para reabrir/crear) y deja _ligaActual listo para ese caso, y para
 // el modo "ver liga pasada" que sigue existiendo aparte.
 let _ligasActivas=[];
-async function detectarLigaActiva(){
+async function detectarLigaActiva(valid=()=>true){
   let todas=[];
   try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
+    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'}),signal:AbortSignal.timeout(15000)});
     const d=await r.json().catch(()=>({}));
-    todas=(d.ligas||[]);
+    if(!r.ok||!Array.isArray(d.ligas))return null;
+    if(!valid())return null;
+    todas=d.ligas;
     _ligasActivas=todas.filter(l=>l.estado==='activa')
       .sort((a,b)=>(b.orden||0)-(a.orden||0));
-  }catch(_){ _ligasActivas=[]; todas=[]; }
+  }catch(_){return null;}
+  if(!valid())return null;
   const sel=document.getElementById('liga-selector');
   if(sel) sel.style.display='none';   // el pre-selector de liga ya no se usa en el login
   // CASO ESPECIAL: ninguna liga activa. El admin igual tiene que poder entrar
@@ -228,7 +193,7 @@ async function detectarLigaActiva(){
     _sinLigasActivas = true;
     aplicarNombreLigaLogin();
     mostrarAccesoAdmin(ultima);
-    return;
+    return todas;
   }
   _sinLigasActivas = false;
   ocultarAccesoAdmin();
@@ -239,6 +204,7 @@ async function detectarLigaActiva(){
     _ligaActual=_ligasActivas[0].id;
   }
   aplicarNombreLigaLogin();
+  return todas;
 }
 // Muestra los botones para elegir entre varias ligas activas.
 function refreshLoginHeaderTheme(){
@@ -332,14 +298,20 @@ function ocultarAccesoAdmin(){
 function escPast(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 // Trae la lista de ligas del índice y muestra las finalizadas en el desplegable
 // público del login. Consulta sin cuenta, solo lectura.
-async function cargarLigasPasadas(){
+async function cargarLigasPasadas(snapshot=null,valid=()=>true){
   const cont=document.getElementById('past-leagues');
   const list=document.getElementById('past-list');
   if(!cont||!list) return;
   try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-    const d=await r.json().catch(()=>({}));
-    const ligas=(d.ligas||[]).filter(l=>l.estado==='finalizada')
+    let all=snapshot;
+    if(!Array.isArray(all)){
+      const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'}),signal:AbortSignal.timeout(15000)});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok||!Array.isArray(d.ligas))return;
+      all=d.ligas;
+    }
+    if(!valid())return;
+    const ligas=all.filter(l=>l.estado==='finalizada')
       .sort((a,b)=>(b.orden||0)-(a.orden||0))   // más recientes primero
       .slice(0,3);                               // solo las últimas 3
     if(!ligas.length){ cont.style.display='none'; return; }
@@ -357,6 +329,7 @@ function togglePastLeagues(){
 }
 // Entra a una liga pasada en modo consulta (solo lectura, sin login).
 async function entrarLigaPasada(id, nombre){
+  cancelLoginInitialization();
   const e=document.getElementById('login-err');
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id})});

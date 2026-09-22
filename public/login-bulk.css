@@ -1,0 +1,22 @@
+/* v4.1 — scoped username search and bulk review. Existing dropdown stays native. */
+.login-search{position:relative;margin-bottom:16px;min-width:0}
+.login-search [hidden]{display:none!important}
+body.sohail-ui-modern .ui-login-card .login-body #login-user-search{margin-bottom:6px}
+.login-search-help,.login-search-status{font-size:12px;line-height:1.5;color:var(--text2);margin:6px 0}
+.login-search-status:empty{display:none}
+.login-suggestions{position:relative;list-style:none;margin:6px 0;padding:4px;max-height:230px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;border:1px solid var(--border2);border-radius:10px;background:var(--surface);color:var(--text)}
+.login-suggestions [role=option]{display:flex;align-items:center;min-height:44px;line-height:1.45;padding:9px 10px;border-radius:7px;cursor:pointer;overflow-wrap:anywhere;font-size:14px}
+.login-suggestions [role=option]:hover,.login-suggestions [aria-selected=true]{background:var(--soft);outline:1px solid var(--link);outline-offset:-2px;color:var(--text)}
+#login-user-search:focus-visible{outline:3px solid var(--link);outline-offset:2px}
+.identity-bulk-toolbar{position:sticky;top:-18px;z-index:2;padding:12px;background:var(--surface);border:1px solid var(--border2);border-radius:10px;margin:14px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.identity-bulk-toolbar strong{flex:1 1 150px;font-size:13px;color:var(--text)}
+.identity-bulk-choice{display:flex;align-items:center;gap:10px;min-height:44px;font-size:13px;font-weight:650;line-height:1.5;cursor:pointer;margin-bottom:10px}
+.identity-bulk-choice input[type=checkbox]{width:20px;min-width:20px;height:20px;accent-color:var(--action);margin:0}
+.identity-bulk-choice input:disabled{cursor:not-allowed;opacity:.5}
+.identity-bulk-selected{border-color:var(--action);box-shadow:0 0 0 1px var(--action)}
+.identity-bulk-case{padding:15px;border:1px solid var(--border2);border-radius:12px;margin:0 0 14px;background:var(--surface);min-width:0}
+.identity-bulk-case summary{min-height:44px;padding:10px 0;cursor:pointer;color:var(--link);font-weight:650;font-size:13px}
+.identity-bulk-case .identity-values{max-height:220px;overflow:auto}
+.identity-bulk-case .identity-field{margin:12px 0}
+.identity-bulk-choice input:focus-visible,.identity-bulk-case summary:focus-visible{outline:3px solid var(--link);outline-offset:3px}
+@media(max-width:600px){.identity-bulk-toolbar{top:-14px;padding:10px}.identity-bulk-toolbar .btn{flex:1 1 145px;justify-content:center}.identity-bulk-case{padding:12px}.identity-bulk-choice{font-size:12px}}

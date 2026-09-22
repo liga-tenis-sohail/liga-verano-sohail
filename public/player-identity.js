@@ -9,6 +9,7 @@
  const valueText=v=>typeof v==='string'?v:JSON.stringify(v);
  async function open(mode='duplicates',initialRefs=null,initialCurrentName=''){
   const U=ui(),{el,button,text}=U;let ctx,d,dir,showDecisions=false,sequence=0;
+  const bulkSelection=new Map();
   try{
    ctx=await U.begin();d=U.modal(text('Jugadores · Identidad e historial','Players · Identity and history'));d.onClose=U.end;
    function status(error){if(!d.closed)d.status.textContent=error.message||String(error);}
@@ -55,6 +56,40 @@
     d.body.append(el('p','dup-summary',`${visible.length} ${text('casos para revisar','cases to review')}`));
     if(report.limited)d.body.append(el('p','dup-warning',text('Revisión parcial: se alcanzó el límite de comparaciones. Usá Vincular jugadores históricos para elegir fichas concretas.','Partial review: the comparison limit was reached. Use historical linking to choose specific profiles.')));
     if(!visible.length)d.body.append(el('p','dup-empty',text('No hay sugerencias pendientes con estos criterios. También podés elegir manualmente las dos fichas.','No pending suggestions with these criteria. You can also choose two profiles manually.')));
+    const selectable=new Map(visible.filter(p=>decisionFor(p)?.status!=='distinct').map(p=>[logicalKey(p),p]));
+    for(const key of bulkSelection.keys())if(!selectable.has(key))bulkSelection.delete(key);
+    const controls=new Map(),toolbar=el('div','identity-bulk-toolbar'),counter=el('strong','');
+    const identities=p=>[p.a,p.b].map(r=>r.globalId?'sport:'+r.globalId:refKey(r.ref));
+    const overlaps=(key,p)=>[...bulkSelection].some(([k,other])=>k!==key&&identities(p).some(id=>identities(other).includes(id)));
+    function updateSelection(){
+      counter.textContent=bulkSelection.size+' / 20 '+text('casos seleccionados','selected cases');
+      mergeSelected.disabled=!bulkSelection.size;
+      for(const [key,{check,p,card}]of controls){
+        check.checked=bulkSelection.has(key);
+        check.disabled=!check.checked&&(bulkSelection.size>=20||overlaps(key,p));
+        card.classList.toggle('identity-bulk-selected',check.checked);
+      }
+    }
+    function toggleCase(key,p,checked){
+      if(!checked)bulkSelection.delete(key);
+      else if(bulkSelection.size<20&&!overlaps(key,p))bulkSelection.set(key,p);
+      else d.status.textContent=text('Un máximo de 20 casos independientes: la misma persona no puede estar en dos casos del lote.','At most 20 independent cases: the same person cannot appear in two cases in a batch.');
+      updateSelection();
+    }
+    const mergeSelected=button(text('Revisar y fusionar seleccionados','Review and merge selected'),()=>{
+      const groups=[...bulkSelection.values()].map(p=>{
+        const ordered=p.b.leagueId===ctx.ligaId&&p.a.leagueId!==ctx.ligaId?[p.b,p.a]:[p.a,p.b];
+        return {refs:ordered.map(r=>r.ref),choices:{}};
+      });
+      bulkPreview(groups);
+    },true);
+    mergeSelected.dataset.identityBulkReview='true';
+    toolbar.append(counter,button(text('Marcar visibles para revisar','Select visible cases for review'),()=>{
+      for(const [key,c] of controls)if(bulkSelection.size<20&&!overlaps(key,c.p))bulkSelection.set(key,c.p);
+      updateSelection();
+      d.status.textContent=text('Revisá las casillas: se omitieron los cruces y el exceso del límite. No se fusionó nada.','Review the selections: overlapping cases and cases beyond the limit were excluded. Nothing was merged.');
+    }),button(text('Quitar selección','Clear selection'),()=>{bulkSelection.clear();updateSelection();}),mergeSelected);
+    d.body.append(toolbar,el('p','dup-help',text('Marcá solo los casos que confirmás. Cada pareja es una persona distinta de las otras parejas. Una única confirmación guarda el lote completo; si algo falla, no se aplica ninguna fusión.','Select only cases you confirm. Each pair is independent from the other pairs. One confirmation saves the complete batch; if anything fails, no merge is applied.')));
     let shown=0;const list=el('div','dup-list'),more=button(text('Mostrar más','Show more'),add);d.body.append(list,more);
     function add(){
      for(const p of visible.slice(shown,shown+20)){
@@ -62,13 +97,20 @@
       for(const r of [p.a,p.b]){const item=el('div','dup-match');item.append(el('strong','dup-name',r.name),el('p','dup-source',r.leagueName));pair.append(item);}
       card.append(pair,el('p','dup-help',SohailDuplicates.label(p.reason)));
       const savedDecision=decisionFor(p),decision=savedDecision?.status,actions=el('div','gap-sm');
+      if(decision!=='distinct'){
+       const key=logicalKey(p),label=el('label','identity-bulk-choice'),check=el('input','');check.type='checkbox';
+       check.dataset.identityBulkCase=key;
+       label.append(check,el('span','',text('Son la misma persona · incluir en el lote','Same person · include in batch')));
+       check.addEventListener('change',()=>toggleCase(key,p,check.checked));
+       card.prepend(label);controls.set(key,{check,p,card});
+      }
       if(decision==='later')card.append(el('p','dup-help',text('Pendiente de revisión','Pending review')));
       if(decision==='distinct'){
        card.append(el('p','dup-help',text('Marcadas como personas distintas','Marked as different people')));
        actions.append(button(text('Volver a revisar','Reopen review'),()=>decisionReview(savedDecision.keys.map(k=>dir.records.find(r=>r.key===k).ref),'review')));
       }else actions.append(button(text('Fusionar · misma persona','Merge · same person'),()=>preview([p.a.ref,p.b.ref],{},'merge'),true),button(text('Son personas distintas','Different people'),()=>decisionReview([p.a.ref,p.b.ref],'distinct')),button(text('Revisar más adelante','Review later'),()=>decisionReview([p.a.ref,p.b.ref],'later')));
       card.append(actions);list.append(card);
-     }shown+=20;more.hidden=shown>=visible.length;
+     }shown+=20;more.hidden=shown>=visible.length;updateSelection();
     }add();d.status.textContent=text('Elegí una acción. Todavía no se cambió ningún perfil.','Choose an action. No profile has been changed.');
    }
    function select(labelText,items){
@@ -109,6 +151,51 @@
      },true);d.foot.append(confirm);d.status.textContent=text('Vista previa. Revisá los campos antes de confirmar.','Preview. Review the fields before confirming.');
     }catch(e){status(e);d.foot.append(button(text('Volver a las fichas','Back to profiles'),()=>directory(mode)));}
    }
+   async function bulkPreview(groups){
+    if(!groups.length)return;
+    const seq=++sequence;footer();d.status.textContent='';
+    d.body.replaceChildren(el('p','dup-help',text('Comprobando todos los casos y sus permisos…','Checking every case and its permissions…')));
+    try{
+     const p=await U.post('/api/liga?operacion=identities',{mode:'bulk-preview',ligaId:ctx.ligaId,groups},ctx);
+     if(d.closed||seq!==sequence)return;
+     d.body.replaceChildren(el('h3','dup-summary',p.summary.cases+' '+text('fusiones independientes','independent merges')),
+      el('p','dup-help',p.summary.members+' '+text('fichas','profiles')+' · '+p.summary.leagues.length+' '+text('ligas','leagues')+' · '+p.summary.matches+' '+text('partidos conservados','matches retained')),
+      el('p','dup-warning',text('Cada caso conserva su propia identidad. Se combinan los campos completos y se guardan las variantes y su procedencia. Revisá el valor principal en los campos distintos. No se mezclan contraseñas, Face ID ni permisos. Todo el lote se confirma en una única operación.','Each case keeps its own identity. Completed fields are combined and every variant and its source is retained. Review the primary value for conflicting fields. Passwords, Face ID and permissions are not merged. The whole batch is confirmed in one operation.')));
+     for(const c of p.cases){
+      const card=el('section','identity-bulk-case');
+      card.append(el('h3','dup-name',(c.index+1)+'. '+c.profile.name),el('p','dup-help',c.profile.aliases.join(' · ')));
+      const details=el('details',''),label=el('summary','',text('Ver toda la información que se conserva','View all retained information'));
+      const values=el('dl','identity-values');
+      for(const [k,v]of Object.entries(c.profile.fields))values.append(el('dt','',k),el('dd','',valueText(v)));
+      details.append(label,values);card.append(details);
+      for(const [key,conflict]of Object.entries(c.profile.alternatives)){
+       const field=el('label','identity-field',conflict.path.join(' · ')+text(' · Valor principal',' · Primary value')),select=el('select','dup-decision');
+       conflict.values.forEach((v,i)=>{const o=el('option','',valueText(v.value)+' — '+v.from.join('; '));o.value=String(i);select.append(o);});
+       select.value=String(groups[c.index].choices?.[key]||0);
+       select.onchange=()=>{
+        const next=groups.map((g,i)=>i===c.index?{...g,choices:{...g.choices,[key]:Number(select.value)}}:g);bulkPreview(next);
+       };
+       field.append(select,el('small','dup-help',text('Las otras variantes también se conservan.','All other variants are also retained.')));card.append(field);
+      }
+      card.append(button(text('Usar el otro nombre como principal','Use the other primary name'),()=>bulkPreview(groups.map((g,i)=>i===c.index?{refs:[...g.refs].reverse(),choices:{}}:g))));
+      d.body.append(card);
+     }
+     d.foot.append(button(text('Volver a la selección','Back to selection'),()=>directory('duplicates')));
+     const confirm=button(text('Confirmar las ','Confirm ')+p.summary.cases+text(' fusiones',' merges'),async()=>{
+      if(d.closed)return;d.busy(true);d.status.textContent=text('Guardando el lote completo… No cierres esta ventana.','Saving the complete batch… Keep this window open.');
+      try{
+       const result=await U.committed('/api/liga?operacion=identities',{mode:'bulk-commit',ligaId:ctx.ligaId,groups,digest:p.digest,operationId:crypto.randomUUID()},ctx);
+       bulkSelection.clear();U.applied(d,result);
+       d.body.prepend(el('p','dup-summary',p.summary.cases+' '+text('fusiones guardadas en una única operación.','merges saved in one operation.')));
+      }catch(e){d.busy(false);confirm.disabled=true;status(e);}
+     },true);confirm.dataset.identityBulkConfirm='true';d.foot.append(confirm);
+     d.status.textContent=text('Vista previa completa. Todavía no se fusionó ningún perfil.','Complete preview. No profiles have been merged yet.');
+    }catch(e){
+     if(d.closed||seq!==sequence)return;
+     d.body.replaceChildren(el('p','dup-warning',text('No se pudo preparar el lote. Ninguna fusión fue aplicada.','The batch could not be prepared. No merge was applied.')));
+     status(e);d.foot.append(button(text('Volver a la selección','Back to selection'),()=>directory('duplicates')));
+    }
+   }
    async function decisionReview(refs,statusValue){
     const seq=++sequence;footer();d.body.replaceChildren(el('p','dup-help',text('Preparando la decisión…','Preparing the decision…')));
     try{
@@ -126,7 +213,7 @@
     try{
      const out=await U.post('/api/liga?operacion=identities',{mode:'operations',ligaId:ctx.ligaId},ctx);if(d.closed||seq!==sequence)return;
      d.body.replaceChildren();nav();d.body.append(el('p','dup-warning',text('Deshacer solo se permite si no hubo cambios posteriores en las ligas afectadas ni en las identidades. Nunca se pisan cambios posteriores automáticamente.','Undo is only allowed if affected leagues and identities have no later changes. Later work is never overwritten automatically.')));
-     for(const r of out.operations){const card=el('article','dup-card');card.append(el('strong','dup-name',r.kind+' · '+r.createdAt),el('p','dup-help',r.id),button(text('Revisar cómo deshacer','Review undo'),()=>undo(r.id)));d.body.append(card);}
+     for(const r of out.operations){const card=el('article','dup-card');card.append(el('strong','dup-name',(r.summary?.bulk?text('Fusión masiva · ','Bulk merge · ')+r.summary.cases:r.kind)+' · '+r.createdAt),el('p','dup-help',r.id),button(text('Revisar cómo deshacer','Review undo'),()=>undo(r.id)));d.body.append(card);}
      if(!out.operations.length)d.body.append(el('p','dup-empty',text('Todavía no hay operaciones de esta versión.','No operations from this release yet.')));
     }catch(e){status(e);}
    }

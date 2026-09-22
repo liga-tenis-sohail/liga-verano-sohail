@@ -46,6 +46,20 @@ module.exports=require('./_http').wrap(async function(req,res){
   if(b.digest!==proof)throw new O.AppError(409,'PREVIEW_EXPIRED','La vista previa ya no está vigente.');
   return res.status(200).json(await O.commit(ctx,{kind:'undo',states,reg,newRegistry,proof,operationId:b.operationId,summary}));
  }
+ // Bulk uses the existing 'merge' SQL operation, with a distinct signed plan.
+ // It does not require a migration or bypass the per-profile permission checks.
+ if(b.mode==='bulk-preview'||b.mode==='bulk-commit'){
+  if(b.mode==='bulk-commit'){
+   const prior=await O.replay(b.operationId,ctx,'merge',b.digest);
+   if(prior)return res.status(200).json(prior);
+  }
+  const all=await I.universe(ctx,reg);
+  const plan=require('./_bulk-identities').planBulkMerge(ctx,all,reg,b.groups);
+  const proof=O.planProof(ctx,'merge',plan.states,reg.version,{bulk:true,newRegistry:plan.newRegistry,summary:plan.summary});
+  if(b.mode==='bulk-preview')return res.status(200).json({ok:true,digest:proof,summary:plan.summary,cases:plan.cases});
+  if(b.digest!==proof)throw new O.AppError(409,'PREVIEW_EXPIRED','El lote o los datos cambiaron. Volvé a revisar antes de fusionar.');
+  return res.status(200).json(await O.commit(ctx,{kind:'merge',states:plan.states,reg,newRegistry:plan.newRegistry,proof,operationId:b.operationId,summary:plan.summary}));
+ }
  const all=await I.universe(ctx,reg);
  if(b.mode==='directory'){
   const visible=all.records.filter(r=>r.ref.type==='catalog'||r.editable);

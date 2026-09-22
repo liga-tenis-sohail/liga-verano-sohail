@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="sohail-release" content="sohail-v400-restauracion-identidades"><script src="theme.js?v=sohail-v39-rules-text-20260916"></script>
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="sohail-release" content="sohail-v410-login-bulk"><script src="theme.js?v=sohail-v39-rules-text-20260916"></script>
 <script>(function(){try{
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn)document.addEventListener('DOMContentLoaded',function(){
@@ -7,7 +7,7 @@
     if(sub&&lsn.s)sub.textContent=lsn.s;
     if(lsn.n)document.title=lsn.n;
   },false);
-}catch(_){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script><script src="webauthn.js?v=sohail-v322-recovery-20260914"></script><style>
+}catch(_){}})();</script><meta name="viewport" content="width=device-width,initial-scale=1"><title>Liga de Tenis Sohail</title><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css"><script src="webauthn.js?v=sohail-v322-recovery-20260914"></script><style>
 /* Respaldo inline de "Mis Ligas": si por cualquier motivo estilos.css no
    llegara a cargar con la versión más reciente, estas reglas viven acá
    adentro del HTML mismo y se aplican igual. Duplicadas a propósito respecto
@@ -45,6 +45,7 @@ button.liga-tab{cursor:pointer}
 
 <link rel="stylesheet" href="ui-modern.css?v=sohail-v400-restauracion-identidades">
 <link rel="stylesheet" href="admin-workspace.css?v=sohail-v36-20260915">
+<link rel="stylesheet" href="login-bulk.css?v=sohail-v410-login-bulk">
 </head><body>
 <div id="login-screen">
   <!-- Header editable de la pantalla de login. El admin configura color y
@@ -60,6 +61,13 @@ button.liga-tab{cursor:pointer}
       <div class="ball"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 5c6 4 6 10 0 14M18 5c-6 4-6 10 0 14"/></svg></div><h1 id="login-title"></h1><p id="login-sub"></p>
     </div>
     <div class="login-body"><div class="ui-login-intro"><p class="ui-eyebrow" data-ui-login-text="ui_login_eyebrow">Tu liga, en un solo lugar</p><h2 data-ui-login-text="ui_login_title">Entrá a tu competición</h2><p data-ui-login-text="ui_login_step">Elegí tu usuario y continuá con tu contraseña o tu dispositivo.</p></div><div class="login-err" id="login-err" role="alert"></div>
+      <div class="login-search">
+        <label id="login-search-label" for="login-user-search">Buscá tu nombre</label>
+        <input type="text" id="login-user-search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="login-user-suggestions" aria-describedby="login-search-help login-search-status" placeholder="Escribí tu nombre o apellido…" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="120">
+        <ul id="login-user-suggestions" class="login-suggestions" role="listbox" hidden></ul>
+        <p id="login-search-help" class="login-search-help">Elegí una sugerencia o usá la lista completa de abajo.</p>
+        <p id="login-search-status" class="login-search-status" role="status" aria-live="polite" aria-atomic="true"></p>
+      </div>
       <label id="lbl-user" for="login-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
       <div class="ui-login-password-label"><label id="lbl-pass" for="login-pass">Contraseña</label></div>
       <div class="ui-password-field"><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" id="ui-password-visibility" aria-controls="login-pass" aria-pressed="false" aria-label="Mostrar contraseña" title="Mostrar contraseña"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
@@ -177,13 +185,13 @@ button.liga-tab{cursor:pointer}
 <script src="core-estado.js?v=sohail-v39-rules-text-20260916"></script>
 <script src="i18n-revision.js?v=sohail-reglamento-enlaces-v393-20260917"></script>
 <script src="destinos-auto.js?v=destinos-v341-update-20260915"></script>
-<script src="login-auth.js?v=sohail-auditoria-v38-20260916"></script>
+<script src="login-auth.js?v=sohail-v410-login-bulk"></script>
 <script src="data-operations.js?v=sohail-v400-restauracion-identidades"></script>
-<script src="player-identity.js?v=sohail-v400-restauracion-identidades"></script>
+<script src="player-identity.js?v=sohail-v410-login-bulk"></script>
 <script src="player-duplicates.js?v=sohail-v400-restauracion-identidades"></script>
 <script src="jugadores-perfiles-catalogo.js?v=sohail-v400-restauracion-identidades"></script>
 <script src="reglamento.js?v=sohail-reglamento-enlaces-v393-20260917"></script>
-<script src="login-auth-p2.js?v=sohail-auditoria-v38-20260916"></script>
+<script src="login-auth-p2.js?v=sohail-v410-login-bulk"></script>
 <script src="shell-render.js?v=sohail-v36-20260915"></script>
 <script src="resultados-y-grupos.js?v=sohail-v395-result-guard"></script>
 <script src="admin-ligas-clubes.js?v=sohail-v397-duplicate-review"></script>
@@ -202,6 +210,8 @@ button.liga-tab{cursor:pointer}
 <script src="match-history.js?v=sohail-v400-restauracion-identidades"></script>
 <script src="result-policy.js?v=sohail-v395-result-guard"></script>
 <script src="result-editor.js?v=sohail-v395-result-guard"></script>
+<script src="login-search.js?v=sohail-v410-login-bulk"></script>
+<script src="excel-loader.js?v=sohail-v410-login-bulk"></script>
 <script src="bootstrap.js?v=sohail-v400-restauracion-identidades"></script>
 <script src="rating.js?v=sohail-v395-result-guard"></script>
 </body></html>
