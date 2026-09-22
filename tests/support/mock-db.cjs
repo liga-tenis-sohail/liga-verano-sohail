@@ -5,8 +5,8 @@ process.env.SUPABASE_URL='https://database.invalid';process.env.SUPABASE_SERVICE
 const lib=require('../../api/_lib');
 function result(data,status=200){return {status,ok:status<400,headers:new Headers(),json:async()=>structuredClone(data),text:async()=>JSON.stringify(data)};}
 function createDB(states){
- const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[]},requests:[],fault:null,latency:0,failWrites:0};
- db.setStates=(list)=>{for(const name of Object.keys(db.tables))db.tables[name]=[];db.tables.sohail_identity_registry.push({id:1,version:0,data:{links:{},profiles:{},decisions:{}}});for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}}};
+ const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[],sohail_login_order:[]},requests:[],fault:null,latency:0,failWrites:0};
+ db.setStates=(list)=>{for(const name of Object.keys(db.tables))db.tables[name]=[];db.tables.sohail_login_order.push({id:1,version:0,league_ids:[]});db.tables.sohail_identity_registry.push({id:1,version:0,data:{links:{},profiles:{},decisions:{}}});for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}}};
  function rows(name,url){return db.tables[name].filter(row=>{for(const[k,v]of url.searchParams){if(['select','limit','offset','order','on_conflict'].includes(k))continue;
    if(v==='is.null'&&row[k]!=null)return false;if(v==='not.is.null'&&row[k]==null)return false;
    if(v.startsWith('eq.')&&String(row[k])!==v.slice(3))return false;
@@ -20,6 +20,20 @@ function createDB(states){
   if(db.latency)await new Promise(r=>setTimeout(r,db.latency));
   if(db.fault&&db.fault({name,method,url,body}))return result({error:'Database failure simulated'},503);
   if(url.pathname.includes('/rpc/')){
+   if(name==='sohail_set_login_league_order'){
+    // Contract simulation only: not a substitute for executing the migration.
+    const p=body,config=db.tables.sohail_login_order[0],source=db.state(p.p_source),u=source?.users[p.p_actor];
+    if(!config)return result({error:'missing function/table'},404);
+    const account=db.tables.sohail_account_security.find(x=>x.id===p.p_actor_key);
+    if(!account||account.epoch!==p.p_epoch||account.must_change||!u||u.inactive||!lib.sesionEsAdmin({u:p.p_actor,pk:p.p_actor_key},source.users))return result({ok:false,code:'FORBIDDEN'});
+    if(!Array.isArray(p.p_ids)||new Set(p.p_ids).size!==p.p_ids.length)return result({ok:false,code:'INVALID_ORDER'});
+    if(config.version!==p.p_expected)return result({ok:false,code:'CONFLICT'});
+    const closed=db.tables.liga_index.filter(l=>l.estado==='finalizada').map(l=>l.id).sort();
+    if(JSON.stringify(closed)!==JSON.stringify(p.p_ids.slice().sort()))return result({ok:false,code:'LEAGUES_CHANGED'});
+    if(db.failWrites>0){db.failWrites--;return result({error:'save failed'},503);}
+    if(JSON.stringify(config.league_ids)!==JSON.stringify(p.p_ids)){config.league_ids=structuredClone(p.p_ids);config.version++;config.updated_by=p.p_actor;}
+    return result({ok:true,version:config.version,ids:config.league_ids});
+   }
    if(name==='sohail_apply_data_operation'){
     // Models the transaction's atomic CAS, authorization and idempotency contract.
     // The SQL implementation still needs its independent database integration test.

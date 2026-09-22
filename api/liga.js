@@ -137,6 +137,7 @@ module.exports = async function handler(req, res){
   if(req.query && req.query.operacion!==undefined){
     if(req.query.operacion==='restore')return require('./_restore_route')(req,res);
     if(req.query.operacion==='identities')return require('./_identities_route')(req,res);
+    if(req.query.operacion==='login-order')return require('./_login-order').handler(req,res);
     return res.status(400).json({code:'INVALID_OPERATION',error:'Operación desconocida.'});
   }
 
@@ -145,9 +146,9 @@ module.exports = async function handler(req, res){
 
   if(accion === 'listar'){
     try {
-      const idx = await readLigaIndex();
+      const listing = await require('./_login-order').publicList();
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json({ ligas: idx });
+      return res.status(200).json(listing);
     } catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
   }
 

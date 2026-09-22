@@ -311,16 +311,22 @@ async function cargarLigasPasadas(snapshot=null,valid=()=>true){
       all=d.ligas;
     }
     if(!valid())return;
-    const ligas=all.filter(l=>l.estado==='finalizada')
-      .sort((a,b)=>(b.orden||0)-(a.orden||0))   // más recientes primero
-      .slice(0,3);                               // solo las últimas 3
+    const ligas=window.SohailLeagueOrder
+      ? window.SohailLeagueOrder.closed(all)
+      : all.filter(l=>l.estado==='finalizada').sort((a,b)=>(b.orden||0)-(a.orden||0));
+    // Display every closed league, not only the first three. Names remain text,
+    // including quotes/HTML-like names; never interpolate them into onclick.
+    list.replaceChildren();
     if(!ligas.length){ cont.style.display='none'; return; }
-    list.innerHTML=ligas.map(l=>
-      '<div class="past-item" onclick="entrarLigaPasada(\''+String(l.id).replace(/'/g,"\\'")+'\',\''+String(l.nombre).replace(/'/g,"\\'")+'\')">'
-      +'<div class="past-item-ic"><i class="ti ti-trophy"></i></div>'
-      +'<div class="past-item-tx"><b>'+escPast(l.nombre)+'</b><span>'+t('past_view')+'</span></div>'
-      +'<i class="ti ti-chevron-right" style="color:var(--text2)"></i></div>'
-    ).join('');
+    for(const l of ligas){
+      const item=document.createElement('button');item.type='button';item.className='past-item';
+      const icon=document.createElement('span');icon.className='past-item-ic';icon.textContent='🏆';icon.setAttribute('aria-hidden','true');
+      const copy=document.createElement('span');copy.className='past-item-tx';
+      const name=document.createElement('b');name.textContent=l.nombre;
+      const hint=document.createElement('span');hint.textContent=t('past_view');
+      copy.append(name,hint);item.append(icon,copy);
+      item.addEventListener('click',()=>entrarLigaPasada(l.id,l.nombre));list.append(item);
+    }
     cont.style.display='';
   }catch(_){ cont.style.display='none'; }
 }
@@ -392,6 +398,11 @@ function salirLigaPasada(){
 async function cargarGestionLigas(){
   const cont=document.getElementById('liga-mgmt-list');
   if(!cont) return;
+  if(window.SohailLoginLeagueOrder){
+    let host=document.getElementById('login-league-order');
+    if(!host){host=document.createElement('div');host.id='login-league-order';cont.before(host);}
+    window.SohailLoginLeagueOrder.mount(host);
+  }
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
     const d=await r.json().catch(()=>({}));
