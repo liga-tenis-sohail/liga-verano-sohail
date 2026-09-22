@@ -1,6 +1,7 @@
 'use strict';
 // Read-only local verification. No network, no imports of application modules.
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const {createRequire}=require('node:module');
 function verify(root){
  root=path.resolve(root);const checks=[];
  const add=(name,ok,detail='')=>checks.push({name,ok:!!ok,...(detail?{detail}:{})});
@@ -11,8 +12,22 @@ function verify(root){
   for(const p of walk(dir).filter(p=>p.endsWith('.js'))){
    const s=source(p);try{new vm.Script(s,{filename:p});add('syntax '+p,true);}catch(e){add('syntax '+p,false,e.message);}
    add('content '+p,!/^\s*(?:Unsupported Media Type|(?:<!doctype|<html)\b|(?:404|403|500|503)\s+(?:Error|Not Found))/i.test(s),'Expected a JavaScript source file, not an error response');
+   // Bounded static check of literal local require() calls used by this API.
+   // Resolution does not execute any module, contact a DB or install packages.
+   if(dir==='api'){
+    const localRequire=createRequire(path.join(root,p));
+    const imports=new Set(Array.from(s.matchAll(/\brequire\(\s*(['"])(\.[^'"]+)\1\s*\)/g),m=>m[2]));
+    for(const specifier of imports){
+     try{
+      const resolved=localRequire.resolve(specifier),relative=path.relative(root,resolved);
+      const inside=relative!==''&&!relative.startsWith('..'+path.sep)&&relative!=='..'&&!path.isAbsolute(relative);
+      add('local module '+p+' -> '+specifier,inside&&fs.statSync(resolved).isFile(),'El módulo local debe existir dentro de la repo.');
+     }catch(_){add('local module '+p+' -> '+specifier,false,'Falta el módulo local; revisá el nombre y la ruta, incluidas mayúsculas.');}
+    }
+   }
   }
  }
+ add('no additional public functions',walk('api').filter(p=>p.endsWith('.js')&&!path.basename(p).startsWith('_')).length<=12);
  const idx='public/index.html';if(!fs.existsSync(path.join(root,idx))){add(idx,false);return checks;}
  const html=source(idx);add('HTML document',/^\s*<!doctype html>/i.test(html)&&/<\/html>\s*$/i.test(html));
  let count=0;for(const m of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi))if(!/\bsrc\s*=/.test(m[1])){
@@ -27,7 +42,7 @@ function verify(root){
   add('local resource '+uri,full.startsWith(path.join(root,'public')+path.sep)&&fs.existsSync(full));
  }
  const local=scripts.filter(s=>!/^https?:/i.test(s)).map(s=>s.split('?')[0]);add('unique local scripts',new Set(local).size===local.length);
- const order=['score-rules.js','core-estado.js','i18n-revision.js','destinos-auto.js','shell-render.js','persistencia.js','admin-workspace.js','ui-modern.js','history-leagues.js','match-history.js','result-editor.js','bootstrap.js','rating.js'];
+ const order=['score-rules.js','core-estado.js','i18n-revision.js','destinos-auto.js','data-operations.js','player-identity.js','player-duplicates.js','shell-render.js','persistencia.js','admin-workspace.js','ui-modern.js','history-leagues.js','match-history.js','result-editor.js','bootstrap.js','rating.js'];
  add('required modules exist and retain dependency order',order.every((n,i)=>local.includes(n)&&(!i||local.indexOf(n)>local.indexOf(order[i-1]))));
  add('no nested public/public',!fs.existsSync(path.join(root,'public','public')));
  const v=path.join(root,'vercel.json');if(fs.existsSync(v)){try{const j=JSON.parse(fs.readFileSync(v,'utf8'));add('Vercel valid JSON',!!j);add('backup schedule retained',j.crons?.some(c=>c.path==='/api/backup'&&c.schedule==='0 4 */3 * *'));}catch(e){add('Vercel valid JSON',false,e.message);}}
