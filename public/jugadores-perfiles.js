@@ -534,63 +534,11 @@ function partidosEntre(a, b, estado, ligaNombre){
   return {gA, gB, filas};
 }
 // Abre el modal H2H entre dos jugadores, sumando la liga actual + las pasadas.
-async function abrirH2H(a, b){
-  // v3.7.1: keep every legacy H2H link, using the identity-safe viewer.
-  if(window.SohailHistory&&typeof SohailHistory.openH2H==='function'&&SohailHistory.openH2H(a,b))return;
-  document.getElementById('modal-title').textContent=t('h2h_title');
-  document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
-  document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
-  document.getElementById('modal-bg').classList.add('open');
-  const owner=document.getElementById('modal-body').firstElementChild,key=_saveSessionKey(),league=_ligaActual;
-  let gA=0,gB=0; let filasHTML='';
-  const todasLasFilas=[];
-  const actual=partidosEntre(a,b,{matches:matches}, LEAGUE_NAME||t('past_current'));
-  gA+=actual.gA; gB+=actual.gB;
-  actual.filas.forEach(f=>todasLasFilas.push(f));
-  
-  try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-    const d=await r.json().catch(()=>({}));
-    const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
-    for(const l of otras){
-      try{
-        let est=null;
-        const rv=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-        if(rv.ok){ const dv=await rv.json().catch(()=>({})); est=dv.estado; }
-        else if(_token){
-          const r2=await fetch('/api/state?liga='+encodeURIComponent(l.id),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-          if(r2.ok){ const d2=await r2.json().catch(()=>({})); est=d2.state; }
-        }
-        if(est){
-          const res=partidosEntre(a,b,est, l.nombre);
-          if(res.filas.length){ gA+=res.gA; gB+=res.gB; res.filas.forEach(f=>todasLasFilas.push(f)); }
-        }
-      }catch(_){}
-    }
-    todasLasFilas.sort((x,y)=>{
-      const fx=x.fecha||'', fy=y.fecha||'';
-      if(fx!==fy) return fy.localeCompare(fx);
-      return (y.mid||0)-(x.mid||0);
-    });
-    filasHTML='<div class="h2h-list">'+todasLasFilas.map(f=>
-      '<div class="h2h-row"><span class="h2h-wl '+(f.ganoA?'w':'l')+'">'+(f.ganoA?t('win_short'):t('loss_short'))+'</span>'
-      +'<span class="h2h-sc">'+escPast(f.sc)+'</span>'
-      +(f.ligaNombre?'<span class="h2h-liga-tag">'+escPast(f.ligaNombre)+'</span>':'')
-      +'</div>').join('')+'</div>';
-  }catch(_){}
-  
-  if(!owner?.isConnected||key!==_saveSessionKey()||league!==_ligaActual||!document.getElementById('modal-bg').classList.contains('open'))return;
-  const body=document.getElementById('modal-body');
-  if(gA+gB===0){ body.innerHTML='<div class="pm-past-empty">'+t('h2h_none').replace('{a}',escPast(a)).replace('{b}',escPast(b))+'</div>'; return; }
-  let h='<div class="h2h-head">';
-  h+='<div class="h2h-side"><span class="avatar h2h-av">'+getInitials(a)+'</span><b>'+escPast(a)+'</b></div>';
-  h+='<div class="h2h-score"><span class="'+(gA>gB?'h2h-win':'')+'">'+gA+'</span><i>–</i><span class="'+(gB>gA?'h2h-win':'')+'">'+gB+'</span></div>';
-  h+='<div class="h2h-side"><span class="avatar h2h-av">'+getInitials(b)+'</span><b>'+escPast(b)+'</b></div>';
-  h+='</div>';
-  h+='<div class="h2h-caption">'+t('h2h_balance').replace('{a}',escPast(a)).replace('{b}',escPast(b)).replace('{ga}',gA).replace('{gb}',gB)+'</div>';
-  h+=filasHTML;
-  body.innerHTML=h;
+async function abrirH2H(a,b){
+  if(window.SohailHistory?.openH2H(a,b))return;
+  toast(LANG==='en'?'Choose two different sporting profiles. Reload if the history module is unavailable.':'Elegí dos fichas deportivas distintas. Recargá si falta el módulo de historial.');
 }
+
 function renderPerfil(){
   const u = currentUser;
   if(esAdmin(u)) {
@@ -620,7 +568,7 @@ function renderPerfil(){
           <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importarListaJugadores(this)">
         </label>
         <button class="btn btn-sm" onclick="abrirAgregarJugadores()"><i class="ti ti-users"></i> ${t('aj_open_btn')}</button>
-        <button class="btn btn-sm" type="button" onclick="SohailDuplicates.show()"><i class="ti ti-user-search" aria-hidden="true"></i> ${SohailDuplicates.label('button')}</button>
+        <button class="btn btn-sm" type="button" onclick="SohailDuplicates.show()"><i class="ti ti-user-search" aria-hidden="true"></i> ${SohailDuplicates.label('button')}</button> <button type="button" class="btn btn-sm" onclick="SohailIdentity.historical()"><i class="ti ti-link"></i> ${LANG==='en'?'Link historical players':'Vincular jugadores históricos'}</button>
       </div>
     </div>`;
     h += `<div class="form-row" style="grid-template-columns:1fr 1fr 1fr auto;align-items:end">`;
@@ -635,7 +583,7 @@ function renderPerfil(){
         <div class="section-lbl" style="margin:0">${t('player_mgmt')}</div>
         <div class="gap-sm">
           <button class="btn btn-sm" onclick="renderPerfil()"><i class="ti ti-refresh"></i> ${t('refresh_list')}</button>
-          <button class="btn btn-sm" type="button" onclick="SohailDuplicates.show()"><i class="ti ti-user-search" aria-hidden="true"></i> ${SohailDuplicates.label('button')}</button>
+          <button class="btn btn-sm" type="button" onclick="SohailDuplicates.show()"><i class="ti ti-user-search" aria-hidden="true"></i> ${SohailDuplicates.label('button')}</button> <button type="button" class="btn btn-sm" onclick="SohailIdentity.historical()"><i class="ti ti-link"></i> ${LANG==='en'?'Link historical players':'Vincular jugadores históricos'}</button>
         </div>
       </div>
       <p class="legend-txt" style="margin-top:0">${t('player_mgmt_hint')}</p>
@@ -737,6 +685,7 @@ function renderPlayerList(players, filter) {
         <div class="ge-gtitle">${pwDot} ${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?(" <span style=\"font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700\">"+t('ui36_text_166')+"</span>"):''}</div>
         <button class="btn btn-sm" onclick="togglePlayerEdit('${jsq(p.name)}')"><i class="ti ti-edit"></i> ${t('edit')}</button>
       </div>
+      ${p.historialId?`<div class="dup-help">${LANG==='en'?'Unified sporting profile':'Ficha deportiva unificada'}: ${escPast(p.historialNombre||p.name)} <button type="button" class="btn btn-sm" onclick="SohailIdentity.profile('${escJsAttr(p.name)}')">${LANG==='en'?'View retained information':'Ver información conservada'}</button></div>`:''}
       __PLAYER_CARD_BODY_${attr(p.name)}__
     </div>`;
   };

@@ -1,4 +1,4 @@
-/* Sohail v3.7.1 — historial y estadísticas de la liga seleccionada.
+/* Sohail v4.0 — historial, estadísticas y H2H de todas las ligas accesibles.
    SOLO lectura de matches: no cambia puntuación, rating, permisos ni estado.
    Se incluyen todos los ciclos y ambos cuadros, independientes de viewCycle.
    El historial conserva W.O./NJ; las estadísticas de juego los separan.
@@ -74,7 +74,8 @@
  // Equal names without a shared ID are never merged across seasons.
  function person(name,context={}){
   const u=context.users&&Object.prototype.hasOwnProperty.call(context.users,name)?context.users[name]:null;
-  const id=typeof u?.jugadorId==='string'&&u.jugadorId.trim()?u.jugadorId:null;
+  const effective=u?.historialId||u?.jugadorId;
+  const id=typeof effective==='string'&&effective.trim()?effective:null;
   return {name,id,leagueId:String(context.id||''),key:JSON.stringify(id?['profile',id]:['league',String(context.id||''),name])};
  }
  function opponent(m,name,context={}){
@@ -252,8 +253,8 @@
  function canAggregate(name,context=currentSnapshot()){return !!name&&!!global.SohailLeagueHistory&&SohailLeagueHistory.validId(context.id)&&!!(currentUser||_ligaReadOnly);}
  function archiveController(name,valid,current=currentSnapshot){return SohailLeagueHistory.createController({name,current,token:()=>_token,valid,fetcher:(...args)=>fetch(...args)});}
  function forPage(){
-  const name=selectedPlayer(),key=skey()+'|'+name+'|'+(USERS[name]?.jugadorId||'');
-  if(pageArchiveKey!==key){pageArchive?.cancel();pageArchiveKey=key;pageArchive=canAggregate(name)?archiveController(name,()=>!!currentUser&&pageArchiveKey===key&&skey()+'|'+selectedPlayer()+'|'+(USERS[selectedPlayer()]?.jugadorId||'')===key):null;}
+  const name=selectedPlayer(),key=skey()+'|'+name+'|'+(USERS[name]?.historialId||USERS[name]?.jugadorId||'');
+  if(pageArchiveKey!==key){pageArchive?.cancel();pageArchiveKey=key;pageArchive=canAggregate(name)?archiveController(name,()=>!!currentUser&&pageArchiveKey===key&&skey()+'|'+selectedPlayer()+'|'+(USERS[selectedPlayer()]?.historialId||USERS[selectedPlayer()]?.jugadorId||'')===key):null;}
   return pageArchive;
  }
  const isRemoteScope=value=>value!=='current';
@@ -263,9 +264,8 @@
   const id=value.slice(7);return snapshot?.index?.find(l=>l.id===id)?.nombre||id;
  }
  function leagueControl(id,value,enabled=true,snapshot=null,context=currentSnapshot()){
-  const entries=snapshot?.index||[{id:context.id,nombre:context.nombre,estado:context.estado}];
-  const selected=value.startsWith('league:')?value.slice(7):'';
-  return '<fieldset class="mh-league-scope"><legend>'+e(t('mha_range'))+'</legend><div class="mh-league-options">'+[['all','mha_all'],['current','mha_current']].map(([v,k])=>'<button type="button" id="'+id+'-'+v+'" data-history-leagues="'+v+'" aria-pressed="'+(value===v)+'"'+(v==='all'&&!enabled?' disabled':'')+'>'+e(t(k))+'</button>').join('')+'</div><label class="mh-specific-league" for="'+id+'-specific">'+e(t('mha_specific'))+'<select id="'+id+'-specific" data-history-league'+(!enabled?' disabled':'')+'>'+option('',t('mha_choose_league'),selected)+entries.map(l=>option(l.id,l.nombre+(l.estado?' · '+t(l.estado==='finalizada'?'mha_finished':'mha_active'):''),selected)).join('')+'</select></label><p class="mh-note">'+e(t(!enabled?'mha_player_required':_token?'mha_includes':'mha_public_includes'))+'</p></fieldset>';
+  // A person's record is always cross-league. There is no league-choice step.
+  return '<div class="mh-all-leagues-fixed" role="note"><strong>'+e(t(enabled?'mha_scope_all':'mha_player_required'))+'</strong><p class="mh-note">'+e(t(!enabled?'mha_player_required':_token?'mha_includes':'mha_public_includes'))+'</p></div>';
  }
  function chosenSnapshot(snapshot,value,context){return snapshot&&isRemoteScope(value)?SohailLeagueHistory.selectScope(snapshot,value,context.id):null;}
  function scopeChoices(value,snapshot,context){
@@ -285,8 +285,8 @@
  function redrawPage(){const focus=document.activeElement?.id,scroll=window.scrollY;render();if(focus)document.getElementById(focus)?.focus({preventScroll:true});window.scrollTo({top:scroll,behavior:'auto'});}
  function loadPageArchive(){const c=forPage();if(!c)return;const job=c.load();redrawPage();job.finally(()=>{if(pageArchive===c&&currentUser&&subView==='partidos')redrawPage();});}
  function dataset(){
-  const name=selectedPlayer(),c=forPage(),snap=chosenSnapshot(c?.snapshot(),state.leagueScope,currentSnapshot());
-  const base=D.records(snap?snap.records:matches,name,state.scope);
+  const name=selectedPlayer(),c=forPage(),snap=chosenSnapshot(c?.snapshot(),name?'all':'current',currentSnapshot());
+  const base=D.records(snap?snap.records:matches,name,state.tab==='h2h'?'all':state.scope);
   const list=!state.query?base:base.filter(m=>(D.players(m).join(' ')+' '+(m._mhLeagueName||'')+' '+(m.club||'')+' '+(m.date||'')+' '+score(m,name).replace(/–/g,'-')).toLocaleLowerCase(LANG).includes(state.query.toLocaleLowerCase(LANG).replace(/–/g,'-')));
   return {name,base,list,snap};
  }
@@ -296,6 +296,7 @@
   const filterLabel=document.getElementById('mh-filter-label'),sel=document.getElementById('mh-scope');if(filterLabel)filterLabel.textContent=(sel?.selectedOptions[0]?.textContent||t('mh_all'))+(name&&esAdmin(currentUser)?' · '+name:'')+(state.query&&state.tab==='history'?' · '+t('mh_search_active'):'');
   host.setAttribute('aria-labelledby','mh-tab-'+state.tab);
   document.querySelectorAll('[data-mh-tab]').forEach(b=>{const on=b.dataset.mhTab===state.tab;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
+  const phase=document.getElementById('mh-scope')?.closest('label');if(phase)phase.hidden=state.tab==='h2h';
   const search=document.getElementById('mh-search-wrap');if(search)search.hidden=state.tab!=='history';
   const notice=archiveStatus(snap);
   if(snap&&(snap.busy||snap.error||!snap.ready||snap.unavailable)){host.innerHTML=notice;return;}
@@ -309,7 +310,8 @@
   if(!currentUser||_ligaReadOnly)return;
   ensure();const host=document.getElementById('view-partidos');if(!host)return;
   const admin=esAdmin(currentUser),cy=(cycles||[]).filter(c=>c?.n!=null);
-  if(!selectedPlayer())state.leagueScope='current';
+  state.leagueScope=selectedPlayer()?'all':'current';
+  if(state.tab==='h2h')state.scope='all';
   const fullSnapshot=forPage()?.snapshot(),scopes=scopeChoices(state.leagueScope,fullSnapshot,currentSnapshot());
   const people=[...new Set([...Object.keys(USERS||{}).filter(n=>!['admin','superadmin'].includes(n)),...(matches||[]).flatMap(m=>D.players(m))].filter(Boolean))].sort((a,b)=>a.localeCompare(b,LANG));
   if(!scopes.some(s=>s[0]===state.scope))state.scope='all';if(admin&&state.player&&!people.includes(state.player))state.player='';
@@ -360,7 +362,7 @@
   const context=()=>({...h2hContext(options),groupLabel});
   const aggregateAllowed=canAggregate(name,context());
   const archive=aggregateAllowed?archiveController(name,()=>valid()&&host._mhPlayerDispose===dispose,context):null;
-  if(!aggregateAllowed||options.startLeagueScope==='current')view.leagueScope='current';
+  if(!aggregateAllowed)view.leagueScope='current';
   const scopeOptions=()=>scopeChoices(view.leagueScope,archive?.snapshot(),context());
   function loadPlayerArchive(){
    if(!archive)return;
@@ -370,8 +372,10 @@
   host.classList.add('mh-player-view');host.dataset.playerName=name;
   function paintPanels(){
    if(!valid())return;
+   view.leagueScope=aggregateAllowed?'all':'current';
    const snapshot=chosenSnapshot(archive?.snapshot(),view.leagueScope,context());
-   const list=D.records(snapshot?snapshot.records:source(),name,view.scope),notice=archiveStatus(snapshot);
+   const list=D.records(snapshot?snapshot.records:source(),name,view.tab==='h2h'?'all':view.scope),notice=archiveStatus(snapshot);
+   const phase=host.querySelector('[data-mhp-scope]')?.closest('label');if(phase)phase.hidden=view.tab==='h2h';
    host.querySelectorAll('[data-mhp-tab]').forEach(b=>{const on=b.dataset.mhpTab===view.tab;b.setAttribute('aria-selected',String(on));b.tabIndex=on?0:-1;});
    const history=host.querySelector('[data-mhp-panel=history]'),stats=host.querySelector('[data-mhp-panel=stats]'),h2h=host.querySelector('[data-mhp-panel=h2h]');
    history.hidden=view.tab!=='history';stats.hidden=view.tab!=='stats';h2h.hidden=view.tab!=='h2h';
@@ -455,7 +459,7 @@
   const sheet=document.createElement('div');sheet.className='mh-player-sheet';
   const current=document.createElement('div'),past=document.createElement('div');past.id='pm-past-wrap';
   sheet.append(current,past);body.append(sheet);
-  if(!_ligaReadOnly){const button=document.createElement('button');button.type='button';button.className='btn btn-past';button.textContent=t('past_player_btn');button.onclick=()=>togglePlayerPast(name);actions.appendChild(button);}
+
   const close=document.createElement('button');close.type='button';close.className='btn';close.textContent=t('close');close.onclick=()=>closeM();actions.appendChild(close);
   overlay.classList.add('open');
   mountPlayer(current,{name,leagueName,cycles,records:()=>matches,rating:RATING_ON,startTab:initial.tab,rivalKey:initial.rival,startLeagueScope:initial.leagueScope});

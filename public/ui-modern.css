@@ -872,3 +872,16 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 .mh-specific-league select:focus-visible{outline:2px solid var(--action);outline-offset:2px}
 .mh-league-scope{min-width:0;max-width:100%}
 .ui-group-buttons{min-width:0;overflow-anchor:none}
+
+/* v4.0 · reviewed sporting identity fields; scoped, keyboard accessible. */
+.identity-field{display:flex;flex-direction:column;gap:8px;margin:18px 0;font-size:13px;font-weight:650;min-width:0;overflow-wrap:anywhere}
+.identity-field small{font-weight:400}
+.identity-values{display:grid;grid-template-columns:minmax(90px,.6fr) minmax(0,1.4fr);gap:8px 18px;margin:18px 0;min-width:0;font-size:13px;line-height:1.5}
+.identity-values dt{color:var(--text2);font-weight:650;overflow-wrap:anywhere}
+.identity-values dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+.identity-manual{margin:20px 0;border-top:1px solid var(--border2);padding:15px 0}
+.identity-manual summary{cursor:pointer;min-height:44px;color:var(--link)}
+.dup-body>.gap-sm{margin-bottom:16px}
+.dup-card>.gap-sm{margin-top:12px}
+.mh-all-leagues-fixed{padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}
+@media(max-width:520px){.identity-values{grid-template-columns:minmax(0,1fr);gap:4px}.identity-values dd{margin-bottom:10px}.dup-card>.gap-sm>.btn{width:100%;justify-content:center}}

@@ -80,13 +80,8 @@ async function cargarCatJugadores(){
     pintarCatJugadores();
   }catch(_){ cont.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
-// ---- Fusión de perfiles (login unificado) ----
-// Un mismo jugador real puede tener 2 filas de catálogo (2 jugadorId
-// distintos) si se lo cargó con nombres de usuario distintos en dos ligas
-// (ej: "Juan Pérez" en una, "jperez" en otra), sin email para vincularlos
-// solo. _fusionModo activa un modo de selección: se eligen 2 jugadores con
-// checkbox y se fusionan en uno solo (una queda como principal, la otra se
-// borra del catálogo y se re-vincula en todas las ligas donde aparecía).
+// ---- Reviewed sporting-profile consolidation (credentials remain independent) ----
+// Selection opens the shared field-by-field preview. No catalogue row is deleted.
 let _fusionModo=false, _fusionSel=[];
 function toggleFusionModo(){
   _fusionModo=!_fusionModo;
@@ -152,15 +147,8 @@ function pintarBarraConfirmarFusion(){
     +'</div></div>';
 }
 async function fusionarJugadoresUI(mantenerId,descartarId,nombreMantener){
-  if(!(await confirmarModal(t('cj_fusion_final_confirm').replace('{n}',nombreMantener), {titulo:t('cj_fusion_btn'), okTxt:t('cj_fusion_btn'), peligro:true})))return;
-  try{
-    const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'fusionarJugadores',jugadorIdMantener:mantenerId,jugadorIdDescartar:descartarId,ligaId:_ligaActual||undefined})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok){ alert(d.error||t('cj_fusion_err')); return; }
-    toast(t('cj_fusion_done').replace('{n}',nombreMantener));
-    _fusionModo=false; _fusionSel=[];
-    cargarCatJugadores();
-  }catch(_){ alert(t('cj_fusion_err')); }
+  if(typeof SohailIdentity==='undefined'){toast(LANG==='en'?'Reload: identity review is unavailable.':'Recargá: falta el módulo de revisión de identidades.');return;}
+  return SohailIdentity.pair([{type:'catalog',id:mantenerId},{type:'catalog',id:descartarId}]);
 }
 function filtrarCatJugadores(){ pintarCatJugadores(); }
 async function eliminarJugadorUI(jid,nombre){

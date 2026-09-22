@@ -260,5 +260,5 @@
     load();dialog.focus({preventScroll:true});return promise;
   }
   function canReadFile(file){return !!file&&Number.isFinite(file.size)&&file.size>=0&&file.size<=LIMITS.file;}
-  return Object.freeze({LIMITS,words,label,validName,prepare,distance,compareNames,reviewData,scanData,chooseKept,canReadFile,reviewRows:rows=>openDialog(rows),show:()=>openDialog(null)});
+  return Object.freeze({LIMITS,words,label,validName,prepare,distance,compareNames,reviewData,scanData,chooseKept,canReadFile,reviewRows:rows=>openDialog(rows),show:()=>typeof SohailIdentity!=='undefined'?SohailIdentity.open('duplicates'):openDialog(null)});
 });

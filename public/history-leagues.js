@@ -1,6 +1,6 @@
 /* Sohail v3.9.8 — lectura deportiva entre ligas activas y archivadas. No escribe ni cambia de sesión.
    Usa exclusivamente listar/ver y GET state (NUNCA elegir=1). La identidad
-   entre temporadas se resuelve por jugadorId, no por similitud de nombres.
+   entre temporadas se resuelve por historialId (o jugadorId sin fusión), nunca por parecido del nombre.
    No se guardan estados, credenciales ni historiales en localStorage. */
 (function(root,factory){
  'use strict';
@@ -11,7 +11,7 @@
  'use strict';
  const validId=v=>typeof v==='string'&&/^[a-z0-9][a-z0-9-]{0,63}$/.test(v);
  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
- const pid=u=>u&&typeof u.jugadorId==='string'&&u.jugadorId.trim()?u.jugadorId:null;
+ const pid=u=>{const id=u?.historialId||u?.jugadorId;return typeof id==='string'&&id.trim()?id:null;};
  const names=m=>m?.po?(Array.isArray(m.poNames)?m.poNames.slice():[]):[m?.aName,m?.bName];
  const fields=['id','po','cycle','g','sets','club','date','status','wo','np','winner','retiroDe','poNames','aName','bName','tLabel','which'];
  function recordKey(leagueId,m,index){return JSON.stringify([leagueId,m.id==null?'row:'+index:'id:'+String(m.id)]);}
@@ -30,7 +30,7 @@
   if(!state||typeof state!=='object'||!Array.isArray(state.matches))throw new Error('invalid-state');
   const users=state.users&&typeof state.users==='object'?state.users:{},aliases=new Set(),issues=[];
   if(current)aliases.add(target.name);
-  else if(target.id){
+  if(target.id){
    for(const [name,user]of Object.entries(users))if(pid(user)===target.id){
     aliases.add(name);
     // Match names normally use the users key. Accept the display name only

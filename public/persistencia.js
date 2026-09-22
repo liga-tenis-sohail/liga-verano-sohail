@@ -18,6 +18,7 @@ function mostrarSkeleton(container, filas){
 }
 
 // ===== CONEXIÓN A SUPABASE — guardado instantáneo =====
+let _dataOperationBusy=false;
 let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=false,_prioritySave=false,_lastSaveError='',_reintento409=false;
 // Versión del estado. La incrementa el servidor en cada guardado: si dos personas
 // tienen la app abierta, la segunda en guardar recibe 409 en vez de pisar a la primera.
@@ -174,47 +175,8 @@ function exportBackup(){
   }catch(e){toast('Error al generar el backup: '+e.message);}
 }
 function importBackup(input){
-  const file=input.files&&input.files[0];
-  if(!file)return;
-  if(!(esAdmin(currentUser))){toast(t('validated_only_admin'));input.value='';return;}
-  const nameLC=(file.name||'').toLowerCase();
-  const isXlsx=nameLC.endsWith('.xlsx')||nameLC.endsWith('.xls');
-  const reader=new FileReader();
-  reader.onload=async function(e){
-    try{
-      let obj=null;
-      if(isXlsx){
-        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-        const ws=wb.Sheets['_LIGA_BACKUP'];
-        if(!ws){toast('El Excel no tiene la hoja de backup. ¿Seguro que es un backup de la liga?');input.value='';return;}
-        const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        if(!aoa.length||String((aoa[0]||[])[0]||'')!=='LIGA_SOHAIL_BACKUP_V1'){toast('El Excel no parece un backup válido de la liga.');input.value='';return;}
-        let json='';for(let i=1;i<aoa.length;i++){json+=String((aoa[i]||[])[0]||'');}
-        obj=JSON.parse(json);
-      } else {
-        obj=JSON.parse(e.target.result);
-      }
-      if(!obj||typeof obj!=='object'||!obj.cycles||!obj.users){
-        toast('El archivo no parece un backup válido de la liga.');input.value='';return;
-      }
-      const nJug=Array.isArray(obj.ALLNAMES)?obj.ALLNAMES.length:Object.keys(obj.users||{}).length;
-      const nPart=Array.isArray(obj.matches)?obj.matches.length:0;
-      if(!confirm('RESTAURAR BACKUP\n\nEsto REEMPLAZA todo el estado actual de la liga por el del archivo:\n\n• '+nJug+' jugadores\n• '+nPart+' partidos\n• ciclos, grupos, puntos, ascensos/descensos, colores y nombre\n\n¿Continuar? Esta acción sobrescribe la base de datos.')){input.value='';return;}
-      if(_saveInFlight)await _saveInFlight;
-      const before=_serialize();
-      const rv=await fetch(_conLiga('/api/state'),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-      const rd=await rv.json();
-      if(!rv.ok||!rd.state||!Number.isSafeInteger(rd.state._v))throw new Error(t('fix_restore_read'));
-      obj._v=rd.state._v;
-      if(!_hydrate(obj))throw new Error(t('fix_restore_format'));
-      _loadOK=true;_dbEmpty=false;_saveConflict=false;
-      const saved=await _criticalSave();
-      if(!saved){_hydrate(JSON.parse(before));throw new Error(_lastSaveError||t('fix_save_failed'));}
-      toast(t('fix_restore_ok'));setTimeout(()=>location.reload(),700);
-    }catch(err){toast('Error al leer el backup: '+err.message);input.value='';}
-  };
-  if(isXlsx) reader.readAsArrayBuffer(file);
-  else reader.readAsText(file);
+  if(!window.SohailRestore){toast('Falta cargar el módulo de restauración. Recargá la página.');input.value='';return;}
+  return SohailRestore.start(input);
 }
 function initEmptyLeague(){toast(t('fix_init_disabled'));}
 function _showLoadError(msg){
@@ -230,6 +192,7 @@ function _showLoadError(msg){
 function _hideLoadError(){var b=document.getElementById('_loaderr');if(b)b.remove();}
 
 async function loadState(){
+  if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_token){console.warn('⚠️ loadState sin sesión');return;}
@@ -286,6 +249,7 @@ function _conflictNotice(){
   const b=document.createElement('button');b.type='button';b.textContent=t('fix_export_pending');b.onclick=exportPendingChanges;bar.appendChild(b);
 }
 async function _criticalSave(){
+  if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_loadOK||_saveConflict||!_token||_ligaReadOnly)return false;
@@ -294,6 +258,7 @@ async function _criticalSave(){
   finally{_prioritySave=false;}
 }
 async function _doPersist(){
+  if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(_saveInFlight)return _saveInFlight;
@@ -328,6 +293,7 @@ async function _doPersist(){
   try{return await _saveInFlight;}finally{_saveInFlight=null;}
 }
 async function persist(force){
+  if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_token||!_loadOK||_ligaReadOnly||_saveConflict||document.getElementById('_pwforce'))return false;
