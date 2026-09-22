@@ -1,445 +1,123 @@
-// ============================================================
-// rating.js — Sistema de rating estilo UTR (SEPARADO de la app)
-// ============================================================
+/* Sohail v4.4 — global, server-verified sporting ratings. All existing public
+   adapters remain available. The client never computes with unsaved results. */
 (function(){
-'use strict';
-const UTR_MIN = 1, UTR_MAX = 16;
-const UTR_ESCALA = 4;          
-const UTR_PROV = 15;           
-const UTR_DECAY = 0.97;        
-const UTR_STB_PESO = 0.4;      
-const UTR_VENTANA = 50;        
-const UTR_GRUPO_PESO = 5;      
-const UTR_ITER = 60, UTR_K = 0.35;
-
-function utrMarcarVentana(partidos, jugadores){
-  const cuenta = {}; jugadores.forEach(j => cuenta[j] = 0);
-  const marca = partidos.map(() => ({ ventanaA: false, ventanaB: false }));
-  for(let i = partidos.length - 1; i >= 0; i--){   
-    const p = partidos[i];
-    if(cuenta[p.a] !== undefined && cuenta[p.a] < UTR_VENTANA){ marca[i].ventanaA = true; cuenta[p.a]++; }
-    if(cuenta[p.b] !== undefined && cuenta[p.b] < UTR_VENTANA){ marca[i].ventanaB = true; cuenta[p.b]++; }
+ 'use strict';
+ const es=()=>typeof LANG==='undefined'||LANG!=='en';
+ const tr=(a,b)=>es()?a:b;
+ const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
+ const league=()=>typeof _ligaActual==='string'?_ligaActual:'liga-actual';
+ const client=window.SohailRatingClient.create({getToken:()=>typeof _token==='string'?_token:'',fetcher:(...args)=>fetch(...args)});
+ let _draw=0,_adjustContext=null;
+ const context=()=>[league(),typeof _saveSessionKey==='function'?_saveSessionKey():typeof _token==='string'?_token:''].join('|');
+ if(typeof TRANSLATIONS!=='undefined'){
+  if(TRANSLATIONS.es)Object.assign(TRANSLATIONS.es,{rt_prov_t:'Estimación provisional: pocos partidos o evidencia insuficiente (rivales, fechas o inactividad).',rt_col_fiab_t:'Índice orientativo de evidencia, no una probabilidad de acierto.',rt_leg_fiab:'= índice orientativo de evidencia'});
+  if(TRANSLATIONS.en)Object.assign(TRANSLATIONS.en,{rt_prov_t:'Provisional estimate: few matches or insufficient evidence (opponents, dates or inactivity).',rt_col_fiab_t:'Diagnostic evidence index, not an accuracy probability.',rt_leg_fiab:'= diagnostic evidence index'});
+ }
+ const isAdmin=()=>typeof currentUser!=='undefined'&&currentUser&&esAdmin(currentUser)&&!(typeof _ligaReadOnly!=='undefined'&&_ligaReadOnly);
+ const _ratingSeeds=()=>typeof RATING_SEEDS==='object'&&RATING_SEEDS?RATING_SEEDS:{};
+ const _ratingOverrides=()=>typeof RATING_OVERRIDES==='object'&&RATING_OVERRIDES?RATING_OVERRIDES:{};
+ function ratingUTRDe(name){
+  const snapshot=client.peek(),d=snapshot.data;if(!d)return null;
+  const key=d.byLeague[league()]?.[name],r=key&&d.info[key];if(!r)return null;
+  // Manual exceptions remain local and explicitly labelled. They do NOT feed
+  // the opponent model; the calculated global estimate is always shown too.
+  const over=d.overrides?.[league()]?.[name],manual=typeof over==='number'&&Number.isFinite(over);
+  return {...r,rating:manual?over:r.ratingCalculado,manual,manualRating:manual?over:null,key,stale:snapshot.stale};
+ }
+ function ratingUTRfmt(name){const r=ratingUTRDe(name);return r&&r.partidos>0?r.rating.toFixed(2):r?.manual?r.rating.toFixed(2):'';}
+ function currentVersionAhead(){
+  const d=client.peek().data,l=d?.leagues.find(x=>x.id===league());
+  return !!(l&&typeof _stateV==='number'&&_stateV>l.version);
+ }
+ async function calcularRatingGlobal(force){
+  const result=await client.load(!!force||currentVersionAhead());
+  // A save may have completed while an older request was already in flight.
+  if(result&&currentVersionAhead()&&!client.peek().error)return client.load(true);
+  return result;
+ }
+ function confidence(r){return r.confidence==='high'?tr('Alta','High'):r.confidence==='medium'?tr('Media','Medium'):tr('Baja','Low');}
+ const button=(label,fn,primary=false)=>{const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.textContent=label;b.addEventListener('click',fn);return b;};
+ function statusHTML(s){
+  const d=s.data;
+  if(s.error)return `<div class="rating-alert" role="alert">${escape(s.error.message)} ${d?escape(tr('Mostrando la última lectura completa de esta sesión.','Showing the last complete snapshot of this session.')):''}</div>`;
+  if(!d)return '';
+  return `<p class="rating-snapshot">${escape(d.scope==='all-registered'?tr('Todas las ligas registradas','All registered leagues'):tr('Consulta pública: solo ligas finalizadas','Public view: finalized leagues only'))} · ${d.leagues.length} ${escape(tr('ligas','leagues'))} · ${d.matchCount} ${escape(tr('partidos con juego','matches with play'))}<br>${escape(tr('Lectura completa: ','Complete snapshot: '))}${escape(new Date(d.ts).toLocaleString(es()?'es-ES':'en-GB'))} · ${escape(d.version)} · ${escape(d.snapshot.slice(0,10))}${s.stale?' · '+escape(tr('Pendiente de actualizar','Update pending')):''}</p>`;
+ }
+ function renderRating(){
+  const box=document.getElementById('view-rating');if(!box)return;
+  const serial=++_draw,s=client.peek();
+  box.classList.add('rating-v440');
+  if(!s.data){
+   box.innerHTML=`<div class="card"><h2>${escape(tr('Rating Sohail','Sohail rating'))}</h2>${statusHTML(s)}<p>${escape(s.error?tr('No se publicó ningún cálculo parcial.','No partial rating was published.'):tr('Leyendo el historial completo…','Reading the complete history…'))}</p><div class="rating-tools"></div></div>`;
+   if(s.error)box.querySelector('.rating-tools').append(button(tr('Reintentar','Retry'),()=>refresh()));
+   else calcularRatingGlobal(false).then(()=>{if(serial===_draw)renderRating();});
+   return;
   }
-  return marca;
-}
-
-function utrExpected(rA, rB){ return 1 / (1 + Math.pow(10, -(rA - rB) / UTR_ESCALA)); }
-
-function grupoASeed(grupo, totalGrupos){
-  if(!grupo || grupo < 1 || !totalGrupos) return null;
-  if(totalGrupos <= 1) return (UTR_MIN + UTR_MAX) / 2;
-  const techo = UTR_MAX - 2;   
-  const piso  = UTR_MIN + 2;   
-  const t = Math.min(1, (grupo - 1) / (totalGrupos - 1));  
-  return techo - t * (techo - piso);
-}
-
-function pesoGrupoSeed(nPartidos){
-  return Math.max(0, UTR_GRUPO_PESO - nPartidos * (UTR_GRUPO_PESO / UTR_PROV));
-}
-
-function utrGamesDePartido(sets){
-  if(!Array.isArray(sets)) return null;
-  let gA = 0, gB = 0, esSTB = false;
-  sets.forEach((s, i) => {
-    if(!Array.isArray(s) || s.length < 2) return;
-    const x = +s[0], y = +s[1];
-    if(!isFinite(x) || !isFinite(y)) return;
-    if(i === 2){ 
-      esSTB = true;
-      gA += x > y ? 1 : 0;
-      gB += y > x ? 1 : 0;
-    } else {
-      gA += x; gB += y;
-    }
-  });
-  return { gamesA: gA, gamesB: gB, esSTB };
-}
-
-function utrPartidosDeEstado(estado){
-  const out = [];
-  const ms = (estado && estado.matches) || [];
-  ms.forEach(m => {
-    if(!m || m.status !== 'confirmed' || m.np) return;
-    let a, b;
-    if(m.po && m.poNames){ a = m.poNames[0]; b = m.poNames[1]; }
-    else { a = m.aName; b = m.bName; }
-    if(!a || !b) return;
-    // Antes: un partido con wo:true (retiro/W.O.) se descartaba SIEMPRE del
-    // rating, incluso si el jugador había ganado o perdido sets/games
-    // reales antes de retirarse — esos games sí reflejan nivel de juego y
-    // deberían contar. Ahora solo se descarta si de verdad no hay ningún
-    // set jugado (retiro antes de empezar, sets:[] vacío) — si hay al
-    // menos un set cargado, se procesa normal más abajo (utrGamesDePartido
-    // ya soporta cualquier cantidad de sets, completos o parciales en
-    // cantidad, sin romperse).
-    if(m.wo && (!Array.isArray(m.sets) || !m.sets.length)){ return; }
-    const g = utrGamesDePartido(m.sets);
-    if(!g || (g.gamesA + g.gamesB) === 0) return;
-    out.push({ a, b, gamesA: g.gamesA, gamesB: g.gamesB, fecha: m.date || '', esSTB: g.esSTB });
-  });
-  return out;
-}
-
-function utrCalcular(jugadores, partidos, semillas, overrides, grupos){
-  overrides = overrides || {};
-  grupos = grupos || {};
-  const R = {};
-  
-  jugadores.forEach(j => {
-    if(semillas && semillas[j] != null){ R[j] = semillas[j]; return; }
-    const gi = grupos[j];
-    const sg = gi ? grupoASeed(gi.grupo, gi.totalGrupos) : null;
-    R[j] = (sg != null) ? sg : 8;
-  });
-
-  const marca = utrMarcarVentana(partidos, jugadores);
-  const idxPorJugador = {}; jugadores.forEach(j => idxPorJugador[j] = []);
-  partidos.forEach((p, i) => {
-    if(idxPorJugador[p.a] && marca[i].ventanaA) idxPorJugador[p.a].push(i);
-    if(idxPorJugador[p.b] && marca[i].ventanaB) idxPorJugador[p.b].push(i);
-  });
-  const antig = {};
-  partidos.forEach((p, i) => { antig[i] = {}; });
-  jugadores.forEach(j => {
-    const lista = idxPorJugador[j], n = lista.length;
-    lista.forEach((idx, k) => { antig[idx][j] = n - 1 - k; });
-  });
-
-  for(let it = 0; it < UTR_ITER; it++){
-    const acc = {}, pes = {};
-    jugadores.forEach(j => { acc[j] = 0; pes[j] = 0; });
-    partidos.forEach((p, i) => {
-      const tot = p.gamesA + p.gamesB;
-      if(tot === 0) return;
-      const realA = p.gamesA / tot;
-      const expA = utrExpected(R[p.a], R[p.b]);
-      const errorA = realA - expA;
-      const objA = R[p.a] + errorA * UTR_ESCALA;
-      const objB = R[p.b] - errorA * UTR_ESCALA;
-      const tipo = p.esSTB ? UTR_STB_PESO : 1;
-      
-      if(marca[i].ventanaA && antig[i][p.a] !== undefined){
-        const wA = Math.pow(UTR_DECAY, antig[i][p.a]) * tipo;
-        acc[p.a] += objA * wA; pes[p.a] += wA;
-      }
-      if(marca[i].ventanaB && antig[i][p.b] !== undefined){
-        const wB = Math.pow(UTR_DECAY, antig[i][p.b]) * tipo;
-        acc[p.b] += objB * wB; pes[p.b] += wB;
-      }
-    });
-    jugadores.forEach(j => {
-      const nP = idxPorJugador[j].length;
-      if(pes[j] > 0){
-        let target = acc[j] / pes[j];
-        if(semillas && semillas[j] != null){
-          const pesoSemilla = Math.max(0, 3 - nP * 0.3); 
-          if(pesoSemilla > 0) target = (target * pes[j] + semillas[j] * pesoSemilla) / (pes[j] + pesoSemilla);
-        } else {
-          const gi = grupos[j];
-          const sg = gi ? grupoASeed(gi.grupo, gi.totalGrupos) : null;
-          if(sg != null){
-            const pesoG = pesoGrupoSeed(nP);
-            if(pesoG > 0) target = (target * pes[j] + sg * pesoG) / (pes[j] + pesoG);
-          }
-        }
-        R[j] = R[j] * (1 - UTR_K) + target * UTR_K;
-        R[j] = Math.max(UTR_MIN, Math.min(UTR_MAX, R[j]));
-      }
-    });
+  const d=s.data,seen=new Set(),list=[];
+  for(const name of (typeof ALLNAMES!=='undefined'?ALLNAMES:Object.keys(d.byLeague[league()]||{}))){
+   if(name==='admin'||name==='superadmin'||typeof USERS!=='undefined'&&USERS[name]?.inactive)continue;
+   const r=ratingUTRDe(name);if(!r||seen.has(r.key)||!r.partidos&&!r.manual&&r.seed==null)continue;
+   seen.add(r.key);list.push({name,...r});
   }
-
-  const stats = {};
-  jugadores.forEach(j => stats[j] = { gGanados: 0, gTotal: 0, vict: 0, der: 0, sumRival: 0, nRival: 0 });
-  partidos.forEach((p, i) => {
-    const tot = p.gamesA + p.gamesB;
-    if(tot === 0) return;
-    if(marca[i].ventanaA && stats[p.a]){
-      stats[p.a].gGanados += p.gamesA; stats[p.a].gTotal += tot;
-      if(p.gamesA > p.gamesB) stats[p.a].vict++; else stats[p.a].der++;
-      stats[p.a].sumRival += R[p.b]; stats[p.a].nRival++;
-    }
-    if(marca[i].ventanaB && stats[p.b]){
-      stats[p.b].gGanados += p.gamesB; stats[p.b].gTotal += tot;
-      if(p.gamesB > p.gamesA) stats[p.b].vict++; else stats[p.b].der++;
-      stats[p.b].sumRival += R[p.a]; stats[p.b].nRival++;
-    }
-  });
-
-  const info = {};
-  jugadores.forEach(j => {
-    const nP = idxPorJugador[j].length;   
-    const calc = R[j];                    
-    const ov = overrides[j];
-    const tieneOverride = (ov != null && isFinite(ov));
-    const st = stats[j] || { gGanados: 0, gTotal: 0, vict: 0, der: 0, sumRival: 0, nRival: 0 };
-    info[j] = {
-      rating: tieneOverride ? Math.max(UTR_MIN === 1 ? 0.01 : UTR_MIN, Math.min(UTR_MAX, +ov)) : calc,
-      ratingCalculado: calc,              
-      manual: tieneOverride,              
-      seed: (semillas && semillas[j] != null) ? +semillas[j] : null,   
-      partidos: nP,
-      provisional: !tieneOverride && nP < UTR_PROV,   
-      fiab: Math.min(100, Math.round(100 * nP / UTR_VENTANA)),   
-      vict: st.vict,                      
-      der: st.der,                        
-      gGanados: st.gGanados,              
-      gPerdidos: st.gTotal - st.gGanados, 
-      pctGames: st.gTotal > 0 ? (st.gGanados / st.gTotal) : null,      
-      nivelRivales: st.nRival > 0 ? (st.sumRival / st.nRival) : null   
-    };
-  });
-  return info;
-}
-
-let _ratingCache = null;      
-let _ratingCalculando = false;
-
-function _ratingSeeds(){ return (typeof RATING_SEEDS !== 'undefined' && RATING_SEEDS) ? RATING_SEEDS : {}; }
-function _ratingOverrides(){ return (typeof RATING_OVERRIDES !== 'undefined' && RATING_OVERRIDES) ? RATING_OVERRIDES : {}; }
-
-async function calcularRatingGlobal(force){
-  if(_ratingCalculando) return _ratingCache;
-  if(_ratingCache && !force) return _ratingCache;
-  _ratingCalculando = true;
-  try{
-    let todos = [];
-    const vistos = new Set(); 
-    
-    const agregarPartido = (x) => {
-      const id = `${x.fecha}_${x.a}_${x.b}_${x.gamesA}_${x.gamesB}`;
-      if(!vistos.has(id)){
-        vistos.add(id);
-        todos.push(x);
-      }
-    };
-
-    // 1) Partidos de la liga actual
-    utrPartidosDeEstado({ matches: matches }).forEach(agregarPartido);
-
-    // 2) Partidos de TODO el historial en base de datos (incluso ligas activas)
-    try{
-      const r = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-      const d = await r.json().catch(()=>({}));
-      
-      const otrasLigas = (d.ligas||[]).filter(l => l.id !== (_ligaActual||'liga-actual'));
-      
-      for(const l of otrasLigas){
-        try{
-          let estadoObj = null;
-          const rv = await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:l.id})});
-          if(rv.ok){
-             const dv = await rv.json().catch(()=>({}));
-             estadoObj = dv.estado;
-          } else if(typeof _token !== 'undefined' && _token) {
-             const r2 = await fetch('/api/state?liga='+encodeURIComponent(l.id), {headers:{Authorization:'Bearer '+_token}});
-             if(r2.ok){
-                const d2 = await r2.json().catch(()=>({}));
-                estadoObj = d2.state;
-             }
-          }
-          if(estadoObj) utrPartidosDeEstado({matches: estadoObj.matches}).forEach(agregarPartido);
-        }catch(_){}
-      }
-    }catch(_){}
-    
-    todos.sort((a,b)=>{ const fa=a.fecha||'', fb=b.fecha||''; return fa.localeCompare(fb); });
-    
-    const setJ = {};
-    todos.forEach(p=>{ setJ[p.a]=1; setJ[p.b]=1; });
-    Object.keys(USERS||{}).forEach(n=>{ if(!esCuentaSistema(n)) setJ[n]=1; });
-    const jugadores = Object.keys(setJ);
-    
-    const grupos = {};
-    try{
-      const cyc = (typeof cycles!=='undefined' && cycles) ? cycles[activeN-1] : null;
-      const totalG = (cyc && cyc.groups) ? cyc.groups.length : 0;
-      if(totalG > 0){
-        jugadores.forEach(n=>{
-          const loc = (typeof findLoc==='function') ? findLoc(n, activeN) : null;
-          if(loc && loc.g) grupos[n] = { grupo: loc.g, totalGrupos: totalG };
-        });
-      }
-    }catch(_){}
-    
-    const info = utrCalcular(jugadores, todos, _ratingSeeds(), _ratingOverrides(), grupos);
-    _ratingCache = { info, ts: new Date() };
-    return _ratingCache;
-  } finally {
-    _ratingCalculando = false;
-  }
-}
-
-function ratingUTRDe(name){
-  if(!_ratingCache || !_ratingCache.info) return null;
-  return _ratingCache.info[name] || null;
-}
-function ratingUTRfmt(name){
-  const r = ratingUTRDe(name);
-  return (r && typeof r.rating === 'number') ? r.rating.toFixed(2) : '';
-}
-
-function renderRating(){
-  const box = document.getElementById('view-rating');
-  if(!box) return;
-  const admin = esAdmin(currentUser);
-  if(!_ratingCache){
-    box.innerHTML = `<div class="card"><div class="lock-note" style="padding:1rem 0;text-align:center">${t('past_loading')}</div></div>`;
-    calcularRatingGlobal(false).then(()=>{ try{ if(subView==='rating') renderRating(); }catch(_){}});
-    return;
-  }
-  const info = _ratingCache.info || {};
-  const seeds = _ratingSeeds(), overs = _ratingOverrides();
-  
-  let filas = Object.keys(info).map(name=>({ name, ...info[name] }))
-    .filter(f => f.partidos > 0 || seeds[f.name] != null || overs[f.name] != null)
-    .filter(f => !esCuentaSistema(f.name))
-    // ESTA ES LA MAGIA: Solo mostramos a los jugadores que pertenecen a la liga actual
-    .filter(f => typeof ALLNAMES !== 'undefined' && ALLNAMES.includes(f.name))
-    .filter(f => {
-      try{
-        if(typeof USERS !== 'undefined' && USERS[f.name] && USERS[f.name].inactive) return false;
-      }catch(_){}
-      return true;
-    });
-    
-  filas.sort((a,b)=> b.rating - a.rating);
-  
-  if(!filas.length){
-    box.innerHTML = `<div class="card"><div class="lock-note" style="padding:1rem 0;text-align:center">${t('rating_empty')}</div></div>`;
-    return;
-  }
-  
-  const yo = currentUser ? currentUser.name : null;
-  const pc=['p1','p2','p3'];
-  const rows = filas.map((f,i)=>{
-    const pos = i+1;
-    const posCls = pc[i]||'pn';
-    let grpTxt = '<span class="gen-dash">—</span>';
-    try{
-      const loc = (typeof findLoc==='function') ? findLoc(f.name, activeN) : null;
-      if(loc && loc.g) grpTxt = 'C'+activeN+' · G'+loc.g;
-    }catch(_){}
-    const prov = f.provisional ? `<span class="rt-prov" title="${t('rt_prov_t')}">${t('rt_prov')}</span>` : '';
-    const accion = admin
-      ? `<td><button class="btn btn-sm" onclick="abrirAjusteRating('${jsq(f.name)}')"><i class="ti ti-adjustments"></i> ${t('rt_adjust')}</button></td>`
-      : '';
-    const me = (yo && f.name===yo) ? ' me-row' : '';
-    return `<tr class="${me}">`
-      + `<td><span class="pos ${posCls}">${pos}</span></td>`
-      + `<td><span class="avatar">${getInitials(f.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(f.name)}')">${attr(f.name)}</span></td>`
-      + `<td class="rt-grp">${grpTxt}</td>`
-      + `<td><strong>${f.rating.toFixed(2)}</strong>${prov}</td>`
-      + `<td>${f.partidos}</td>`
-      + `<td>${f.seed!=null?f.seed.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
-      + `<td>${f.vict}-${f.der}</td>`
-      + `<td class="rt-gg">${f.gGanados}</td>`
-      + `<td class="rt-gp">${f.gPerdidos}</td>`
-      + `<td>${f.pctGames!=null?Math.round(f.pctGames*100)+'%':'<span class="gen-dash">—</span>'}</td>`
-      + `<td>${f.nivelRivales!=null?f.nivelRivales.toFixed(2):'<span class="gen-dash">—</span>'}</td>`
-      + `<td>${f.fiab}%</td>`
-      + accion
-      + `</tr>`;
-  }).join('');
-  
-  const thAcc = admin ? `<th>${t('rt_adjust')}</th>` : '';
-  box.innerHTML = `
-    <div class="card">
-      <div class="section-lbl">${t('rating_title')}</div>
-      <div class="rt-sub">${t('rt_desc_utr')}</div>
-      <div class="overflow-x" tabindex="0" role="region" aria-label="${attr(t('rating_title'))}" aria-describedby="rating-scroll-help">
-        <table class="gen-table rt-table">
-          <thead><tr>
-            <th>#</th><th>${t('player')}</th><th title="${t('rt_grp_t')}">${t('rt_grp')}</th><th>${t('rating_col')}</th><th title="${t('rt_pj_t')}">${t('rt_pj')}</th>
-            <th title="${t('rt_seed_lbl')}">${t('rt_col_seed')}</th>
-            <th title="${t('rt_col_vd_t')}">${t('rt_col_vd')}</th>
-            <th title="${t('rt_col_gg_t')}">${t('rt_col_gg')}</th>
-            <th title="${t('rt_col_gp_t')}">${t('rt_col_gp')}</th>
-            <th title="${t('rt_col_pct_t')}">${t('rt_col_pct')}</th>
-            <th title="${t('rt_col_riv_t')}">${t('rt_col_riv')}</th>
-            <th title="${t('rt_col_fiab_t')}">${t('rt_col_fiab')}</th>
-            ${thAcc}
-          </tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-      <p id="rating-scroll-help" class="ui-scroll-note">${t('ui_scroll_hint')}</p>
-      <div class="rt-cols-leg">
-        <span><b>${t('rating_col')}</b> ${t('rt_leg_rating')}</span>
-        <span><b>${t('rt_pj')}</b> ${t('rt_leg_pj')}</span>
-        <span><b>${t('rt_col_seed')}</b> ${t('rt_leg_seed')}</span>
-        <span><b>${t('rt_col_vd')}</b> ${t('rt_leg_vd')}</span>
-        <span><b>${t('rt_col_gg')}</b> ${t('rt_leg_gg')}</span>
-        <span><b>${t('rt_col_gp')}</b> ${t('rt_leg_gp')}</span>
-        <span><b>${t('rt_col_pct')}</b> ${t('rt_leg_pct')}</span>
-        <span><b>${t('rt_col_riv')}</b> ${t('rt_leg_riv')}</span>
-        <span><b>${t('rt_col_fiab')}</b> ${t('rt_leg_fiab')}</span>
-      </div>
-      <div class="rt-howto">
-        <div class="rt-howto-t"><i class="ti ti-info-circle"></i> ${t('rt_howto_title')}</div>
-        <div class="rt-howto-b">${t('rt_howto_body')}</div>
-      </div>
-      <div class="rt-legend">
-        <span><span class="rt-prov">${t('rt_prov')}</span> ${t('rt_prov_leg')}</span>
-      </div>
-    </div>`;
-}
-
-function abrirAjusteRating(name){
-  const info = ratingUTRDe(name) || {};
-  const seed = _ratingSeeds()[name];
-  const over = _ratingOverrides()[name];
-  document.getElementById('modal-title').textContent = t('rt_adjust')+': '+name;
-  const calc = (typeof info.ratingCalculado==='number') ? info.ratingCalculado.toFixed(2) : (typeof info.rating==='number'?info.rating.toFixed(2):'—');
-  document.getElementById('modal-body').innerHTML = `
-    <div class="rt-adj">
-      <div class="rt-adj-calc">${t('rt_calc_now')}: <b>${calc}</b> · ${info.partidos||0} ${t('rt_pj_lc')}</div>
-      <label class="rt-adj-lbl">${t('rt_seed_lbl')}</label>
-      <div class="rt-adj-hint">${t('rt_seed_hint')}</div>
-      <input id="rt-seed" class="cl-inp" type="number" step="0.01" min="1" max="16" value="${seed!=null?seed:''}" placeholder="${t('rt_empty_ph')}">
-      <label class="rt-adj-lbl" style="margin-top:12px">${t('rt_over_lbl')}</label>
-      <div class="rt-adj-hint">${t('rt_over_hint')}</div>
-      <input id="rt-over" class="cl-inp" type="number" step="0.01" min="0.01" max="16" value="${over!=null?over:''}" placeholder="${t('rt_empty_ph')}">
-    </div>`;
-  document.getElementById('modal-actions').innerHTML = `
-    <button class="btn" onclick="closeM()">${t('cancel')}</button>
-    <button class="btn btn-primary" onclick="guardarAjusteRating('${jsq(name)}')">${t('save')}</button>`;
-  document.getElementById('modal-bg').classList.add('open');
-}
-
-async function guardarAjusteRating(name){
-  const sv = (document.getElementById('rt-seed').value||'').trim();
-  const ov = (document.getElementById('rt-over').value||'').trim();
-  if(sv!==''){ const n=+sv; if(!isFinite(n)||n<1||n>16){ alert(t('rt_seed_bad')); return; } RATING_SEEDS[name]=Math.round(n*100)/100; }
-  else { delete RATING_SEEDS[name]; }
-  if(ov!==''){ const n=+ov; if(!isFinite(n)||n<0.01||n>16){ alert(t('rt_over_bad')); return; } RATING_OVERRIDES[name]=Math.round(n*100)/100; }
-  else { delete RATING_OVERRIDES[name]; }
-  closeM();
-  toast(t('rt_saved'));
-  await persist(true);                 
-  await calcularRatingGlobal(true);    
-  if(subView==='rating') renderRating();
-  else if(subView==='grupos') showSub('grupos');
-}
-
-function ratingFichaHTML(name){
-  const r = ratingUTRDe(name);
-  if(!r || typeof r.rating !== 'number') return '';
-  const prov = r.provisional ? `<span class="rt-prov">${t('rt_prov')}</span>` : '';
-  return `<div class="rt-ficha">
-    <div class="rt-ficha-num">${r.rating.toFixed(2)}</div>
-    <div class="rt-ficha-side">
-      <div class="rt-ficha-lbl">${t('rating_title')} ${prov}</div>
-      <div class="rt-ficha-sub">${r.partidos} ${t('rt_pj_lc')} · ${t('rt_scale')}</div>
-    </div>
-  </div>`;
-}
-
-window.calcularRatingGlobal = calcularRatingGlobal;
-window.ratingUTRDe = ratingUTRDe;
-window.ratingUTRfmt = ratingUTRfmt;
-window.renderRating = renderRating;
-window.abrirAjusteRating = abrirAjusteRating;
-window.guardarAjusteRating = guardarAjusteRating;
-window.ratingFichaHTML = ratingFichaHTML;
+  list.sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name));
+  const mine=typeof currentUser!=='undefined'&&currentUser?d.byLeague[league()]?.[currentUser.name]:null;
+  const rows=list.map((r,i)=>`<tr class="${r.key===mine?'me-row':''}"><td>${i+1}</td><td><button type="button" class="rating-name" data-player="${i}">${escape(r.name)}</button>${r.unlinked?`<small>${escape(tr('Ficha sin vínculo global','Unlinked historical profile'))}</small>`:''}</td><td><strong>${r.rating.toFixed(2)}</strong>${r.manual?`<span class="rt-manual">${escape(tr('fijo en esta liga','fixed in this league'))}</span>`:''}${r.provisional?`<span class="rt-prov">${escape(tr('provisional','provisional'))}</span>`:''}</td><td>${r.ratingCalculado.toFixed(2)}</td><td>${r.partidos}<small>${r.totalMatches} ${escape(tr('en el historial','in history'))}</small></td><td>${r.vict}–${r.der}${r.unresolved?`<small>${r.unresolved} ${escape(tr('sin ganador','winner unknown'))}</small>`:''}</td><td>${r.gGanados}–${r.gPerdidos}</td><td>${r.pctGames==null?'—':(100*r.pctGames).toFixed(1)+'%'}</td><td>${r.nivelRivales==null?'—':r.nivelRivales.toFixed(2)}</td><td><span class="rating-confidence">${escape(confidence(r))}</span><small>${r.fiab}/100 · ${r.uniqueOpponents} ${escape(tr('rivales','opponents'))}</small></td><td><button type="button" class="btn btn-sm" data-detail="${i}">${escape(tr('Ver detalle','Details'))}</button>${isAdmin()?` <button type="button" class="btn btn-sm" data-adjust="${i}">${escape(tr('Ajustar','Adjust'))}</button>`:''}</td></tr>`).join('');
+  box.innerHTML=`<div class="card"><header class="rating-head"><div><h2>${escape(tr('Rating Sohail · nivel y confianza','Sohail rating · skill and confidence'))}</h2><p class="rt-sub">${escape(tr('Últimos 50 partidos por identidad deportiva, sumando sus nombres vinculados y todas las ligas accesibles. Con menos de 50, se usan todos.','Latest 50 matches per sporting identity, across linked names and all accessible leagues. All matches are used when fewer than 50.'))}</p></div><div class="rating-tools"></div></header>${statusHTML(s)}
+   ${d.componentCount>1?`<p class="rating-alert">${escape(tr('Hay grupos de jugadores sin cruces entre sí. Su comparación depende más de la referencia inicial; no es una escala UTR oficial.','Some player groups have no cross-play. Their comparison depends more on initial references; this is not an official UTR scale.'))}</p>`:''}
+   ${Object.keys(d.issueCounts||{}).length?`<details class="rating-method"><summary>${escape(tr('Avisos de calidad de datos','Data quality notices'))}</summary><p>${Object.entries(d.issueCounts).map(([k,v])=>escape(({'future-date':tr('Fechas posteriores a hoy: revisar','Future dates: review'),'missing-date':tr('Fechas desconocidas','Unknown dates'),'missing-id':tr('IDs históricos ausentes','Missing historical IDs'),'winner-unknown':tr('Ganador sin determinar; los games cuentan','Unknown winner; games still count'),'seed-conflict':tr('Seeds distintos entre ligas; no se elige uno arbitrariamente','Conflicting league seeds; none is chosen arbitrarily')}[k]||k)+': '+v)).join(' · ')}</p></details>`:''}
+   <div class="overflow-x" tabindex="0" role="region" aria-label="${escape(tr('Tabla de rating','Rating table'))}" aria-describedby="rating-scroll-help"><table class="gen-table rt-table"><thead><tr><th>#</th><th>${escape(tr('Jugador','Player'))}</th><th>Rating</th><th>${escape(tr('Calc. global','Global calc.'))}</th><th>PJ / 50</th><th>V–D</th><th>GG–GP</th><th>% Games</th><th>${escape(tr('Rival medio','Mean opponent'))}</th><th>${escape(tr('Confianza','Confidence'))}</th><th>${escape(tr('Acciones','Actions'))}</th></tr></thead><tbody>${rows||`<tr><td colspan="11">${escape(tr('Todavía no hay partidos con juego para los jugadores de esta liga.','No played matches for this league’s players yet.'))}</td></tr>`}</tbody></table></div>
+   <p id="rating-scroll-help" class="ui-scroll-note">${escape(tr('Desplazá la tabla para ver todas las columnas. GG–GP no incluye puntos de supertiebreak.','Scroll the table to see all columns. Games do not include match-tiebreak points.'))}</p>
+   <details class="rating-method"><summary>${escape(tr('Cómo se calcula y qué significa la confianza','Calculation and confidence explained'))}</summary><p>${escape(tr('Se compara la proporción de games con la esperada según el rival. Los sets normales conservan su evidencia; el supertiebreak aporta por separado. Los retiros con juego siguen contando, con evidencia acorde a lo jugado. No se penaliza un partido entero por tener supertiebreak.','Game share is compared with the expectation against the opponent. Normal sets retain their evidence; the match tiebreak contributes separately. Retirements with play still count in proportion to play observed. A tiebreak does not downweight the whole match.'))}</p><p>${escape(tr('Cada uno de los 50 encuentros conserva peso positivo. La antigüedad usa días respecto del último partido conocido: dejar de jugar no baja automáticamente el nivel, pero sí la confianza. Sin fecha, se conserva el registro y se advierte la incertidumbre.','Every selected match has positive weight. Recency uses days relative to the latest known match: inactivity does not automatically lower skill, but does lower confidence. Unknown dates remain in the data and are flagged.'))}</p><p>${escape(tr('La referencia inicial es un seed coherente entre ligas, el grupo del primer partido registrado o 8 si no hay referencia. No se reinicia al cambiar de liga o de grupo actual. La confianza considera cantidad y diversidad de rivales, volumen de juego, fechas, repetición e inactividad. Es un índice orientativo, no una probabilidad de acertar ni un intervalo estadístico calibrado.','Initial reference is a consistent seed across leagues, the group at the first recorded match, or 8 without a reference. Switching league or current group does not reset it. Confidence accounts for match count, opponent diversity, play volume, dates, repetition and inactivity. It is a diagnostic index, not a calibrated accuracy probability or statistical interval.'))}</p><p>${escape(tr('Los valores fijos del administrador se conservan como excepciones de esta liga, señaladas junto al cálculo global. No alteran el nivel calculado de los rivales.','Administrator-fixed values remain local exceptions displayed beside the global estimate. They do not alter computed opponent levels.'))}</p></details></div>`;
+  box.querySelector('.rating-tools').append(button(tr('Actualizar rating','Refresh rating'),()=>refresh()));
+  box.querySelectorAll('[data-player]').forEach(b=>b.onclick=()=>showPlayerHistory(list[+b.dataset.player].name));
+  box.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(list[+b.dataset.detail].name));
+  box.querySelectorAll('[data-adjust]').forEach(b=>b.onclick=()=>abrirAjusteRating(list[+b.dataset.adjust].name));
+  if(!s.error&&(s.stale||currentVersionAhead())&&!s.busy)calcularRatingGlobal(true).then(()=>{if(serial===_draw)renderRating();});
+ }
+ async function refresh(){
+  const box=document.getElementById('view-rating');box?.querySelectorAll('.rating-tools button').forEach(b=>{b.disabled=true;b.textContent=tr('Actualizando…','Updating…');});
+  await calcularRatingGlobal(true);renderRating();
+ }
+ function modal(title,body){document.getElementById('modal-title').textContent=title;document.getElementById('modal-body').innerHTML=body;document.getElementById('modal-actions').replaceChildren(button(tr('Cerrar','Close'),()=>closeM()));document.getElementById('modal-bg').classList.add('open');}
+ async function detail(name){
+  const r=ratingUTRDe(name),d=client.peek().data;if(!r||!d)return;
+  modal(tr('Detalle del rating: ','Rating detail: ')+name,`<section class="rating-detail"><p>${escape(tr('Calculado: ','Computed: '))}<strong>${r.ratingCalculado.toFixed(2)}</strong> · ${escape(tr('Confianza: ','Confidence: '))}${escape(confidence(r))} (${r.fiab}/100)</p><dl><dt>${escape(tr('Partidos utilizados / disponibles','Used / available matches'))}</dt><dd>${r.partidos} / ${r.totalMatches}</dd><dt>${escape(tr('Rivales distintos','Distinct opponents'))}</dt><dd>${r.uniqueOpponents}</dd><dt>${escape(tr('STB ganados–perdidos','Match tiebreaks won–lost'))}</dt><dd>${r.stbWins}–${r.stbLosses}</dd><dt>${escape(tr('Sin fecha conocida','Unknown date'))}</dt><dd>${r.missingDates}</dd><dt>${escape(tr('Días desde el último partido','Days since last match'))}</dt><dd>${r.inactiveDays??'—'}</dd><dt>${escape(tr('Referencia inicial','Initial reference'))}</dt><dd>${r.prior.toFixed(2)} · ${escape(({'manual-consistent':tr('seed coherente entre ligas','consistent cross-league seed'),'first-recorded-group':tr('grupo del primer partido registrado','first recorded match group'),'neutral':tr('referencia neutra','neutral reference')}[r.priorSource]||r.priorSource))}</dd></dl><p>${escape(tr('El tamaño efectivo resume pesos desiguales; no descarta registros: ','Effective size summarizes unequal weights; it does not remove records: '))}${r.effectiveMatches.toFixed(1)} · ${escape(tr('partidos incluidos: ','matches included: '))}${r.partidos}</p>${r.unlinked?`<p class="rating-alert">${escape(tr('Esta ficha no tiene identificador global. Vinculá sus perfiles históricos desde Jugadores para reunirlos; no se unen por parecido del nombre.','This profile has no global identifier. Link historical profiles in Players; name similarity does not merge people.'))}</p>`:''}<p data-rating-load role="status">${escape(tr('Cargando los partidos utilizados…','Loading the selected matches…'))}</p><div data-rating-selected></div></section>`);
+  const target=document.querySelector('[data-rating-selected]'),status=document.querySelector('[data-rating-load]');
+  try{const response=await client.details(r.key,d.snapshot);if(!target.isConnected)return;
+   const labels=new Map(response.leagues.map(l=>[l.id,l.name]));
+   status.textContent=tr('Estos son los registros usados, del más nuevo al más viejo.','These are the selected records, newest first.');
+   target.innerHTML='<ol class="rating-matches">'+response.selected.map(m=>`<li><strong>${escape(m.date||tr('Sin fecha','Unknown date'))}</strong> · ${escape(labels.get(m.leagueId)||m.leagueId)}<small>${escape(m.key)} · ${escape(tr('Peso temporal/rival','Time/opponent weight'))}: ${m.weight.toFixed(3)}</small></li>`).join('')+'</ol>';
+  }catch(e){if(status.isConnected)status.textContent=e.message;}
+ }
+ function abrirAjusteRating(name){
+  if(!isAdmin())return;
+  _adjustContext={name,key:context()};
+  const r=ratingUTRDe(name),seed=_ratingSeeds()[name],over=_ratingOverrides()[name];
+  modal(tr('Ajustes de rating: ','Rating adjustments: ')+name,`<section class="rating-detail"><p>${escape(tr('Cálculo global: ','Global estimate: '))}${r?r.ratingCalculado.toFixed(2):'—'}</p><label for="rt-seed">${escape(tr('Referencia inicial (seed) de esta liga','Initial seed in this league'))}</label><input id="rt-seed" class="cl-inp" type="number" min="1" max="16" step="0.01" value="${Number.isFinite(seed)?seed:''}"><p>${escape(tr('Solo se usa como referencia global si los seeds existentes de esa identidad son coherentes. Si hay valores diferentes entre ligas se informa el conflicto; no se elige la liga abierta.','Only used globally when this identity’s existing seeds agree. Conflicting league seeds are flagged rather than choosing the open league.'))}</p><label for="rt-over">${escape(tr('Rating fijo solo en esta liga','Fixed rating in this league only'))}</label><input id="rt-over" class="cl-inp" type="number" min="0.01" max="16" step="0.01" value="${Number.isFinite(over)?over:''}"><p>${escape(tr('Vacío usa el cálculo. Un valor fijo se muestra como excepción y no cambia el cálculo de los rivales.','Empty uses the estimate. A fixed value is a marked exception and does not change computed opponent ratings.'))}</p><p data-rating-save role="status"></p></section>`);
+  document.getElementById('modal-actions').append(button(tr('Guardar ajustes','Save adjustments'),()=>guardarAjusteRating(name),true));
+ }
+ async function guardarAjusteRating(name){
+  if(!isAdmin())return;
+  const status=document.querySelector('[data-rating-save]'),a=document.getElementById('rt-seed'),b=document.getElementById('rt-over');if(!a||!b)return;
+  const ctx=_adjustContext;if(!ctx||ctx.name!==name||ctx.key!==context()){status.textContent=tr('La liga o la sesión cambió. Cerrá y volvé a abrir el ajuste.','League or session changed. Reopen the adjustment.');return;}
+  if(typeof _saveInFlight!=='undefined'&&_saveInFlight)await _saveInFlight;
+  if(ctx.key!==context()||!a.isConnected)return;
+  const sv=a.value.trim(),ov=b.value.trim();
+  if(sv!==''&&(!Number.isFinite(+sv)||+sv<1||+sv>16)||ov!==''&&(!Number.isFinite(+ov)||+ov<0.01||+ov>16)){status.textContent=tr('Revisá los límites de ambos valores.','Check both value ranges.');return;}
+  const oldS={..._ratingSeeds()},oldO={..._ratingOverrides()};
+  if(sv==='')delete RATING_SEEDS[name];else RATING_SEEDS[name]=Math.round(+sv*100)/100;
+  if(ov==='')delete RATING_OVERRIDES[name];else RATING_OVERRIDES[name]=Math.round(+ov*100)/100;
+  const buttons=document.getElementById('modal-actions').querySelectorAll('button');buttons.forEach(x=>x.disabled=true);
+  let saved=false;
+  try{saved=await _criticalSave();if(ctx.key!==context())return;if(!saved){RATING_SEEDS=oldS;RATING_OVERRIDES=oldO;status.textContent=tr('No se confirmó el guardado. Resolvé el aviso de conexión o conflicto antes de reintentar.','Save was not confirmed. Resolve the connection or conflict notice before retrying.');return;}
+   closeM();await calcularRatingGlobal(true);if(typeof subView!=='undefined'&&subView==='rating')renderRating();toast(tr('Ajustes guardados.','Adjustments saved.'));
+  }catch(e){if(!saved&&ctx.key===context()){RATING_SEEDS=oldS;RATING_OVERRIDES=oldO;}if(status.isConnected)status.textContent=e.message;}
+  finally{buttons.forEach(x=>x.disabled=false);}
+ }
+ function ratingFichaHTML(name){
+  const r=ratingUTRDe(name);if(!r||!r.partidos&&!r.manual)return '';
+  return `<div class="rt-ficha"><div class="rt-ficha-num">${r.rating.toFixed(2)}</div><div class="rt-ficha-side"><div class="rt-ficha-lbl">Rating Sohail ${r.provisional?'<span class="rt-prov">'+escape(tr('provisional','provisional'))+'</span>':''}</div><div class="rt-ficha-sub">${r.partidos}/50 · ${escape(tr('Confianza ','Confidence '))}${escape(confidence(r))}${r.manual?' · '+escape(tr('fijo; calculado ','fixed; computed '))+r.ratingCalculado.toFixed(2):''}${r.stale?' · '+escape(tr('lectura anterior','previous snapshot')):''}</div></div></div>`;
+ }
+ Object.assign(window,{calcularRatingGlobal,ratingUTRDe,ratingUTRfmt,renderRating,abrirAjusteRating,guardarAjusteRating,ratingFichaHTML});
 })();

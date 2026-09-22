@@ -1,0 +1,25 @@
+/* Scoped rating UI. Keep league colors, accessible focus and native table scroll. */
+.rating-v440 .rating-head{display:flex;gap:18px;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;margin-bottom:16px}
+.rating-v440 .rating-head>div{min-width:0}.rating-v440 h2{font-size:22px;line-height:1.4;color:var(--text);margin:0 0 10px}
+.rating-tools{display:flex;gap:8px;flex-wrap:wrap}.rating-tools button{min-height:44px}
+.rating-snapshot{font-size:12px;line-height:1.7;color:var(--text2);margin:0 0 16px;overflow-wrap:anywhere}
+.rating-alert{padding:14px 16px;border:1px solid var(--border2);border-left:4px solid var(--warn);border-radius:10px;background:var(--surface2);color:var(--text);font-size:13px;line-height:1.6;margin:12px 0 16px;overflow-wrap:anywhere}
+.rating-v440 .rt-table{min-width:1050px;font-variant-numeric:tabular-nums}.rating-v440 .rt-table :is(td,th){padding:12px 10px;line-height:1.5}
+.rating-v440 .rt-table td:nth-child(2){min-width:180px;max-width:240px;white-space:normal!important}
+.rating-v440 small,.rating-matches small{display:block;white-space:normal;overflow-wrap:anywhere;font-size:11px;color:var(--text2);font-weight:400;margin-top:4px}
+.rating-name{font:inherit;color:var(--link,var(--pri));border:0;background:none;text-align:left;padding:6px 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-height:36px}
+.rating-v440 .rt-table button{white-space:nowrap}.rating-v440 .rt-table .rt-prov,.rating-v440 .rt-table .rt-manual{display:block;margin:4px 0;white-space:normal}
+.rating-confidence{font-weight:650}.rating-method{font-size:13px;color:var(--text2);line-height:1.7;margin:14px 0;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.rating-method summary{font-weight:650;color:var(--link,var(--pri));cursor:pointer;min-height:32px}.rating-method p{margin:12px 0}
+.rating-detail{font-size:13px;line-height:1.7;min-width:0;color:var(--text)}.rating-detail p{margin:0 0 14px}.rating-detail dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 16px;margin:14px 0 20px}.rating-detail dt{color:var(--text2)}.rating-detail dd{margin:0;overflow-wrap:anywhere}
+.rating-detail label{display:block;font-weight:650;margin:12px 0 6px}.rating-detail input{max-width:100%;min-height:44px}
+.rating-matches{padding-left:24px;max-height:42vh;overflow:auto}.rating-matches li{border-bottom:1px solid var(--border);padding:10px 0;overflow-wrap:anywhere}
+.rating-v440 button:focus-visible,.rating-v440 summary:focus-visible{outline:3px solid var(--link,var(--pri));outline-offset:3px}
+@media(max-width:600px){.rating-v440 .rating-head{gap:10px}.rating-v440 h2{font-size:19px}.rating-detail dl{grid-template-columns:1fr 1fr;gap:8px}.rating-v440 .rating-head .rt-sub{font-size:12px}}
+
+/* Keep the title and Close/Save actions reachable while the detail body scrolls. */
+#modal-bg:has(.rating-detail) .modal{display:flex;flex-direction:column;width:min(680px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:hidden}
+#modal-bg:has(.rating-detail) #modal-title{flex:0 0 auto;overflow-wrap:anywhere}
+#modal-bg:has(.rating-detail) #modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+#modal-bg:has(.rating-detail) #modal-actions{flex:0 0 auto;border-top:1px solid var(--border);padding-top:12px}
+#modal-bg:has(.rating-detail) #modal-actions .btn{min-height:44px}
