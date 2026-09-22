@@ -1,33 +1,106 @@
-name: Sohail checks
+name: check
+
+# Run workflow crea una ejecucion nueva sobre la rama elegida.
+# Re-run conserva el commit de la ejecucion original; no actualiza a main.
+run-name: "check · ${{ github.event_name }} · ${{ github.ref_name }} · ${{ github.sha }}"
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  check:
+  verify:
+    name: Integridad, regresión y seguridad local
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-      - name: Use Node.js 22
+
+      - name: Mostrar el commit que se está comprobando
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_sha="$(git rev-parse HEAD)"
+          printf 'Evento: %s\n' "$GITHUB_EVENT_NAME"
+          printf 'Referencia: %s\n' "$GITHUB_REF"
+          printf 'Commit comprobado: %s\n' "$checked_sha"
+          printf 'Intento: %s\n' "$GITHUB_RUN_ATTEMPT"
+
+          if [ "$checked_sha" != "$GITHUB_SHA" ]; then
+            printf '%s\n' '::error::El checkout no coincide con el commit de esta ejecución.'
+            exit 1
+          fi
+
+          {
+            printf '## Versión comprobada\n\n'
+            printf -- '- Evento: `%s`\n' "$GITHUB_EVENT_NAME"
+            printf -- '- Referencia: `%s`\n' "$GITHUB_REF"
+            printf -- '- Commit: `%s`\n' "$checked_sha"
+            printf -- '- Intento: `%s`\n\n' "$GITHUB_RUN_ATTEMPT"
+            printf '%s\n' 'Este resumen identifica la versión; el resultado de las pruebas se muestra en los pasos siguientes.'
+            printf '\n%s\n' '**Run workflow** inicia una ejecución nueva sobre la rama elegida. **Re-run** repite el commit original, aunque la rama haya avanzado.'
+            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+              printf '\n%s\n' '**Este es un reintento.** Para comprobar la versión actual: Actions → check → Run workflow → main.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node (misma versión que package.json)
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
-      # This repository has no package-lock.json. Do not change this to npm ci
-      # without first generating and committing an appropriate lock file.
-      - name: Install declared dependencies
+          node-version-file: package.json
+
+      - name: Mostrar versiones y comprobar rutas de la repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          for file in package.json public/index.html api/liga.js scripts/verify-release.cjs tests/support/mock-db.cjs; do
+            if [ ! -f "$file" ]; then
+              printf '::error file=%s::Falta este archivo en la ruta esperada. Revisá la carga completa y las carpetas scripts/ y tests/.\n' "$file"
+              exit 1
+            fi
+          done
+
+      # Conserva el método de instalación recibido: el paquete no incluye lockfile.
+      # No habilita scripts de instalación de las dependencias.
+      - name: Instalar dependencias sin scripts de instalación
+        id: install
         run: npm install --ignore-scripts --no-audit --no-fund
-      - name: Run application and regression tests
+
+      - name: Verificar todos los scripts, recursos y rutas de public
+        id: integrity
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node scripts/verify-release.cjs
+
+      # Se ejecutan también si falla integridad, para reunir los errores.
+      # Un fallo en cualquiera de los pasos sigue dejando el trabajo en rojo.
+      - name: Pruebas de lógica, autorización y regresión (base simulada)
+        id: tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
-      - name: Verify complete files, local assets and function count
-        run: npm run verify
+
+      - name: Resumen de los resultados (no cambia el resultado de las pruebas)
+        if: ${{ always() }}
+        shell: bash
+        env:
+          INSTALL_RESULT: ${{ steps.install.outcome }}
+          INTEGRITY_RESULT: ${{ steps.integrity.outcome }}
+          TEST_RESULT: ${{ steps.tests.outcome }}
+        run: |
+          set -euo pipefail
+          {
+            printf '\n## Resultado de los pasos\n\n'
+            printf '| Paso | Resultado |\n|---|---|\n'
+            printf '| Instalación | %s |\n' "${INSTALL_RESULT:-no ejecutado}"
+            printf '| Integridad | %s |\n' "${INTEGRITY_RESULT:-no ejecutado}"
+            printf '| Pruebas | %s |\n' "${TEST_RESULT:-no ejecutado}"
+            printf '\n%s\n' 'Si un paso falla, abrí ese paso y descargá su log completo. Este workflow no ejecuta SQL ni modifica Supabase.'
+          } >> "$GITHUB_STEP_SUMMARY"
