@@ -1,0 +1,66 @@
+name: check
+
+# Run workflow crea una ejecucion nueva sobre la rama elegida.
+# Re-run conserva el commit de la ejecucion original; no actualiza a main.
+run-name: "check · ${{ github.event_name }} · ${{ github.ref_name }} · ${{ github.sha }}"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Integridad, regresión y seguridad local
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mostrar el commit que se está comprobando
+        shell: bash
+        run: |
+          set -euo pipefail
+          checked_sha="$(git rev-parse HEAD)"
+          printf 'Evento: %s\n' "$GITHUB_EVENT_NAME"
+          printf 'Referencia: %s\n' "$GITHUB_REF"
+          printf 'Commit comprobado: %s\n' "$checked_sha"
+          printf 'Intento: %s\n' "$GITHUB_RUN_ATTEMPT"
+
+          if [ "$checked_sha" != "$GITHUB_SHA" ]; then
+            printf '%s\n' '::error::El checkout no coincide con el commit de esta ejecución.'
+            exit 1
+          fi
+
+          {
+            printf '## Versión comprobada\n\n'
+            printf -- '- Evento: `%s`\n' "$GITHUB_EVENT_NAME"
+            printf -- '- Referencia: `%s`\n' "$GITHUB_REF"
+            printf -- '- Commit: `%s`\n' "$checked_sha"
+            printf -- '- Intento: `%s`\n\n' "$GITHUB_RUN_ATTEMPT"
+            printf '%s\n' 'Este resumen identifica la versión; el resultado de las pruebas se muestra en los pasos siguientes.'
+            printf '\n%s\n' '**Run workflow** inicia una ejecución nueva sobre la rama elegida. **Re-run** repite el commit original, aunque la rama haya avanzado.'
+            if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+              printf '\n%s\n' '**Este es un reintento.** Para comprobar la versión actual: Actions → check → Run workflow → main.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias sin scripts de instalación
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verificar todos los scripts, recursos y rutas de public
+        run: node scripts/verify-release.cjs
+
+      - name: Pruebas de lógica, autorización y regresión (base simulada)
+        run: npm test
