@@ -1,0 +1,16 @@
+/* Sohail v4.2: all-league, multi-profile selection. No theme token changes. */
+.identity-directory-scope{padding:12px 14px;border:1px solid var(--border2);border-radius:10px;background:var(--surface2);color:var(--text);font-size:13px;line-height:1.6;margin:14px 0;overflow-wrap:anywhere}
+.identity-group-members{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:8px;max-height:38dvh;overflow:auto;margin:12px 0;scrollbar-width:thin;overscroll-behavior:contain}
+.identity-group-members>.dup-match{padding:10px;border:1px solid var(--border);border-radius:8px;min-width:0}
+.identity-group-members .dup-source{margin:5px 0 0;overflow-wrap:anywhere}
+.identity-manual-list{max-height:46dvh;overflow:auto;border:1px solid var(--border2);border-radius:10px;scrollbar-width:thin;overscroll-behavior:contain;margin:12px 0}
+.identity-manual-row{display:flex;align-items:flex-start;gap:12px;padding:12px;min-height:50px;border-bottom:1px solid var(--border);cursor:pointer;line-height:1.5}
+.identity-manual-row:last-child{border-bottom:0}
+.identity-manual-row input[type=checkbox]{flex:0 0 20px;width:20px;height:20px;margin:2px 0;accent-color:var(--action)}
+.identity-manual-row>span{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.identity-manual-row:has(input:checked){background:var(--soft)}
+.identity-manual-row input:focus-visible{outline:3px solid var(--focus,var(--link));outline-offset:3px}
+.identity-bulk-toolbar{top:0;z-index:2}
+.identity-bulk-toolbar>strong{flex:1 1 100%;line-height:1.6;overflow-wrap:anywhere}
+.identity-field>input[type=search]{min-height:44px;width:100%;font:inherit;font-size:16px;border:1px solid var(--border2);border-radius:9px;background:var(--surface);color:var(--text);padding:10px;box-sizing:border-box}
+@media(max-width:520px){.identity-group-members{grid-template-columns:minmax(0,1fr)}.identity-bulk-toolbar{position:static}.identity-bulk-toolbar>.btn{flex:1 1 130px;white-space:normal;min-height:44px}.identity-directory-scope{padding:10px}.identity-manual-list{max-height:40dvh}}

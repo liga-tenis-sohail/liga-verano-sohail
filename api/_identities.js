@@ -2,6 +2,8 @@
 // Sporting identity is separate from the authentication principal (jugadorId).
 // Names in match/draw records are immutable aliases; no historical record is deleted.
 const O=require('./_operations'),lib=require('./_lib');
+// Limit counts explicitly selected references; linked historical memberships expand in full.
+const MAX_MERGE_PROFILES=300;
 const forbidden=new Set(['pass','password','pass_hash','role','isAdmin','inactive','jugadorId','historialId','historialNombre','_credentialId','identityRef','passwordDefault','key','id','name','actualizado','created_at','updated_at','perfilUnificado','perfilAlternativas']);
 const notEmpty=v=>v!==undefined&&v!==null&&(typeof v!=='string'||v.trim()!=='')&&(!Array.isArray(v)||v.length>0)&&(!O.object(v)||Object.keys(v).length>0);
 function refKey(ref){
@@ -46,22 +48,25 @@ function mergeFields(sources,choices={}){
  return {fields:merged,alternatives};
 }
 async function universe(ctx,reg){
- const index=await lib.readLigaIndex(),states=new Map(),records=[];
- // Paginate even with a server-side row cap. An incomplete read is not an empty league.
- const all=await O.tableRows('liga_state','id,data');
+ // Read every page of the index as well as states/catalogue, regardless of league status.
+ // A short server page is not proof that the remaining leagues do not exist.
+ const [index,all,catalog]=await Promise.all([O.tableRows('liga_index','id,nombre,estado,orden'),O.tableRows('liga_state','id,data'),O.tableRows('jugadores','*')]);
+ index.sort((a,b)=>(Number(a.orden)||0)-(Number(b.orden)||0)||String(a.id).localeCompare(String(b.id)));
+ const states=new Map(),records=[],entries=new Map(index.map(x=>[x.id,x]));
  for(const row of all){
-  const entry=index.find(x=>x.id===row.id);if(!entry)continue;
+  const entry=entries.get(row.id);if(!entry)continue;
   const state=typeof row.data==='string'?JSON.parse(row.data):row.data;
   if(!O.object(state)||!O.object(state.users))throw new O.AppError(503,'INVALID_STORED_STATE','Hay un estado de liga ilegible. No se modificó nada.');
   states.set(row.id,{state,entry});
   for(const [name,u]of Object.entries(state.users)){
    if(['admin','superadmin'].includes(name)||!O.object(u)||u.role==='superadmin')continue;
    const ref={type:'league',ligaId:row.id,name},key=refKey(ref);
-   const rec={ref,key,name,source:'league',leagueId:row.id,leagueName:entry.nombre,estado:entry.estado,user:u,jugadorId:u.jugadorId||'',editable:O.authorised(ctx,state)};
+   const rec={ref,key,name,source:'league',leagueId:row.id,leagueName:entry.nombre,estado:entry.estado,orden:entry.orden,user:u,jugadorId:u.jugadorId||'',editable:O.authorised(ctx,state)};
    rec.sportId=effective(rec,reg);records.push(rec);
   }
  }
- const catalog=await O.tableRows('jugadores','*');
+ // Never advertise a complete directory when an indexed league could not be read.
+ if(index.some(l=>!states.has(l.id)))throw new O.AppError(503,'MISSING_LEAGUE_STATE','Hay una liga registrada sin datos legibles. Revisá el índice de ligas antes de continuar. No se modificó nada.');
  for(const j of catalog){
   if(!j||typeof j.id!=='string'||typeof j.nombre!=='string')throw new O.AppError(503,'INVALID_CATALOG','El catálogo tiene datos ilegibles.');
   if(['admin','superadmin'].includes(j.nombre)||j.role==='superadmin')continue;
@@ -81,10 +86,14 @@ function requireEditable(ctx,records,universe){
  if(!ctx.superadmin&&records.some(r=>r.ref.type==='catalog'))throw new O.AppError(403,'GLOBAL_IDENTITY_REQUIRED','Esta fusión afecta al catálogo global. Debe confirmarla el superadministrador.');
  for(const r of records)if(r.ref.type==='league')O.requireAdmin(ctx,universe.states.get(r.leagueId)?.state);
 }
-function planMerge(ctx,universe,reg,refs,choices={},kind='merge'){
- if(!Array.isArray(refs)||refs.length!==2)throw new O.AppError(400,'INVALID_REFERENCE','Elegí exactamente dos fichas.');
+function planMerge(ctx,universe,reg,refs,choices={},kind='merge',workspace=null){
+ if(!Array.isArray(refs)||refs.length<2||refs.length>MAX_MERGE_PROFILES)throw new O.AppError(400,'INVALID_REFERENCE','Elegí entre 2 y '+MAX_MERGE_PROFILES+' perfiles de una misma persona.');
+ if(!O.object(choices))throw new O.AppError(400,'INVALID_CHOICE','Las elecciones de campos no son válidas.');
+ O.safeTree(refs);O.safeTree(choices);
  const selected=refs.map(r=>pick(universe,r));
- if(selected[0].key===selected[1].key||selected[0].sportId&&selected[0].sportId===selected[1].sportId)throw new O.AppError(409,'ALREADY_LINKED','Las fichas ya pertenecen a la misma identidad deportiva.');
+ if(new Set(selected.map(r=>r.key)).size!==selected.length)throw new O.AppError(400,'DUPLICATE_REFERENCE','Hay una ficha repetida en la selección.');
+ const identities=new Set(selected.map(r=>r.sportId?'sport:'+r.sportId:r.key));
+ if(identities.size<2)throw new O.AppError(409,'ALREADY_LINKED','Las fichas ya pertenecen a la misma identidad deportiva.');
  const members=expand(universe,selected,reg);requireEditable(ctx,members,universe);
  const memberKeys=new Set(members.map(r=>r.key));
  for(const decision of Object.values(reg.data.decisions||{}))if(decision.status==='distinct'&&decisionApplies(decision,members)&&decision.keys.every(k=>memberKeys.has(k)))throw new O.AppError(409,'DISTINCT_PLAYERS','Estas fichas están marcadas como personas distintas. Reabrí esa decisión antes de fusionar.');
@@ -96,7 +105,7 @@ function planMerge(ctx,universe,reg,refs,choices={},kind='merge'){
   const f=fields(r),key=r.key+':'+O.digest(f);bySource.set(key,{key:r.key,label:r.name+' · '+r.leagueName,fields:f});
  }
  for(const id of priorIds)for(const s of reg.data.profiles[id].sources||[])bySource.set(s.key+':'+O.digest(s.fields),O.clone(s));
- const sources=[...bySource.values()],merged=mergeFields(sources,choices),nextReg=O.clone(reg.data);
+ const sources=[...bySource.values()],merged=mergeFields(sources,choices),nextReg=workspace?reg.data:O.clone(reg.data);
  const label=reg.data.profiles?.[selected[0].sportId]?.name||selected[0].name;
  const aliases=[...new Set([...members.map(r=>r.name),...priorIds.flatMap(id=>reg.data.profiles[id].aliases||[])])];
  const allKeys=new Set([...members.map(r=>r.key),...priorIds.flatMap(id=>reg.data.profiles[id].members||[])]);
@@ -106,11 +115,15 @@ function planMerge(ctx,universe,reg,refs,choices={},kind='merge'){
  const profile={id:canonical,name:label,aliases,members:[...allKeys].sort(),fields:merged.fields,alternatives:merged.alternatives,sources};
  nextReg.profiles[canonical]=profile;
  for(const id of priorIds)if(id!==canonical)nextReg.profiles[id]={...nextReg.profiles[id],mergedInto:canonical};
- nextReg.decisions[pairKey(selected[0].key,selected[1].key)]={status:'merged',keys:selected.map(r=>r.key).sort(),profile:canonical};
+ const mergedKey=selected.length===2?pairKey(selected[0].key,selected[1].key):'group:'+O.digest(selected.map(r=>r.key).sort());
+ nextReg.decisions[mergedKey]={status:'merged',keys:selected.map(r=>r.key).sort(),profile:canonical};
  const states=[];let matchCount=0;
  for(const [id,{state,entry}] of universe.states){
   const names=new Set(members.filter(r=>r.leagueId===id).map(r=>r.ref.name));if(!names.size)continue;
-  const next=O.clone(state);
+  // A bulk workspace owns its drafts and registry. Clone each full league once,
+  // not once per selected person; never mutate the caller's original universe.
+  let next=workspace?.drafts.get(id);
+  if(!next){next=O.clone(state);if(workspace)workspace.drafts.set(id,next);}
   // Prevent an invalid merge turning a real match into a player against themselves.
   for(const m of state.matches||[]){const ps=m.po?m.poNames:[m.aName,m.bName];if(!Array.isArray(ps))continue;
    if(ps.length===2&&ps.every(n=>names.has(n))&&ps[0]!==ps[1])throw new O.AppError(409,'SELF_MATCH','Las fichas jugaron entre sí en '+entry.nombre+' (partido '+m.id+'). Revisá ese resultado antes de afirmar que son la misma persona.');
@@ -123,7 +136,7 @@ function planMerge(ctx,universe,reg,refs,choices={},kind='merge'){
   }
   states.push({id,expected:state._v||0,data:next,write:true});
  }
- const summary={profileId:canonical,name:label,aliases,members:members.length,leagues:states.map(s=>({id:s.id,name:universe.states.get(s.id).entry.nombre})),matches:matchCount,conflicts:Object.keys(merged.alternatives).length};
+ const summary={profileId:canonical,name:label,aliases,selectedProfiles:refs.length,members:members.length,leagues:states.map(s=>({id:s.id,name:universe.states.get(s.id).entry.nombre})),matches:matchCount,conflicts:Object.keys(merged.alternatives).length};
  return {states,newRegistry:nextReg,summary,profile:{name:label,fields:merged.fields,alternatives:merged.alternatives,aliases},kind};
 }
 function planDecision(ctx,universe,reg,refs,status){
@@ -147,4 +160,4 @@ function annotateState(state,id,reg){
  }
  return state;
 }
-module.exports={binding,decisionApplies,refKey,pairKey,effective,mergeFields,universe,pick,expand,planMerge,planDecision,annotateState};
+module.exports={MAX_MERGE_PROFILES,binding,decisionApplies,refKey,pairKey,effective,mergeFields,universe,pick,expand,planMerge,planDecision,annotateState};

@@ -72,7 +72,7 @@ test('BULK410 distinct-person decisions cannot be bypassed by bulk selection',()
  const reg=db.tables.sohail_identity_registry[0];reg.data.decisions.x={keys:groups()[1].refs.map(I.refKey),status:'distinct'};
  const r=await post(db,{mode:'bulk-preview',groups:groups()});assert.equal(r.status,409);assert.equal(r.body.code,'DISTINCT_PLAYERS');assert.equal(db.tables.sohail_data_operations.length,0);
 }));
-for(const bad of [null,[],Array.from({length:21},()=>groups()[0]),[{}],[{refs:[ref('Alicia')]}],[{refs:groups()[0].refs,choices:[]}],
+for(const bad of [null,[],Array.from({length:151},()=>groups()[0]),[{}],[{refs:[ref('Alicia')]}],[{refs:groups()[0].refs,choices:[]}],
  [{refs:groups()[0].refs,choices:{'["role"]':0}}],JSON.parse('[{"refs":[],"__proto__":{"x":1}}]')]){
  test('BULK410 malformed, unsafe or oversized batch is rejected '+JSON.stringify(bad).slice(0,90),()=>withDB(async db=>{
   const before=structuredClone(db.tables);const r=await post(db,{mode:'bulk-preview',groups:bad});assert.ok(r.status>=400);assert.deepEqual(db.tables,before);
@@ -137,7 +137,7 @@ test('BULK410 the complete planner never mutates its input universe or registry'
  const ctx=await O.context({headers:{authorization:'Bearer '+db.token('superadmin')}}),reg=await O.registry(),all=await I.universe(ctx,reg);
  const before=structuredClone({reg,all});B.planBulkMerge(ctx,all,reg,groups());assert.deepEqual({reg,all},before);
 }));
-test('BULK410 the maximum twenty-case batch keeps twenty identities and every member',()=>withDB(async db=>{
+test('BULK410 a twenty-case batch keeps twenty identities and every member',()=>withDB(async db=>{
  const current=fixture(),old=fixture(),batch=[];
  for(let i=0;i<20;i++){
   const n='Prueba '+i;

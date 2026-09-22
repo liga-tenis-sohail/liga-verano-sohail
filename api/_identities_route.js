@@ -63,7 +63,7 @@ module.exports=require('./_http').wrap(async function(req,res){
  const all=await I.universe(ctx,reg);
  if(b.mode==='directory'){
   const visible=all.records.filter(r=>r.ref.type==='catalog'||r.editable);
-  return res.status(200).json({complete:true,superadmin:ctx.superadmin,records:visible.map(r=>({ref:r.ref,key:r.key,name:r.name,globalId:r.sportId,source:r.source,leagueId:r.leagueId,leagueName:r.leagueName,estado:r.estado,editable:r.editable})),decisions:Object.fromEntries(Object.entries(reg.data.decisions||{}).filter(([,d])=>I.decisionApplies(d,visible))),leagues:all.index.filter(l=>all.states.has(l.id)&&O.authorised(ctx,all.states.get(l.id).state))});
+  return res.status(200).json({complete:true,scope:'all-authorised-leagues',maxProfiles:I.MAX_MERGE_PROFILES,superadmin:ctx.superadmin,records:visible.map(r=>({ref:r.ref,key:r.key,name:r.name,globalId:r.sportId,source:r.source,leagueId:r.leagueId,leagueName:r.leagueName,estado:r.estado,orden:r.orden,editable:r.editable})),decisions:Object.fromEntries(Object.entries(reg.data.decisions||{}).filter(([,d])=>I.decisionApplies(d,visible))),leagues:all.index.filter(l=>all.states.has(l.id)&&O.authorised(ctx,all.states.get(l.id).state))});
  }
  if(!['preview','commit'].includes(b.mode))throw new O.AppError(400,'INVALID_MODE','Modo inválido.');
  if(!['decision','link','merge'].includes(b.kind))throw new O.AppError(400,'INVALID_KIND','Tipo de operación inválido.');

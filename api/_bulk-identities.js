@@ -2,22 +2,34 @@
 // One atomic merge operation containing independent duplicate cases. Never merge
 // every selected person into a single profile. Reuses the existing SQL transaction.
 const O=require('./_operations'), I=require('./_identities');
-const MAX_CASES=20;
+const MAX_PROFILES=I.MAX_MERGE_PROFILES;
+const MAX_CASES=Math.floor(MAX_PROFILES/2); // Each independent person needs at least two selected profiles.
 function planBulkMerge(ctx,all,reg,groups){
   if(!Array.isArray(groups)||groups.length<1||groups.length>MAX_CASES){
-    throw new O.AppError(400,'INVALID_BATCH','Seleccioná entre 1 y '+MAX_CASES+' casos por lote.');
+    throw new O.AppError(400,'INVALID_BATCH','Seleccioná al menos un caso y un máximo de '+MAX_PROFILES+' perfiles por lote.');
   }
   O.safeTree(groups);
+  let selectedProfiles=0;
+  for(const group of groups){
+    if(!O.object(group)||!Array.isArray(group.refs)||group.refs.length<2||
+       group.choices!==undefined&&!O.object(group.choices)){
+      throw new O.AppError(400,'INVALID_BATCH_CASE','Cada caso necesita al menos dos perfiles y elecciones de campos válidas.');
+    }
+    selectedProfiles+=group.refs.length;
+  }
+  if(selectedProfiles>MAX_PROFILES)throw new O.AppError(400,'BATCH_PROFILE_LIMIT',
+    'El lote supera los '+MAX_PROFILES+' perfiles seleccionados. Quitá casos completos y procesalos en otro lote.');
   // Separate containers; the input universe, registry and current states remain
   // untouched until the SQL CAS transaction commits the complete final plan.
   const working={...all,states:new Map(all.states)};
   let workingReg={version:reg.version,data:O.clone(reg.data)};
+  const workspace={drafts:new Map()};
   const used=new Set(),writes=new Map(),cases=[],touched=new Map();
   for(const [index,group] of groups.entries()){
     try{
-      if(!O.object(group)||!Array.isArray(group.refs)||group.refs.length!==2||
+      if(!O.object(group)||!Array.isArray(group.refs)||group.refs.length<2||
          group.choices!==undefined&&!O.object(group.choices)){
-        throw new O.AppError(400,'INVALID_BATCH_CASE','Cada caso necesita dos fichas y elecciones de campos válidas.');
+        throw new O.AppError(400,'INVALID_BATCH_CASE','Cada caso necesita al menos dos fichas y elecciones de campos válidas.');
       }
       const selected=group.refs.map(ref=>I.pick(all,ref)),members=I.expand(all,selected,reg);
       // Include historical members retained by earlier merges, not only visible
@@ -29,7 +41,7 @@ function planBulkMerge(ctx,all,reg,groups){
       }
       if([...keys].some(key=>used.has(key)))throw new O.AppError(409,'BATCH_OVERLAP',
         'Esta persona ya aparece en otro caso seleccionado. Resolvé ese grupo por separado.');
-      const plan=I.planMerge(ctx,working,workingReg,group.refs,group.choices||{},'merge');
+      const plan=I.planMerge(ctx,working,workingReg,group.refs,group.choices||{},'merge',workspace);
       for(const key of keys)used.add(key);
       for(const r of members)if(r.leagueId){
         if(!touched.has(r.leagueId))touched.set(r.leagueId,new Set());
@@ -56,10 +68,10 @@ function planBulkMerge(ctx,all,reg,groups){
       if(Array.isArray(people)&&people.some(n=>names.has(n)))matches++;
     }
   }
-  const summary={bulk:true,cases:cases.length,members:cases.reduce((n,c)=>n+c.summary.members,0),
+  const summary={bulk:true,cases:cases.length,selectedProfiles,maxProfiles:MAX_PROFILES,members:cases.reduce((n,c)=>n+c.summary.members,0),
     profiles:cases.map(c=>({id:c.summary.profileId,name:c.summary.name,aliases:c.summary.aliases})),
     leagues:states.map(s=>({id:s.id,name:all.states.get(s.id).entry.nombre})),matches,
     conflicts:cases.reduce((n,c)=>n+c.summary.conflicts,0)};
   return {states,newRegistry:workingReg.data,cases,summary};
 }
-module.exports={MAX_CASES,planBulkMerge};
+module.exports={MAX_CASES,MAX_PROFILES,planBulkMerge};
