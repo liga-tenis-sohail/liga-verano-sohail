@@ -1,18 +1,25 @@
-/* Sohail v4.6 — global, server-verified sporting ratings. All existing public
+/* Sohail v4.6.1 — global, server-verified sporting ratings. All existing public
    adapters remain available. The client never computes with unsaved results. */
 (function(){
  'use strict';
  const es=()=>typeof LANG==='undefined'||LANG!=='en';
  const tr=(a,b)=>es()?a:b;
  const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
  const league=()=>typeof _ligaActual==='string'?_ligaActual:'liga-actual';
  const client=window.SohailRatingClient.create({getToken:()=>typeof _token==='string'?_token:'',fetcher:(...args)=>fetch(...args)});
  let _draw=0,_adjustContext=null;
  const context=()=>[league(),typeof _saveSessionKey==='function'?_saveSessionKey():typeof _token==='string'?_token:''].join('|');
  if(typeof TRANSLATIONS!=='undefined'){
-  if(TRANSLATIONS.es)Object.assign(TRANSLATIONS.es,{rt_prov_t:'Rating provisional: menos de 15 partidos con juego confirmado. Desde el partido 15 es establecido; la confianza se informa aparte.',rt_col_fiab_t:'Índice orientativo de evidencia, no una probabilidad de acierto.',rt_leg_fiab:'= índice orientativo de evidencia'});
-  if(TRANSLATIONS.en)Object.assign(TRANSLATIONS.en,{rt_prov_t:'Provisional rating: fewer than 15 confirmed matches with play. Established from match 15; confidence is reported separately.',rt_col_fiab_t:'Diagnostic evidence index, not an accuracy probability.',rt_leg_fiab:'= diagnostic evidence index'});
+  if(TRANSLATIONS.es)Object.assign(TRANSLATIONS.es,{
+   rt_prov_t:'Rating provisional: menos de 15 partidos con juego confirmado. Desde el partido 15 deja de mostrarse esta aclaración.',
+   rt_col_last50_t:'Partidos jugados incluidos dentro de la ventana de los últimos 50.',
+   rt_card_last50:'de los últimos 50 partidos'
+  });
+  if(TRANSLATIONS.en)Object.assign(TRANSLATIONS.en,{
+   rt_prov_t:'Provisional rating: fewer than 15 confirmed matches with play. From match 15 onward this label is no longer shown.',
+   rt_col_last50_t:'Played matches included inside the last-50 window.',
+   rt_card_last50:'of the last 50 matches'
+  });
  }
  const guide=(method)=>window.SohailRatingExplainer.render(method||{},es()?'es':'en');
  const isAdmin=()=>typeof currentUser!=='undefined'&&currentUser&&esAdmin(currentUser)&&!(typeof _ligaReadOnly!=='undefined'&&_ligaReadOnly);
@@ -21,8 +28,6 @@
  function ratingUTRDe(name){
   const snapshot=client.peek(),d=snapshot.data;if(!d)return null;
   const key=d.byLeague[league()]?.[name],r=key&&d.info[key];if(!r)return null;
-  // Manual exceptions remain local and explicitly labelled. They do NOT feed
-  // the opponent model; the calculated global estimate is always shown too.
   const over=d.overrides?.[league()]?.[name],manual=typeof over==='number'&&Number.isFinite(over);
   return {...r,rating:manual?over:r.ratingCalculado,manual,manualRating:manual?over:null,key,stale:snapshot.stale};
  }
@@ -33,13 +38,18 @@
  }
  async function calcularRatingGlobal(force){
   const result=await client.load(!!force||currentVersionAhead());
-  // A save may have completed while an older request was already in flight.
   if(result&&currentVersionAhead()&&!client.peek().error)return client.load(true);
   return result;
  }
  function ratingStatus(r){return !r.partidos?tr('Sin partidos','No matches'):r.provisional?tr('Provisional','Provisional'):tr('Establecido','Established');}
+ function ratingStatusBadge(r){
+  if(!r.partidos)return `<span class="badge badge-tag rating-status" title="${escape(tr('Todavía no hay partidos con juego confirmado para estimar este rating.','There are no confirmed played matches yet to estimate this rating.'))}">${escape(ratingStatus(r))}</span>`;
+  if(!r.provisional)return '';
+  return `<span class="badge badge-warn rating-status" title="${escape(t('rt_prov_t'))}">${escape(ratingStatus(r))}</span>`;
+ }
  function groupOf(name){const loc=typeof findLoc==='function'?findLoc(name,activeN):null;return loc?groupName(loc.g):'—';}
  function confidence(r){return r.confidence==='high'?tr('Alta','High'):r.confidence==='medium'?tr('Media','Medium'):tr('Baja','Low');}
+ function last50Label(r){return `${r.partidos}/50`;}
  const button=(label,fn,primary=false)=>{const b=document.createElement('button');b.type='button';b.className='btn'+(primary?' btn-primary':'');b.textContent=label;b.addEventListener('click',fn);return b;};
  function statusHTML(s){
   const d=s.data;
@@ -65,14 +75,14 @@
   }
   list.sort((a,b)=>b.rating-a.rating||a.name.localeCompare(b.name));
   const mine=typeof currentUser!=='undefined'&&currentUser?d.byLeague[league()]?.[currentUser.name]:null;
-  const rows=list.map((r,i)=>`<tr class="${r.key===mine?'me-row':''}"><td><span class="pos ${['p1','p2','p3'][i]||'pn'}" aria-label="${escape(tr('Puesto ','Rank ')+(i+1))}">${i+1}</span></td><td><span class="avatar" aria-hidden="true">${escape(getInitials(r.name))}</span><button type="button" class="nm-link rating-name" data-player="${i}">${escape(r.name)}</button>${r.key===mine?` <span class="badge badge-ok">${escape(t('me_label'))}</span>`:''}${r.unlinked?`<small>${escape(tr('Ficha sin vínculo global','Unlinked historical profile'))}</small>`:''}</td><td>${escape(groupOf(r.name))}</td><td><strong class="rt-big">${r.rating.toFixed(2)}</strong>${r.manual?`<span class="rt-manual">${escape(tr('fijo en esta liga','fixed in this league'))}</span>`:''}<span class="badge ${!r.partidos?'badge-tag':r.provisional?'badge-warn':'badge-ok'} rating-status" title="${escape(t('rt_prov_t'))}">${escape(ratingStatus(r))}</span></td><td>${r.ratingCalculado.toFixed(2)}</td><td>${r.partidos}<small>${r.totalMatches} ${escape(tr('en el historial','in history'))}</small></td><td>${r.vict}–${r.der}${r.unresolved?`<small>${r.unresolved} ${escape(tr('sin ganador','winner unknown'))}</small>`:''}</td><td>${r.gGanados}–${r.gPerdidos}</td><td>${r.pctGames==null?'—':(100*r.pctGames).toFixed(1)+'%'}</td><td>${r.nivelRivales==null?'—':r.nivelRivales.toFixed(2)}</td><td><span class="rating-confidence">${escape(confidence(r))}</span><small>${r.fiab}/100 · ${r.uniqueOpponents} ${escape(tr('rivales','opponents'))}</small></td><td><button type="button" class="btn btn-sm" data-detail="${i}">${escape(tr('Ver detalle','Details'))}</button>${isAdmin()?` <button type="button" class="btn btn-sm" data-adjust="${i}">${escape(tr('Ajustar','Adjust'))}</button>`:''}</td></tr>`).join('');
-  box.innerHTML=`<div class="card"><header class="rating-head"><div><h2 class="section-lbl">${escape(tr('Rating Sohail · nivel y confianza','Sohail rating · skill and confidence'))}</h2><p class="rt-sub">${escape(tr('Últimos 50 partidos por identidad deportiva, sumando sus nombres vinculados y todas las ligas accesibles. Con menos de 50, se usan todos.','Latest 50 matches per sporting identity, across linked names and all accessible leagues. All matches are used when fewer than 50.'))}</p></div><div class="rating-tools"></div></header>${statusHTML(s)}
+  const rows=list.map((r,i)=>`<tr class="${r.key===mine?'me-row':''}"><td><span class="pos ${['p1','p2','p3'][i]||'pn'}" aria-label="${escape(tr('Puesto ','Rank ')+(i+1))}">${i+1}</span></td><td><span class="avatar" aria-hidden="true">${escape(getInitials(r.name))}</span><button type="button" class="nm-link rating-name" data-player="${i}">${escape(r.name)}</button>${r.key===mine?` <span class="badge badge-ok">${escape(t('me_label'))}</span>`:''}${r.unlinked?`<small>${escape(tr('Ficha sin vínculo global','Unlinked historical profile'))}</small>`:''}</td><td>${escape(groupOf(r.name))}</td><td><strong class="rt-big">${r.rating.toFixed(2)}</strong>${r.manual?`<span class="rt-manual">${escape(tr('fijo en esta liga','fixed in this league'))}</span>`:''}${ratingStatusBadge(r)}</td><td>${r.ratingCalculado.toFixed(2)}</td><td title="${escape(t('rt_col_last50_t'))}">${last50Label(r)}</td><td>${r.vict}–${r.der}${r.unresolved?`<small>${r.unresolved} ${escape(tr('sin ganador','winner unknown'))}</small>`:''}</td><td>${r.gGanados}–${r.gPerdidos}</td><td>${r.pctGames==null?'—':(100*r.pctGames).toFixed(1)+'%'}</td><td>${r.nivelRivales==null?'—':r.nivelRivales.toFixed(2)}</td><td><button type="button" class="btn btn-sm" data-detail="${i}">${escape(tr('Ver detalle','Details'))}</button>${isAdmin()?` <button type="button" class="btn btn-sm" data-adjust="${i}">${escape(tr('Ajustar','Adjust'))}</button>`:''}</td></tr>`).join('');
+  box.innerHTML=`<div class="card"><header class="rating-head"><div><h2 class="section-lbl">${escape(tr('Rating Sohail · nivel estimativo','Sohail rating · estimated skill'))}</h2><p class="rt-sub">${escape(tr('Últimos 50 partidos por identidad deportiva, sumando sus nombres vinculados y todas las ligas accesibles. Con menos de 50, se usan todos.','Latest 50 matches per sporting identity, across linked names and all accessible leagues. All matches are used when fewer than 50.'))}</p></div><div class="rating-tools"></div></header>${statusHTML(s)}
    ${d.componentCount>1?`<p class="rating-alert">${escape(tr('Hay grupos de jugadores sin cruces entre sí. Su comparación depende más de la referencia inicial; no es una escala UTR oficial.','Some player groups have no cross-play. Their comparison depends more on initial references; this is not an official UTR scale.'))}</p>`:''}
    ${d.weakBridgeCount?`<p class="rating-alert">${escape(tr('La red tiene conexiones entre conjuntos sostenidas por solo uno o dos partidos. Es una comparación frágil, no un error de resultados.','The network has links between groups supported by only one or two matches. These comparisons are fragile, not score errors.'))}</p>`:''}
    ${Object.keys(d.issueCounts||{}).length?`<details class="rating-method"><summary>${escape(tr('Avisos de calidad de datos','Data quality notices'))}</summary><p>${Object.entries(d.issueCounts).map(([k,v])=>escape(({'future-date':tr('Fechas posteriores a hoy: revisar','Future dates: review'),'missing-date':tr('Fechas desconocidas','Unknown dates'),'missing-id':tr('IDs históricos ausentes','Missing historical IDs'),'winner-unknown':tr('Ganador sin determinar; los games cuentan','Unknown winner; games still count'),'seed-conflict':tr('Seeds distintos entre ligas; no se elige uno arbitrariamente','Conflicting league seeds; none is chosen arbitrarily')}[k]||k)+': '+v)).join(' · ')}</p></details>`:''}
-   <div class="overflow-x" tabindex="0" role="region" aria-label="${escape(tr('Tabla de rating','Rating table'))}" aria-describedby="rating-scroll-help"><table class="gen-table rt-table"><thead><tr><th>#</th><th>${escape(tr('Jugador','Player'))}</th><th>${escape(tr('Grupo actual','Current group'))}</th><th>Rating</th><th>${escape(tr('Calc. global','Global calc.'))}</th><th>${escape(tr('PJ','MP'))} / 50</th><th>${escape(tr('V–D','W–L'))}</th><th>${escape(tr('GG–GP','GW–GL'))}</th><th>% Games</th><th>${escape(tr('Rival medio','Mean opponent'))}</th><th>${escape(tr('Confianza','Confidence'))}</th><th>${escape(tr('Acciones','Actions'))}</th></tr></thead><tbody>${rows||`<tr><td colspan="12">${escape(tr('Todavía no hay partidos con juego para los jugadores de esta liga.','No played matches for this league’s players yet.'))}</td></tr>`}</tbody></table></div>
-   <p id="rating-scroll-help" class="ui-scroll-note">${escape(tr('Desplazá la tabla para ver todas las columnas. GG–GP no incluye puntos de supertiebreak.','Scroll the table to see all columns. Games do not include match-tiebreak points.'))}</p>
-   <p class="ui-scroll-note">${escape(tr('Criterio único: de 1 a 14 partidos, provisional; desde 15, establecido. La confianza es independiente y no garantiza victorias. Consultá la leyenda debajo.','One rule for everyone: 1–14 matches, provisional; 15 or more, established. Confidence is separate and does not guarantee wins. See the legend below.'))}</p></div>${guide(d.method)}`;
+   <div class="overflow-x" tabindex="0" role="region" aria-label="${escape(tr('Tabla de rating','Rating table'))}" aria-describedby="rating-scroll-help"><table class="gen-table rt-table"><thead><tr><th>#</th><th>${escape(tr('Jugador','Player'))}</th><th>${escape(tr('Grupo actual','Current group'))}</th><th>Rating</th><th>${escape(tr('Calc. global','Global calc.'))}</th><th title="${escape(t('rt_col_last50_t'))}">${escape(tr('Últ. 50','Last 50'))}</th><th>${escape(tr('V–D','W–L'))}</th><th>${escape(tr('GG–GP','GW–GL'))}</th><th>% Games</th><th>${escape(tr('Rival medio','Mean opponent'))}</th><th>${escape(tr('Acciones','Actions'))}</th></tr></thead><tbody>${rows||`<tr><td colspan="11">${escape(tr('Todavía no hay partidos con juego para los jugadores de esta liga.','No played matches for this league’s players yet.'))}</td></tr>`}</tbody></table></div>
+   <p id="rating-scroll-help" class="ui-scroll-note">${escape(tr('Desplazá la tabla para ver todas las columnas. “Últ. 50” indica cuántos partidos jugados entran en la ventana de los últimos 50. GG–GP no incluye puntos de supertiebreak.','Scroll the table to see all columns. “Last 50” indicates how many played matches enter the last-50 window. Games do not include match-tiebreak points.'))}</p>
+   <p class="ui-scroll-note">${escape(tr('El aviso “Provisional” solo aparece hasta el partido 14. Desde 15 partidos deja de mostrarse esa aclaración. Más detalle sobre confianza y metodología, abajo.','The “Provisional” notice only appears through match 14. From 15 matches onward that notice is hidden. More about confidence and methodology appears below.'))}</p></div>${guide(d.method)}`;
   box.querySelector('.rating-tools').append(button(tr('Actualizar rating','Refresh rating'),()=>refresh()));
   box.querySelectorAll('[data-player]').forEach(b=>b.onclick=()=>showPlayerHistory(list[+b.dataset.player].name));
   box.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(list[+b.dataset.detail].name));
@@ -121,7 +131,11 @@
  }
  function ratingFichaHTML(name){
   const r=ratingUTRDe(name);if(!r||!r.partidos&&!r.manual)return '';
-  return `<div class="rt-ficha"><div class="rt-ficha-num">${r.rating.toFixed(2)}</div><div class="rt-ficha-side"><div class="rt-ficha-lbl">Rating Sohail <span class="badge ${!r.partidos?'badge-tag':r.provisional?'badge-warn':'badge-ok'}">${escape(ratingStatus(r))}</span></div><div class="rt-ficha-sub">${r.partidos}/50 · ${escape(tr('Confianza ','Confidence '))}${escape(confidence(r))}${r.manual?' · '+escape(tr('fijo; calculado ','fixed; computed '))+r.ratingCalculado.toFixed(2):''}${r.stale?' · '+escape(tr('lectura anterior','previous snapshot')):''}</div></div></div>`;
+  const badge=(!r.partidos||r.provisional)?` <span class="badge ${!r.partidos?'badge-tag':'badge-warn'}">${escape(ratingStatus(r))}</span>`:'';
+  const parts=[`${r.partidos}/50 ${escape(t('rt_card_last50'))}`];
+  if(r.manual)parts.push(escape(tr('fijo; calculado ','fixed; computed '))+r.ratingCalculado.toFixed(2));
+  if(r.stale)parts.push(escape(tr('lectura anterior','previous snapshot')));
+  return `<div class="rt-ficha"><div class="rt-ficha-num">${r.rating.toFixed(2)}</div><div class="rt-ficha-side"><div class="rt-ficha-lbl">Rating Sohail${badge}</div><div class="rt-ficha-sub">${parts.join(' · ')}</div></div></div>`;
  }
  Object.assign(window,{calcularRatingGlobal,ratingUTRDe,ratingUTRfmt,renderRating,abrirAjusteRating,guardarAjusteRating,ratingFichaHTML});
 })();

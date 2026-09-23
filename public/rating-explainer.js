@@ -33,7 +33,7 @@
   const glossary=[
    ['Rating',t('Nivel mostrado. Un valor fijo del administrador se identifica como excepción local.','Displayed skill estimate. An administrator-fixed value is marked as a local exception.')],
    [t('Calc. global','Global calc.'),t('Estimación automática compartida por la identidad deportiva; no la reemplaza un fijo local.','Automatic estimate shared by the sporting identity; it is not replaced by a local fixed value.')],
-   [t('PJ / 50','MP / 50'),t('Partidos incluidos, no cantidad de puntos ganados. “En el historial” puede ser mayor que 50.','Included matches, not points earned. “In history” can exceed 50.')],
+   [t('Últ. 50','Last 50'),t('Cuántos partidos jugados entran en la ventana de los últimos 50. No indica puntos ganados. El total histórico completo se consulta en “Ver detalle”.','How many played matches enter the last-50 window. It does not mean points earned. The full historical total appears in “Details”.')],
    [t('V–D','W–L'),t('Victorias y derrotas reales por sets/STB o retiro declarado, dentro de la ventana.','Actual wins and losses by sets/match tiebreak or declared retirement, within the window.')],
    [t('GG–GP / % Games','GW–GL / % Games'),t('Games normales ganados–perdidos y su proporción. No incluye puntos de supertiebreak.','Normal games won–lost and their share. Match-tiebreak points are not included.')],
    [t('Rival medio','Mean opponent'),t('Promedio descriptivo del rating calculado de los rivales; no es el peso completo de cada partido.','Descriptive mean of opponents’ computed ratings; it is not each match’s complete weight.')],

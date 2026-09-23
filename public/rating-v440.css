@@ -46,3 +46,32 @@
 .rating-evidence-notes{padding:14px;border:1px solid var(--border2);border-radius:10px;background:var(--surface2);margin:14px 0;color:var(--text)}
 .rating-evidence-notes ul{padding-left:20px;margin:8px 0 0}.rating-evidence-notes li{font-size:12px;margin:7px 0;line-height:1.6}
 @media(max-width:640px){.rating-guide-grid,.rating-guide-glossary{grid-template-columns:minmax(0,1fr)}.rating-guide-grid article{padding:14px}.rating-guide-more{padding-left:12px;padding-right:12px}.rating-guide-intro{font-size:13px}}
+
+/* v4.6.1 — denser rating layout and explicit contrast on highlighted pills. */
+.rating-v440 .rt-table td:nth-child(6){white-space:nowrap;font-weight:650}
+.rating-v440 .rt-table td:last-child{white-space:nowrap}
+.rating-v440 .rating-status{display:table;margin:6px auto 0;font-size:10px;white-space:nowrap}
+.rating-v440 .rt-big{display:block;line-height:1.1}
+.rating-v440 .rt-manual{font-size:10px}
+.rt-ficha{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--pri),var(--pri-dark,#1e3a8a));color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.rt-ficha-num{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.rt-ficha-side{flex:1;min-width:0}
+.rt-ficha-lbl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;font-weight:700;line-height:1.45;color:#fff}
+.rt-ficha-sub{font-size:12px;line-height:1.45;margin-top:2px;color:rgba(255,255,255,.92);overflow-wrap:anywhere}
+.rt-ficha .badge,
+html[data-theme="dark"] .rt-ficha .badge,
+html:not([data-theme]) .rt-ficha .badge{background:#eaf7f1!important;color:#0f5132!important;border:0!important}
+.rt-ficha .badge-warn,
+html[data-theme="dark"] .rt-ficha .badge-warn,
+html:not([data-theme]) .rt-ficha .badge-warn{background:#fef3c7!important;color:#7c2d12!important}
+.rt-ficha .badge-tag,
+html[data-theme="dark"] .rt-ficha .badge-tag,
+html:not([data-theme]) .rt-ficha .badge-tag{background:#dbeafe!important;color:#1e3a8a!important}
+.rt-ficha .rt-manual,
+html[data-theme="dark"] .rt-ficha .rt-manual,
+html:not([data-theme]) .rt-ficha .rt-manual{background:#ede9fe!important;color:#5b21b6!important;border-radius:999px;padding:2px 8px;display:inline-flex;align-items:center}
+@media(max-width:640px){
+ .rt-ficha{padding:12px;gap:10px}
+ .rt-ficha-num{font-size:22px}
+ .rt-ficha-sub{font-size:11px}
+}
