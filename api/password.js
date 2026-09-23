@@ -28,3 +28,5 @@ module.exports=require('./_http').wrap(async function(req,res){
  const record=result.account;
  return res.status(200).json({ok:true,passwordDefault:reset,tutorialPending:!!reset,token:other?undefined:lib.signToken(lib.makeSession(name,target.role||'player',liga,state,record)),version:result.version});
 });
+
+module.exports = require('./_session').withCookie(module.exports);

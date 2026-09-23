@@ -256,3 +256,5 @@ async function borrar(req, res, session, ip, token){
 
   return res.status(200).json({ ok: true, removed, token });
 }
+
+module.exports = require('./_session').withCookie(module.exports);

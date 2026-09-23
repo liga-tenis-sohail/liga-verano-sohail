@@ -4,10 +4,10 @@
 .rating-tools{display:flex;gap:8px;flex-wrap:wrap}.rating-tools button{min-height:44px}
 .rating-snapshot{font-size:12px;line-height:1.7;color:var(--text2);margin:0 0 16px;overflow-wrap:anywhere}
 .rating-alert{padding:14px 16px;border:1px solid var(--border2);border-left:4px solid var(--warn);border-radius:10px;background:var(--surface2);color:var(--text);font-size:13px;line-height:1.6;margin:12px 0 16px;overflow-wrap:anywhere}
-.rating-v440 .rt-table{min-width:1050px;font-variant-numeric:tabular-nums}.rating-v440 .rt-table :is(td,th){padding:12px 10px;line-height:1.5}
+.rating-v440 .rt-table{font-variant-numeric:tabular-nums} /* Shared standings layout: experience-v460.css. */
 .rating-v440 .rt-table td:nth-child(2){min-width:180px;max-width:240px;white-space:normal!important}
 .rating-v440 small,.rating-matches small{display:block;white-space:normal;overflow-wrap:anywhere;font-size:11px;color:var(--text2);font-weight:400;margin-top:4px}
-.rating-name{font:inherit;color:var(--link,var(--pri));border:0;background:none;text-align:left;padding:6px 0;cursor:pointer;text-decoration:underline;text-underline-offset:3px;min-height:36px}
+.rating-name{font:inherit;color:inherit;background:none;border:0;border-bottom:1px dotted currentColor;text-align:left;padding:0;cursor:pointer;text-decoration:none;line-height:inherit}
 .rating-v440 .rt-table button{white-space:nowrap}.rating-v440 .rt-table .rt-prov,.rating-v440 .rt-table .rt-manual{display:block;margin:4px 0;white-space:normal}
 .rating-confidence{font-weight:650}.rating-method{font-size:13px;color:var(--text2);line-height:1.7;margin:14px 0;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
 .rating-method summary{font-weight:650;color:var(--link,var(--pri));cursor:pointer;min-height:32px}.rating-method p{margin:12px 0}

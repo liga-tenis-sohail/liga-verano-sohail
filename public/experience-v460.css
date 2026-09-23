@@ -1,0 +1,31 @@
+/* Sohail v4.6 — one visual system for both league rankings.
+   Native inner scrolling still chains to the document. Only the root's
+   vertical overscroll is disabled: no touch handlers and no zoom restriction. */
+html{overscroll-behavior-y:none}
+/* Body is not the viewport scroller in this standards-mode document. Setting
+   none on its non-overflowing box would swallow wheel/scroll chaining to html. */
+body{overscroll-behavior-y:auto}
+.ui-v3 :is(#view-general,#view-rating) .overflow-x{
+ border:1px solid var(--border);border-radius:10px;position:relative;isolation:isolate;
+ max-width:100%;max-height:70vh;max-height:70dvh;overflow:auto;scrollbar-width:thin;
+ overscroll-behavior-x:contain;overscroll-behavior-y:auto;
+}
+.ui-v3 :is(#view-general,#view-rating) .overflow-x::-webkit-scrollbar{display:block;width:6px;height:6px}
+.ui-v3 :is(#view-general,#view-rating) table.gen-table{border-collapse:separate;border-spacing:0;width:100%;font-size:12px;font-variant-numeric:tabular-nums}
+.ui-v3 :is(#view-general,#view-rating) table.gen-table th{font-size:11px;font-weight:700;padding:9px 8px;line-height:1.45;white-space:nowrap;vertical-align:middle;position:sticky;top:0;z-index:5;background:var(--soft);color:var(--pri)}
+.ui-v3 :is(#view-general,#view-rating) table.gen-table td{font-size:12px;padding:10px 8px;line-height:1.4;vertical-align:middle}
+.ui-v3 :is(#view-general,#view-rating) table.gen-table :is(th,td):first-child{min-width:40px}
+.ui-v3 :is(#view-general,#view-rating) table.gen-table td:nth-child(2){font-weight:600}
+.ui-v3 :is(#view-general,#view-rating) .pos{width:24px;height:24px;font-size:11px;flex-shrink:0}
+.ui-v3 :is(#view-general,#view-rating) .section-lbl{font-size:12px;font-weight:700;letter-spacing:.065em;line-height:1.5;color:var(--pri);margin:0 0 12px;text-transform:uppercase}
+.ui-v3 #view-rating .rating-name{white-space:normal;overflow-wrap:anywhere;max-width:100%;min-height:24px}
+.ui-v3 #view-rating .rating-status{display:table;margin:4px auto 0;font-size:10px;white-space:nowrap}
+.ui-v3 #view-rating .badge-warn{background:var(--warnBg);color:var(--warnT)}
+.ui-v3 #view-rating .rt-table :is(.rt-prov,.rt-manual){margin:4px 0;font-size:10px}
+.ui-session-note{font-size:12px;line-height:1.5;color:var(--text2);margin:12px 0 0;overflow-wrap:anywhere}
+.mh-h2h-hint{font-size:12px;line-height:1.5;color:var(--text2);margin:0}
+@media(max-width:900px){
+ .ui-v3 :is(#view-general,#view-rating) table.gen-table :is(th,td):nth-child(2){position:sticky;left:0;z-index:3;width:clamp(118px,38vw,170px);min-width:clamp(118px,38vw,170px);max-width:clamp(118px,38vw,170px);white-space:normal!important;overflow-wrap:anywhere;background:var(--surface)}
+ .ui-v3 :is(#view-general,#view-rating) table.gen-table thead th:nth-child(2){z-index:7;background:var(--soft)}
+}
+@media print{html,body{overscroll-behavior:auto}.ui-v3 :is(#view-general,#view-rating) .overflow-x{max-height:none;overflow:visible}.ui-v3 :is(#view-general,#view-rating) table.gen-table :is(th,td){position:static!important}}

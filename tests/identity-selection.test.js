@@ -71,7 +71,7 @@ test('SELECT420 asynchronous scan completes all records and can cancel between c
 });
 test('SELECT420 full replacement modules are loaded before use with new cache versions',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
- assert.ok(html.includes('content="sohail-v450-rating"'));
+ assert.ok(html.includes('content="sohail-v460-unified-experience"'));
  for(const f of ['identity-selection.js','identity-selection.css','player-identity.js'])assert.ok(html.includes(f+'?v=sohail-v420-all-leagues-300'),f);
  assert.ok(html.indexOf('identity-selection.js?v=')<html.indexOf('player-identity.js?v='));
  const source=fs.readFileSync(path.join(__dirname,'../public/player-identity.js'),'utf8');

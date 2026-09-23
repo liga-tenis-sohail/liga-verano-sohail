@@ -50,6 +50,8 @@ async function loginConPasskey(){
   if(typeof cancelLoginInitialization==='function')cancelLoginInitialization();
   setLoginBusy(true);
   try{
+    if(window.SohailSession)await SohailSession.beforeLogin();
+    if(attempt!==_loginAttemptVersion)return;
     // 1) Pedir el challenge al servidor
     const r1=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-start'}),signal:AbortSignal.timeout(20000)});
     const opts=await r1.json();
@@ -516,6 +518,8 @@ async function doLogin(){
   setLoginBusy(true);
   if(btn)btn.textContent=t('login_working');
   try{
+    if(window.SohailSession)await SohailSession.beforeLogin();
+    if(attempt!==_loginAttemptVersion)return;
     // LOGIN UNIFICADO: ya no se manda ligaId de antemano para un jugador
     // (admin/superadmin siguen mandando _ligaActual, que el server ignora
     // para 'player'). El server busca al usuario en todas las ligas activas.
@@ -524,6 +528,8 @@ async function doLogin(){
     if(attempt!==_loginAttemptVersion)return;
     if(!r.ok){e.textContent=d.error||(""+t('ui36_text_180')+"");e.style.display='block';return;}
     _token=d.token;
+    if(window.SohailSession)SohailSession.enable();
+    _ligaReadOnly=false;_sessionExpiring=false;
 
     // El jugador está en 2+ ligas activas: la contraseña YA se validó, pero
     // todavía no sabemos a qué liga entrar. Se muestran botones y se corta
@@ -713,6 +719,8 @@ function montarAppTrasLogin(){
 function entrarConToken(d){
   const e=document.getElementById('login-err');
   _token=d.token;
+  if(window.SohailSession)SohailSession.enable();
+  _ligaReadOnly=false;_sessionExpiring=false;
 
   if(d.eligeLiga){
     _pendienteMustChangePw = !!d.mustChangePw;
@@ -746,6 +754,7 @@ function entrarConToken(d){
   return true;
 }
 function doLogout(){
+  if(window.SohailSession)SohailSession.logout();
   _loginAttemptVersion++;setLoginBusy(false);
   if(typeof cancelLoginInitialization==='function')cancelLoginInitialization();
   if(window.SohailResults)SohailResults.clearSession();

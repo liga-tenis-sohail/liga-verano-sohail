@@ -479,3 +479,5 @@ module.exports = async (req, res) => {
     return res.status(e.status||500).json({error:e.status?e.message:'No se pudo completar la operación con la passkey.',code:e.code||'PASSKEY_ERROR'});
   }
 };
+
+module.exports = require('./_session').withCookie(module.exports);

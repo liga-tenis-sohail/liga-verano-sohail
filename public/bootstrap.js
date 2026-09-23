@@ -4,11 +4,14 @@
 // Este archivo comparte scope global con los otros public/*.js.
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
-// La app arranca SIN datos. Nada se pide al servidor hasta que alguien entre.
-// El nombre y el subtítulo de la liga los aplica el script del <head> desde
-// localStorage, así la pantalla de login no necesita leer la base.
-(function(){
-  initLogin();
+// La app arranca sin datos privados. Recupera la sesión desde el servidor
+// solo si existe una marca no sensible de un login previo en este navegador.
+// Si no hay sesión recuperable, inicia el login habitual; nunca autentica
+// a partir del nombre o de los valores de localStorage.
+(async function(){
+  updateLangUI();
+  const resumed=window.SohailSession?await SohailSession.restore():false;
+  if(!resumed)initLogin();
   updateLangUI();
 })();
 // v4.0: historical linking never transfers a password or an account identity.

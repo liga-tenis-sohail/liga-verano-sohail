@@ -58,6 +58,7 @@ module.exports = async function handler(req, res){
   if(!envOK(res)) return;
 
   const body = (req.body && typeof req.body === 'object') ? req.body : {};
+  if(body.accion==='session-resume'||body.accion==='session-logout')return require('./_session').handler(req,res);
   const user = String(body.user || '').trim();
   const pass = String(body.pass || '');
   if(typeof body.user!=='string'||typeof body.pass!=='string'||!user||!pass||user.length>120||pass.length>128){
@@ -396,3 +397,5 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
 }
 
 module.exports = require('./_http').wrap(module.exports);
+
+module.exports = require('./_session').withCookie(module.exports);

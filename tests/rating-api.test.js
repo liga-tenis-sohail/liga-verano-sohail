@@ -29,7 +29,7 @@ test('RT440 API live source strings supported without mutating original data',()
 
 // v4.5: the rejected research variant cannot be selected through the live API.
 test('RT450 API active method is the protected baseline plus diagnostic confidence',()=>run(async db=>{
- const r=await call(handler,request(db));assert.equal(r.status,200);assert.equal(r.body.version,'sohail-rating-4.5.0');assert.equal(r.body.method.window,50);assert.equal(r.body.method.opponentMode,'count');assert.equal(typeof r.body.weakBridgeCount,'number');
+ const r=await call(handler,request(db));assert.equal(r.status,200);assert.equal(r.body.version,'sohail-rating-4.6.0');assert.equal(r.body.method.window,50);assert.equal(r.body.method.opponentMode,'count');assert.equal(typeof r.body.weakBridgeCount,'number');
  const p=r.body.info[r.body.byLeague['liga-actual'].Alicia];assert.ok(Array.isArray(p.confidenceReasons));assert.equal(typeof p.opponentIndependentSupport,'number');
 }));
 for(const who of ['admin','superadmin'])test('RT450 API '+who+' cannot activate experimental weights with a request',()=>run(async db=>{

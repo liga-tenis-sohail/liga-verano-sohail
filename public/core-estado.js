@@ -44,16 +44,17 @@ const ADMIN_PASS_HASH  = 'v1:240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa82
 
 function isHashed(pw){ return typeof pw==='string'&&(pw.startsWith('v1:')||pw.startsWith('v2:')); }
 
-// ===== CAPA 2: SESSION TIMEOUT (90 minutos de inactividad) =====
+// ===== CAPA 2: SESSION TIMEOUT (24 horas de inactividad) =====
 let _lastActivity=Date.now();
-const SESSION_TIMEOUT_MS=90*60*1000; // 90 minutos
+const SESSION_TIMEOUT_MS=24*60*60*1000; // 24 horas: mismo plazo para todos los roles
 function touchActivity(){_lastActivity=Date.now();}
 let _sessionExpiring=false;
 function checkSessionTimeout(){
   if(!currentUser||_sessionExpiring)return;
-  if(Date.now()-_lastActivity>SESSION_TIMEOUT_MS){
+  const expiry=window.SohailSession?.expiry(_token);
+  if(Date.now()-_lastActivity>=SESSION_TIMEOUT_MS||(expiry!=null&&Date.now()>=expiry)){
     _sessionExpiring=true;
-    toast('Sesión expirada por inactividad. Por favor vuelve a ingresar.');
+    toast(t('err_session_expired'));
     setTimeout(()=>{if(_sessionExpiring)doLogout();},1500);
   }
 }

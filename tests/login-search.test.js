@@ -71,7 +71,7 @@ test('PACKAGE410 login retains native dropdown and names the combobox; Excel is 
  assert.match(html,/<select id="login-user"/);assert.match(html,/id="login-user-search" role="combobox"/);
  assert.match(html,/aria-controls="login-user-suggestions"/);assert.ok(!/<script[^>]+src="https:[^"]*xlsx/.test(html));
  assert.ok(html.indexOf('excel-loader.js?v=')>html.indexOf('jugadores-perfiles.js?v='));
- assert.ok(html.includes('content="sohail-v450-rating"'));
+ assert.ok(html.includes('content="sohail-v460-unified-experience"'));
 });
 function wrappedExcel(){
  const scripts=[],calls=[],toasts=[];

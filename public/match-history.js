@@ -88,6 +88,42 @@
   return {name:ns[j],id,leagueId,leagueName:m._mhLeagueName||context.nombre||leagueId,
    key:JSON.stringify(id?['profile',id]:['league',leagueId,ns[j]])};
  }
+ // Dropdown eligibility is based on confirmed play, not a roster or a scheduled fixture.
+ // W.O.-only, unplayed, pending and disputed pairings remain in History but do
+ // not create an opponent option. Existing H2H detail retains all record types.
+ function hasPlayed(m){return m?.status==='confirmed'&&!m.np&&pairs(m).slice(0,2).some(s=>s[0]+s[1]>0);}
+ function opponentChoices(source,name,context={},language='es'){
+  const mine=person(name,context),map=new Map(),locals=new Map();
+  for(const [n,u]of Object.entries(context.users||{})){
+   if(!u||typeof u!=='object'||n==='admin'||n==='superadmin')continue;
+   const r=person(n,context),old=locals.get(r.key);
+   if(!old||n.localeCompare(old.name,language)<0)locals.set(r.key,r);
+  }
+  for(const m of records(source,name)){
+   if(!hasPlayed(m))continue;
+   const r=opponent(m,name,context);
+   if(!r||r.key===mine.key||['admin','superadmin'].includes(r.name))continue;
+   // Prefer the current linked name; never use a name alone to join identities.
+   const local=locals.get(r.key);
+   if(!map.has(r.key))map.set(r.key,{...r,...(local?{name:local.name}:{}),played:0});
+   map.get(r.key).played++;
+  }
+  const cs=Array.isArray(context.cycles)?context.cycles:[];
+  const current=cs.find(c=>Number(c.n)===Number(context.activeN))||cs.find(c=>c.status==='active')||cs.filter(c=>Array.isArray(c.groups)).slice().sort((a,b)=>Number(b.n)-Number(a.n))[0];
+  const groups=new Map();
+  for(const [groupIndex,g] of (Array.isArray(current?.groups)?current.groups:[]).entries()){
+   for(const n of Array.isArray(g?.players)?g.players:[]){
+    if(typeof n!=='string')continue;
+    const key=person(n,context).key,number=groupIndex+1;
+    if(!Number.isSafeInteger(number)||number<1)continue;
+    // An ambiguous double assignment must not invent a preferred group.
+    if(groups.has(key)&&groups.get(key)!==number)groups.set(key,null);else if(!groups.has(key))groups.set(key,number);
+   }
+  }
+  const group=groups.get(mine.key);
+  return Array.from(map.values()).map(r=>({...r,sameGroup:group!=null&&groups.get(r.key)===group,group:groups.get(r.key)??null,subjectGroup:group??null}))
+   .sort((a,b)=>Number(b.sameGroup)-Number(a.sameGroup)||a.name.localeCompare(b.name,language)||a.key.localeCompare(b.key));
+ }
  function headToHead(source,name,rivalKey,context={}){
   const list=records(source,name).filter(m=>opponent(m,name,context)?.key===rivalKey);
   let wins=0,losses=0,wo=0,pending=0,disputed=0,np=0,unresolved=0;
@@ -100,7 +136,7 @@
   }
   return {list,wins,losses,decided:wins+losses,wo,pending,disputed,np,unresolved};
  }
- return Object.freeze({players,subject,pairs,kind,dateKey,newest,records,winner,summarize,person,opponent,headToHead});
+ return Object.freeze({players,subject,pairs,kind,dateKey,newest,records,winner,summarize,person,opponent,hasPlayed,opponentChoices,headToHead});
 });
 (function(global){
  'use strict';if(typeof document==='undefined')return;
@@ -187,6 +223,7 @@
   hh_totals:'{n} resultados con ganador confirmado · {wo} por W.O.',hh_list:'Partidos entre ambos',hh_back:'Volver a la ficha',
   hh_records:'Pendientes: {pending} · En disputa: {disputed} · No jugados: {np} · Por revisar: {unresolved}',
   hh_local:'Vínculo local',hh_identity:'Los rivales sin perfil global se separan por liga; no se unen por coincidencia de nombre.',
+  hh_same_group:'Grupo {n} · rivales enfrentados',hh_other_opponents:'Otros rivales enfrentados',hh_played_hint:'Solo aparecen rivales con partidos jugados y confirmados en el historial accesible. Primero, los del grupo actual del participante.',hh_no_played:'Todavía no hay rivales con partidos jugados y confirmados.',
   hh_stale:'El rival seleccionado ya no está disponible en este contexto. Elegí otro rival.'
  });
  Object.assign(TRANSLATIONS.en,{
@@ -197,6 +234,7 @@
   hh_totals:'{n} results with a confirmed winner · {wo} by W.O.',hh_list:'Matches between both players',hh_back:'Back to player',
   hh_records:'{pending} pending · {disputed} disputed · {np} not played · {unresolved} to review',
   hh_local:'Local link',hh_identity:'Opponents without a global profile are kept separate by league; matching names are not merged.',
+  hh_same_group:'Group {n} · opponents played',hh_other_opponents:'Other opponents played',hh_played_hint:'Only opponents with played, confirmed matches in the accessible history are listed. The participant’s current group comes first.',hh_no_played:'No opponents with played, confirmed matches yet.',
   hh_stale:'The selected opponent is no longer available in this context. Choose another opponent.'
  });
  Object.assign(TRANSLATIONS.es,{
@@ -213,24 +251,19 @@
  });
  const historyTabs=['history','stats','h2h'];
  function moveTab(current,key){const i=historyTabs.indexOf(current);return key==='Home'?historyTabs[0]:key==='End'?historyTabs.at(-1):historyTabs[(Math.max(0,i)+(key==='ArrowRight'?1:historyTabs.length-1))%historyTabs.length];}
- function h2hContext(options={}){return options.otherLeague?{id:options.leagueId,nombre:options.leagueName,users:options.users||{},cycles:options.cycles||[],matches:typeof options.records==='function'?options.records():options.records||[],estado:options.leagueState||''}:currentSnapshot();}
+ function h2hContext(options={}){return options.otherLeague?{id:options.leagueId,nombre:options.leagueName,users:options.users||{},cycles:options.cycles||[],activeN:options.activeN,matches:typeof options.records==='function'?options.records():options.records||[],estado:options.leagueState||''}:currentSnapshot();}
  function opponents(source,name,context){
-  const mine=D.person(name,context),map=new Map();
-  for(const m of D.records(source,name)){
-   const r=D.opponent(m,name,context);if(r&&r.key!==mine.key&&!map.has(r.key))map.set(r.key,r);
-  }
-  // Include known players even without previous meetings, but never system accounts.
-  for(const [n,u]of Object.entries(context.users||{})){
-   if(!u||typeof u!=='object'||n==='admin'||n==='superadmin'||n===name)continue;
-   const r=D.person(n,context);if(r.key!==mine.key)map.set(r.key,{...r,leagueName:context.nombre});
-  }
-  const all=Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name,LANG)||a.key.localeCompare(b.key));
+  const all=D.opponentChoices(source,name,context,LANG);
   return all.map(r=>({...r,label:r.name+(!r.id&&r.leagueId!==context.id?' · '+r.leagueName+' ('+t('hh_local')+')':all.some(x=>x.key!==r.key&&x.name===r.name)?' · '+(r.leagueName||t('mha_current')):'')}));
  }
  function h2hPanel(list,name,rivalKey,context,id,limit=30){
   if(!name)return '<p class="mh-note mh-empty-form">'+e(t('hh_player'))+'</p>';
   const opts=opponents(list,name,context),selected=opts.find(r=>r.key===rivalKey);
-  let h='<div class="mh-h2h-controls"><label for="'+id+'-rival">'+e(tf('hh_pick',{name}))+'</label><select id="'+id+'-rival" data-mh-rival>'+option('',t('hh_choose'),rivalKey)+opts.map(r=>option(r.key,r.label,rivalKey)).join('')+'</select></div>';
+  const same=opts.filter(r=>r.sameGroup),others=opts.filter(r=>!r.sameGroup);
+  const choices=(same.length?'<optgroup label="'+e(tf('hh_same_group',{n:same[0].subjectGroup}))+'">'+same.map(r=>option(r.key,r.label,rivalKey)).join('')+'</optgroup>':'')+
+   (others.length?'<optgroup label="'+e(t('hh_other_opponents'))+'">'+others.map(r=>option(r.key,r.label,rivalKey)).join('')+'</optgroup>':'');
+  let h='<div class="mh-h2h-controls"><label for="'+id+'-rival">'+e(tf('hh_pick',{name}))+'</label><select id="'+id+'-rival" data-mh-rival aria-describedby="'+id+'-hint"'+(!opts.length?' disabled':'')+'>'+option('',t('hh_choose'),selected?rivalKey:'')+choices+'</select><p id="'+id+'-hint" class="mh-h2h-hint">'+e(t('hh_played_hint'))+'</p></div>';
+  if(!opts.length)return h+'<p class="mh-note mh-empty-form">'+e(t('hh_no_played'))+'</p>';
   if(!selected)return h+'<p class="mh-note mh-empty-form">'+e(t(rivalKey?'hh_stale':'hh_intro'))+'</p>';
   const total=D.headToHead(list,name,selected.key,context),rows=total.list;
   h+='<section class="mh-h2h-summary" aria-label="'+e(t('hh_balance'))+'"><p class="mh-h2h-caption">'+e(t('hh_balance'))+'</p><div class="mh-h2h-score"><div><strong>'+e(name)+'</strong><b>'+total.wins+'</b></div><span aria-hidden="true">—</span><div><strong>'+e(selected.name)+'</strong><b>'+total.losses+'</b></div></div><p class="mh-note">'+e(tf('hh_totals',{n:total.decided,wo:total.wo}))+'</p><p class="mh-note">'+e(t('hh_method'))+'</p></section>';
@@ -249,7 +282,7 @@
  }
 
  let pageArchive=null,pageArchiveKey='';
- function currentSnapshot(){return {id:_ligaActual,nombre:document.getElementById('hdr-title')?.textContent?.trim()||LEAGUE_NAME,estado:_ligaReadOnly?'finalizada':'activa',users:USERS,matches,cycles};}
+ function currentSnapshot(){return {id:_ligaActual,nombre:document.getElementById('hdr-title')?.textContent?.trim()||LEAGUE_NAME,estado:_ligaReadOnly?'finalizada':'activa',users:USERS,matches,cycles,activeN};}
  function canAggregate(name,context=currentSnapshot()){return !!name&&!!global.SohailLeagueHistory&&SohailLeagueHistory.validId(context.id)&&!!(currentUser||_ligaReadOnly);}
  function archiveController(name,valid,current=currentSnapshot){return SohailLeagueHistory.createController({name,current,token:()=>_token,valid,fetcher:(...args)=>fetch(...args)});}
  function forPage(){

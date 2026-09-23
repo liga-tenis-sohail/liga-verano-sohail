@@ -13,7 +13,9 @@ const SUPER_HASH     = process.env.SUPER_HASH || '';
 // Mismos parámetros que usaba el navegador: las contraseñas existentes siguen valiendo.
 const PBKDF2_SALT  = 'LigaSohailSecure2026';
 const PBKDF2_ITERS = 100000;
-const SESSION_MIN  = 90;
+// Account sessions last one day. Password changes and account revocation still
+// invalidate them immediately through the existing security epoch checks.
+const SESSION_MIN  = 24 * 60;
 
 // Contraseñas por defecto conocidas (públicas): al detectar login con alguna
 // de ellas, el servidor devuelve mustChangePw=true para forzar el cambio.

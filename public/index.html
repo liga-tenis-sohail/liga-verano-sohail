@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="sohail-release" content="sohail-v450-rating"><script src="theme.js?v=sohail-v39-rules-text-20260916"></script>
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="sohail-release" content="sohail-v460-unified-experience"><script src="theme.js?v=sohail-v39-rules-text-20260916"></script>
 <script>(function(){try{
   var lsn=JSON.parse(localStorage.getItem('lsn')||'null');
   if(lsn)document.addEventListener('DOMContentLoaded',function(){
@@ -48,7 +48,8 @@ button.liga-tab{cursor:pointer}
 <link rel="stylesheet" href="admin-workspace.css?v=sohail-v36-20260915">
 <link rel="stylesheet" href="login-bulk.css?v=sohail-v410-login-bulk">
 <link rel="stylesheet" href="identity-selection.css?v=sohail-v420-all-leagues-300">
-<link rel="stylesheet" href="rating-v440.css?v=sohail-v450-rating">
+<link rel="stylesheet" href="rating-v440.css?v=sohail-v460-unified-experience">
+<link rel="stylesheet" href="experience-v460.css?v=sohail-v460-unified-experience">
 </head><body>
 <div id="login-screen">
   <!-- Header editable de la pantalla de login. El admin configura color y
@@ -76,6 +77,7 @@ button.liga-tab{cursor:pointer}
       <div class="ui-password-field"><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" id="ui-password-visibility" aria-controls="login-pass" aria-pressed="false" aria-label="Mostrar contraseña" title="Mostrar contraseña"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
       <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
       <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
+      <p class="ui-session-note" id="session-note">La sesión se conserva 24 horas en este navegador. Salí al terminar en dispositivos compartidos.</p>
       <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
     </div>
   </div>
@@ -185,7 +187,7 @@ button.liga-tab{cursor:pointer}
      rating.js queda al final: es opcional, sobrescribe stubs de core-estado.
      ================================================================== -->
 <script src="score-rules.js?v=sohail-v322-recovery-20260914"></script>
-<script src="core-estado.js?v=sohail-v39-rules-text-20260916"></script>
+<script src="core-estado.js?v=sohail-v460-unified-experience"></script>
 <script src="i18n-revision.js?v=sohail-reglamento-enlaces-v393-20260917"></script>
 <script src="destinos-auto.js?v=destinos-v341-update-20260915"></script>
 <script src="league-order.js?v=sohail-v430-login-league-order"></script>
@@ -197,7 +199,7 @@ button.liga-tab{cursor:pointer}
 <script src="player-duplicates.js?v=sohail-v400-restauracion-identidades"></script>
 <script src="jugadores-perfiles-catalogo.js?v=sohail-v400-restauracion-identidades"></script>
 <script src="reglamento.js?v=sohail-reglamento-enlaces-v393-20260917"></script>
-<script src="login-auth-p2.js?v=sohail-v410-login-bulk"></script>
+<script src="login-auth-p2.js?v=sohail-v460-unified-experience"></script>
 <script src="shell-render.js?v=sohail-v36-20260915"></script>
 <script src="resultados-y-grupos.js?v=sohail-v395-result-guard"></script>
 <script src="admin-ligas-clubes.js?v=sohail-v397-duplicate-review"></script>
@@ -213,13 +215,14 @@ button.liga-tab{cursor:pointer}
 <script src="admin-workspace.js?v=sohail-v395-result-guard"></script>
 <script src="ui-modern.js?v=sohail-v398-groups-history"></script>
 <script src="history-leagues.js?v=sohail-v400-restauracion-identidades"></script>
-<script src="match-history.js?v=sohail-v400-restauracion-identidades"></script>
+<script src="match-history.js?v=sohail-v460-unified-experience"></script>
 <script src="result-policy.js?v=sohail-v395-result-guard"></script>
 <script src="result-editor.js?v=sohail-v395-result-guard"></script>
 <script src="login-search.js?v=sohail-v410-login-bulk"></script>
 <script src="excel-loader.js?v=sohail-v410-login-bulk"></script>
-<script src="bootstrap.js?v=sohail-v400-restauracion-identidades"></script>
-<script src="rating-client.js?v=sohail-v450-rating"></script>
-<script src="rating-explainer.js?v=sohail-v450-rating"></script>
-<script src="rating.js?v=sohail-v450-rating"></script>
+<script src="session-client.js?v=sohail-v460-unified-experience"></script>
+<script src="bootstrap.js?v=sohail-v460-unified-experience"></script>
+<script src="rating-client.js?v=sohail-v460-unified-experience"></script>
+<script src="rating-explainer.js?v=sohail-v460-unified-experience"></script>
+<script src="rating.js?v=sohail-v460-unified-experience"></script>
 </body></html>

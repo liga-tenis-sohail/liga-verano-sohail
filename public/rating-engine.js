@@ -11,7 +11,9 @@
  else root.SohailRatingEngine=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
  'use strict';
- const VERSION='sohail-rating-4.5.0';
+ const VERSION='sohail-rating-4.6.0';
+ // Eligibility label is count-only. Confidence is a separate diagnostic.
+ const PROVISIONAL_MATCHES=15;
  // Deployment gate: retain the v4.4 numerical weights. Independent opponent
  // weighting remains an OFFLINE candidate because the historical regression
  // sample did not improve. Independent support does improve the diagnostic
@@ -295,7 +297,7 @@
    if(activeComponents.size>1)reasons.push('disconnected');
    if(fragileComponents.has(root(k)))reasons.push('weak-connections');
    info[k]={rating:R[k],ratingCalculado:R[k],partidos:n,totalMatches:totalCounts[k]||0,
-    provisional:n<15||confidence<55,fiab:confidence,confidence:confidence>=70?'high':confidence>=40?'medium':'low',
+    provisional:n<PROVISIONAL_MATCHES,ratingStatus:n===0?'unrated':n<PROVISIONAL_MATCHES?'provisional':'established',provisionalMinMatches:PROVISIONAL_MATCHES,fiab:confidence,confidence:confidence>=70?'high':confidence>=40?'medium':'low',
     seed:p.seed,prior:p.prior,priorSource:p.priorSource,seedConflict:p.seedConflict,
     vict:wins,der:losses,unresolved:unknown,gGanados:gA,gPerdidos:gB,pctGames:gA+gB?gA/(gA+gB):null,
     stbWins,stbLosses,retirements,nivelRivales:n?rivalSum/n:null,uniqueOpponents:rivals.size,
@@ -308,5 +310,5 @@
   return {version:VERSION,asOf,window:50,info,byLeague:data.byLeague,people,
    parameters:{...DEFAULTS,...options},weakBridgeCount:fragile.length,issues:allIssues,matchCount:matches.length,componentCount:activeComponents.size,converged,iterations,maxChange};
  }
- return Object.freeze({VERSION,DEFAULTS,identity,dateKey,score,expected,groupSeed,prepare,calculate,independentSupport,RatingError});
+ return Object.freeze({VERSION,PROVISIONAL_MATCHES,DEFAULTS,identity,dateKey,score,expected,groupSeed,prepare,calculate,independentSupport,RatingError});
 });

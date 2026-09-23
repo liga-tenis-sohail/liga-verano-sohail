@@ -227,3 +227,5 @@ function _clubDeMatch(m, state){
   }
   return '';
 }
+
+module.exports = require('./_session').withCookie(module.exports);
