@@ -79,7 +79,7 @@ async function handler(req,res){
   for(const [k,v]of Object.entries(computed.info)){const {selected,...summary}=v;info[k]=summary;const p=computed.people[k];people[k]={label:p.label,aliases:p.aliases};}
   for(const l of leagues)overrides[l.id]=l.overrides;
   return res.status(200).json({ok:true,complete:true,version:E.VERSION,snapshot,asOf,ts:new Date().toISOString(),scope:session?'all-registered':'finalized-public',
-   window:50,info,people,byLeague:computed.byLeague,overrides,leagues:manifest,matchCount:computed.matchCount,componentCount:computed.componentCount,
+   window:50,method:{...E.DEFAULTS},weakBridgeCount:computed.weakBridgeCount,info,people,byLeague:computed.byLeague,overrides,leagues:manifest,matchCount:computed.matchCount,componentCount:computed.componentCount,
    issueCounts:computed.issues.reduce((o,x)=>{o[x.code]=(o[x.code]||0)+1;return o;},{}),iterations:computed.iterations});
  }catch(e){return res.status(e.status||e instanceof E.RatingError&&422||503).json({code:e.code||'RATING_UNAVAILABLE',error:e.code?e.message:'No se pudo calcular el rating completo. Probá de nuevo.'});}
 }

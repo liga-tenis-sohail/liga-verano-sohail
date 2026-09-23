@@ -23,3 +23,26 @@
 #modal-bg:has(.rating-detail) #modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain}
 #modal-bg:has(.rating-detail) #modal-actions{flex:0 0 auto;border-top:1px solid var(--border);padding-top:12px}
 #modal-bg:has(.rating-detail) #modal-actions .btn{min-height:44px}
+
+/* v4.5: permanent legend BELOW the table, never inside its scroll area. */
+.rating-guide{margin-top:20px!important;max-width:100%;min-width:0;line-height:1.7}
+.rating-guide-caption{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text2);margin:0 0 6px}
+.rating-guide-intro{font-size:14px;color:var(--text);margin:0 0 14px;max-width:900px}
+.rating-guide p,.rating-guide h3,.rating-guide dd{overflow-wrap:anywhere}
+.rating-guide-disclaimer{border:1px solid var(--border2);border-left:4px solid var(--link,var(--pri));border-radius:10px;background:var(--surface2);padding:14px 16px;font-size:13px;color:var(--text);margin:12px 0 18px}
+.rating-guide-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:16px 0}
+.rating-guide-grid article{border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--surface);min-width:0}
+.rating-guide h3,.rating-evidence-notes h3{font-size:14px;margin:0 0 8px;color:var(--text);line-height:1.5}
+.rating-guide-grid p,.rating-guide-more p{font-size:13px;margin:0 0 10px;color:var(--text2)}
+.rating-guide-grid p:last-child,.rating-guide-more p:last-child{margin-bottom:0}
+.rating-guide-more{padding:0 14px;margin:10px 0;border:1px solid var(--border);border-radius:10px;color:var(--text);min-width:0}
+.rating-guide-more summary{font-size:13px;font-weight:650;cursor:pointer;padding:12px 0;min-height:44px;line-height:1.5;color:var(--link,var(--pri));overflow-wrap:anywhere}
+.rating-guide-more[open]{padding-bottom:14px}.rating-guide-more[open] summary{margin-bottom:12px}
+.rating-guide-glossary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;margin:12px 0 18px}
+.rating-guide-glossary>div{min-width:0;border-bottom:1px solid var(--border);padding:0 0 10px}
+.rating-guide-glossary dt{font-weight:700;font-size:13px;color:var(--text)}
+.rating-guide-glossary dd{font-size:12px;color:var(--text2);margin:4px 0 0}
+.rating-guide-bottom{font-size:12px;color:var(--text2);border-top:1px solid var(--border);margin:18px 0 0;padding-top:14px}
+.rating-evidence-notes{padding:14px;border:1px solid var(--border2);border-radius:10px;background:var(--surface2);margin:14px 0;color:var(--text)}
+.rating-evidence-notes ul{padding-left:20px;margin:8px 0 0}.rating-evidence-notes li{font-size:12px;margin:7px 0;line-height:1.6}
+@media(max-width:640px){.rating-guide-grid,.rating-guide-glossary{grid-template-columns:minmax(0,1fr)}.rating-guide-grid article{padding:14px}.rating-guide-more{padding-left:12px;padding-right:12px}.rating-guide-intro{font-size:13px}}

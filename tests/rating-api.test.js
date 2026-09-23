@@ -26,3 +26,18 @@ test('RT440 API same input produces same versioned snapshot regardless of browsi
 test('RT440 API provenance details: separate bounded response belongs to exact snapshot',()=>run(async db=>{const first=(await call(handler,request(db))).body,key=first.byLeague['liga-actual'].Alicia;const details=await call(handler,request(db,'Alicia',{snapshot:first.snapshot,playerKey:key}));assert.equal(details.status,200);assert.equal(details.body.selected.length,2);assert.equal(Object.values(first.info)[0].selected,undefined);}));
 test('RT440 API stale details request: cannot mix two versions',()=>run(async db=>{const first=(await call(handler,request(db))).body;db.state('past')._v++;const details=await call(handler,request(db,'Alicia',{snapshot:first.snapshot,playerKey:first.byLeague['liga-actual'].Alicia}));assert.equal(details.status,409);}));
 test('RT440 API live source strings supported without mutating original data',()=>run(async db=>{const before=JSON.stringify(db.tables);db.tables.liga_state.find(x=>x.id==='past').data=JSON.stringify(db.state('past'));const r=await call(handler,request(db));assert.equal(r.status,200);assert.equal(typeof db.tables.liga_state.find(x=>x.id==='past').data,'string');assert.ok(before.includes('private-password'));}));
+
+// v4.5: the rejected research variant cannot be selected through the live API.
+test('RT450 API active method is the protected baseline plus diagnostic confidence',()=>run(async db=>{
+ const r=await call(handler,request(db));assert.equal(r.status,200);assert.equal(r.body.version,'sohail-rating-4.5.0');assert.equal(r.body.method.window,50);assert.equal(r.body.method.opponentMode,'count');assert.equal(typeof r.body.weakBridgeCount,'number');
+ const p=r.body.info[r.body.byLeague['liga-actual'].Alicia];assert.ok(Array.isArray(p.confidenceReasons));assert.equal(typeof p.opponentIndependentSupport,'number');
+}));
+for(const who of ['admin','superadmin'])test('RT450 API '+who+' cannot activate experimental weights with a request',()=>run(async db=>{
+ const r=await call(handler,request(db,who,{opponentMode:'independent',opponentFloor:0.75}));assert.equal(r.status,400);assert.ok(db.requests.every(x=>x.method==='GET'));
+}));
+test('RT450 API detailed provenance includes weight factors and independent evidence without contacts',()=>run(async db=>{
+ const first=(await call(handler,request(db))).body,key=first.byLeague['liga-actual'].Alicia;
+ const r=await call(handler,request(db,'Alicia',{snapshot:first.snapshot,playerKey:key}));assert.equal(r.status,200);
+ for(const m of r.body.selected){assert.equal(m.weight,m.timeWeight*m.opponentWeight);assert.equal(typeof m.independentOpponentMatches,'number');assert.ok(m.opponentKey);}
+ assert.ok(!JSON.stringify(r.body).includes('private-phone'));
+}));

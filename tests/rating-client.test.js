@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const {create}=require('../public/rating-client');
-const valid=(id='abc')=>({complete:true,window:50,version:'sohail-rating-4.4.0',snapshot:id,info:{},byLeague:{},leagues:[]});
+const valid=(id='abc')=>({complete:true,window:50,version:'sohail-rating-4.5.0',snapshot:id,info:{},byLeague:{},leagues:[]});
 const ok=(d,status=200)=>({ok:status<400,status,json:async()=>d});
 const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolve:v=>resolve(v)};};
 test('RT440 client: concurrent readers share the same promise, not stale/null cache',async()=>{const wait=deferred();let n=0;const c=create({getToken:()=>'',fetcher:()=>{n++;return wait.promise;}});const a=c.load(),b=c.load();assert.equal(a,b);assert.equal(n,1);wait.resolve(ok(valid()));assert.deepEqual(await a,valid());});

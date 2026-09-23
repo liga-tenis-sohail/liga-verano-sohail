@@ -8,7 +8,7 @@
   const token=()=>String(getToken()||'');
   function sync(){const now=token();if(now!==scope){scope=now;epoch++;controller?.abort();controller=null;pending=null;cache=null;error=null;loaded=0;}return now;}
   function peek(){sync();return {data:cache,error,busy:!!pending,stale:!!cache&&(!!error||clock()-loaded>ttl)};}
-  function valid(d){return d&&d.complete===true&&d.window===50&&d.version==='sohail-rating-4.4.0'&&typeof d.snapshot==='string'&&d.info&&typeof d.info==='object'&&d.byLeague&&Array.isArray(d.leagues);}
+  function valid(d){return d&&d.complete===true&&d.window===50&&d.version==='sohail-rating-4.5.0'&&typeof d.snapshot==='string'&&d.info&&typeof d.info==='object'&&d.byLeague&&Array.isArray(d.leagues);}
   async function request(body,signal,key){
    const headers={'Content-Type':'application/json'};if(key)headers.Authorization='Bearer '+key;
    const r=await fetcher('/api/liga?operacion=rating',{method:'POST',headers,body:JSON.stringify(body),cache:'no-store',signal});

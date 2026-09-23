@@ -1,4 +1,4 @@
-/* Sohail rating v4.5 — pure sporting model, shared by server and offline checks.
+/* Sohail rating v4.4 — pure sporting model, shared by server and offline checks.
  * The public scale 1–16 is a LOCAL scale, not an official UTR or a win probability.
  * Every selected match has positive weight. Exactly the latest 50 per sports
  * identity (or all when fewer). No filtering by opponent level or age.
@@ -11,13 +11,9 @@
  else root.SohailRatingEngine=api;
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
  'use strict';
- const VERSION='sohail-rating-4.5.0';
- // Deployment gate: retain the v4.4 numerical weights. Independent opponent
- // weighting remains an OFFLINE candidate because the historical regression
- // sample did not improve. Independent support does improve the diagnostic
- // confidence layer; no win-probability or statistical coverage is claimed.
+ const VERSION='sohail-rating-4.4.0';
  const DEFAULTS=Object.freeze({window:50,scale:4,halfLifeDays:240,timeFloor:0.2,
-  gameCorrelation:0.15,stbEvidence:0.35,opponentFloor:0.6,opponentMode:'count',prior:0.12,seedPrior:0.3,maxIterations:4000,tolerance:0.000001});
+  gameCorrelation:0.15,stbEvidence:0.35,prior:0.12,seedPrior:0.3,maxIterations:4000,tolerance:0.000001});
  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
  const dict=()=>Object.create(null);
  const cmp=(a,b)=>a<b?-1:a>b?1:0;
@@ -142,53 +138,6 @@
   });
   return {people,byLeague,matches,issues};
  }
- // Amount and diversity of B's evidence independent of the A–B pairing.
- function independentSupport(entries,exclude){
-  let sum=0,squares=0,n=0,dated=0;const opponents=new Map();
-  for(const e of entries){
-   if(e.rival===exclude)continue;
-   const w=e.timeWeight*(e.gamesEvidence+e.stbEvidence)/6;
-   n++;if(e.m.day!=null)dated++;sum+=w;squares+=w*w;
-   opponents.set(e.rival,(opponents.get(e.rival)||0)+w);
-  }
-  const effective=squares?sum*sum/squares:0;
-  const concentration=Array.from(opponents.values()).reduce((s,w)=>s+w*w,0);
-  const diversity=concentration?sum*sum/concentration:0;
-  const quality=n?clamp((1-Math.exp(-sum/12))*(0.4+0.6*Math.min(1,diversity/5))*(0.75+0.25*dated/n),0,1):0;
-  return {quality,matches:n,opponents:opponents.size,effective,diversity};
- }
- // An undirected bridge is a pairing whose removal disconnects the comparison
- // network. Repeated games are still retained; only topology is diagnosed here.
- // Iterative DFS avoids recursion limits on large historical networks.
- function weakBridges(keys,rows){
-  const edges=new Map(),adj=new Map(keys.map(k=>[k,[]]));
-  for(const k of keys)for(const e of rows[k]){
-   const ends=[k,e.rival].sort(cmp),id=JSON.stringify(ends);
-   if(!edges.has(id))edges.set(id,{id,ends,matches:new Set()});edges.get(id).matches.add(e.m.key);
-  }
-  for(const e of edges.values())for(let side=0;side<2;side++)adj.get(e.ends[side]).push({key:e.id,next:e.ends[1-side]});
-  const visited=new Map(),low=new Map(),subtree=new Map(),bridges=[];let time=0;
-  for(const k of keys){
-   if(visited.has(k))continue;
-   visited.set(k,++time);low.set(k,time);subtree.set(k,1);const pending=[];const stack=[{k,parent:null,edge:null,i:0}];
-   while(stack.length){
-    const f=stack[stack.length-1],neighbors=adj.get(f.k);
-    if(f.i<neighbors.length){
-     const e=neighbors[f.i++];if(e.key===f.edge)continue;
-     if(!visited.has(e.next)){visited.set(e.next,++time);low.set(e.next,time);subtree.set(e.next,1);stack.push({k:e.next,parent:f.k,edge:e.key,i:0});}
-     else low.set(f.k,Math.min(low.get(f.k),visited.get(e.next)));
-    }else{
-     stack.pop();if(f.parent!==null){low.set(f.parent,Math.min(low.get(f.parent),low.get(f.k)));subtree.set(f.parent,subtree.get(f.parent)+subtree.get(f.k));
-      if(low.get(f.k)>visited.get(f.parent)&&edges.get(f.edge).matches.size<=2)pending.push({...edges.get(f.edge),sideSize:subtree.get(f.k)});
-     }
-    }
-   }
-   // A single newcomer is not evidence that the established network is fragile.
-   // Only diagnose links between nontrivial sets (at least 3 players each side).
-   for(const e of pending)if(e.sideSize>=3&&subtree.get(k)-e.sideSize>=3)bridges.push(e);
-  }
-  return bridges;
- }
  function calculate(data,options={}){
   const cfg={...DEFAULTS,...options};
   if(cfg.window!==50)throw new RatingError('INVALID_WINDOW','El modelo conserva 50 partidos por persona.');
@@ -204,31 +153,20 @@
   }}
   const counts=dict();for(const k of keys)counts[k]=rows[k].length;
   const slope=Math.LN10/cfg.scale,lambda=dict();
-  if(!Number.isFinite(cfg.opponentFloor)||cfg.opponentFloor<=0||cfg.opponentFloor>1||!['independent','count'].includes(cfg.opponentMode))throw new RatingError('INVALID_CONFIG','Evidencia de rivales inválida.');
-  // Phase 1: temporal and game evidence, before any opponent quality is computed.
   for(const k of keys){
    lambda[k]=cfg.prior+(people[k].seed!=null?cfg.seedPrior/(1+counts[k]/5):0);
    for(const e of rows[k]){
     const m=e.m,g=m.gamesA+m.gamesB;
     const age=m.day!=null&&latest[k]!=null?Math.max(0,latest[k]-m.day):null;
-    e.timeWeight=age==null?Math.max(cfg.timeFloor,0.97**e.rank):Math.max(cfg.timeFloor,2**(-age/cfg.halfLifeDays));
-    e.gamesEvidence=g?g/(1+(g-1)*cfg.gameCorrelation):0;
-    e.stbEvidence=m.stb==null?0:cfg.stbEvidence;
+    const time=age==null?Math.max(cfg.timeFloor,0.97**e.rank):Math.max(cfg.timeFloor,2**(-age/cfg.halfLifeDays));
+    // Finite games within one match are correlated; more games still add evidence.
+    const games=g?g/(1+(g-1)*cfg.gameCorrelation):0;
+    // Opponent evidence is bounded AWAY from zero; new opponents still count.
+    const opponent=0.6+0.4*Math.min(1,counts[e.rival]/15);
+    e.weight=time*opponent;e.gamesEvidence=games;e.stbEvidence=m.stb==null?0:cfg.stbEvidence;
     e.gameShare=g?(e.side?m.gamesB:m.gamesA)/g:0.5;
     e.stbShare=m.stb===e.side?1:0;
    }
-  }
-  // Leave-one-opponent-out support: A's results against B cannot make B appear
-  // independently established when assigning their own weight. It uses B's
-  // retained window, not guessed identity links or private profile information.
-  // This is an evidence score, NOT an inferred probability that B's rating is true.
-  const support=new Map();
-  for(const k of keys)for(const e of rows[k]){
-   const key=JSON.stringify([e.rival,k]);let q=support.get(key);
-   if(!q){q=independentSupport(rows[e.rival],k);support.set(key,q);}
-   e.opponentSupport=q;
-   e.opponentWeight=cfg.opponentMode==='count'?0.6+0.4*Math.min(1,counts[e.rival]/15):cfg.opponentFloor+(1-cfg.opponentFloor)*q.quality;
-   e.weight=e.timeWeight*e.opponentWeight;
   }
   let converged=false,iterations=0,maxChange=Infinity;
   // Damped simultaneous Newton fixed point of each player's weighted score equation.
@@ -256,11 +194,10 @@
   for(const k of keys)for(const e of rows[k]){const a=root(k),b=root(e.rival);if(a!==b)parent[cmp(a,b)>0?a:b]=cmp(a,b)>0?b:a;}
   const sizes=dict();for(const k of keys){const r=root(k);sizes[r]=(sizes[r]||0)+1;}
   const activeComponents=new Set(keys.filter(k=>counts[k]>0).map(root));
-  const fragile=weakBridges(keys,rows),fragileComponents=new Set(fragile.map(e=>root(e.ends[0])));
   const asOf=dateKey(options.asOf)||new Date().toISOString().slice(0,10),asDay=day(asOf),info=dict(),allIssues=data.issues.slice();
   for(const m of matches)if(m.day!=null&&m.day>asDay)allIssues.push({code:'future-date',match:m.key});
   for(const k of keys){
-   const list=rows[k],p=people[k],rivals=new Map();let wins=0,losses=0,unknown=0,gA=0,gB=0,stbWins=0,stbLosses=0,weightSum=0,weightSquares=0,evidence=0,dated=0,rivalSum=0,residual=0,retirements=0,opponentQuality=0;
+   const list=rows[k],p=people[k],rivals=new Map();let wins=0,losses=0,unknown=0,gA=0,gB=0,stbWins=0,stbLosses=0,weightSum=0,weightSquares=0,evidence=0,dated=0,rivalSum=0,residual=0,retirements=0;
    for(const e of list){
     const m=e.m;if(m.winner==null)unknown++;else if(m.winner===e.side)wins++;else losses++;
     gA+=e.side?m.gamesB:m.gamesA;gB+=e.side?m.gamesA:m.gamesB;
@@ -269,7 +206,6 @@
     if(m.day!=null&&m.day<=asDay)dated++;
     const w=e.weight*(e.gamesEvidence+e.stbEvidence);evidence+=w;weightSum+=w;weightSquares+=w*w;
     rivals.set(e.rival,(rivals.get(e.rival)||0)+w);rivalSum+=R[e.rival];
-    opponentQuality+=w*e.opponentSupport.quality;
     residual+=w*(e.gameShare-expected(R[k],R[e.rival],cfg.scale))**2;
    }
    const n=list.length,nEff=weightSquares?weightSum**2/weightSquares:0;
@@ -278,35 +214,19 @@
    const activity=inactiveDays==null?0.6:Math.max(0.25,2**(-inactiveDays/730));
    const coverage=n?0.6+0.4*dated/n:0;
    const stability=weightSum?1/(1+2*Math.sqrt(residual/weightSum)):0;
-   const independentQuality=weightSum?opponentQuality/weightSum:0;
-   let confidence=clamp(Math.round(95*(1-Math.exp(-nEff/15))*(0.4+0.6*Math.min(1,div/8))*Math.min(1,evidence/80)*coverage*activity*(0.8+0.2*stability)*(0.7+0.3*independentQuality)),0,95);
-   // Confidence describes the person's evidence. Network comparability is a
-   // SEPARATE warning: one peripheral subgroup must not demote everyone else.
-   // These caps are conservative diagnostics, NOT calibrated probabilities.
-   if(p.seedConflict)confidence=Math.min(confidence,69);
-   if(n<15||dated<n/2)confidence=Math.min(confidence,39);
-   const reasons=[];
-   if(n<15)reasons.push('few-matches');
-   if(div<3&&n)reasons.push('repeated-opponents');
-   if(independentQuality<0.4&&n)reasons.push('limited-opponent-support');
-   if(dated<n)reasons.push('uncertain-dates');
-   if(inactiveDays==null||inactiveDays>180)reasons.push('inactivity');
-   if(p.seedConflict)reasons.push('seed-conflict');
-   if(activeComponents.size>1)reasons.push('disconnected');
-   if(fragileComponents.has(root(k)))reasons.push('weak-connections');
+   const confidence=clamp(Math.round(95*(1-Math.exp(-nEff/15))*(0.4+0.6*Math.min(1,div/8))*Math.min(1,evidence/80)*coverage*activity*(0.8+0.2*stability)),0,95);
    info[k]={rating:R[k],ratingCalculado:R[k],partidos:n,totalMatches:totalCounts[k]||0,
     provisional:n<15||confidence<55,fiab:confidence,confidence:confidence>=70?'high':confidence>=40?'medium':'low',
     seed:p.seed,prior:p.prior,priorSource:p.priorSource,seedConflict:p.seedConflict,
     vict:wins,der:losses,unresolved:unknown,gGanados:gA,gPerdidos:gB,pctGames:gA+gB?gA/(gA+gB):null,
     stbWins,stbLosses,retirements,nivelRivales:n?rivalSum/n:null,uniqueOpponents:rivals.size,
     effectiveMatches:nEff,evidence,diversity:div,missingDates:list.filter(e=>e.m.day==null).length,futureDates:list.filter(e=>e.m.day!=null&&e.m.day>asDay).length,lastPlayed:latest[k]==null?null:new Date(latest[k]*86400000).toISOString().slice(0,10),inactiveDays,
-    opponentIndependentSupport:independentQuality,confidenceReasons:reasons,weakConnections:fragileComponents.has(root(k)),
     unlinked:p.unlinked,component:root(k),componentSize:sizes[root(k)],isolated:activeComponents.size>1,
     // Full provenance of the selected window, without contacts or credentials.
-    selected:list.map(e=>({key:e.m.key,leagueId:e.m.leagueId,date:e.m.date,weight:e.weight,timeWeight:e.timeWeight,opponentWeight:e.opponentWeight,opponentKey:e.rival,independentOpponentMatches:e.opponentSupport.matches,independentOpponentDiversity:e.opponentSupport.opponents,gamesFor:e.side?e.m.gamesB:e.m.gamesA,gamesAgainst:e.side?e.m.gamesA:e.m.gamesB,won:e.m.winner==null?null:e.m.winner===e.side,retired:e.m.retired,gamesEvidence:e.gamesEvidence,stbEvidence:e.stbEvidence}))};
+    selected:list.map(e=>({key:e.m.key,leagueId:e.m.leagueId,date:e.m.date,weight:e.weight,gamesEvidence:e.gamesEvidence,stbEvidence:e.stbEvidence}))};
   }
   return {version:VERSION,asOf,window:50,info,byLeague:data.byLeague,people,
-   parameters:{...DEFAULTS,...options},weakBridgeCount:fragile.length,issues:allIssues,matchCount:matches.length,componentCount:activeComponents.size,converged,iterations,maxChange};
+   issues:allIssues,matchCount:matches.length,componentCount:activeComponents.size,converged,iterations,maxChange};
  }
- return Object.freeze({VERSION,DEFAULTS,identity,dateKey,score,expected,groupSeed,prepare,calculate,independentSupport,RatingError});
+ return Object.freeze({VERSION,DEFAULTS,identity,dateKey,score,expected,groupSeed,prepare,calculate,RatingError});
 });
