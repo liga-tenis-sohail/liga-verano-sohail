@@ -47,6 +47,7 @@ const { securityFor, makeSession, principalKey, hashV1, hashV2, POR_DEFECTO_V2, 
         readCatalogo, upsertJugador, readLigaIndex, postLoginLeagueChoices, ligaIdOK, LIGA_DEFAULT,
         rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP } = require('./_lib');
 
+const {authenticate,createSession}=require('./_auth-security');
 const {findMemberships} = require('./_login-read');
 
 const MAX_FAILS = 5;      // por usuario
@@ -58,7 +59,8 @@ module.exports = async function handler(req, res){
   if(!envOK(res)) return;
 
   const body = (req.body && typeof req.body === 'object') ? req.body : {};
-  if(body.accion==='session-resume'||body.accion==='session-logout')return require('./_session').handler(req,res);
+  if(['session-resume','session-logout','session-list','session-revoke','session-logout-all'].includes(body.accion))return require('./_session').handler(req,res);
+  if(body.accion==='session-reauth')return require('./_auth-security').reauthenticate(req,res);
   const user = String(body.user || '').trim();
   const pass = String(body.pass || '');
   if(typeof body.user!=='string'||typeof body.pass!=='string'||!user||!pass||user.length>120||pass.length>128){
@@ -131,17 +133,8 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
     return await loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, body, idx });
   }
 
-  const v2 = hashV2(pass);
-  const v1 = hashV1(pass);
-  const isSuper = user==='superadmin' && !!(SUPER_HASH && v2 === SUPER_HASH);
-
-  // La cuenta comparte el mismo hash en todas las ligas donde se heredó
-  // (se copia tal cual al crear la liga). Alcanza con validar contra la
-  // primera que aparezca.
-  const authRecord=await securityFor(user,encontradoEn[0].state);
-  const stored = authRecord.pass_hash;
-  const isLegacy = !/^v[12]:/.test(stored);
-  const match = isSuper || (isLegacy ? stored === pass : (stored === v2 || stored === v1));
+  const authRecord=await authenticate(user,pass,encontradoEn[0].state);
+  const match=!!authRecord;
 
   if(!match){
     await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
@@ -149,19 +142,6 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
   await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
-
-  // Rehash a v2 en TODAS las ligas donde aparece con hash viejo: si solo
-  // se actualizara la primera, las demás quedarían con un hash que ya no
-  // coincide con `stored` la próxima vez (cada liga es un registro propio,
-  // a diferencia del jugador de catálogo que tiene una sola fuente).
-  if(!isSuper && stored !== v2){
-    for(const e of encontradoEn){
-      if(e.u.pass === stored){
-        e.u.pass = v2;
-        try { await writeState(e.ligaId, e.state); } catch(err){}
-      }
-    }
-  }
 
   const disponibles = encontradoEn.filter(e => !e.u.inactive && principalKey(user,e.u) === authRecord.id);
   if(!disponibles.length) return res.status(403).json({error:'Tu cuenta está inactiva. Contactá al administrador.'});
@@ -174,14 +154,14 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   // --- Caso simple: una sola liga activa -> login directo ---
   if(disponibles.length === 1){
     const d = disponibles[0];
-    const session = makeSession(user,role,d.ligaId,d.state,authRecord);
+    const session = await createSession(user,role,d.ligaId,d.state,authRecord,req);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       token: signToken(session),
       isAdmin: true,
       name: user,
       role,
-      exp,
+      exp:session.exp,
       mustChangePw,
       ligaId: d.ligaId,
       ligaNombre: d.nombre,
@@ -193,14 +173,14 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   // pero el state se pide después de elegir, vía /api/state?elegir=1
   // (mismo selector que usa un jugador en 2+ ligas). No hay liga por
   // defecto: el admin siempre pasa por esta pantalla si tiene 2+. ---
-  const session = makeSession(user,role,disponibles[0].ligaId,disponibles[0].state,authRecord);
+  const session = await createSession(user,role,disponibles[0].ligaId,disponibles[0].state,authRecord,req);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     token: signToken(session),
     isAdmin: true,
     name: user,
     role,
-    exp,
+    exp:session.exp,
     mustChangePw,
     eligeLiga: true,
     ligas: postLoginLeagueChoices(disponibles, idx)
@@ -241,19 +221,13 @@ async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, bod
   if(!state || !state.users) return res.status(503).json({ error: 'La base de datos no tiene datos.' });
 
   const u = state.users[user];
-  const v2 = hashV2(pass);
-  const v1 = hashV1(pass);
-  const isSuper = user==='superadmin' && !!(SUPER_HASH && v2 === SUPER_HASH);
-
   if(!u){
     await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
 
-  const authRecord=await securityFor(user,state);
-  const stored = authRecord.pass_hash;
-  const isLegacy = !/^v[12]:/.test(stored);
-  const match    = isSuper || (isLegacy ? stored === pass : (stored === v2 || stored === v1));
+  const authRecord=await authenticate(user,pass,state);
+  const match=!!authRecord;
   if(!match){
     await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
     logAudit(user, 'login.fail', ligaId, null, ip);
@@ -261,15 +235,12 @@ async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, bod
   }
   await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
 
-  if(!isSuper && stored !== v2){
-    try { u.pass = v2; await writeState(ligaId, state); } catch(e){}
-  }
-
+  if(u.inactive)return res.status(403).json({error:'Tu cuenta está inactiva.'});
   const mustChangePw = !!authRecord.must_change;
   const role = u.role || (user === 'superadmin' ? 'superadmin' : 'admin');
 
   const exp = Date.now() + SESSION_MIN * 60 * 1000;
-  const session = makeSession(user,role,ligaId,state,authRecord);
+  const session = await createSession(user,role,ligaId,state,authRecord,req);
 
   logAudit(user, 'login.ok.admin', ligaId, { role, sinLigasActivas: true }, ip);
 
@@ -279,7 +250,7 @@ async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, bod
     isAdmin: true,
     name: user,
     role,
-    exp,
+    exp:session.exp,
     mustChangePw,
     ligaId,
     ligaNombre,
@@ -315,18 +286,8 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   // el jugador está migrado al catálogo (así es como llegó a estar en 2+
   // ligas con el mismo login). Tomamos el primero que tenga jugadorId.
   const conCatalogo = encontradoEn.find(e => e.u.jugadorId);
-  const v2 = hashV2(pass);
-  const v1 = hashV1(pass);
-  const isSuper = user==='superadmin' && !!(SUPER_HASH && v2 === SUPER_HASH);
-
-  // The versioned security record is authoritative. A normal login must not
-  // download the entire catalogue (including other players' password hashes).
-  // securityFor still bootstraps a missing legacy security record safely.
-  const authRecord=await securityFor(user,(conCatalogo||encontradoEn[0]).state);
-  const stored=authRecord.pass_hash;
-
-  const isLegacy = !/^v[12]:/.test(stored);
-  const match = isSuper || (isLegacy ? stored === pass : (stored === v2 || stored === v1));
+  const authRecord=await authenticate(user,pass,(conCatalogo||encontradoEn[0]).state);
+  const match=!!authRecord;
 
   if(!match){
     await Promise.all([rateLimitFail('u:' + user, MAX_FAILS, LOCK_MS), rateLimitFail('i:' + ip, MAX_IP, LOCK_MS)]);
@@ -334,19 +295,6 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
   await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
-
-  // Rehash a v2 si hacía falta (catálogo o, en su defecto, la primera liga).
-  if(!isSuper && stored !== v2){
-    let jugGlobal = null;
-    if(conCatalogo){
-      try { jugGlobal = (await readCatalogo())[conCatalogo.u.jugadorId] || null; } catch(_){}
-    }
-    if(jugGlobal){
-      try { jugGlobal.pass = v2; await upsertJugador(jugGlobal); } catch(e){}
-    } else {
-      try { encontradoEn[0].u.pass = v2; await writeState(encontradoEn[0].ligaId, encontradoEn[0].state); } catch(e){}
-    }
-  }
 
   const mustChangePw = !!authRecord.must_change;
 
@@ -364,14 +312,14 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   // --- Caso simple: una sola liga activa disponible -> login directo ---
   if(disponibles.length === 1){
     const d = disponibles[0];
-    const session = makeSession(user,'player',d.ligaId,d.state,authRecord);
+    const session = await createSession(user,'player',d.ligaId,d.state,authRecord,req);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       token: signToken(session),
       isAdmin: false,
       name: user,
       role: 'player',
-      exp,
+      exp:session.exp,
       mustChangePw,
       ligaId: d.ligaId,
       ligaNombre: d.nombre,
@@ -382,14 +330,14 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   // --- Caso multi-liga: se emite el token (la contraseña ya se validó),
   // pero el state se pide después de elegir, vía /api/entrar-liga. El
   // session no lleva ligaId todavía: se completa en ese segundo paso. ---
-  const session = makeSession(user,'player',disponibles[0].ligaId,disponibles[0].state,authRecord);
+  const session = await createSession(user,'player',disponibles[0].ligaId,disponibles[0].state,authRecord,req);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     token: signToken(session),
     isAdmin: false,
     name: user,
     role: 'player',
-    exp,
+    exp:session.exp,
     mustChangePw,
     eligeLiga: true,
     ligas: postLoginLeagueChoices(disponibles, idx)

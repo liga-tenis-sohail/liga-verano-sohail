@@ -59,9 +59,12 @@ test('R2: dos invocaciones simultáneas se serializan',async()=>{
  const a=vm.runInContext('_doPersist()',ctx),b=vm.runInContext('_doPersist()',ctx);resolve();await Promise.all([a,b]);assert.equal(n,1);
 });
 function authFixture(epoch=0,must=false){const state=fixture();return {state,account:{id:'n:Alicia',epoch,must_change:must,pass_hash:lib.hashV2('segura123'),tutorial_epoch:1,tutorial_done_epoch:0,tutorial_version:0}};}
-function tokenFor(extra={}){return lib.signToken({u:'Alicia',r:'player',src:'liga-test',pk:'n:Alicia',sv:0,exp:Date.now()+60000,...extra});}
+const issued=new Map();
+function tokenFor(extra={}){const p={...lib.makeSession('Alicia','player','liga-test',{}, {id:'n:Alicia',epoch:0,must_change:false}),...extra};issued.set(require('node:crypto').createHash('sha256').update(p.sid).digest('hex'),p);return lib.signToken(p);}
 function requestFor(token){return {headers:{authorization:'Bearer '+token}};}
-async function mockedAuth(f,fn){const prev=global.fetch;global.fetch=async url=>({ok:true,json:async()=>url.includes('sohail_account_security')?[f.account]:[{data:f.state}]});try{return await fn();}finally{global.fetch=prev;}}
+async function mockedAuth(f,fn){const prev=global.fetch;global.fetch=async(url,o={})=>({ok:true,json:async()=>{
+ if(url.includes('sohail_p2_session')){const d=JSON.parse(o.body).p_data,p=issued.get(d.id);return p&&p.sv===f.account.epoch?{ok:true,epoch:f.account.epoch,must_change:f.account.must_change,session:{created_at:new Date(p.iat).toISOString(),expires_at:new Date(p.exp).toISOString(),verified_at:new Date(p.iat).toISOString(),method:'password'}}:{ok:false};}
+ return url.includes('sohail_account_security')?[f.account]:[{data:f.state}];}});try{return await fn();}finally{global.fetch=prev;}}
 test('R3: token vigente y cuenta activa autentican',()=>mockedAuth(authFixture(),async()=>assert.equal((await lib.auth(requestFor(tokenFor()))).u,'Alicia')));
 test('R3: restablecimiento revoca token anterior por epoch',()=>mockedAuth(authFixture(1),async()=>assert.equal(await lib.auth(requestFor(tokenFor())),null)));
 test('R3: token de la versión anterior no sirve',async()=>assert.equal(await lib.auth(requestFor(lib.signToken({u:'Alicia',r:'player',exp:Date.now()+10000}))),null));
@@ -208,7 +211,9 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
    assert.deepEqual(ids(r.body.ligas),['new','mid','old']);
    assert.equal(lib.verifyToken(r.body.token).src,'old');
    assert.ok(r.body.ligas.every(l=>Object.keys(l).sort().join(',')==='id,nombre'));
-   assert.deepEqual(db.tables.liga_state,states);assert.deepEqual(db.tables.liga_index,idx);
+   const withoutCredentials=rows=>rows.map(r=>({...r,data:{...r.data,users:Object.fromEntries(Object.entries(r.data.users).map(([n,u])=>{const p={...u};delete p.pass;delete p.passwordTemporary;return[n,p];}))}}));
+   assert.deepEqual(withoutCredentials(db.tables.liga_state),withoutCredentials(states));assert.deepEqual(db.tables.liga_index,idx);
+   assert.ok(db.tables.sohail_account_security.find(a=>a.id===lib.verifyToken(r.body.token).pk).pass_hash.startsWith('v3:scrypt:'));
    assert.equal(r.headers['Cache-Control'],'no-store');
    // Elegir la antigua sigue siendo posible; no hay preselección de la primera.
    const chosen=await mock.call(require('../api/state'),{method:'GET',headers:{authorization:'Bearer '+r.body.token},query:{liga:'old',elegir:'1'}});
@@ -245,11 +250,11 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
   const source=fs.readFileSync(path.join(__dirname,'../api/passkey.js'),'utf8');
   assert.ok(source.includes("await import('@simplewebauthn/server')"));
   const mod={exports:{}},localRequire=require('node:module').createRequire(path.join(__dirname,'../api/passkey.js'));
-  const ctx={module:mod,exports:mod.exports,require:localRequire,__wa:async()=>spy,Buffer,process,console,fetch:(...args)=>global.fetch(...args),Date,JSON};
+  const ctx={module:mod,exports:mod.exports,require:localRequire,__wa:async()=>spy,Buffer,URL,process,console,fetch:(...args)=>global.fetch(...args),Date,JSON};
   vm.createContext(ctx);vm.runInContext(source.replace("await import('@simplewebauthn/server')","await __wa()"),ctx);return mod.exports;
  }
  async function loginPasskey(db,user,verified=true){
-  db.tables.passkeys=[{credential_id:'order-test-credential',user_name:user,public_key:'AA',counter:0}];
+  db.tables.passkeys=[{credential_id:'order-test-credential',user_name:user,principal_key:lib.principalKey(user,db.state('old').users[user]),public_key:'AA',counter:0}];
   const handler=orderPasskey({generateAuthenticationOptions:async o=>{assert.equal(o.userVerification,'required');return {challenge:'order-test-challenge'};},verifyAuthenticationResponse:async o=>{assert.equal(o.requireUserVerification,true);return {verified,authenticationInfo:{newCounter:1}};}});
   const headers={host:'sohail.test','x-forwarded-proto':'https'};
   const start=await mock.call(handler,{method:'POST',headers,body:{accion:'auth-start'},query:{}});assert.equal(start.status,200);

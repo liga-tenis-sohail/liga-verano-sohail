@@ -1,7 +1,7 @@
 'use strict';
 // Persistent browser session. Normal API authorization remains explicit Bearer:
 // the cookie is accepted ONLY by the protected resume/logout operations below.
-// No new database tables, scheduled jobs, refresh-token service or paid feature.
+// Part 2: authoritative revocation is stored in the server-only session ledger.
 const lib = require('./_lib');
 const COOKIE = '__Host-sohail-session';
 const MAX_SECONDS = 24 * 60 * 60;
@@ -21,7 +21,7 @@ function clearCookie(res) {
 }
 function writeCookie(req, res, token) {
   const p = lib.verifyToken(token);
-  if (!p || !p.pk || !Number.isSafeInteger(p.sv) || !lib.ligaIdOK(p.src)) return;
+  if (!p || p.typ!=='session-p2' || !p.sid || !p.pk || !Number.isSafeInteger(p.sv) || !lib.ligaIdOK(p.src)) return;
   // Do not install a browser session for cross-origin login requests.
   if (req.headers?.['sec-fetch-site'] && !['same-origin', 'none'].includes(req.headers['sec-fetch-site'])) return;
   if (req.headers?.origin) {
@@ -48,11 +48,19 @@ function protectRequest(req) {
 }
 async function handler(req, res) {
   if (!protectRequest(req)) return res.status(403).json({code:'SESSION_ORIGIN',error:'Solicitud de sesión no permitida.'});
-  if (req.body.accion === 'session-logout') {
+  const action=req.body.accion,security=require('./_auth-security');
+  const bearer=typeof req.headers.authorization==='string'?req.headers.authorization.replace(/^Bearer /,''):'';
+  const token=bearer||readCookie(req);
+  if (action === 'session-logout') {
+    // Revoke both copies when a stale tab and the browser cookie refer to
+    // different sessions. Invalid/expired signatures confer no authority.
+    for(const copy of new Set([bearer,readCookie(req)].filter(Boolean))){
+      const parsed=lib.verifyToken(copy);
+      if(parsed&&parsed.typ==='session-p2')await security.revoke(parsed);
+    }
     clearCookie(res);
     return res.status(200).json({ok:true});
   }
-  const token = readCookie(req);
   if (!token) return res.status(200).json({authenticated:false});
   // Use the same account epoch, identity, inactivity and role validation as all
   // other endpoints. A browser cookie never grants its stored role directly.
@@ -60,6 +68,17 @@ async function handler(req, res) {
   if (!session) {
     clearCookie(res);
     return res.status(401).json({code:'SESSION_EXPIRED',error:'La sesión venció o fue revocada.'});
+  }
+  if(action!=='session-resume'){
+    if(!['session-list','session-revoke','session-logout-all'].includes(action))return res.status(400).json({code:'BAD_ACTION',error:'Acción no válida.'});
+    if(session.m)return res.status(403).json({code:'PASSWORD_CHANGE_REQUIRED',error:'Primero cambiá la contraseña temporal.'});
+    if(action==='session-revoke'&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.body.id||''))return res.status(400).json({code:'BAD_SESSION_ID',error:'Sesión no válida.'});
+    const result=await security.sessionRPC({'session-list':'list','session-revoke':'revoke-one','session-logout-all':'revoke-all'}[action],{
+      id:security.hashSid(session.sid),principal:session.pk,epoch:session.sv,target:req.body.id||null});
+    if(!result.ok)return res.status(401).json({code:'SESSION_EXPIRED',error:'La sesión venció o fue revocada.'});
+    if(result.signedOut)clearCookie(res);
+    if(action!=='session-list')await lib.logAudit(session.u,action,null,{revoked:result.revoked},lib.clientIP(req));
+    return res.status(200).json(result);
   }
   const state = await lib.readState(session.src);
   if (!state || lib.blockedUser(state,session)) {

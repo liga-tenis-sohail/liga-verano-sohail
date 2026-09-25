@@ -89,7 +89,7 @@ function protectState(current,incoming,session,admin,manage){
       const cu=curUsers[n],iu=inUsers[n];
       if(!iu||typeof iu!=='object')bad('Usuario inválido.');
       for(const k of Object.keys(iu)){
-        if(['pass','passwordDefault','identityRef','key'].includes(k))continue;
+        if(['pass','passwordDefault','passwordTemporary','identityRef','key'].includes(k))continue;
         if((k==='email'||k==='tel')&&n!==session.u)continue;
         if(!sameOrEmpty(iu[k],cu[k]))deny('No tenés permiso para modificar ese perfil.');
       }
@@ -115,6 +115,7 @@ function protectState(current,incoming,session,admin,manage){
         // El vínculo global solo se cambia por las acciones específicas del servidor.
         if(u.jugadorId!==source.jugadorId)deny('El vínculo de identidad solo se modifica desde el catálogo.');
         if(source._credentialId)u._credentialId=source._credentialId;else delete u._credentialId;
+        if(source.passwordTemporary===true)u.passwordTemporary=true;else delete u.passwordTemporary;
         if(!manage&&((u.role||'player')!==(source.role||'player')||!!u.isAdmin!==!!source.isAdmin))deny('Solo el administrador original o el super administrador puede repartir permisos.');
       }else{
         if(own(u,'injured'))deny('Registrá primero al jugador y luego su lesión.');
@@ -122,7 +123,7 @@ function protectState(current,incoming,session,admin,manage){
         if(u.jugadorId)deny('Incorporá los perfiles existentes desde el catálogo.');
         if(u.historialId||u.historialNombre)deny('Vinculá las fichas deportivas desde la revisión de identidades.');
         // Nunca aceptar una contraseña arbitraria ni un identificador de seguridad del cliente.
-        u.pass=require('./_lib').hashV2('tenis');u._credentialId=crypto.randomUUID();
+        u.pass=require('./_lib').hashV2('tenis');u._credentialId=crypto.randomUUID();u.passwordTemporary=true;
       }
       delete u.identityRef;delete u.passwordDefault;delete u.key;
     }

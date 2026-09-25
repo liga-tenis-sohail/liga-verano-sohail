@@ -65,7 +65,7 @@ async function loginConPasskey(){
     const r2=await fetch('/api/passkey',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({accion:'auth-finish',cred,ligaId}),signal:AbortSignal.timeout(20000)});
     const d=await r2.json();
     if(attempt!==_loginAttemptVersion)return;
-    if(!r2.ok) throw new Error(d.error||'No se pudo entrar.');
+    if(!r2.ok) throw new Error(apiError(d));
     // 4) Entrar con el token, igual que el login con clave
     const resuelto=entrarConToken(d);
     // Si la contraseña sigue siendo pública, forzar el cambio. En este flujo no
@@ -124,7 +124,7 @@ async function activarPasskey(){
     }catch(netErr){ throw new Error('No se pudo contactar el servidor (paso 4).'); }
     const txt2=await r2.text();
     try{ d=JSON.parse(txt2); }catch(_){ throw new Error((""+t('ui36_text_201')+"")+r2.status+(""+t('ui36_text_202')+"")); }
-    if(!r2.ok) throw new Error((d&&d.error)||((""+t('ui36_text_203')+"")+r2.status+').'));
+    if(!r2.ok) throw new Error(apiError(d));
     toast(t('pk_activated'));
     try{ localStorage.setItem('pk_hint','1'); }catch(_){}
     // Refresca la vista del perfil si está abierta: pasamos de "activar" a mostrar el dispositivo nuevo.
@@ -155,7 +155,7 @@ async function refrescarListaPasskeys(){
       body: JSON.stringify({ accion:'list' })
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(d.error || 'list failed');
+    if(!r.ok) throw new Error(apiError(d));
     const lista = Array.isArray(d.passkeys) ? d.passkeys : [];
     if(lista.length === 0){
       // Estado sin passkeys: la vista original.
@@ -222,7 +222,7 @@ async function desactivarPasskey(credId, label){
       body: JSON.stringify({ accion:'delete', credentialId: credId })
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(d.error || 'delete failed');
+    if(!r.ok) throw new Error(apiError(d));
     toast(t('pk_device_deactivated').replace('{n}', label || t('pk_devices_lbl')));
     refrescarListaPasskeys();
   }catch(err){
@@ -368,7 +368,7 @@ async function desactivarPasskeyAdmin(userName, credId, label){
       body: JSON.stringify({ accion:'admin-delete-user', userName, credentialId: credId, ligaId: _ligaActual || undefined })
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(d.error || 'admin delete failed');
+    if(!r.ok) throw new Error(apiError(d));
     toast(t('pk_admin_del_ok'));
     cargarPasskeysAdmin();   // refrescar la lista
   }catch(err){
@@ -497,7 +497,7 @@ async function renombrarPasskey(credId, labelActual){
       body: JSON.stringify({ accion:'rename', credentialId: credId, deviceLabel: nombre })
     });
     const d = await r.json().catch(()=>({}));
-    if(!r.ok) throw new Error(d.error || 'rename failed');
+    if(!r.ok) throw new Error(apiError(d));
     toast(t('pk_renamed'));
     refrescarListaPasskeys();
   }catch(err){
@@ -526,7 +526,7 @@ async function doLogin(){
     const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined}),signal:AbortSignal.timeout(20000)});
     const d=await r.json().catch(()=>({}));
     if(attempt!==_loginAttemptVersion)return;
-    if(!r.ok){e.textContent=d.error||(""+t('ui36_text_180')+"");e.style.display='block';return;}
+    if(!r.ok){e.textContent=apiError(d);e.style.display='block';return;}
     _token=d.token;
     if(window.SohailSession)SohailSession.enable();
     _ligaReadOnly=false;_sessionExpiring=false;
@@ -652,7 +652,7 @@ async function elegirLigaTrasLogin(ligaId){
     const r=await fetch('/api/state?liga='+encodeURIComponent(ligaId)+'&elegir=1',{headers:{Authorization:'Bearer '+token},cache:'no-store',signal:controller.signal});
     const d=await r.json().catch(()=>({}));
     if(token!==_token||request!==_postLoginRequest)return;
-    if(!r.ok)throw Error(d.error||t('err_hydrate'));
+    if(!r.ok)throw Error(apiError(d));
     if(!d.state||!d.name||!d.state.users?.[d.name])throw Error(t('err_no_user_league'));
     const ok=_hydrate(d.state);if(!ok)throw Error(t('err_hydrate'));
     if(d.token)_token=d.token;
@@ -753,8 +753,9 @@ function entrarConToken(d){
   montarAppTrasLogin();
   return true;
 }
-function doLogout(){
-  if(window.SohailSession)SohailSession.logout();
+async function doLogout(){
+  const logoutResult=window.SohailSession?SohailSession.logout():Promise.resolve({ok:true});
+  if(window.SohailSecurity)SohailSecurity.cancel();
   _loginAttemptVersion++;setLoginBusy(false);
   if(typeof cancelLoginInitialization==='function')cancelLoginInitialization();
   if(window.SohailResults)SohailResults.clearSession();
@@ -777,4 +778,6 @@ function doLogout(){
   if(box) box.style.display='none';
   _pendientePassPlano='';
   initLogin();
+  const closed=await logoutResult;
+  if(!closed?.ok&&window.SohailSecurity)SohailSecurity.logoutNotice();
 }

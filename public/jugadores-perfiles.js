@@ -610,6 +610,7 @@ function renderPerfil(){
       h += `<div class="cj-search"><i class="ti ti-search"></i><input id="cj-search" placeholder="${t('cj_search')}" oninput="filtrarCatJugadores()"></div>`;
       h += `<div id="cat-jugadores-list"><div class="pm-past-load">${t('past_loading')}</div></div></div>`;
     }
+    if(window.SohailSecurity)h+=SohailSecurity.cardHTML();
     document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); if(window.SohailUI)SohailUI.organizeProfile(); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
     if(u.role==='superadmin') cargarCatJugadores();
   } else {
@@ -632,6 +633,7 @@ function renderPerfil(){
     h += `<div class="form-row"><div class="form-group"><label for="pw-new2">${t('repeat_pass')}</label><input type="password" id="pw-new2"></div>`;
     h += `<div class="form-group" style="align-self:end"><button class="btn btn-accent" onclick="changePw()"><i class="ti ti-lock"></i> ${t('save_pass')}</button></div></div></div>`;
     h += `<div class="card"><div class="section-lbl">${t('my_history')}</div>${playerHistoryHTML(u.name)}</div>`;
+    if(window.SohailSecurity)h+=SohailSecurity.cardHTML();
     document.getElementById('view-perfil').innerHTML = h; guideHelpButton(document.getElementById('view-perfil')); if(window.SohailUI)SohailUI.organizeProfile(); try{ if(typeof passkeySoportada==='function'&&passkeySoportada()){ const pc=document.getElementById('pk-card'); if(pc){pc.style.display=''; if(typeof refrescarListaPasskeys==='function') refrescarListaPasskeys();} } }catch(_){}
     cargarMisLigasHeader();
   }
@@ -783,10 +785,12 @@ function renderPlayerBodyHTML(p, gOpts){
         <div class="form-group">
           <label>${t('ui36_text_212')}</label>
           <div style="display:flex;gap:6px">
-            <input type="text" id="pe-pass-${attr(p.name)}" placeholder="${attr(t('ui36_text_213'))}" autocomplete="new-password" style="flex:1">
+            <input type="password" maxlength="128" id="pe-pass-${attr(p.name)}" placeholder="${attr(t('ui36_text_213'))}" autocomplete="new-password" style="flex:1">
             <button class="btn btn-sm" style="white-space:nowrap" onclick="setPlayerPwd('${jsq(p.name)}')"><i class="ti ti-key"></i> ${t('ui36_text_214')}</button>
           </div>
         </div>
+        <p class="legend-txt">${t('p2_temporary')}</p>
+        <label class="p2-revoke-keys"><input type="checkbox" id="pe-revoke-keys-${attr(p.name)}"><span>${t('p2_revoke_keys')}</span></label>
         <div style="margin-top:.55rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--text2)">${t('ui36_text_215')}</span>
           <button class="btn btn-sm" onclick="resetPwd('${jsq(p.name)}')"><i class="ti ti-refresh"></i> ${t('ui36_text_216')}</button>
@@ -981,17 +985,19 @@ async function _flushBeforeCredentialChange(){
   return true;
 }
 async function _refreshAfterCredentialChange(d){
-  if(d.token)_token=d.token;
+  if(d.requiresLogin){await doLogout();if(window.SohailSecurity)SohailSecurity.loginAgain();return false;}
+  if(d.token){_token=d.token;window.SohailSession?.enable();}
   await loadState();
   if(currentUser){const k=currentUser.key||currentUser.name;const fresh=USERS[k];if(fresh){currentUser=fresh;currentUser.key=k;}}
   if(typeof refreshAll==='function')refreshAll();
+  return true;
 }
 async function resetPwd(name){
   if(!USERS[name]||esCuentaSistema(name))return;
   if(!confirm(tf('reset_confirm',{n:name})))return;
   if(!await _flushBeforeCredentialChange()){toast(t('fix_pending_first'));return;}
   try{
-    const r=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({target:name,newPass:'tenis',ligaId:_ligaActual||undefined})});
+    const r=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({target:name,newPass:'tenis',revokePasskeys:document.getElementById('pe-revoke-keys-'+name)?.checked===true,ligaId:_ligaActual||undefined})});
     const d=await r.json();if(!r.ok){toast(apiError(d));return;}
     await _refreshAfterCredentialChange(d);
     toast(tf('reset_ok',{n:name}));refreshPlayerList();
@@ -1000,14 +1006,14 @@ async function resetPwd(name){
 async function setPlayerPwd(name){
   if(!USERS[name]||esCuentaSistema(name))return;
   const inp=document.getElementById('pe-pass-'+name),pw=inp?inp.value:'';
-  if(pw.length<6||pw.length>128){toast(t('pass_short'));return;}
+  if(pw!=='tenis'&&([...pw].length<15||pw.length>128)){toast(t('pass_short'));return;}
   // Nunca mostrar ni registrar la contraseña en una confirmación.
   if(!confirm(tf('fix_change_password_for',{n:name})))return;
   if(!await _flushBeforeCredentialChange()){toast(t('fix_pending_first'));return;}
   try{
-    const rr=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({target:name,newPass:pw,ligaId:_ligaActual||undefined})});
+    const rr=await fetch('/api/password',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({target:name,newPass:pw,revokePasskeys:document.getElementById('pe-revoke-keys-'+name)?.checked===true,ligaId:_ligaActual||undefined})});
     const d=await rr.json();if(!rr.ok){toast(apiError(d));return;}
-    if(inp)inp.value='';await _refreshAfterCredentialChange(d);toast(t('pass_changed'));refreshPlayerList();
+    if(inp)inp.value='';await _refreshAfterCredentialChange(d);toast(t('p2_reset_done'));refreshPlayerList();
   }catch(_){toast(t('fix_network_pending'));}
 }
 function toggleInactive(name){
@@ -1056,7 +1062,8 @@ function quitarDeGrupoActivo(name){
 // tiene el móvil de la víctima, muy probablemente también tenga acceso al
 // email (sesión abierta en Gmail, Apple Mail, etc.) y podría usar el link
 // para tomar la cuenta. El reset manual por parte del admin es más seguro:
-// requiere contacto humano y una decisión activa.
+// requiere contacto humano y una decisión activa. No es por sí solo una
+// garantía superior al correo: el administrador debe verificar quién pide el reset.
 // ============================================================================
 async function mostrarResetRequest(){
   await confirmarModal(t('forgot_msg'), {
@@ -1102,15 +1109,16 @@ function forcePwChange(oldPass){
   ov.innerHTML='<div class="pwforce-dialog" style="background:var(--surface,#fff);border-radius:14px;padding:22px;max-width:380px;width:100%;box-shadow:0 18px 50px rgba(0,0,0,.4)">'+
     '<h3 data-pwf-i18n="pwf_title" style="margin:0 0 6px;font-size:17px">'+t('pwf_title')+'</h3>'+
     '<p id="pwforce-why" data-pwf-i18n="pwf_why" style="margin:0 0 14px;font-size:13px;line-height:1.45;color:var(--text2,#64748b)">'+t('pwf_why')+'</p>'+
-    '<label class="sr-only" for="_pwf1" data-pwf-i18n="pwf_new">'+t('pwf_new')+'</label><input id="_pwf1" type="password" autocomplete="new-password" data-pwf-placeholder="pwf_new" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
-    '<label class="sr-only" for="_pwf2" data-pwf-i18n="pwf_rep">'+t('pwf_rep')+'</label><input id="_pwf2" type="password" autocomplete="new-password" data-pwf-placeholder="pwf_rep" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<label class="sr-only" for="_pwf1" data-pwf-i18n="pwf_new">'+t('pwf_new')+'</label><input id="_pwf1" type="password" maxlength="128" autocomplete="new-password" data-pwf-placeholder="pwf_new" placeholder="'+t('pwf_new')+'" style="width:100%;padding:9px;margin-bottom:8px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
+    '<label class="sr-only" for="_pwf2" data-pwf-i18n="pwf_rep">'+t('pwf_rep')+'</label><input id="_pwf2" type="password" maxlength="128" autocomplete="new-password" data-pwf-placeholder="pwf_rep" placeholder="'+t('pwf_rep')+'" style="width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:14px">'+
     pkCheck +
     '<div id="_pwfe" role="alert" style="display:none;font-size:12px;color:var(--danger);margin-bottom:8px"></div>'+
-    '<button id="_pwfb" type="button" style="width:100%;padding:10px;border:none;border-radius:8px;background:var(--pri,#1e3a8a);color:#fff;font-weight:600;font-size:14px;cursor:pointer">'+t('pwf_save')+'</button>'+
+    '<button id="_pwfb" type="button" class="btn btn-primary" style="width:100%;justify-content:center;min-height:44px">'+t('pwf_save')+'</button>'+
   '</div>';
   const panel=ov.firstElementChild;panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.setAttribute('aria-labelledby','pwforce-title');panel.setAttribute('aria-describedby','pwforce-why');panel.querySelector('h3').id='pwforce-title';
   panel.prepend(createDialogLanguageSwitcher('pwforce-language'));
   ov.addEventListener('keydown',e=>{if(e.key==='Tab')trapDialogFocus(e,ov);});
+  const quit=document.createElement('button');quit.type='button';quit.className='btn';quit.style.marginTop='12px';quit.dataset.pwfI18n='exit';quit.textContent=t('exit');quit.onclick=()=>doLogout();panel.append(quit);
   document.body.appendChild(ov);
   if(soporta){
     const chk = ov.querySelector('#_pwfpk');
@@ -1136,13 +1144,13 @@ function forcePwChange(oldPass){
   ov.querySelector('#_pwfb').onclick=async function(){
     if(ov.dataset.saving==='true')return;
     const a=ov.querySelector('#_pwf1').value, b=ov.querySelector('#_pwf2').value;
-    if(!a||a.length<6) return err('pwf_short');
+    if(!a||[...a].length<15||a.length>128) return err('pwf_short');
     // No comparar contra oldPass si vinimos por Face ID (no la tenemos).
     if(!viaPasskey && a===oldPass) return err('pwf_same');
     if(a!==b) return err('pwf_nomatch');
     errorKey=null;errorResponse=null;busy(true);
     try{
-      // Se conserva el contrato de autenticación v2 sin cambiar el servidor.
+      // La sesión temporal autoriza únicamente elegir una contraseña personal.
       const payload = { newPass: a, ligaId: _ligaActual || undefined };
       if(!viaPasskey) payload.oldPass = oldPass;
       const r=await fetch('/api/password',{method:'POST',
@@ -1153,7 +1161,7 @@ function forcePwChange(oldPass){
       if(d.token)_token=d.token;
       const wantPk = soporta && ov.querySelector('#_pwfpk') && ov.querySelector('#_pwfpk').checked;
       ov.remove();
-      await _refreshAfterCredentialChange(d);
+      if(!await _refreshAfterCredentialChange(d))return;
       if(typeof toast==='function')toast(t('pass_changed')||'OK');
       if(wantPk && typeof activarPasskey==='function'){
         try{await activarPasskey();}catch(_){}
@@ -1168,7 +1176,7 @@ function forcePwChange(oldPass){
 async function changePw(){
   const o=document.getElementById('pw-old').value,n=document.getElementById('pw-new').value,n2=document.getElementById('pw-new2').value,a=document.getElementById('pw-alert');
   function al(m,cl){a.className='alert alert-'+cl;a.textContent=m;}
-  if(!n||n.length<6||n.length>128){al(t('pass_short'),'err');return;}
+  if(!n||[...n].length<15||n.length>128){al(t('pass_short'),'err');return;}
   if(n!==n2){al(t('pass_no_match'),'err');return;}
   // La contraseña anterior la verifica el servidor.
   if(!await _flushBeforeCredentialChange()){al(t('fix_pending_first'),'err');return;}
@@ -1180,8 +1188,9 @@ async function changePw(){
     });
     const d=await r.json().catch(()=>({}));
     if(!r.ok){al(apiError(d),'err');return;}
-    await _refreshAfterCredentialChange(d);
-  }catch(e){al('No se pudo conectar con el servidor.','err');return;}
+    ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id)&&(document.getElementById(id).value=''));
+    if(!await _refreshAfterCredentialChange(d))return;
+  }catch(e){al(t('err_no_server'),'err');return;}
   al(t('pass_ok'),'ok');
   ['pw-old','pw-new','pw-new2'].forEach(id=>document.getElementById(id)&&(document.getElementById(id).value=''));
 }

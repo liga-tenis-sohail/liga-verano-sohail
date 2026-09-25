@@ -50,7 +50,9 @@
     "bootstrap.js",
     "rating-client.js",
     "rating-explainer.js",
-    "rating.js"
+    "rating.js",
+    "security-account.js",
+    "security-account.css"
   ],
   "optional": [
     "favicon.ico"

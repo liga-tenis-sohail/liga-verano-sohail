@@ -94,7 +94,9 @@ module.exports = async function handler(req, res){
   if(req.query&&req.query.elegir){
     if(principalKey(session.u,uEnEstaLiga)!==session.pk)return res.status(403).json({error:'Esa liga pertenece a otra identidad.'});
     const record=await securityFor(session.u,state);
-    Object.assign(session,makeSession(session.u,uEnEstaLiga.role||'player',ligaId,state,record));
+    if(Number(record.epoch)!==session.sv)return res.status(401).json({code:'SESSION_EXPIRED',error:'La sesión cambió.'});
+    // Same sid, proof and absolute expiry when selecting another league.
+    Object.assign(session,{r:uEnEstaLiga.role||'player',src:ligaId,m:!!record.must_change});
     selectedToken=signToken(session);
   }
 

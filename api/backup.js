@@ -115,6 +115,11 @@ module.exports = async function handler(req, res){
       }
     } catch(_){ /* la retención es best-effort */ }
 
+    // Never export active sessions or challenges. Garbage collection reuses the
+    // existing cron and cannot turn a completed backup into a false failure.
+    let authCleanup='ok';
+    try{await require('./_auth-security').sessionRPC('cleanup');}
+    catch(_){authCleanup='pending';await logAudit('system','session.cleanup.fail',null,{},null);}
     logAudit('system', 'backup.ok', fname, { sizeBytes: gz.length, ms: Date.now() - started }, null);
 
     return res.status(200).json({
@@ -122,7 +127,8 @@ module.exports = async function handler(req, res){
       file: fname,
       sizeBytes: gz.length,
       totalMs: Date.now() - started,
-      keptOld
+      keptOld,
+      authCleanup
     });
   } catch(e){
     logAudit('system', 'backup.fail', null, { error: String(e.message || e).slice(0, 300) }, null);

@@ -73,7 +73,7 @@ function fixtureFetcher(mutate){const o=generated(),calls=[];const headers={'con
   return new Response(body||'missing',{status,headers:h});
  };return {fetcher,calls};}
 test('P1480 live checker verifies markers, asset hashes and blocked module routes with GET only',async()=>{
- const {fetcher,calls}=fixtureFetcher();const r=await checkLive('https://fixture.invalid/',fetcher);assert.equal(r.ok,true);assert.equal(calls.length,1+49+PRIVATE_PATHS.length);assert.ok(calls.every(x=>!x.url.includes('/__test__')));
+ const {fetcher,calls}=fixtureFetcher();const r=await checkLive('https://fixture.invalid/',fetcher);assert.equal(r.ok,true);assert.equal(calls.length,1+JSON.parse(fs.readFileSync(path.join(root,'scripts/public-assets.json'),'utf8')).assets.length+PRIVATE_PATHS.length);assert.ok(calls.every(x=>!x.url.includes('/__test__')));
 });
 test('P1480 live checker rejects an old successful deployment',async()=>{
  const {fetcher}=fixtureFetcher(x=>x.name==='index.html'?{body:x.body.toString().replace(RELEASE,'sohail-security-part1-v471')}:null);const r=await checkLive('https://fixture.invalid/',fetcher);assert.equal(r.ok,false);

@@ -3,10 +3,12 @@
 process.env.SESSION_SECRET='SOHAIL_LOCAL_TEST_NOT_A_SECRET';
 process.env.SUPABASE_URL='https://database.invalid';process.env.SUPABASE_SERVICE_KEY='sb_secret_test';
 const lib=require('../../api/_lib');
+const p2=require('./auth-part2.cjs');
 function result(data,status=200){return {status,ok:status<400,headers:new Headers(),json:async()=>structuredClone(data),text:async()=>JSON.stringify(data)};}
 function createDB(states){
- const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[],sohail_login_order:[]},requests:[],fault:null,latency:0,failWrites:0};
- db.setStates=(list)=>{for(const name of Object.keys(db.tables))db.tables[name]=[];db.tables.sohail_login_order.push({id:1,version:0,league_ids:[]});db.tables.sohail_identity_registry.push({id:1,version:0,data:{links:{},profiles:{},decisions:{}}});for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}}};
+ const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[],sohail_login_order:[],sohail_auth_sessions:[],sohail_auth_challenges:[]},requests:[],fault:null,latency:0,failWrites:0};
+ db._tokens=new Map();
+ db.setStates=(list)=>{db._tokens.clear();for(const name of Object.keys(db.tables))db.tables[name]=[];db.tables.sohail_login_order.push({id:1,version:0,league_ids:[]});db.tables.sohail_identity_registry.push({id:1,version:0,data:{links:{},profiles:{},decisions:{}}});for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}};for(const row of db.tables.liga_state)for(const n of Object.keys(row.data.users))db.token(n,row.id);};
  function rows(name,url){return db.tables[name].filter(row=>{for(const[k,v]of url.searchParams){if(['select','limit','offset','order','on_conflict'].includes(k))continue;
    if(v==='is.null'&&row[k]!=null)return false;if(v==='not.is.null'&&row[k]==null)return false;
    if(v.startsWith('eq.')&&String(row[k])!==v.slice(3))return false;
@@ -20,6 +22,7 @@ function createDB(states){
   if(db.latency)await new Promise(r=>setTimeout(r,db.latency));
   if(db.fault&&db.fault({name,method,url,body}))return result({error:'Database failure simulated'},503);
   if(url.pathname.includes('/rpc/')){
+   if(name.startsWith('sohail_p2_')){if(db.failWrites>0&&!(name==='sohail_p2_session'&&['read','list'].includes(body.p_action))){db.failWrites--;return result({error:'write failed'},503);}return result(p2.rpc(db,name,body,lib));}
    if(name==='sohail_set_login_league_order'){
     // Contract simulation only: not a substitute for executing the migration.
     const p=body,config=db.tables.sohail_login_order[0],source=db.state(p.p_source),u=source?.users[p.p_actor];
@@ -91,7 +94,10 @@ function createDB(states){
   }throw Error('Unsimulated HTTP method');
  };
  db.state=(id='liga-actual')=>db.tables.liga_state.find(x=>x.id===id)?.data;
- db.token=(name='Alicia',id='liga-actual')=>{const s=db.state(id),u=s.users[name],a=db.tables.sohail_account_security.find(x=>x.id===lib.principalKey(name,u));return lib.signToken(lib.makeSession(name,u.role,id,s,a));};
+ db.attachSession=s=>p2.attachSession(db,s);
+ db.newToken=(name='Alicia',id='liga-actual')=>{const s=db.state(id),u=s.users[name],a=db.tables.sohail_account_security.find(x=>x.id===lib.principalKey(name,u));return lib.signToken(p2.attachSession(db,lib.makeSession(name,u.role,id,s,a)));};
+ db.token=(name='Alicia',id='liga-actual')=>{const u=db.state(id).users[name],a=db.tables.sohail_account_security.find(x=>x.id===lib.principalKey(name,u));const key=[id,name,a.id,a.epoch,a.must_change].join('|');if(!db._tokens.has(key))db._tokens.set(key,db.newToken(name,id));return db._tokens.get(key);};
+
  db.setStates(states||[{id:'liga-actual',state:fixture()}]);return db;
 }
 let hash;function fixture(){if(!hash)hash=lib.hashV2('prueba123');const names=['Alicia','Beto','Ciro','Diego','Elena'];return {_v:3,users:Object.fromEntries([['admin',{role:'admin',name:'Organización',pass:hash,_credentialId:'org'}],['superadmin',{role:'superadmin',name:'Superadministrador',pass:hash,_credentialId:'super'}],...names.map((n,i)=>[n,{name:n,role:'player',jugadorId:'profile-'+i,pass:hash,email:n.toLowerCase()+'@example.invalid'}])]),LEAGUE_NAME:'Liga de pruebas 2026',LEAGUE_SUBTITLE:'',LOGIN_TITLE:'',ALLNAMES:names,cycles:[{n:1,status:'active',groups:[{players:names}]},{n:2,status:'locked',groups:null}],activeN:1,matches:[],matchId:1,playoff:{started:false,preview:false,numTramos:1,tramos:[],results:{},qualified:[],viewT:0,forcedSize:0},DESTINO:{1:['G1','G1','G1','G1','G1']},FECHAS:['01/09/26 - 30/09/26','01/10/26 - 31/10/26'],PO_FECHAS:{},PUNTOS:{1:[5,4,3,2,1]},AJUSTES_PUNTOS:{},LOG:[],JOIN_REQUESTS:[],CLUBS:[{name:'Sohail',bg:'#D6ECFB'},{name:'Club Haza',bg:'#FDE7BD'}],COLOR_DISPUTA:'#FFF3CD',LEAGUE_COLOR_PRI:'#1B4F9C',LEAGUE_COLOR_ACC:'#CED400',LEAGUE_COLOR_HL:'#FFF6C7',LOGIN_HEADER:{color:'#0E3470',textColor:'',colorDark:'',textColorDark:'',links:[]},RATING_ON:false,RATING_SEEDS:{},RATING_OVERRIDES:{},REGLAMENTO:'<p>Reglas de prueba</p>'};}

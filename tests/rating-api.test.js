@@ -12,7 +12,7 @@ test('RT440 API inactive source account: denied, even after a previous cache hit
 test('RT440 API revoked epoch: cannot use a cached sporting universe',()=>run(async db=>{const q=request(db);await call(handler,q);db.tables.sohail_account_security.find(x=>x.id===require('./support/mock-db.cjs').lib.principalKey('Alicia',db.state().users.Alicia)).epoch++;assert.equal((await call(handler,q)).status,401);}));
 test('RT440 API default password: guard stays enabled',()=>run(async db=>{const q=request(db);db.tables.sohail_account_security.find(x=>x.id===require('./support/mock-db.cjs').lib.principalKey('Alicia',db.state().users.Alicia)).must_change=true;assert.equal((await call(handler,q)).status,403);}));
 test('RT440 API private data: full snapshots never serialize contacts, passwords, logs or raw states',()=>run(async db=>{db.state().LOG=['hidden-log'];db.state().JOIN_REQUESTS=[{email:'secret'}];const r=await call(handler,request(db));const s=JSON.stringify(r.body);for(const value of ['private-phone','private-password','hidden-log','pass_hash','_credentialId','@example.invalid','JOIN_REQUESTS'])assert.ok(!s.includes(value),value);assert.equal(r.headers['Cache-Control'],'no-store');assert.equal(r.headers.Vary,'Authorization');}));
-test('RT440 API read-only: no writes / session switching / operation commits',()=>run(async db=>{await call(handler,request(db));assert.ok(db.requests.every(x=>x.method==='GET'));}));
+test('RT440 API read-only: no writes / session switching / operation commits',()=>run(async db=>{await call(handler,request(db));assert.ok(db.requests.every(x=>x.method==='GET'||(x.name==='sohail_p2_session'&&x.body.p_action==='read')));}));
 test('RT440 API client state or rating injection: rejected',()=>run(async db=>{const r=await call(handler,request(db,'admin',{state:{},seeds:{Alicia:16}}));assert.equal(r.status,400);}));
 test('RT440 API failed league read: no complete=true or partial success',()=>run(async db=>{db.fault=({name})=>name==='liga_state';const r=await call(handler,request(db));assert.equal(r.status,503);assert.equal(r.body.complete,undefined);}));
 test('RT440 API missing indexed state: fail closed rather than omit that league',()=>run(async db=>{db.tables.liga_state=db.tables.liga_state.filter(x=>x.id!=='past');const r=await call(handler,request(db));assert.equal(r.status,503);assert.equal(r.body.code,'RATING_SOURCE_INCOMPLETE');}));
@@ -33,7 +33,7 @@ test('RT450 API active method is the protected baseline plus diagnostic confiden
  const p=r.body.info[r.body.byLeague['liga-actual'].Alicia];assert.ok(Array.isArray(p.confidenceReasons));assert.equal(typeof p.opponentIndependentSupport,'number');
 }));
 for(const who of ['admin','superadmin'])test('RT450 API '+who+' cannot activate experimental weights with a request',()=>run(async db=>{
- const r=await call(handler,request(db,who,{opponentMode:'independent',opponentFloor:0.75}));assert.equal(r.status,400);assert.ok(db.requests.every(x=>x.method==='GET'));
+ const r=await call(handler,request(db,who,{opponentMode:'independent',opponentFloor:0.75}));assert.equal(r.status,400);assert.ok(db.requests.every(x=>x.method==='GET'||(x.name==='sohail_p2_session'&&x.body.p_action==='read')));
 }));
 test('RT450 API detailed provenance includes weight factors and independent evidence without contacts',()=>run(async db=>{
  const first=(await call(handler,request(db))).body,key=first.byLeague['liga-actual'].Alicia;

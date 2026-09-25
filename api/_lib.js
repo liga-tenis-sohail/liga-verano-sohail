@@ -82,22 +82,24 @@ async function securityFor(name,state){
     if((u.role||'player')!=='player')throw Object.assign(new Error('Cuenta administrativa sin credencial.'),{status:503,code:'IDENTITY_UNAVAILABLE'});
     stored=hashV2('tenis');
   }
-  const body={id:key,pass_hash:stored,must_change:defaultStored(stored)};
+  const body={id:key,pass_hash:stored,must_change:u.passwordTemporary===true||defaultStored(stored)};
   const q=await fetch(SUPA_URL+'/rest/v1/sohail_account_security',{method:'POST',headers:supaHeaders({'Content-Type':'application/json',Prefer:'resolution=ignore-duplicates,return=representation'}),body:JSON.stringify(body)});
   if(!q.ok)throw Object.assign(new Error('No se pudo preparar la sesión.'),{status:503,code:'SCHEMA_REQUIRED'});
   const rows=await q.json();return rows[0]||await readAccount(key);
 }
 function makeSession(name,role,ligaId,state,record){
   if(!record)throw new Error('Falta la versión de credenciales verificada.');
-  return {u:name,r:role,src:ligaId,pk:record.id,sv:Number(record.epoch),m:!!record.must_change,exp:Date.now()+SESSION_MIN*60000};
+  const now=Date.now();
+  return {u:name,r:role,src:ligaId,pk:record.id,sv:Number(record.epoch),m:!!record.must_change,typ:'session-p2',sid:crypto.randomBytes(32).toString('base64url'),iat:now,exp:now+(record.must_change?15*60000:SESSION_MIN*60000)};
 }
 async function auth(req,allowDefault){
   const h=req.headers&&req.headers.authorization||'';
   const session=verifyToken(h.startsWith('Bearer ')?h.slice(7):'');
   // Los tokens de la versión anterior se invalidan en este despliegue.
   if(!session||!session.pk||!Number.isSafeInteger(session.sv)||!ligaIdOK(session.src))return null;
-  const account=await readAccount(session.pk);
+  const account=await require('./_auth-security').validateSession(session);
   if(!account||Number(account.epoch)!==session.sv)return null;
+  session.authAt=account.authAt;session.amr=account.amr;
   const source=await readState(session.src),u=source&&source.users&&source.users[session.u];
   if(!u||u.inactive||principalKey(session.u,u)!==session.pk)return null;
   session.r=u.role||'player';session.m=!!account.must_change;
@@ -105,9 +107,9 @@ async function auth(req,allowDefault){
   return session;
 }
 function renewIfStale(session){
-  if(!session)return null;
-  const total=SESSION_MIN*60000;if(session.exp-Date.now()>total/2)return null;
-  return signToken({...session,exp:Date.now()+total});
+  // Absolute expiry: a state read, cookie resume or league switch never grants
+  // another day. A fresh password/passkey authentication is required.
+  return null;
 }
 
 // Una cuenta dada de baja pierde el acceso aunque tenga un token vivo.
@@ -141,11 +143,13 @@ function puedeGestionarAdmins(session){
 // copiarlo porque readState() devuelve uno nuevo en cada request, y clonar 222 KB
 // en cada login costaba tiempo y memoria para nada.
 function filterForSession(state, session){
+  if(session?.m){const limited=filterPublicState(state);if(limited.users[session.u])limited.users[session.u].passwordDefault=true;return limited;}
   const admin=sesionEsAdmin(session,state.users);
   for(const [name,u] of Object.entries(state.users||{})){
     if(!u||typeof u!=='object')continue;
-    u.passwordDefault=POR_DEFECTO_V2.has(u.pass||'')||['tenis','admin123',hashV1('tenis'),hashV1('admin123')].includes(u.pass);
+    u.passwordDefault=u.passwordTemporary===true||POR_DEFECTO_V2.has(u.pass||'')||['tenis','admin123',hashV1('tenis'),hashV1('admin123')].includes(u.pass);
     if(admin)u.identityRef=require('./_validation').identityRef(name,u);
+    if(session&&name===session.u)u.passwordDefault=!!session.m;
     delete u.pass;
     if(!admin&&(!session||name!==session.u)){delete u.email;delete u.tel;delete u._credentialId;}
   }
@@ -191,6 +195,8 @@ function resolveLigaId(value){
 // Never accept the stored hash as proof of knowledge of a password.
 function verifyPassword(stored,plain){
   if(typeof stored!=='string'||typeof plain!=='string'||!plain||plain.length>128)return false;
+  // Legacy helper is never proof for a modern hash; use the asynchronous v3 verifier.
+  if(/^v[3-9][0-9]*:/.test(stored)||/^v[0-9]{2,}:/.test(stored))return false;
   const expected=stored.startsWith('v2:')?hashV2(plain):stored.startsWith('v1:')?hashV1(plain):plain;
   const a=Buffer.from(stored),b=Buffer.from(expected);
   return a.length===b.length&&crypto.timingSafeEqual(a,b);

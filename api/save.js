@@ -125,6 +125,15 @@ async function _handlerSave(req, res){
   try { protectState(current, incoming, session, admin, puedeGestionarAdmins(session)); }
   catch(e){ return res.status(e.status || 400).json({ error:e.message, code:e.code || 'INVALID_STATE' }); }
 
+  // Step-up before changing account membership, roles or availability. Sporting
+  // results and cosmetic/profile edits do not need repeated authentication.
+  const accountFields=['role','isAdmin','inactive','jugadorId','_credentialId'];
+  const accountChanges=[...new Set([...Object.keys(curUsers),...Object.keys(incoming.users)])].some(name=>{
+    const a=curUsers[name],b=incoming.users[name];
+    return !a||!b||accountFields.some(k=>JSON.stringify(a[k])!==JSON.stringify(b[k]));
+  });
+  if(accountChanges)require('./_auth-security').ensureFresh(session);
+
   // Solo ligas adheridas; no migra las históricas. Ejecutado DESPUÉS del
   // control de permisos y versión, y ANTES de la escritura transaccional.
   destinosAuto.reconcile(incoming,current);

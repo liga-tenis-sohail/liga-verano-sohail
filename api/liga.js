@@ -179,6 +179,8 @@ module.exports = async function handler(req, res){
   // Ambas necesitan `body.ligaId` = la liga donde está logueado AHORA (para
   // verificar identidad: session.u tiene que existir como user real ahí).
 
+  if(['eliminarJugador','agregarJugadores','crear','eliminar','reabrir'].includes(accion))require('./_auth-security').ensureFresh(session);
+
   if(accion === 'misLigas'){
     const ligaOrigen = String(body.ligaId || '');
     if(!ligaIdOK(ligaOrigen)) return res.status(400).json({ error: 'Falta indicar tu liga actual.' });

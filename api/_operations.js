@@ -50,6 +50,7 @@ async function replay(id,ctx,kind,proof){
 }
 function planProof(ctx,kind,states,reg,extra){return digest({kind,actor:ctx.session.pk,epoch:ctx.session.sv,source:ctx.session.src,sourceV:ctx.source._v||0,states,registry:reg,extra});}
 async function commit(ctx,{kind,states,reg,newRegistry,proof,operationId,summary}){
+ require('./_auth-security').ensureFresh(ctx.session);
  if(!uuid(operationId))throw new AppError(400,'INVALID_OPERATION','Falta identificar la operación.');
  const s=ctx.session,locks=states.map(clone);
  if(!locks.some(x=>x.id===s.src))locks.push({id:s.src,expected:ctx.source._v||0,write:false});
