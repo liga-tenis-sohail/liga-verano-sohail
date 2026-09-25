@@ -19,9 +19,15 @@ jobs:
     name: Integridad, regresión y seguridad local
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      SUPABASE_URL: https://database.invalid
+      SUPABASE_SERVICE_KEY: sb_secret_test
+      SESSION_SECRET: SOHAIL_LOCAL_TEST_NOT_A_SECRET
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       - name: Mostrar el commit que se está comprobando
         shell: bash
@@ -52,7 +58,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup Node (misma versión que package.json)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: package.json
 
@@ -69,11 +75,11 @@ jobs:
             fi
           done
 
-      # Conserva el método de instalación recibido: el paquete no incluye lockfile.
-      # No habilita scripts de instalación de las dependencias.
+      # npm ci when a committed lockfile exists; first resolution is reported.
+      # Lifecycle scripts stay disabled.
       - name: Instalar dependencias sin scripts de instalación
         id: install
-        run: npm install --ignore-scripts --no-audit --no-fund
+        run: node scripts/install-dependencies.cjs
 
       - name: Verificar todos los scripts, recursos y rutas de public
         id: integrity
@@ -86,6 +92,14 @@ jobs:
         id: tests
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm test
+
+      - name: Security of source and publication boundary
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run security:source
+
+      - name: Build browser-only output and verify its exact contents
+        if: ${{ success() }}
+        run: npm run build && npm run security:output
 
       - name: Resumen de los resultados (no cambia el resultado de las pruebas)
         if: ${{ always() }}

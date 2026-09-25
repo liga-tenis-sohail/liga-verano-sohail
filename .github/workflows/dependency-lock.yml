@@ -1,0 +1,30 @@
+name: Revisar dependencias (Parte 1)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persistent repository credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: package.json
+      - name: Resolve, install without lifecycle scripts and audit the exact lock
+        run: npm run deps:lock
+      - name: Export only the validated lock (no code, secrets, DB or deployment)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: package-lock-validado
+          path: package-lock.json
+          retention-days: 3
+          if-no-files-found: error
