@@ -81,9 +81,11 @@ for(const lang of ['es','en'])test('INJ league report does not count absences as
  const rows=sheets.export_sheet_jugadores;for(const name of ['Alicia','Beto','Ciro']){const row=rows.find(r=>r[0]===name);assert.equal(row[4],0);assert.equal(row[5],0);assert.equal(row[6],0);assert.equal(row[8],0);assert.equal(row[9],0);}
  const injuries=sheets.export_sheet_partidos.slice(1).filter(r=>r[3]==='Alicia');assert.equal(injuries.length,2);for(const r of injuries){assert.equal(r[5],'');assert.equal(r[6],'');assert.equal(r[7],lang==='en'?'Injury · not played · no points':'Lesión · no jugado · sin puntos');}
 });
-test('RULES all changed public modules receive the same new cache version without duplicate loading',()=>{
+test('RULES and 491 public modules receive their exact cache version without duplicate loading',()=>{
  const s=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');for(const name of ['core-estado.js','persistencia.js','reglamento.js','shell-render.js','ui-modern.js','ui-modern.css','admin-workspace.js','jugadores-perfiles.js','resultados-y-grupos.js','admin-ciclos-config.js','login-auth-p2.js','history-leagues.js','match-history.js']){
-  assert.equal(s.split(name+'?v=sohail-v480-rules-injuries').length-1,1,name);
+  const tag=['ui-modern.css','jugadores-perfiles.js','resultados-y-grupos.js'].includes(name)?'sohail-v491-passwords-injury-access':'sohail-v480-rules-injuries';
+  assert.equal(s.split(name+'?v='+tag).length-1,1,name);
+  assert.equal(s.split(name+'?v=').length-1,1,name+' loaded once');
  }
  assert.ok(!fs.existsSync(path.join(__dirname,'../api/injuries.js')),'Reuse an existing Function; no new public function deployment.');
 });

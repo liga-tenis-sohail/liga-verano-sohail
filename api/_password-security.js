@@ -4,10 +4,10 @@
 const crypto = require('node:crypto');
 const {promisify} = require('node:util');
 const scrypt = promisify(crypto.scrypt), pbkdf2 = promisify(crypto.pbkdf2);
-const N=32768, R=8, P=3, BYTES=32, MAX_BYTES=512, MIN_LENGTH=15, MAX_LENGTH=128;
+const N=32768, R=8, P=3, BYTES=32, MAX_BYTES=512, MIN_LENGTH=6, MAX_LENGTH=128;
 const PREFIX=`v3:scrypt:${N}:${R}:${P}:`;
 const FORMAT=/^v3:scrypt:32768:8:3:([0-9a-f]{32}):([0-9a-f]{64})$/;
-const DEFAULTS=new Set(['tenis','admin123','123456789012345','1234567890123456','passwordpassword','password12345678','qwertyuiopasdfgh','qwertyuiop123456']);
+const DEFAULTS=new Set(['tenis','admin123','123456','1234567','12345678','123456789','1234567890','qwerty','qwerty123','password','abc123','abcdef','tenis123','123456789012345','1234567890123456','passwordpassword','password12345678','qwertyuiopasdfgh','qwertyuiop123456']);
 let active=0;const waiting=[];
 async function costly(fn){
  if(active>=2){

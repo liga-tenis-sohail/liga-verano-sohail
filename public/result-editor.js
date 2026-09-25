@@ -31,7 +31,20 @@
   guard_save_edit:'Save correction',guard_view_groups:'View standings and results',guard_review_closed:'This cycle is closed. Players can only view it; contact the organisers to request a correction.',
   guard_admin_closed_title:'Correct results from closed cycles',guard_admin_closed_help:'Closed cycles do not accept new matches. Open the cycle, select a saved score and choose Edit. A warning will appear before you save the correction.'
  });
+ Object.assign(TRANSLATIONS.es,{re_injury_manage:'Lesión · no jugado',re_injury_hint:'Administración: registrá desde acá uno o varios cruces no jugados por lesión, o corregí una ausencia. No es W.O. ni retiro; no otorga puntos.',re_injury_unavailable:'No se pudo abrir Lesiones. Recargá la página.'});
+ Object.assign(TRANSLATIONS.en,{re_injury_manage:'Injury · not played',re_injury_hint:'Administrators: record one or more matches not played due to injury here, or correct an absence. This is not a walkover or retirement; no points are awarded.',re_injury_unavailable:'Could not open Injuries. Reload the page.'});
  const e=s=>attr(s==null?'':s), copy=x=>JSON.parse(JSON.stringify(x));
+ function injuryTools(c){
+  if(c.po||!currentUser||!esAdmin(currentUser)||_ligaReadOnly||!_loadOK||typeof isTutorialRunning==='function'&&isTutorialRunning())return '';
+  return '<section class="re-injury-tools"><button type="button" class="btn" data-injury-manage aria-haspopup="dialog">'+e(t('re_injury_manage'))+'</button><p>'+e(t('re_injury_hint'))+'</p></section>';
+ }
+ function openInjuries(m){
+  if(m.saving||m.league!==_ligaActual||m.key!==_saveSessionKey()||!injuryTools(m.c))return;
+  if(!global.SohailInjuries?.open){toast(t('re_injury_unavailable'));return;}
+  readModel(m);
+  global.SohailInjuries.open({player:m.c.a||'',cycle:m.c.cycle,opponent:m.c.b||'',onSaved:()=>{readModel(m);update(m);}});
+ }
+
  const instances=new Map();let serial=0;let activeModal=null;
  const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
  const names=m=>m.po?m.poNames:[m.aName,m.bName];
@@ -122,7 +135,8 @@
   const cy=cycles.find(x=>x.n===c.cycle),pl=cy?.groups?.[c.gid-1]?.players?.filter(Boolean)||[];
   if(!m.original&&!SohailResultPolicy.phaseOpen(policyState(),c)){
    host.oninput=null;host.onchange=null;host.onclick=null;
-   host.innerHTML='<section class="re-guard-notice"><h2>'+e(t('guard_closed'))+'</h2><p>'+e(t(c.po?'guard_po_closed':'guard_closed_help'))+'</p><button type="button" class="btn" data-ui-route="'+(c.po?'po':'grupos')+'">'+e(t('guard_view_groups'))+'</button></section>';
+   host.innerHTML='<section class="re-guard-notice"><h2>'+e(t('guard_closed'))+'</h2><p>'+e(t(c.po?'guard_po_closed':'guard_closed_help'))+'</p><button type="button" class="btn" data-ui-route="'+(c.po?'po':'grupos')+'">'+e(t('guard_view_groups'))+'</button></section>'+injuryTools(c);
+   host.onclick=ev=>{if(ev.target.closest('[data-injury-manage]'))openInjuries(m);};
    return;
   }
   const choose=!isModal&&!m.original;
@@ -133,7 +147,7 @@
   const player=(side,name)=>choose&&!c.po&&(side==='b'||esAdmin(currentUser))?'<label for="'+id+'-'+side+'" class="ui-sr-only">'+e(t(side==='a'?'re_a':'re_b'))+'</label><select id="'+id+'-'+side+'" data-context="'+side+'" data-field="'+side+'">'+opt('',t('re_choose_player'),name)+pl.filter(n=>(!USERS[n]?.inactive||n===name)&&n!==c[side==='a'?'b':'a']).map(n=>{const cc={...c,[side]:n};const saved=!!SohailResultPolicy.existing(policyState(),cc);return opt(n,n+(saved?' · '+t('guard_saved_option'):''),name,saved);}).join('')+'</select>':'<strong>'+e(name||t(side==='a'?'re_a':'re_b'))+'</strong>';
   const num=(i,j)=>'<label for="'+id+'-s'+i+j+'" class="ui-sr-only">'+e([c.a||t('re_a'),c.b||t('re_b')][j])+' · Set '+(i+1)+'</label><input id="'+id+'-s'+i+j+'" data-field="s'+i+j+'" type="number" min="0" max="7" step="1" inputmode="numeric" placeholder="—" value="'+e(m.sets[i][j])+'">';
   const tb=j=>'<label for="'+id+'-stb'+j+'" class="ui-sr-only">'+e(t('re_stb')+' · '+[c.a||t('re_a'),c.b||t('re_b')][j])+'</label><input id="'+id+'-stb'+j+'" data-field="stb'+j+'" type="number" min="0" max="1" step="1" inputmode="numeric" placeholder="—" aria-describedby="'+id+'-stb-help" value="'+e(m.stb[j])+'">';
-  host.innerHTML='<div class="re-heading"><span class="ui-brand-mark">'+SohailUI.icon('matches')+'</span><div><h2 id="'+id+'-title">'+e(t(m.original?'re_edit':'re_title'))+'</h2><p>'+e(t('re_intro'))+'</p></div>'+(isModal?'<button type="button" class="re-close" data-close aria-label="'+e(t('close'))+'">'+SohailUI.icon('close')+'</button>':'')+'</div><p class="re-scope"></p>'+chooseHtml+
+  host.innerHTML='<div class="re-heading"><span class="ui-brand-mark">'+SohailUI.icon('matches')+'</span><div><h2 id="'+id+'-title">'+e(t(m.original?'re_edit':'re_title'))+'</h2><p>'+e(t('re_intro'))+'</p></div>'+(isModal?'<button type="button" class="re-close" data-close aria-label="'+e(t('close'))+'">'+SohailUI.icon('close')+'</button>':'')+'</div><p class="re-scope"></p>'+injuryTools(c)+chooseHtml+
    (m.original?'<section class="re-guard-notice re-correction-notice"><strong>'+e(t('guard_correction'))+'</strong><p>'+e(t('guard_correction_help'))+'</p></section>':'<p class="re-help">'+e(t('guard_new_hint'))+'</p><p class="re-guard-notice" data-admission role="status" hidden></p>')+
    '<div class="re-metadata"><fieldset class="re-club-fieldset" aria-describedby="'+id+'-club-help"><legend>'+e(t('re_club'))+' <span aria-hidden="true">*</span></legend><div class="re-club-buttons">'+clubButtons(m)+'</div><p id="'+id+'-club-help" class="re-help">'+e(t('re_club_help'))+'</p></fieldset><div><label for="'+id+'-date">'+e(t('re_date'))+' <span aria-hidden="true">*</span></label><input id="'+id+'-date" type="date" data-field="date" required value="'+e(m.date)+'"></div></div>'+
    '<div class="re-player-heading">'+e(t('re_players'))+'</div><div class="re-players"><div>'+SohailUI.icon('profile')+player('a',c.a)+'</div><span class="re-vs">vs</span><div>'+SohailUI.icon('profile')+player('b',c.b)+'</div></div>'+
@@ -155,7 +169,7 @@
     const fresh=createModel(context(cc),id);Object.assign(m,fresh);m.host=host;draw(m,host,isModal);return;}
    readModel(m);m.dirty=true;update(m);
   };
-  host.onclick=ev=>{const btn=ev.target.closest('button');if(!btn||btn.disabled)return;if(btn.dataset.mode){readModel(m);m.mode=btn.dataset.mode;m.loser='';m.stb=['',''];const l=host.querySelector('[data-field="loser"]');if(l)l.value='';m.dirty=true;update(m);}if(btn.hasAttribute('data-close')){if(isModal)requestClose(m);else if(!m.dirty||confirm(t('re_discard')))reset(m,host);}if(btn.hasAttribute('data-save'))save(m,isModal);};
+  host.onclick=ev=>{const btn=ev.target.closest('button');if(!btn||btn.disabled)return;if(btn.hasAttribute('data-injury-manage')){openInjuries(m);return;}if(btn.dataset.mode){readModel(m);m.mode=btn.dataset.mode;m.loser='';m.stb=['',''];const l=host.querySelector('[data-field="loser"]');if(l)l.value='';m.dirty=true;update(m);}if(btn.hasAttribute('data-close')){if(isModal)requestClose(m);else if(!m.dirty||confirm(t('re_discard')))reset(m,host);}if(btn.hasAttribute('data-save'))save(m,isModal);};
  }
  function showError(m,key,field){const error=m.host.querySelector('.re-error');error.hidden=false;error.textContent=t(key);if(field){if(field==='club')m.host.querySelector('.re-club-fieldset')?.setAttribute('aria-invalid','true');const el=m.host.querySelector('[data-field="'+field+'"]');if(el){el.setAttribute('aria-invalid','true');el.focus();return;}}error.focus();}
  function isSaving(){return [...instances.values()].some(m=>m.saving);}
@@ -215,6 +229,7 @@
   else if(m.host.isConnected&&m.host.dataset.editorId===m.id){update(m);showError(m,_saveConflict?'fix_conflict':'re_failed');}
  }
  function clearSession(){
+  global.SohailInjuries?.clearSession?.();
   // Removing a focused input can emit change while its parent is cleared.
   // Detach the old handlers and invalidate the owner before removing DOM.
   for(const m of instances.values()){if(m.host){m.host.oninput=null;m.host.onchange=null;m.host.onclick=null;delete m.host.dataset.editorId;}}

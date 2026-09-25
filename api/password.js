@@ -15,7 +15,7 @@ module.exports=require('./_http').wrap(async function(req,res){
  if(other&&(!lib.sesionEsAdmin(session,state.users)||session.m))return res.status(403).json({error:'No tenés permiso para cambiar esa contraseña.',code:'FORBIDDEN'});
  if(other&&(target.role==='superadmin'||(!lib.puedeGestionarAdmins(session)&&(name==='admin'||target.role==='admin'||target.isAdmin))))return res.status(403).json({error:'No tenés permiso para administrar esa cuenta.',code:'FORBIDDEN'});
  if(other)security.ensureFresh(session);
- if(!passwords.policy(newPass,{temporary:other}))return res.status(400).json({error:other?'Usá tenis o una contraseña temporal de 15 a 128 caracteres.':'Elegí una contraseña personal de 15 a 128 caracteres, distinta de las predeterminadas.',code:'PASSWORD_POLICY'});
+ if(!passwords.policy(newPass,{temporary:other}))return res.status(400).json({error:other?'Usá tenis o una contraseña temporal de 6 a 128 caracteres.':'Elegí una contraseña personal de 6 a 128 caracteres, distinta de las predeterminadas.',code:'PASSWORD_POLICY'});
  const account=await lib.securityFor(name,state);
  if(!other){
   const keys=['change-password:'+session.pk,'change-password-ip:'+lib.clientIP(req)];

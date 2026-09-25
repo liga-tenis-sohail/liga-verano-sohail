@@ -1006,7 +1006,7 @@ async function resetPwd(name){
 async function setPlayerPwd(name){
   if(!USERS[name]||esCuentaSistema(name))return;
   const inp=document.getElementById('pe-pass-'+name),pw=inp?inp.value:'';
-  if(pw!=='tenis'&&([...pw].length<15||pw.length>128)){toast(t('pass_short'));return;}
+  if(pw!=='tenis'&&([...pw].length<6||pw.length>128)){toast(t('pass_short'));return;}
   // Nunca mostrar ni registrar la contraseña en una confirmación.
   if(!confirm(tf('fix_change_password_for',{n:name})))return;
   if(!await _flushBeforeCredentialChange()){toast(t('fix_pending_first'));return;}
@@ -1144,7 +1144,7 @@ function forcePwChange(oldPass){
   ov.querySelector('#_pwfb').onclick=async function(){
     if(ov.dataset.saving==='true')return;
     const a=ov.querySelector('#_pwf1').value, b=ov.querySelector('#_pwf2').value;
-    if(!a||[...a].length<15||a.length>128) return err('pwf_short');
+    if(!a||[...a].length<6||a.length>128) return err('pwf_short');
     // No comparar contra oldPass si vinimos por Face ID (no la tenemos).
     if(!viaPasskey && a===oldPass) return err('pwf_same');
     if(a!==b) return err('pwf_nomatch');
@@ -1176,7 +1176,7 @@ function forcePwChange(oldPass){
 async function changePw(){
   const o=document.getElementById('pw-old').value,n=document.getElementById('pw-new').value,n2=document.getElementById('pw-new2').value,a=document.getElementById('pw-alert');
   function al(m,cl){a.className='alert alert-'+cl;a.textContent=m;}
-  if(!n||[...n].length<15||n.length>128){al(t('pass_short'),'err');return;}
+  if(!n||[...n].length<6||n.length>128){al(t('pass_short'),'err');return;}
   if(n!==n2){al(t('pass_no_match'),'err');return;}
   // La contraseña anterior la verifica el servidor.
   if(!await _flushBeforeCredentialChange()){al(t('fix_pending_first'),'err');return;}
@@ -1461,7 +1461,7 @@ async function importarListaJugadores(inputEl){
  es:{title:'Lesiones',hint:'Marcá la disponibilidad actual y los cruces no jugados por lesión. Solo fase de grupos: no adjudica victorias ni puntos y no altera playoffs.',player:'Jugador',choose:'Elegí un jugador',cycle:'Ciclo',none:'Sin ciclo con grupo asignado',flag:'Lesionado actualmente',flagHelp:'Esta marca no bloquea el acceso, no da de baja al jugador ni modifica todos sus partidos. Quitarla no borra las ausencias anteriores.',opponents:'Cruces no jugados por lesión',empty:'Este jugador no tiene rivales disponibles en el ciclo seleccionado.',all:'Seleccionar disponibles',clear:'Quitar selección',savedRow:'Ausencia guardada',freeRow:'Sin resultado registrado',lockedRow:'Ya tiene un registro: no se reemplaza',own:'Tu propio partido: lo gestiona otro administrador',save:'Guardar lesión y cruces',saving:'Guardando…',saved:'Cambios de lesión guardados.',unchanged:'No había cambios para guardar.',summary:'Seleccionados: {n}. Se agregan {a} ausencias y se quitan {r}.',explain:'No se suman PJ, victorias, derrotas, games ni rating. Ambos quedan con 0 puntos por ese cruce y se registra como no jugado por lesión. Los puntos por posición del grupo mantienen sus reglas.',remove:'Desmarcar una ausencia guardada vuelve a dejar ese cruce sin resultado. No borra partidos disputados.',discard:'Hay cambios sin guardar. ¿Descartarlos para cambiar de jugador o ciclo?',confirm:'¿Guardar estos cambios?\n{summary}\nNo se asignarán victorias ni puntos por estas ausencias.',pending:'Primero guardá o resolvé los otros cambios pendientes de la liga.',reload:'No se confirmó el estado final. Recargá antes de volver a editar o reintentar.',reloadBtn:'Recargar datos',changed:'La liga o la sesión cambió. Volvé a abrir Lesiones.',closed:'La liga es de solo lectura.',marker:'Lesionado',noChange:'Sin cambios pendientes.',conflict:'Los datos cambiaron. Recargá antes de guardar.',unavailable:'No se pudo guardar. Revisá la conexión antes de reintentar.'},
  en:{title:'Injuries',hint:'Mark current availability and matches not played due to injury. Group stage only: no wins or points are awarded and playoffs are unchanged.',player:'Player',choose:'Choose a player',cycle:'Cycle',none:'No cycle with an assigned group',flag:'Currently injured',flagHelp:'This flag does not block sign-in, deactivate the player or change all their matches. Clearing it does not remove past absences.',opponents:'Matches not played due to injury',empty:'This player has no available opponents in the selected cycle.',all:'Select available',clear:'Clear selection',savedRow:'Absence saved',freeRow:'No result recorded',lockedRow:'Already recorded: will not be replaced',own:'Your own match: another administrator must manage it',save:'Save injury and matches',saving:'Saving…',saved:'Injury changes saved.',unchanged:'There were no changes to save.',summary:'Selected: {n}. Add {a} absences and remove {r}.',explain:'No matches played, wins, losses, games or rating are added. Both receive 0 points for this fixture and it is recorded as not played due to injury. Group position points keep their existing rules.',remove:'Clearing a saved absence leaves that fixture without a result again. Played matches are never deleted.',discard:'There are unsaved changes. Discard them to switch player or cycle?',confirm:'Save these changes?\n{summary}\nNo wins or points will be awarded for these absences.',pending:'Save or resolve the league’s other pending changes first.',reload:'The final state could not be confirmed. Reload before editing or retrying.',reloadBtn:'Reload data',changed:'The league or session changed. Reopen Injuries.',closed:'This league is read-only.',marker:'Injured',noChange:'No pending changes.',conflict:'The data changed. Reload before saving.',unavailable:'Could not save. Check the connection before retrying.'}
  };
- let draftMemory=null;
+ let draftMemory=null,injuryDialog=null,dialogSerial=0;
  const text=k=>copy[LANG==='en'?'en':'es'][k]||k;
  const format=(k,v)=>text(k).replace(/\{(\w+)\}/g,(_,x)=>String(v[x]??''));
  const el=(tag,cls,value)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(value!=null)n.textContent=value;return n;};
@@ -1479,42 +1479,45 @@ async function importarListaJugadores(inputEl){
    return {name:n,selected,disabled:own||records.length>0&&!selected,reason:own?'own':selected?'savedRow':records.length?'lockedRow':'freeRow'};
   });
  }
- function createPanel(){
-  const panel=el('section','card inj-panel'),stamp=ctx(),remembered=draftMemory?.stamp===ctx()?draftMemory:null;
+ function createPanel(options={}){
+  const panel=el('section','card inj-panel'),stamp=ctx(),remembered=options.fresh?null:draftMemory?.stamp===ctx()?draftMemory:null;
+  const prefix=options.idPrefix||'inj';
+  const translated=(tag,cls,key)=>{const n=el(tag,cls,text(key));n.dataset.injText=key;return n;};
   let name='',cycle=null,rows=[],baseSelected=new Set(),selected=new Set(),baseFlag=false,flag=false,version=_stateV,busy=false,uncertain=false;
-  const head=el('h2','section-lbl',text('title')),ps=el('select'),cs=el('select'),flagBox=el('input'),list=el('div','inj-list'),summary=el('p','inj-summary'),status=el('p','inj-status');
-  ps.id='inj-player';cs.id='inj-cycle';flagBox.type='checkbox';flagBox.id='inj-flag';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
-  const selectLabel=(label,input)=>{const n=el('label','inj-field',label);n.append(input);return n;};
+  const head=translated('h2','section-lbl','title'),ps=el('select'),cs=el('select'),flagBox=el('input'),list=el('div','inj-list'),summary=el('p','inj-summary'),status=el('p','inj-status');
+  head.id=prefix+'-title';ps.id=prefix+'-player';cs.id=prefix+'-cycle';flagBox.type='checkbox';flagBox.id=prefix+'-flag';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  const selectLabel=(key,input)=>{const n=el('label','inj-field');n.append(translated('span','',key),input);return n;};
   ps.add(new Option(text('choose'),''));for(const n of ALLNAMES.filter(n=>USERS[n]&&!['admin','superadmin'].includes(n)).sort((a,b)=>a.localeCompare(b)))ps.add(new Option(n,n));
-  const flagLabel=el('label','inj-flag');flagLabel.append(flagBox,el('span','',text('flag')));
-  const fieldset=el('fieldset','inj-opponents');fieldset.append(el('legend','',text('opponents')));
+  const flagLabel=el('label','inj-flag');flagLabel.append(flagBox,translated('span','','flag'));
+  const fieldset=el('fieldset','inj-opponents');fieldset.append(translated('legend','','opponents'));
   const tools=el('div','gap-sm');tools.append(btn(text('all'),()=>{for(const r of rows)if(!r.disabled)selected.add(r.name);paint();}),btn(text('clear'),()=>{for(const r of rows)if(!r.disabled)selected.delete(r.name);paint();}));
-  fieldset.append(tools,list,summary,el('p','inj-help',text('remove')));
+  tools.children[0].dataset.injText='all';tools.children[1].dataset.injText='clear';
+  fieldset.append(tools,list,summary,translated('p','inj-help','remove'));
   const save=btn(text('save'),submit);save.classList.add('btn-primary');
-  panel.append(head,selectLabel(text('player'),ps),selectLabel(text('cycle'),cs),flagLabel,el('p','inj-help',text('flagHelp')),fieldset,el('p','inj-help',text('explain')),save,status);
+  panel.append(head,selectLabel('player',ps),selectLabel('cycle',cs),flagLabel,translated('p','inj-help','flagHelp'),fieldset,translated('p','inj-help','explain'),save,status);
   const changes=()=>({n:selected.size,a:[...selected].filter(n=>!baseSelected.has(n)).length,r:[...baseSelected].filter(n=>!selected.has(n)).length});
   const dirty=()=>{const c=changes();return flag!==baseFlag||c.a>0||c.r>0;};
   function choose(){
    rows=choices(name,cycle);baseSelected=new Set(rows.filter(r=>r.selected).map(r=>r.name));selected=new Set(baseSelected);baseFlag=!!USERS[name]?.injured;flag=baseFlag;version=_stateV;paint();
   }
-  ps.onchange=()=>{if(dirty()&&!confirm(text('discard'))){ps.value=name;return;}name=ps.value;cs.replaceChildren();const opts=cycles.filter(c=>['active','finished'].includes(c.status)&&c.groups?.some(g=>g?.players?.includes(name)));for(const c of opts)cs.add(new Option(text('cycle')+' '+c.n,String(c.n)));cycle=opts.some(c=>c.n===activeN)?activeN:opts.at(-1)?.n??null;if(cycle===null)cs.add(new Option(text('none'),''));else cs.value=String(cycle);choose();};
+  ps.onchange=()=>{if(dirty()&&!confirm(text('discard'))){ps.value=name;return;}name=ps.value;cs.replaceChildren();const opts=cycles.filter(c=>['active','finished'].includes(c.status)&&c.groups?.some(g=>g?.players?.includes(name)));for(const c of opts)cs.add(new Option(text('cycle')+' '+c.n,String(c.n)));cycle=opts.some(c=>c.n===options.cycle)?options.cycle:opts.some(c=>c.n===activeN)?activeN:opts.at(-1)?.n??null;if(cycle===null)cs.add(new Option(text('none'),''));else cs.value=String(cycle);choose();};
   cs.onchange=()=>{if(dirty()&&!confirm(text('discard'))){cs.value=String(cycle??'');return;}cycle=Number(cs.value)||null;choose();};
   flagBox.onchange=()=>{flag=flagBox.checked;paint();};
   function paint(){
    const focused=list.contains(document.activeElement)?document.activeElement.getAttribute('aria-label'):null;
    list.replaceChildren();
-   for(const r of rows){const l=el('label','inj-row'),check=el('input');check.type='checkbox';check.checked=selected.has(r.name);check.disabled=busy||uncertain||r.disabled;check.setAttribute('aria-label',r.name);check.onchange=()=>{if(check.checked)selected.add(r.name);else selected.delete(r.name);paint();};const info=el('span');info.append(el('strong','',r.name),el('small','',text(r.reason)));l.append(check,info);list.append(l);}
+   for(const r of rows){const l=el('label','inj-row'),check=el('input');check.type='checkbox';check.checked=selected.has(r.name);check.disabled=busy||uncertain||r.disabled;check.setAttribute('aria-label',r.name);check.onchange=()=>{if(check.checked)selected.add(r.name);else selected.delete(r.name);paint();};const info=el('span');info.append(el('strong','',r.name),el('small','',text(r.reason)));if(r.name===options.opponent)l.classList.add('inj-row-context');l.append(check,info);list.append(l);}
    if(!rows.length)list.append(el('p','inj-help',text('empty')));
    flagBox.checked=flag;flagBox.disabled=busy||uncertain||!name;ps.disabled=busy||uncertain;cs.disabled=busy||uncertain||!name||cycle===null;
    tools.querySelectorAll('button').forEach(b=>b.disabled=busy||uncertain||!rows.some(r=>!r.disabled));
    summary.textContent=format('summary',changes());save.disabled=busy||uncertain||!available()||!name||!dirty();save.textContent=text(busy?'saving':'save');panel.setAttribute('aria-busy',String(busy));
    if(focused)Array.from(list.querySelectorAll('input')).find(n=>n.getAttribute('aria-label')===focused)?.focus({preventScroll:true});
-   draftMemory={stamp,name,cycle,flag,version,selected:[...selected]};
+   if(!options.fresh)draftMemory={stamp,name,cycle,flag,version,selected:[...selected]};
   }
   async function submit(){
    if(busy||uncertain||!available()||stamp!==ctx())return;
    if(!confirm(format('confirm',{summary:format('summary',changes())})))return;
-   busy=true;status.textContent='';paint();let held=false;
+   busy=true;delete status.dataset.injText;status.textContent='';paint();let held=false;
    try{
     if(_saveInFlight)await _saveInFlight;
     if(stamp!==ctx())throw Error(text('changed'));
@@ -1531,13 +1534,57 @@ async function importarListaJugadores(inputEl){
     }
     if(!data?.ok||!data.state||!_hydrate(data.state)){uncertain=true;throw Error(text('reload'));}
     _lastSaved=_serialize();_loadOK=true;version=_stateV;choose();
-    status.textContent=text(data.changed?'saved':'unchanged');
+    status.dataset.injText=data.changed?'saved':'unchanged';status.textContent=text(status.dataset.injText);
+    if(options.onSaved){try{options.onSaved(data);}catch(_){/* The confirmed server save remains successful even if a view needs a refresh. */}}
     if(typeof refreshPlayerList==='function')refreshPlayerList();
    }catch(e){status.textContent=e.message;if(uncertain&&stamp===ctx()){_saveConflict=true;_showLoadError(text('reload'));if(!panel.querySelector('[data-inj-reload]')){const reload=btn(text('reloadBtn'),()=>location.reload());reload.dataset.injReload='1';panel.append(reload);}}}
    finally{if(held)_dataOperationBusy=false;busy=false;paint();}
   }
   if(remembered&&USERS[remembered.name]){ps.value=remembered.name;ps.onchange();if(remembered.cycle!==null&&Array.from(cs.options).some(o=>o.value===String(remembered.cycle))){cs.value=String(remembered.cycle);cs.onchange();}if(remembered.version===_stateV){flag=remembered.flag;selected=new Set(remembered.selected);}}
+  if(options.player&&USERS[options.player]&&Array.from(ps.options).some(o=>o.value===options.player)){ps.value=options.player;ps.onchange();}
+  panel.injuryDirty=dirty;panel.injuryBusy=()=>busy;
+  panel.injuryTranslate=()=>{
+   panel.querySelectorAll('[data-inj-text]').forEach(n=>n.textContent=text(n.dataset.injText));
+   if(ps.options[0])ps.options[0].textContent=text('choose');
+   Array.from(cs.options).forEach(o=>o.textContent=o.value?text('cycle')+' '+o.value:text('none'));
+   paint();
+  };
   paint();return panel;
  }
- global.SohailInjuries=Object.freeze({createPanel,choices,text,isInjury:injury});
+ const closeText=()=>LANG==='en'?'Close':'Cerrar';
+ function clearSession(){
+  if(injuryDialog){const d=injuryDialog;injuryDialog=null;d.close();d.remove();}
+  draftMemory=null;
+ }
+ function open(options={}){
+  if(!available()||!_token||!_loadOK||_dataOperationBusy||typeof isTutorialRunning==='function'&&isTutorialRunning())return null;
+  if(injuryDialog?.isConnected)return injuryDialog;
+  const stamp=ctx(),previous=document.activeElement,d=el('dialog','inj-dialog'),prefix='inj-dialog-'+(++dialogSerial);
+  const head=el('div','inj-dialog-head'),title=el('h2','',text('title')),close=btn(closeText(),finish);
+  title.id=prefix+'-heading';close.classList.add('inj-dialog-close');head.append(title,close);d.setAttribute('aria-labelledby',title.id);d.append(head);
+  const lang=typeof createDialogLanguageSwitcher==='function'?createDialogLanguageSwitcher(prefix+'-lang'):null;if(lang)d.append(lang);
+  const subtitle=el('p','inj-dialog-context');
+  const contextLabel=()=>{const ns=[options.player,options.opponent].filter(n=>typeof n==='string'&&n);subtitle.textContent=(ns.length?ns.join(' vs ')+' · ':'')+(LANG==='en'?'Choose the injured player and check the affected opponents. Nothing is saved until you confirm.':'Elegí al jugador lesionado y marcá los rivales afectados. No se guarda nada hasta confirmar.');};contextLabel();d.append(subtitle);
+  const panel=createPanel({...options,fresh:true,idPrefix:prefix,onSaved:data=>{
+   if(stamp!==ctx())return;
+   // Redraw sporting views from the confirmed state. Existing result drafts are
+   // kept and admission checks disable a fixture that was just marked as injured.
+   if(typeof renderGrupos==='function')renderGrupos();
+   if(typeof subView!=='undefined'&&subView==='cargar')global.SohailResults?.renderPage();
+   if(typeof renderGeneral==='function')renderGeneral();
+   if(typeof options.onSaved==='function')options.onSaved(data);
+  }});d.append(panel);document.body.append(d);injuryDialog=d;
+  function finish(){
+   if(panel.injuryBusy())return;
+   if(panel.injuryDirty()&&!confirm(LANG==='en'?'Discard unsaved injury changes?':'¿Descartar los cambios de lesión sin guardar?'))return;
+   d.close();
+  }
+  d.injuryTranslate=()=>{if(stamp!==ctx()){clearSession();return;}title.textContent=text('title');close.textContent=closeText();contextLabel();if(lang&&typeof updateDialogLanguageSwitchers==='function')updateDialogLanguageSwitchers(d);panel.injuryTranslate();};
+  d.addEventListener('cancel',ev=>{ev.preventDefault();finish();});
+  d.addEventListener('close',()=>{if(injuryDialog===d)injuryDialog=null;d.remove();if(previous?.isConnected)previous.focus({preventScroll:true});});
+  d.showModal();panel.querySelector('select')?.focus({preventScroll:true});return d;
+ }
+ if(typeof MutationObserver==='function')new MutationObserver(()=>injuryDialog?.injuryTranslate?.()).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
+ if(typeof global.addEventListener==='function')global.addEventListener('beforeunload',ev=>{if(injuryDialog?.querySelector('.inj-panel')?.injuryDirty()){ev.preventDefault();ev.returnValue='';}});
+ global.SohailInjuries=Object.freeze({createPanel,choices,text,isInjury:injury,open,clearSession});
 })(window);

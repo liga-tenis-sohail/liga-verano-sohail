@@ -40,7 +40,7 @@ test('V400 release: changed browser modules use the release cache key', () => {
   for (const file of ['data-operations.js', 'player-identity.js', 'player-duplicates.js',
     'persistencia.js', 'history-leagues.js', 'match-history.js', 'bootstrap.js',
     'ui-modern.css', 'jugadores-perfiles.js', 'jugadores-perfiles-catalogo.js']) {
-    assert.ok(html.includes(file + '?v=' + (updated.has(file)?'sohail-v480-rules-injuries':file==='bootstrap.js'?'sohail-v460-unified-experience':file==='player-identity.js'?'sohail-v420-all-leagues-300':tag)), file);
+    assert.ok(html.includes(file + '?v=' + (['ui-modern.css','jugadores-perfiles.js'].includes(file)?'sohail-v491-passwords-injury-access':updated.has(file)?'sohail-v480-rules-injuries':file==='bootstrap.js'?'sohail-v460-unified-experience':file==='player-identity.js'?'sohail-v420-all-leagues-300':tag)), file);
   }
   assert.ok(html.includes('content="sohail-v480-rules-injuries"'));
 });

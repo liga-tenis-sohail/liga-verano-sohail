@@ -907,3 +907,20 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 .inj-summary,.inj-status{font-size:13px;line-height:1.6;color:var(--text);margin:12px 0;overflow-wrap:anywhere}
 .inj-summary{border-radius:9px;border:1px solid var(--border2);padding:10px;background:var(--surface2)}
 @media(max-width:520px){#view-reglamento .rg-section-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}#view-reglamento .rg-section-tabs button{min-width:0;padding:10px 6px;font-size:12px}.inj-opponents{padding:10px}.inj-list{max-height:45dvh}.inj-field select{font-size:16px}}
+
+/* v4.9.1 — visible injury management in Report result; shared panel, no score mutation. */
+.re-injury-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px;margin:0 0 18px;border:1px solid var(--border2);border-radius:12px;background:var(--surface2);color:var(--text)}
+.re-injury-tools>.btn{flex:0 0 auto;min-height:44px;white-space:normal;color:var(--text);background:var(--surface);font-weight:700}
+.re-injury-tools>p{flex:1 1 230px;min-width:0;font-size:12px;line-height:1.6;color:var(--text2);margin:0;overflow-wrap:anywhere}
+.inj-dialog{width:min(680px,calc(100vw - 24px));max-width:100%;max-height:calc(100dvh - 24px);margin:auto;padding:20px;border:1px solid var(--border2);border-radius:16px;overflow:auto;overscroll-behavior:contain;background:var(--surface);color:var(--text);box-shadow:var(--shadow-lg)}
+.inj-dialog::backdrop{background:rgba(6,15,30,.64)}
+.inj-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+.inj-dialog-head>h2{font-size:22px;color:var(--text);margin:0}
+.inj-dialog .btn{min-height:44px;max-width:100%;white-space:normal;line-height:1.4}
+.inj-dialog>.inj-panel{border:0;padding:0;margin:0;box-shadow:none}
+.inj-dialog>.inj-panel>.section-lbl{display:none}
+.inj-dialog-context{font-size:13px;line-height:1.6;color:var(--text2);margin:12px 0 18px;overflow-wrap:anywhere}
+.inj-row-context{background:var(--surface2);border-left:3px solid var(--action);padding-left:10px}
+.inj-league-legend{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.6;padding-top:12px;margin-top:12px;border-top:1px solid var(--border);color:var(--text)}
+.inj-legend-mark{display:inline-flex;flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:1px 6px;font-size:11px}
+@media(max-width:520px){.re-injury-tools>.btn{width:100%;justify-content:center}.inj-dialog{padding:14px}.inj-dialog-head>h2{font-size:20px}.inj-league-legend{font-size:11px}}

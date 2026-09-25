@@ -4,6 +4,8 @@
 // Este archivo comparte scope global con los otros public/*.js.
 // NO REORDENAR el orden de carga en index.html.
 // ============================================================================
+Object.assign(TRANSLATIONS.es,{legend_injury:'Lesión: partido no jugado; 0 puntos para ambos, sin victoria ni derrota. No cuenta como PJ ni para el rating.',injury_manage_result:'Gestionar lesión',injury_from_result:'Podés gestionar esta ausencia acá o desde Cargar resultado → Lesión.'});
+Object.assign(TRANSLATIONS.en,{legend_injury:'Injury: match not played; 0 points for both players, no win or loss. It does not count as a played match or for rating.',injury_manage_result:'Manage injury',injury_from_result:'Manage this absence here or in Report result → Injury.'});
 function validaAlCargar(a, b){
   // Un administrador valida al cargar, incluido su propio partido.
   // Antes se le bloqueaba para que no arbitrara lo suyo. Ahora el control es la
@@ -60,7 +62,7 @@ function renderGrupos(){
       const clubsLeg = CLUBS.map(c=>
         `<span><span class="dot" style="background:${c.bg}"></span> ${attr(c.name)}</span>`
       ).join('');
-      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('ui36_text_167')}</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div></div>`;
+      html+=`<div class="card legend-card"><div class="legend">${clubsLeg}<span><span class="dot dot-pend"></span> ${t('legend_pending')}</span><span><span class="dot" style="background:${COLOR_DISPUTA}"></span> ${t('legend_disputed')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('legend_nj')}</span><span><span class="dot" style="background:${LEAGUE_COLOR_HL}"></span> ${t('ui36_text_167')}</span><span>${t('legend_load')} · ${t('legend_noedit')}</span></div><p class="inj-league-legend" data-injury-legend><strong class="inj-legend-mark">${LANG==='en'?'INJ':'LES'}</strong><span>${attr(t('legend_injury'))}</span></p></div>`;
       document.getElementById('view-grupos').innerHTML=html;
       if(window.SohailUI)SohailUI.groupControls();
   } catch(e) {
@@ -767,7 +769,7 @@ if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-scor
 else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${attr(rep)}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${attr(m.club)}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${attr(p1)} ${attr(sc)} ${attr(p2)}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser)&&!_ligaReadOnly;const isPend=m.status==='pending';
 if(isAdmin&&m.npReason==='injury'){
-  h+=`<p class="lock-note">${LANG==='en'?'Manage this absence in Players → Injuries.':'Gestioná esta ausencia desde Jugadores → Lesiones.'}</p>`;
+  h+=`<p class="lock-note">${attr(t('injury_from_result'))}</p><button type="button" class="btn btn-primary" data-manage-injury-result>${attr(t('injury_manage_result'))}</button>`;
 } else if(isAdmin){
   // El botón no se dibuja si el partido es propio: confirmM() lo rechazaría igual,
   // y un botón que existe pero no funciona confunde más que no tenerlo.
@@ -778,7 +780,7 @@ if(isAdmin&&m.npReason==='injury'){
   if(isPend&&!_ligaReadOnly&&window.SohailResultPolicy&&SohailResultPolicy.phaseOpen({cycles,activeN,playoff},m)&&involvedPend(m)) h+=`<button class="btn btn-danger" onclick="disputeM()"><i class="ti ti-x"></i> ${t('dispute')}</button>`;
   else if(m.status==='confirmed'&&!m.po) h+=`<span class="lock-note" style="align-self:center">${t('validated_only_admin')}</span>`;
 }
-h+=`<button class="btn" onclick="closeM()">${t('close')}</button>`;acts.innerHTML=h;document.getElementById('modal-bg').classList.add('open');}
+h+=`<button class="btn" onclick="closeM()">${t('close')}</button>`;acts.innerHTML=h;const injuryButton=acts.querySelector('[data-manage-injury-result]');if(injuryButton)injuryButton.onclick=()=>{if(!window.SohailInjuries?.open)return;const player=[m.aName,m.bName][m.injurySide];closeM();SohailInjuries.open({player,opponent:[m.aName,m.bName].find(n=>n!==player),cycle:m.cycle});};document.getElementById('modal-bg').classList.add('open');}
 function closeM(){document.getElementById('modal-bg').classList.remove('open');}
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeM();});
 async function confirmM(){
