@@ -51,7 +51,6 @@
       ]
     }
   ],
-  "public": false,
   "framework": null,
   "buildCommand": "npm run release:check",
   "outputDirectory": "dist",

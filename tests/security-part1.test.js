@@ -8,7 +8,7 @@ const {validateLock}=require('../scripts/install-dependencies.cjs');
 const root=path.resolve(__dirname,'..');
 function temporary(fn){const d=fs.mkdtempSync(path.join(os.tmpdir(),'sohail-part1-'));try{
  for(const n of ['api','public','scripts','.github','tests'])fs.cpSync(path.join(root,n),path.join(d,n),{recursive:true});
- for(const n of ['package.json','vercel.json','supabase_setup.sql'])fs.copyFileSync(path.join(root,n),path.join(d,n));
+ for(const n of ['package.json','vercel.json','supabase_setup.sql','.gitignore','.vercelignore'])fs.copyFileSync(path.join(root,n),path.join(d,n));
  return fn(d);
 }finally{fs.rmSync(d,{recursive:true,force:true});}}
 const cases=[
@@ -80,7 +80,7 @@ test('P1 scanner detects privileged JWT not ordinary publishable token',()=>{
 test('P1 scanner allows known synthetic fixtures, not actual keys',()=>assert.equal(secretFindings("SESSION_"+"SECRET='SOHAIL_LOCAL_TEST_NOT_A_SECRET'").length,0));
 test('P1 source policy passes with transparent lock/visibility notices',()=>{const r=checkSource(root);assert.deepEqual(r.failures,[]);assert.ok(r.warnings.some(x=>x.includes('visibility')));});
 test('P1 unsafe env and mutable action are blocked',()=>temporary(d=>{fs.writeFileSync(path.join(d,'.env'),'HIDDEN=yes');const y=path.join(d,'.github/workflows/check.yml');fs.writeFileSync(y,fs.readFileSync(y,'utf8').replace('34e114876b0b11c390a56381ad16ebd13914f8d5','main'));const r=checkSource(d);assert.ok(r.failures.some(f=>f.type==='environment-file'));assert.ok(r.failures.some(f=>f.type==='action-not-pinned'));}));
-test('P1 original Vercel cron and security headers retained',()=>{const c=JSON.parse(fs.readFileSync(path.join(root,'vercel.json')));assert.equal(c.public,false);assert.equal(c.outputDirectory,'dist');assert.ok(c.crons.some(x=>x.path==='/api/backup'&&x.schedule==='0 4 */3 * *'));for(const k of ['Content-Security-Policy','X-Frame-Options','X-Content-Type-Options','Permissions-Policy'])assert.ok(c.headers[0].headers.some(x=>x.key===k));});
+test('P1 original Vercel cron and security headers retained',()=>{const c=JSON.parse(fs.readFileSync(path.join(root,'vercel.json')));assert.equal(Object.hasOwn(c,'public'),false,'Vercel rejects public; source/log privacy is configured in the dashboard');assert.equal(c.outputDirectory,'dist');assert.ok(c.crons.some(x=>x.path==='/api/backup'&&x.schedule==='0 4 */3 * *'));for(const k of ['Content-Security-Policy','X-Frame-Options','X-Content-Type-Options','Permissions-Policy'])assert.ok(c.headers[0].headers.some(x=>x.key===k));});
 test('P1 historical setup is inert, no embedded credential',()=>{const s=fs.readFileSync(path.join(root,'supabase_setup.sql'),'utf8');assert.match(s,/RAISE EXCEPTION/);assert.doesNotMatch(s,/CREATE POLICY|v2:[a-f0-9]{64}|INSERT INTO/);});
 const pkg={dependencies:{example:'1.0.0'}},lock=()=>({lockfileVersion:3,packages:{'':pkg,'node_modules/example':{version:'1.0.0',resolved:'https://registry.npmjs.org/example/-/example-1.0.0.tgz',integrity:'sha512-'+Buffer.alloc(64).toString('base64')}}});
 test('P1 matching dependency lock accepted structurally',()=>assert.equal(validateLock(pkg,lock()),true));

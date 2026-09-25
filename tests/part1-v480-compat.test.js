@@ -8,7 +8,7 @@ let output;const generated=()=>output||(output=render(root));
 const source=n=>fs.readFileSync(path.join(root,n),'utf8');
 function temp(fn){const d=fs.mkdtempSync(path.join(os.tmpdir(),'sohail-p1480-'));try{
  for(const n of ['api','public','scripts','.github','tests'])fs.cpSync(path.join(root,n),path.join(d,n),{recursive:true});
- for(const n of ['package.json','vercel.json','supabase_setup.sql'])fs.copyFileSync(path.join(root,n),path.join(d,n));
+ for(const n of ['package.json','vercel.json','supabase_setup.sql','.gitignore','.vercelignore'])fs.copyFileSync(path.join(root,n),path.join(d,n));
  return fn(d);
 }finally{fs.rmSync(d,{recursive:true,force:true});}}
 function change(file,fn){fs.writeFileSync(file,fn(fs.readFileSync(file,'utf8')));}

@@ -1,8 +1,9 @@
-# Sohail — operación segura, Parte 1 integrada con v4.8 · v4.8.1
+# Sohail — operación segura · Parte 1/v4.8.1 con corrección de despliegue v4.8.2
 
 ## Estado y alcance
 
-La fuente base corresponde al commit `868c6b4ac393bedd31dfa8fdee8822b89ae64598`.
+La corrección de despliegue se prepara sobre `49e2ffc436c6fd5aa4de34e4083d7a59e1e906d6`,
+con Parte 1/v4.8.1 ya cargada. No cambia la versión funcional ni los recursos del navegador.
 El usuario informa MFA con Google Authenticator en GitHub, Vercel y Supabase.
 Esta entrega conserva ese MFA y no instala nada en la base de datos.
 Integra las cuatro secciones de reglamento y la gestión de lesiones de v4.8.
@@ -14,12 +15,18 @@ los previews quedan retiradas como procedimiento operativo.
 
 ## Publicar
 
-Seguir `INSTRUCCIONES_PARTE1.md`. Conservar el proyecto Vercel y el dominio de los
+Aplicar el fix según `INSTRUCCIONES_FIX_VERCEL_v482.md`. Las referencias de las
+guías anteriores a poner `public: false` en vercel.json quedan retiradas.
+Conservar el proyecto Vercel y el dominio de los
 jugadores. No cambiar `APP_BASE_URL`, RP ID ni los orígenes de passkeys por transferir
 la propiedad del repositorio. Revisar siempre cuál es la cuenta personal vinculada
 al propietario de Vercel antes de cambiar la conexión Git.
 
-`vercel.json` fija la salida `dist`, `public: false` y un build con comprobaciones.
+`vercel.json` fija la salida `dist` y un build con comprobaciones. NO incluir
+la propiedad `public`: el validador de los despliegues actuales la rechaza.
+En Vercel → proyecto → Settings → Security, mantener **Build Logs and Source
+Protection** y **Git Fork Protection** activados. El build no puede verificar
+ni activar esos ajustes del panel. Revisar `/_src` y `/_logs` sin iniciar sesión.
 No subir `dist` generado, datos, archivos .env ni pruebas de navegador a GitHub.
 Para trabajar localmente: Node 22; `npm run release:check`.
 
@@ -50,7 +57,10 @@ de análisis/compactación; nunca se publica al navegador. Mantener su licencia.
 Mientras falte un lockfile versionado, el instalador señala explícitamente que la
 resolución inicial NO es reproducible. Generar y revisar `package-lock.json` con el
 workflow manual **Revisar dependencias (Parte 1)**, descargar el artefacto y subir
-ese archivo a la raíz. Después se usa `npm ci` y un lock incoherente falla: no se
+ese archivo a la raíz. No fusionar automáticamente los PR de Dependabot: primero
+actualizarlos con el fix de main, revisar cambios de compatibilidad y comprobar las
+passkeys cuando cambie su biblioteca. No desactivar alertas para hacer pasar el audit.
+Después se usa `npm ci` y un lock incoherente falla: no se
 reemplaza silenciosamente por una resolución nueva. No usar `npm audit fix --force`.
 
 ## Credenciales y sesiones — pendientes de Parte 2
@@ -85,7 +95,9 @@ para las Partes 2 y 3 y revisar las URLs antiguas de Vercel antes de retirarlas.
 
 Revisar por separado: visibilidad GitHub; acceso a `_src` y `_logs`; URLs de
 publicaciones anteriores; lista de colaboradores; conexiones Git; permisos de
-previews. `public: false` de Vercel protege vistas de fuente/logs, no la interfaz.
+previews. **Build Logs and Source Protection**, configurado en el panel Vercel,
+protege las vistas de fuente/logs, no la interfaz ni la repo de GitHub. No usar
+`--public` al publicar por CLI. Las publicaciones anteriores requieren revisión aparte.
 El JavaScript enviado al navegador sigue siendo inspeccionable aunque tenga nombres
 hash y menos comentarios. Copias ya descargadas no se recuperan por privatizar.
 
