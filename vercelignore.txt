@@ -1,0 +1,24 @@
+# Build inputs (including tests) are needed for the release gate.
+# Only dist/ is served to visitors, as declared in vercel.json.
+.env
+.env.*
+!.env.example
+.vercel
+node_modules
+dist
+.sohail-build
+.sohail-publish-*
+*.log
+*.zip
+*.xlsx
+*.xls
+*.csv
+*.dump
+*.db
+*.sqlite*
+*.json.gz
+backups
+backup
+evidence
+coverage
+playwright-report

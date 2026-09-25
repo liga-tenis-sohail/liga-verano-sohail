@@ -1,0 +1,27 @@
+# Never version runtime secrets, player data or generated output.
+.env
+.env.*
+!.env.example
+.vercel/
+node_modules/
+dist/
+.sohail-build/
+.sohail-publish-*/
+*.log
+*.xlsx
+*.xls
+*.csv
+*.sql.gz
+*.dump
+*.db
+*.sqlite*
+*.zip
+*.tar
+*.tar.gz
+*.json.gz
+backups/
+backup/
+evidence/
+coverage/
+playwright-report/
+.DS_Store
