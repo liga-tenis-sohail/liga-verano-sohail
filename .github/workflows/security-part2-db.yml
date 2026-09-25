@@ -1,0 +1,44 @@
+name: Verificar SQL Seguridad Parte 2
+run-name: "SQL Parte 2 · ${{ github.ref_name }} · ${{ github.sha }}"
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: PostgreSQL 17 aislado (sin Supabase real)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: sohail_security_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sohail_security_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout (sin credenciales persistentes)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Probar instalación, repetición, permisos y transacciones
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg() { docker exec -i "$DB_CONTAINER" psql -U postgres -d sohail_security_test -v ON_ERROR_STOP=1 "$@"; }
+          pg < tests/security-db/fixture.sql
+          pg < 08_security_part2.sql
+          pg < 08_security_part2.sql
+          pg -At -F '|' < 09_verify_security_part2.sql | tee /tmp/p2-schema-checks.txt
+          awk -F '|' 'NF==2 && $2=="t"{n++;next}{bad=1}END{exit(bad || n!=33)}' /tmp/p2-schema-checks.txt
+          pg < tests/security-db/assertions.sql
+          {
+            printf '## SQL Parte 2 validado en PostgreSQL 17\n\n'
+            printf 'Datos ficticios; no se usaron claves ni conexiones a Supabase/Vercel.\n'
+            printf 'Instalación repetida, permisos, sesiones, contraseñas y passkeys comprobados.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
