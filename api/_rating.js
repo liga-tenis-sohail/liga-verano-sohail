@@ -4,7 +4,7 @@
 // editions; guests only finalized editions. No credentials or contact data.
 const crypto=require('node:crypto');
 const lib=require('./_lib');
-const E=require('../public/rating-engine');
+const E=require('./_rating-engine');
 const cache=new Map();
 const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
 function error(status,code,message){return Object.assign(new Error(message),{status,code});}

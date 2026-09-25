@@ -1,0 +1,9 @@
+{
+  "name": "acorn",
+  "version": "8.15.0",
+  "license": "MIT",
+  "source": "https://github.com/acornjs/acorn/tree/8.15.0",
+  "distribution": "npm dist/acorn.js from the installed Acorn 8.15.0 package",
+  "sha256": "fdb08546776ec6228b03e8d02b40d4ab3255bae5f401adba7ff5dad927ac5c9c",
+  "runtime_use": "Build/tests only. Not included in browser assets."
+}

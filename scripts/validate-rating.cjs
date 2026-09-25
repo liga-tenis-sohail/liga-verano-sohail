@@ -8,7 +8,7 @@
  * chronologically without inventing their order. Never use today's manual seeds.
  */
 const fs=require('node:fs'),path=require('node:path');
-const E=require('../public/rating-engine');
+const E=require('../api/_rating-engine');
 const base=require('../tests/support/rating-v440.cjs');
 const {project,fitWinScale,metrics}=require('./benchmark-rating.cjs');
 function evaluate(input,{phase='all',options={}}={}){

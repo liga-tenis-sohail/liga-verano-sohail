@@ -31,6 +31,29 @@
           "value": "DENY"
         }
       ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
     }
-  ]
+  ],
+  "public": false,
+  "framework": null,
+  "buildCommand": "npm run release:check",
+  "outputDirectory": "dist",
+  "installCommand": "node scripts/install-dependencies.cjs"
 }

@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-// The same sporting tests run before or after optional Security Part 1.
-const E=fs.existsSync(path.join(__dirname,'../api/_rating-engine.js'))?require('../api/_rating-engine'):require('../public/rating-engine');
+// Integrated release: the sporting engine must remain server-only.
+const E=require('../api/_rating-engine');
 const X=require('../public/rating-explainer'),H=require('../public/match-history');
 const u=id=>({jugadorId:id,role:'player'});
 const m=(n,a='A',b='B',extra={})=>({id:n,aName:a,bName:b,sets:[[6,3],[6,4]],status:'confirmed',date:'2026-09-01',...extra});

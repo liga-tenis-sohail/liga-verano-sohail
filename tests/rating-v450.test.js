@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const E=require('../public/rating-engine'),X=require('../public/rating-explainer');
+const E=require('../api/_rating-engine'),X=require('../public/rating-explainer');
 const V=require('../scripts/validate-rating.cjs');
 const {create}=require('../public/rating-client');
 const date=i=>new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10);

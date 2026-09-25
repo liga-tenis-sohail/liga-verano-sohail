@@ -10,7 +10,7 @@
  * Win probability calibration is fitted ONLY to development predictions.
  */
 const fs=require('node:fs');
-const E=require('../public/rating-engine');
+const E=require('../api/_rating-engine');
 const old=require('../tests/support/rating-legacy.cjs');
 function project(input){
  if(!input||!Array.isArray(input.leagues)||!input.leagues.length)throw Error('Expected {leagues:[{id,state,order?}]}');

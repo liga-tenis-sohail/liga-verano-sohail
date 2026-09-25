@@ -11,6 +11,11 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "verify": "node scripts/verify-release.cjs"
+    "verify": "node scripts/verify-release.cjs",
+    "build": "node scripts/build-public.cjs",
+    "security:source": "node scripts/check-source-security.cjs",
+    "security:output": "node scripts/check-public-output.cjs",
+    "release:check": "node scripts/release-check.cjs",
+    "deps:lock": "node scripts/lock-dependencies.cjs"
   }
 }

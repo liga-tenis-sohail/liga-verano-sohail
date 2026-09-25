@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
-const E=require('../public/rating-engine');
+const E=require('../api/_rating-engine');
 const user=id=>({historialId:id});
 const match=(id,sets=[[6,3],[6,2]],extra={})=>({id,aName:'Ana',bName:'Beto',status:'confirmed',sets,date:'2026-09-01',...extra});
 const league=(id='l',matches=[match(1)],users={Ana:user('a'),Beto:user('b')},extra={})=>({id,users,matches,...extra});
