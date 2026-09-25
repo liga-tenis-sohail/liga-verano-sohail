@@ -365,6 +365,7 @@ let LOGIN_TITLE='';
 // login SIN esperar a que el admin se loguee — cualquier usuario que abre la
 // app ve la barra con lo último que el admin configuró.
 let LOGIN_HEADER = { color: '#0E3470', textColor: '', links: [] };
+let REGLAMENTO_SECCIONES={}; // Optional section documents; the original stays in REGLAMENTO.
 let REGLAMENTO=''; // reglamento de la liga (texto), editable por admin, visible para todos
 // Solicitudes de acceso QUE RECIBE esta liga desde jugadores logueados en OTRAS
 // ligas. Cada entrada: {id, nombre, email, tel, origenLigaId, origenLigaNombre,

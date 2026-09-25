@@ -885,3 +885,25 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 .dup-card>.gap-sm{margin-top:12px}
 .mh-all-leagues-fixed{padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface2)}
 @media(max-width:520px){.identity-values{grid-template-columns:minmax(0,1fr);gap:4px}.identity-values dd{margin-bottom:10px}.dup-card>.gap-sm>.btn{width:100%;justify-content:center}}
+
+/* v4.8 — Rules sections and administrative injury absences, theme-aware. */
+#view-reglamento .rg-section-tabs{display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:14px}
+#view-reglamento .rg-section-tabs button{font:inherit;font-size:13px;font-weight:650;min-height:44px;padding:10px 14px;border:1px solid var(--border2);border-radius:9px;background:var(--surface);color:var(--text);cursor:pointer}
+#view-reglamento .rg-section-tabs button[aria-selected=true]{background:var(--action,#1B4F9C);color:var(--on-action,#fff);border-color:var(--action,#1B4F9C)}
+#view-reglamento .rg-section-tabs button:focus-visible,.inj-panel :is(input,select,button):focus-visible{outline:3px solid var(--focus,var(--link));outline-offset:3px}
+.inj-panel{color:var(--text);background:var(--surface);min-width:0}
+.inj-field{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:650;color:var(--text);margin:0 0 16px}
+.inj-field select{min-height:44px;width:100%;min-width:0;padding:10px;border:1px solid var(--border2);border-radius:9px;font:inherit;background:var(--surface);color:var(--text)}
+.inj-flag{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:650;min-height:44px}
+.inj-panel input[type=checkbox]{width:20px!important;height:20px!important;min-height:20px!important;flex:0 0 20px;accent-color:var(--action);margin:0}
+.inj-help{font-size:12px!important;line-height:1.65;color:var(--text2);margin:8px 0 16px;overflow-wrap:anywhere}
+.inj-opponents{min-width:0;margin:18px 0;padding:14px;border:1px solid var(--border2);border-radius:12px;background:var(--surface)}
+.inj-opponents legend{padding:0 6px;font-size:13px;font-weight:700;color:var(--text)}
+.inj-list{max-height:350px;overflow:auto;scrollbar-width:thin;margin:12px 0;background:var(--surface)}
+.inj-row{display:flex;align-items:center;gap:12px;min-height:56px;padding:10px 4px;border-bottom:1px solid var(--border);color:var(--text);cursor:pointer}
+.inj-row>span{min-width:0}.inj-row strong{font-size:13px;color:var(--text);display:block;overflow-wrap:anywhere}
+.inj-row small{font-size:11px;color:var(--text2);display:block;line-height:1.5;overflow-wrap:anywhere}
+.inj-row:has(input:disabled){cursor:default}
+.inj-summary,.inj-status{font-size:13px;line-height:1.6;color:var(--text);margin:12px 0;overflow-wrap:anywhere}
+.inj-summary{border-radius:9px;border:1px solid var(--border2);padding:10px;background:var(--surface2)}
+@media(max-width:520px){#view-reglamento .rg-section-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}#view-reglamento .rg-section-tabs button{min-width:0;padding:10px 6px;font-size:12px}.inj-opponents{padding:10px}.inj-list{max-height:45dvh}.inj-field select{font-size:16px}}

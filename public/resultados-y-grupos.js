@@ -763,10 +763,12 @@ function openModal(mid){const m=matches.find(x=>x.id===mid);if(!m)return;current
 document.getElementById('modal-title').textContent=(m.status==='confirmed'?t('validated_result'):m.status==='disputed'?t('disputed_result'):t('review_result'))+` · ${tag}`;
 const statusLabel = m.status === 'confirmed' ?
 t('confirmed_label') : m.status === 'disputed' ? t('legend_disputed') : t('legend_pending');
-if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${attr(p1)} &nbsp;vs&nbsp; ${attr(p2)}</p></div><p class="modal-meta" style="text-align:center"><strong>${t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${attr(p1)} &nbsp;vs&nbsp; ${attr(p2)}</p></div><p class="modal-meta" style="text-align:center"><strong>${m.npReason==='injury'?(LANG==='en'?'Not played due to injury · no points awarded':'No jugado por lesión · sin puntos'):t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${attr(rep)}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${attr(m.club)}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${attr(p1)} ${attr(sc)} ${attr(p2)}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser)&&!_ligaReadOnly;const isPend=m.status==='pending';
-if(isAdmin){
+if(isAdmin&&m.npReason==='injury'){
+  h+=`<p class="lock-note">${LANG==='en'?'Manage this absence in Players → Injuries.':'Gestioná esta ausencia desde Jugadores → Lesiones.'}</p>`;
+} else if(isAdmin){
   // El botón no se dibuja si el partido es propio: confirmM() lo rechazaría igual,
   // y un botón que existe pero no funciona confunde más que no tenerlo.
   if(isPend) h+=`<button class="btn btn-success" onclick="confirmM()"><i class="ti ti-check"></i> ${t('validate')}</button>`;

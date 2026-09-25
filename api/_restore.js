@@ -8,6 +8,7 @@ const nameOK=n=>typeof n==='string'&&n.trim()&&n.length<=120&&!/[<>"`\\]/.test(n
 const empty=v=>v===undefined||v===null||v==='';
 function inspectArchive(raw){
  O.safeTree(raw);
+ require('./_validation').validateRuleSections(raw?.REGLAMENTO_SECCIONES);
  if(!O.object(raw)||!O.object(raw.users)||!Array.isArray(raw.cycles)||!raw.cycles.length||!Array.isArray(raw.matches))throw new O.AppError(400,'INVALID_BACKUP','El archivo no contiene un estado completo de liga.');
  if(Buffer.byteLength(JSON.stringify(raw))>3*1024*1024)throw new O.AppError(413,'BACKUP_TOO_LARGE','El contenido técnico del backup supera 3 MB. No se aplicó nada.');
  if(raw.cycles.length>30||Object.keys(raw.users).length>2500||raw.matches.length>25000)throw new O.AppError(413,'BACKUP_TOO_LARGE','El backup supera los límites de esta restauración.');
@@ -30,6 +31,7 @@ function inspectArchive(raw){
  for(const [name,u] of Object.entries(raw.users)){
   if(!nameOK(name)||!O.object(u))throw new O.AppError(400,'INVALID_BACKUP','Nombre o perfil de jugador inválido.');
   if(u.name!=null&&u.name!==''&&!nameOK(u.name))throw new O.AppError(400,'INVALID_BACKUP','Nombre visible inválido en '+name+'.');
+  if(O.own(u,'injured')&&typeof u.injured!=='boolean')throw new O.AppError(400,'INVALID_BACKUP','Estado de lesión inválido en '+name+'.');
   for(const f of ['email','tel'])if(u[f]!=null&&(typeof u[f]!=='string'||/[<>"`\\]/.test(u[f])||u[f].length>250))throw new O.AppError(400,'INVALID_BACKUP','Dato de contacto inválido en '+name+'.');
  }
  for(let i=0;i<raw.cycles.length;i++){
@@ -49,6 +51,7 @@ function inspectArchive(raw){
  let missingDate=0,unusualScore=0,missingClub=0,missingSlot=0,groups=0,playoffs=0,unusualGroup=0;
  for(const m of raw.matches){
   if(!O.object(m)||!Number.isSafeInteger(m.id)||m.id<0||ids.has(m.id))throw new O.AppError(400,'DUPLICATE_MATCH_ID','Hay identificadores de partido inválidos o repetidos dentro de esta liga.');ids.add(m.id);
+  if(('npReason' in m||'injurySide' in m)&&(m.npReason!=='injury'||![0,1].includes(m.injurySide)||m.np!==true||m.po||m.status!=='confirmed'||m.wo||m.winner||m.retiroDe||m.sets?.length))throw new O.AppError(400,'INVALID_BACKUP','Ausencia por lesión inválida en el partido '+m.id+'.');
   const ns=m.po?m.poNames:[m.aName,m.bName];
   if(!Array.isArray(ns)||ns.length!==2||ns[0]===ns[1]||ns.some(n=>!names.has(n)))throw new O.AppError(400,'INVALID_BACKUP','Participantes inválidos en el partido '+m.id+'.');
   if(!['confirmed','pending','disputed'].includes(m.status)||!Array.isArray(m.sets)||m.sets.length>5||m.sets.some(s=>!Array.isArray(s)||s.length!==2||s.some(x=>!Number.isSafeInteger(x)||x<0||x>199)))throw new O.AppError(400,'INVALID_BACKUP','Marcador o estado estructuralmente inválido en el partido '+m.id+'.');

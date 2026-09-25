@@ -13,7 +13,7 @@
  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
  const pid=u=>{const id=u?.historialId||u?.jugadorId;return typeof id==='string'&&id.trim()?id:null;};
  const names=m=>m?.po?(Array.isArray(m.poNames)?m.poNames.slice():[]):[m?.aName,m?.bName];
- const fields=['id','po','cycle','g','sets','club','date','status','wo','np','winner','retiroDe','poNames','aName','bName','tLabel','which'];
+ const fields=['id','po','cycle','g','sets','club','date','status','wo','np','npReason','injurySide','winner','retiroDe','poNames','aName','bName','tLabel','which'];
  function recordKey(leagueId,m,index){return JSON.stringify([leagueId,m.id==null?'row:'+index:'id:'+String(m.id)]);}
  function uniqueIndex(rows,current){
   if(!Array.isArray(rows))throw new Error('invalid-index');

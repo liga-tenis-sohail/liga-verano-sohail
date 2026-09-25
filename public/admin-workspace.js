@@ -142,6 +142,7 @@
   if(dest.querySelector('.aw-players'))return;
   const add=dest.querySelector('#ap-nom')?.closest('.card'),members=dest.querySelector('#player-list')?.closest('.card'),catalog=dest.querySelector('#cat-jugadores-card');if(!members)return;
   const sections=[['members',members,text('members'),text('membersHint')],...(add?[['add',add,text('add'),text('addHint')]]:[]),...(catalog?[['catalog',catalog,text('catalog'),text('catalogHint')]]:[])];
+  if(global.SohailInjuries){const panel=global.SohailInjuries.createPanel();sections.push(['injuries',panel,global.SohailInjuries.text('title'),global.SohailInjuries.text('hint')]);}
   const advanced=members.querySelector('[onchange="importarJugadoresExcel(this)"]')?.closest('.gap-sm');
   if(advanced){const task=el('section','card');task.append(advanced);sections.push(['advanced',task,text('advanced'),text('advancedHint')]);}
   const state=memo('players');if(!sections.some(s=>s[0]===state.category))state.category='members';

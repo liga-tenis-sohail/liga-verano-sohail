@@ -153,7 +153,7 @@ function filterForSession(state, session){
   return state;
 }
 function filterPublicState(state){
-  const allowed=['_v','cycles','matches','matchId','activeN','playoff','DESTINO','FECHAS','PO_FECHAS','ALLNAMES','PUNTOS','AJUSTES_PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE','LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','LEAGUE_TEXT_COLORS','CLUBS','COLOR_DISPUTA','RATING_ON','RATING_SEEDS','RATING_OVERRIDES','REGLAMENTO'];
+  const allowed=['_v','cycles','matches','matchId','activeN','playoff','DESTINO','FECHAS','PO_FECHAS','ALLNAMES','PUNTOS','AJUSTES_PUNTOS','LEAGUE_NAME','LEAGUE_SUBTITLE','LOGIN_TITLE','LEAGUE_COLOR_PRI','LEAGUE_COLOR_ACC','LEAGUE_COLOR_HL','LEAGUE_TEXT_COLORS','CLUBS','COLOR_DISPUTA','RATING_ON','RATING_SEEDS','RATING_OVERRIDES','REGLAMENTO','REGLAMENTO_SECCIONES'];
   const out={};for(const k of allowed)if(k in state)out[k]=state[k];
   out.users={};for(const [name,u] of Object.entries(state.users||{})){
     out.users[name]={name:u.name||name,role:u.role||'player',inactive:!!u.inactive};

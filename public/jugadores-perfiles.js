@@ -682,7 +682,7 @@ function renderPlayerList(players, filter) {
     const pwDot = ` <span title="${esDefault?(""+t('ui36_text_223')+""):(""+t('ui36_text_224')+"")}" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esDefault?'#e5484d':'#2f9e44'};flex-shrink:0"></span>`;
     return `<div class="ge-group" style="margin-bottom:.5rem;${isInactive?'opacity:.6':''}">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <div class="ge-gtitle">${pwDot} ${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${isInactive?(" <span style=\"font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700\">"+t('ui36_text_166')+"</span>"):''}</div>
+        <div class="ge-gtitle">${pwDot} ${p.name}${loc ? ` <span class="badge badge-tag">${groupName(loc.g)}</span>` : ''}${sinGrupoBadge}${p.injured?` <span class="badge badge-warn">${LANG==='en'?'Injured':'Lesionado'}</span>`:''}${isInactive?(" <span style=\"font-size:10px;background:#e55;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700\">"+t('ui36_text_166')+"</span>"):''}</div>
         <button class="btn btn-sm" onclick="togglePlayerEdit('${jsq(p.name)}')"><i class="ti ti-edit"></i> ${t('edit')}</button>
       </div>
       ${p.historialId?`<div class="dup-help">${LANG==='en'?'Unified sporting profile':'Ficha deportiva unificada'}: ${escPast(p.historialNombre||p.name)} <button type="button" class="btn btn-sm" onclick="SohailIdentity.profile('${escJsAttr(p.name)}')">${LANG==='en'?'View retained information':'Ver información conservada'}</button></div>`:''}
@@ -1444,3 +1444,91 @@ async function importarListaJugadores(inputEl){
     inputEl.value = '';
   }
 }
+
+/* v4.8 — selected injury absences. No medical details; no automatic walkovers. */
+(function(global){
+ 'use strict';
+ const copy={
+ es:{title:'Lesiones',hint:'Marcá la disponibilidad actual y los cruces no jugados por lesión. Solo fase de grupos: no adjudica victorias ni puntos y no altera playoffs.',player:'Jugador',choose:'Elegí un jugador',cycle:'Ciclo',none:'Sin ciclo con grupo asignado',flag:'Lesionado actualmente',flagHelp:'Esta marca no bloquea el acceso, no da de baja al jugador ni modifica todos sus partidos. Quitarla no borra las ausencias anteriores.',opponents:'Cruces no jugados por lesión',empty:'Este jugador no tiene rivales disponibles en el ciclo seleccionado.',all:'Seleccionar disponibles',clear:'Quitar selección',savedRow:'Ausencia guardada',freeRow:'Sin resultado registrado',lockedRow:'Ya tiene un registro: no se reemplaza',own:'Tu propio partido: lo gestiona otro administrador',save:'Guardar lesión y cruces',saving:'Guardando…',saved:'Cambios de lesión guardados.',unchanged:'No había cambios para guardar.',summary:'Seleccionados: {n}. Se agregan {a} ausencias y se quitan {r}.',explain:'No se suman PJ, victorias, derrotas, games ni rating. Ambos quedan con 0 puntos por ese cruce y se registra como no jugado por lesión. Los puntos por posición del grupo mantienen sus reglas.',remove:'Desmarcar una ausencia guardada vuelve a dejar ese cruce sin resultado. No borra partidos disputados.',discard:'Hay cambios sin guardar. ¿Descartarlos para cambiar de jugador o ciclo?',confirm:'¿Guardar estos cambios?\n{summary}\nNo se asignarán victorias ni puntos por estas ausencias.',pending:'Primero guardá o resolvé los otros cambios pendientes de la liga.',reload:'No se confirmó el estado final. Recargá antes de volver a editar o reintentar.',reloadBtn:'Recargar datos',changed:'La liga o la sesión cambió. Volvé a abrir Lesiones.',closed:'La liga es de solo lectura.',marker:'Lesionado',noChange:'Sin cambios pendientes.',conflict:'Los datos cambiaron. Recargá antes de guardar.',unavailable:'No se pudo guardar. Revisá la conexión antes de reintentar.'},
+ en:{title:'Injuries',hint:'Mark current availability and matches not played due to injury. Group stage only: no wins or points are awarded and playoffs are unchanged.',player:'Player',choose:'Choose a player',cycle:'Cycle',none:'No cycle with an assigned group',flag:'Currently injured',flagHelp:'This flag does not block sign-in, deactivate the player or change all their matches. Clearing it does not remove past absences.',opponents:'Matches not played due to injury',empty:'This player has no available opponents in the selected cycle.',all:'Select available',clear:'Clear selection',savedRow:'Absence saved',freeRow:'No result recorded',lockedRow:'Already recorded: will not be replaced',own:'Your own match: another administrator must manage it',save:'Save injury and matches',saving:'Saving…',saved:'Injury changes saved.',unchanged:'There were no changes to save.',summary:'Selected: {n}. Add {a} absences and remove {r}.',explain:'No matches played, wins, losses, games or rating are added. Both receive 0 points for this fixture and it is recorded as not played due to injury. Group position points keep their existing rules.',remove:'Clearing a saved absence leaves that fixture without a result again. Played matches are never deleted.',discard:'There are unsaved changes. Discard them to switch player or cycle?',confirm:'Save these changes?\n{summary}\nNo wins or points will be awarded for these absences.',pending:'Save or resolve the league’s other pending changes first.',reload:'The final state could not be confirmed. Reload before editing or retrying.',reloadBtn:'Reload data',changed:'The league or session changed. Reopen Injuries.',closed:'This league is read-only.',marker:'Injured',noChange:'No pending changes.',conflict:'The data changed. Reload before saving.',unavailable:'Could not save. Check the connection before retrying.'}
+ };
+ let draftMemory=null;
+ const text=k=>copy[LANG==='en'?'en':'es'][k]||k;
+ const format=(k,v)=>text(k).replace(/\{(\w+)\}/g,(_,x)=>String(v[x]??''));
+ const el=(tag,cls,value)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(value!=null)n.textContent=value;return n;};
+ const btn=(v,fn)=>{const b=el('button','btn',v);b.type='button';b.onclick=fn;return b;};
+ const injury=m=>m?.np===true&&m.npReason==='injury'&&[0,1].includes(m.injurySide);
+ const ctx=()=>String(_ligaActual)+'|'+_saveSessionKey();
+ const available=()=>!!currentUser&&esAdmin(currentUser)&&!_ligaReadOnly;
+ function choices(name,cycle){
+  const c=cycles.find(c=>c.n===cycle),groups=(c?.groups||[]).map((g,i)=>g?.players?.includes(name)?i+1:0).filter(Boolean);
+  if(groups.length!==1)return [];
+  const g=groups[0];return c.groups[g-1].players.filter(n=>n!==name).sort((a,b)=>a.localeCompare(b,LANG==='en'?'en':'es')).map(n=>{
+   const records=matches.filter(m=>!m.po&&m.cycle===cycle&&m.g===g&&[m.aName,m.bName].includes(name)&&[m.aName,m.bName].includes(n));
+   const selected=records.length===1&&injury(records[0])&&[records[0].aName,records[0].bName][records[0].injurySide]===name;
+   const own=name===currentUser?.name||n===currentUser?.name;
+   return {name:n,selected,disabled:own||records.length>0&&!selected,reason:own?'own':selected?'savedRow':records.length?'lockedRow':'freeRow'};
+  });
+ }
+ function createPanel(){
+  const panel=el('section','card inj-panel'),stamp=ctx(),remembered=draftMemory?.stamp===ctx()?draftMemory:null;
+  let name='',cycle=null,rows=[],baseSelected=new Set(),selected=new Set(),baseFlag=false,flag=false,version=_stateV,busy=false,uncertain=false;
+  const head=el('h2','section-lbl',text('title')),ps=el('select'),cs=el('select'),flagBox=el('input'),list=el('div','inj-list'),summary=el('p','inj-summary'),status=el('p','inj-status');
+  ps.id='inj-player';cs.id='inj-cycle';flagBox.type='checkbox';flagBox.id='inj-flag';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  const selectLabel=(label,input)=>{const n=el('label','inj-field',label);n.append(input);return n;};
+  ps.add(new Option(text('choose'),''));for(const n of ALLNAMES.filter(n=>USERS[n]&&!['admin','superadmin'].includes(n)).sort((a,b)=>a.localeCompare(b)))ps.add(new Option(n,n));
+  const flagLabel=el('label','inj-flag');flagLabel.append(flagBox,el('span','',text('flag')));
+  const fieldset=el('fieldset','inj-opponents');fieldset.append(el('legend','',text('opponents')));
+  const tools=el('div','gap-sm');tools.append(btn(text('all'),()=>{for(const r of rows)if(!r.disabled)selected.add(r.name);paint();}),btn(text('clear'),()=>{for(const r of rows)if(!r.disabled)selected.delete(r.name);paint();}));
+  fieldset.append(tools,list,summary,el('p','inj-help',text('remove')));
+  const save=btn(text('save'),submit);save.classList.add('btn-primary');
+  panel.append(head,selectLabel(text('player'),ps),selectLabel(text('cycle'),cs),flagLabel,el('p','inj-help',text('flagHelp')),fieldset,el('p','inj-help',text('explain')),save,status);
+  const changes=()=>({n:selected.size,a:[...selected].filter(n=>!baseSelected.has(n)).length,r:[...baseSelected].filter(n=>!selected.has(n)).length});
+  const dirty=()=>{const c=changes();return flag!==baseFlag||c.a>0||c.r>0;};
+  function choose(){
+   rows=choices(name,cycle);baseSelected=new Set(rows.filter(r=>r.selected).map(r=>r.name));selected=new Set(baseSelected);baseFlag=!!USERS[name]?.injured;flag=baseFlag;version=_stateV;paint();
+  }
+  ps.onchange=()=>{if(dirty()&&!confirm(text('discard'))){ps.value=name;return;}name=ps.value;cs.replaceChildren();const opts=cycles.filter(c=>['active','finished'].includes(c.status)&&c.groups?.some(g=>g?.players?.includes(name)));for(const c of opts)cs.add(new Option(text('cycle')+' '+c.n,String(c.n)));cycle=opts.some(c=>c.n===activeN)?activeN:opts.at(-1)?.n??null;if(cycle===null)cs.add(new Option(text('none'),''));else cs.value=String(cycle);choose();};
+  cs.onchange=()=>{if(dirty()&&!confirm(text('discard'))){cs.value=String(cycle??'');return;}cycle=Number(cs.value)||null;choose();};
+  flagBox.onchange=()=>{flag=flagBox.checked;paint();};
+  function paint(){
+   const focused=list.contains(document.activeElement)?document.activeElement.getAttribute('aria-label'):null;
+   list.replaceChildren();
+   for(const r of rows){const l=el('label','inj-row'),check=el('input');check.type='checkbox';check.checked=selected.has(r.name);check.disabled=busy||uncertain||r.disabled;check.setAttribute('aria-label',r.name);check.onchange=()=>{if(check.checked)selected.add(r.name);else selected.delete(r.name);paint();};const info=el('span');info.append(el('strong','',r.name),el('small','',text(r.reason)));l.append(check,info);list.append(l);}
+   if(!rows.length)list.append(el('p','inj-help',text('empty')));
+   flagBox.checked=flag;flagBox.disabled=busy||uncertain||!name;ps.disabled=busy||uncertain;cs.disabled=busy||uncertain||!name||cycle===null;
+   tools.querySelectorAll('button').forEach(b=>b.disabled=busy||uncertain||!rows.some(r=>!r.disabled));
+   summary.textContent=format('summary',changes());save.disabled=busy||uncertain||!available()||!name||!dirty();save.textContent=text(busy?'saving':'save');panel.setAttribute('aria-busy',String(busy));
+   if(focused)Array.from(list.querySelectorAll('input')).find(n=>n.getAttribute('aria-label')===focused)?.focus({preventScroll:true});
+   draftMemory={stamp,name,cycle,flag,version,selected:[...selected]};
+  }
+  async function submit(){
+   if(busy||uncertain||!available()||stamp!==ctx())return;
+   if(!confirm(format('confirm',{summary:format('summary',changes())})))return;
+   busy=true;status.textContent='';paint();let held=false;
+   try{
+    if(_saveInFlight)await _saveInFlight;
+    if(stamp!==ctx())throw Error(text('changed'));
+    if(_dataOperationBusy||!_loadOK||_saveConflict||_lastSaved&&_serialize()!==_lastSaved)throw Error(text('pending'));
+    if(_stateV!==version){uncertain=true;throw Error(text('conflict'));}
+    _dataOperationBusy=true;held=true;
+    let response,data;
+    try{response=await fetch('/api/liga?operacion=injuries',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},cache:'no-store',body:JSON.stringify({ligaId:_ligaActual,expectedVersion:version,player:name,cycle,injured:flag,opponents:[...selected]}),signal:AbortSignal.timeout(30000)});data=await response.json();}catch(_){uncertain=true;throw Error(text('reload'));}
+    if(stamp!==ctx()){uncertain=true;throw Error(text('changed'));}
+    if(!response.ok){
+     if(response.status===409||response.status>=500)uncertain=true;
+     const errors={INJURY_CONFLICT:'conflict',INJURY_OWN_MATCH:'own',INJURY_CLOSED:'closed',INJURY_RECORDED:'lockedRow'};
+     throw Error(LANG==='en'?text(errors[data?.code]||'unavailable'):data?.error||text('unavailable'));
+    }
+    if(!data?.ok||!data.state||!_hydrate(data.state)){uncertain=true;throw Error(text('reload'));}
+    _lastSaved=_serialize();_loadOK=true;version=_stateV;choose();
+    status.textContent=text(data.changed?'saved':'unchanged');
+    if(typeof refreshPlayerList==='function')refreshPlayerList();
+   }catch(e){status.textContent=e.message;if(uncertain&&stamp===ctx()){_saveConflict=true;_showLoadError(text('reload'));if(!panel.querySelector('[data-inj-reload]')){const reload=btn(text('reloadBtn'),()=>location.reload());reload.dataset.injReload='1';panel.append(reload);}}}
+   finally{if(held)_dataOperationBusy=false;busy=false;paint();}
+  }
+  if(remembered&&USERS[remembered.name]){ps.value=remembered.name;ps.onchange();if(remembered.cycle!==null&&Array.from(cs.options).some(o=>o.value===String(remembered.cycle))){cs.value=String(remembered.cycle);cs.onchange();}if(remembered.version===_stateV){flag=remembered.flag;selected=new Set(remembered.selected);}}
+  paint();return panel;
+ }
+ global.SohailInjuries=Object.freeze({createPanel,choices,text,isInjury:injury});
+})(window);

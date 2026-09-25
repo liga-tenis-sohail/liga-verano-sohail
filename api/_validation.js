@@ -17,6 +17,10 @@ function safeTree(value,depth=0){
     safeTree(value[key],depth+1);
   }
 }
+function validateRuleSections(value){
+  if(value===undefined)return;
+  if(!value||typeof value!=='object'||Array.isArray(value)||Object.entries(value).some(([key,html])=>!['horarios','reservas','cancelaciones'].includes(key)||typeof html!=='string'||html.length>2*1024*1024))bad('Secciones de reglamento inválidas.');
+}
 function sameOrEmpty(a,b){
   const empty=v=>v===undefined||v===null||v===''||v===false||(Array.isArray(v)&&!v.length)||(v&&typeof v==='object'&&!Object.keys(v).length);
   return equal(a,b)||(empty(a)&&empty(b));
@@ -43,6 +47,9 @@ function validateMatch(m,state,admin){
   if(!names.every(n=>own(state.users,n)))bad('Jugador no encontrado.');
   if(!admin&&names.some(n=>state.users[n].inactive))deny('Un jugador inactivo no puede participar en una nueva carga.');
   if(!Array.isArray(m.sets))bad('Falta el marcador.');
+  if(own(m,'npReason')||own(m,'injurySide')){
+    if(m.npReason!=='injury'||![0,1].includes(m.injurySide)||m.np!==true||m.status!=='confirmed'||m.wo||m.winner||m.retiroDe||m.sets.length||m.po)bad('Lesión: sin juego, sin ganador y sin puntos.');
+  }
   if(m.np){if(!admin||m.po||m.sets.length)bad('No jugado: solo el administrador y sin sets.');return;}
   if(typeof m.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(m.date)||Number.isNaN(Date.parse(m.date))||new Date(m.date).toISOString().slice(0,10)!==m.date)bad('Fecha de partido inválida.');
   if(m.wo){
@@ -57,6 +64,9 @@ function protectState(current,incoming,session,admin,manage){
   safeTree(incoming);
   if(!Array.isArray(incoming.cycles)||!Array.isArray(incoming.matches)||!incoming.users||Array.isArray(incoming.users))bad('Formato de estado inválido.');
   const curUsers=current.users||{}, inUsers=incoming.users;
+  if(!own(incoming,'REGLAMENTO_SECCIONES')&&own(current,'REGLAMENTO_SECCIONES'))incoming.REGLAMENTO_SECCIONES=structuredClone(current.REGLAMENTO_SECCIONES);
+  validateRuleSections(incoming.REGLAMENTO_SECCIONES);
+
   // Optional cosmetic field: an older client omitting it must not erase it.
   if(!own(incoming,'LEAGUE_TEXT_COLORS')&&own(current,'LEAGUE_TEXT_COLORS'))
     incoming.LEAGUE_TEXT_COLORS=structuredClone(current.LEAGUE_TEXT_COLORS);
@@ -96,6 +106,8 @@ function protectState(current,incoming,session,admin,manage){
       }
       if(source){
         u.pass=source.pass;
+        if(own(u,'injured')&&u.injured!==source.injured)deny('El estado de lesión se cambia desde Jugadores → Lesiones.');
+        if(own(source,'injured'))u.injured=source.injured;else delete u.injured;
         for(const k of ['historialId','historialNombre']){
           if(own(u,k)&&!equal(u[k],source[k]))deny('La identidad deportiva solo se modifica con una revisión confirmada.');
           if(own(source,k))u[k]=structuredClone(source[k]);else delete u[k];
@@ -105,6 +117,7 @@ function protectState(current,incoming,session,admin,manage){
         if(source._credentialId)u._credentialId=source._credentialId;else delete u._credentialId;
         if(!manage&&((u.role||'player')!==(source.role||'player')||!!u.isAdmin!==!!source.isAdmin))deny('Solo el administrador original o el super administrador puede repartir permisos.');
       }else{
+        if(own(u,'injured'))deny('Registrá primero al jugador y luego su lesión.');
         if((u.role||'player')!=='player'||u.isAdmin)deny('No se crean cuentas administrativas desde este formulario.');
         if(u.jugadorId)deny('Incorporá los perfiles existentes desde el catálogo.');
         if(u.historialId||u.historialNombre)deny('Vinculá las fichas deportivas desde la revisión de identidades.');
@@ -134,11 +147,15 @@ function protectState(current,incoming,session,admin,manage){
   for(const m of incoming.matches){
     if(!m||seen.has(m.id))bad('Hay identificadores de partido duplicados.');seen.add(m.id);
     const before=old.get(m.id);
+    if(!admin&&before?.npReason==='injury'&&!equal(before,m))deny('Solo un administrador puede corregir una ausencia por lesión.');
     if(equal(before,m))continue; // No reinterpreta ni descarta resultados históricos.
     // Aggregation hints belong to the read-only browser projection, not storage.
     // Never let a supplied subject/profile override the participants in statistics.
     for(const key of Object.keys(m))if(key.startsWith('_mh'))delete m[key];
     const ps=participants(m);
+    if(m.npReason==='injury'&&ps?.includes(session.u))deny('Otro administrador debe registrar ausencias en tus propios partidos.');
+    if(m.npReason==='injury'&&before&&before.npReason!=='injury')deny('No se reemplaza un resultado existente por una lesión.');
+    if(before?.npReason==='injury'&&!equal(before,m)&&!m.np)deny('Quitá la ausencia desde Jugadores → Lesiones antes de cargar un marcador.');
     if(!before){
       // Check the stored stage, never a client-supplied editMode or simultaneous
       // reopening. An old client cannot replace a saved match using a new ID.
@@ -171,6 +188,7 @@ function protectState(current,incoming,session,admin,manage){
     }
 
   }
+  for(const [id,m]of old)if(!seen.has(id)&&m.npReason==='injury'&&participants(m).includes(session.u))deny('Otro administrador debe quitar las ausencias de tus propios partidos.');
   if(!admin)for(const [id,m]of old)if(!seen.has(id)){
     deny('Solo el administrador puede eliminar un resultado ya guardado.');
   }
@@ -179,4 +197,4 @@ function protectState(current,incoming,session,admin,manage){
   if(!admin)incoming.LOG=current.LOG||[];
   return incoming;
 }
-module.exports={AppError,identityRef,protectState,validateMatch,safeTree,participants};
+module.exports={AppError,identityRef,protectState,validateMatch,safeTree,participants,validateRuleSections};

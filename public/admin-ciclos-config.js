@@ -728,7 +728,7 @@ function exportExcel(){
         players.forEach(q=>{
           if(p===q){row.push('');return;}
           const m=findMatch(cy.n,gid,p,q);
-          if(m&&m.np){row.push('NJ');return;}
+          if(m&&m.np){row.push(m.npReason==='injury'?(LANG==='en'?'INJ - No points':'LES - Sin puntos'):'NJ');return;}
           if(m&&m.status==='confirmed'){
             const sc=m.aName===p?m.sets.map(([a,b])=>a+'-'+b).join(' '):m.sets.map(([a,b])=>b+'-'+a).join(' ');
             row.push(sc);
@@ -753,7 +753,7 @@ function exportExcel(){
       pAOA.push(['Ronda','Jugador A','Jugador B','Resultado','Ganador']);
       tr.main.forEach((round,ri)=>{
         round.forEach(m=>{
-          const sc=m.np?'No jugado':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
+          const sc=m.np?(m.npReason==='injury'?(LANG==='en'?'Not played due to injury - no points':'No jugado por lesión - sin puntos'):(LANG==='en'?'Not played':'No jugado')):(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
           pAOA.push([rName_export(ri,tr.main.length), m.a||'BYE', m.b||(m.a?'BYE':''), sc, m.w||'']);
         });
       });
@@ -763,7 +763,7 @@ function exportExcel(){
         pAOA.push(['Ronda','Jugador A','Jugador B','Resultado','Ganador']);
         tr.cons.forEach((round,ri)=>{
           round.forEach(m=>{
-            const sc=m.np?'No jugado':(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
+            const sc=m.np?(m.npReason==='injury'?(LANG==='en'?'Not played due to injury - no points':'No jugado por lesión - sin puntos'):(LANG==='en'?'Not played':'No jugado')):(m.sets?m.sets.map(([a,b])=>a+'-'+b).join(' '):'');
             pAOA.push([rName_export(ri,tr.cons.length), m.a||'BYE', m.b||(m.a?'BYE':''), sc, m.w||'']);
           });
         });

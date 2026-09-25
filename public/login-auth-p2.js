@@ -394,7 +394,7 @@ function exportarLigaExcel(){
       stats[n] = { pj:0, pg:0, pp:0, gg:0, gp:0 };
     });
     matches.forEach(m => {
-      if(m.status !== 'confirmed') return;
+      if(m.status !== 'confirmed' || m.np) return; // No played-match evidence for absences.
       const a = m.po ? m.poNames[0] : m.aName;
       const b = m.po ? m.poNames[1] : m.bName;
       if(!stats[a] || !stats[b]) return;
@@ -445,7 +445,7 @@ function exportarLigaExcel(){
       let wa = 0, wb = 0;
       (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
       if(wa > wb) ganador = a; else if(wb > wa) ganador = b;
-      const estado = m.status || 'confirmed';
+      const estado = m.np&&m.npReason==='injury' ? (LANG==='en'?'Injury · not played · no points':'Lesión · no jugado · sin puntos') : (m.status || 'confirmed');
       const club = (CLUBS && m.clubId) ? (CLUBS.find(c => c.id === m.clubId)?.name || '') : '';
       partRows.push([m.cycle || '', m.g || '', fase, a, b, sets, ganador, estado, club]);
     });

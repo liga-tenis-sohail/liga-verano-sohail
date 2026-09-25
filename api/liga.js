@@ -137,6 +137,7 @@ module.exports = async function handler(req, res){
   if(req.query && req.query.operacion!==undefined){
     if(req.query.operacion==='restore')return require('./_restore_route')(req,res);
     if(req.query.operacion==='identities')return require('./_identities_route')(req,res);
+    if(req.query.operacion==='injuries')return require('./_injuries').handler(req,res);
     if(req.query.operacion==='rating')return require('./_rating').handler(req,res);
     if(req.query.operacion==='login-order')return require('./_login-order').handler(req,res);
     return res.status(400).json({code:'INVALID_OPERATION',error:'Operación desconocida.'});

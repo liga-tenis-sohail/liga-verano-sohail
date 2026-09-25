@@ -9,6 +9,43 @@
 // ==================== REGLAMENTO ====================
 // Visible para todos (incluso en ligas pasadas). Editable solo por admin.
 let _rgEdit=false;
+// v4.8 — independent documents; legacy REGLAMENTO remains Normativa.
+const RG_SECTIONS=['normativa','horarios','reservas','cancelaciones'];
+const RG_SECTION_LABELS={es:['Normativa','Horarios','Reservas','Cancelaciones'],en:['Regulations','Opening hours','Bookings','Cancellations']};
+let _rgSection='normativa',_rgContext='',_rgDrafts=Object.create(null),_rgScroll=Object.create(null),_rgSaving=false;
+function rgSectionLabel(k){return RG_SECTION_LABELS[LANG==='en'?'en':'es'][RG_SECTIONS.indexOf(k)]||'';}
+function rgContext(){return String(_ligaActual)+'|'+String(currentUser?.key||currentUser?.name||'guest');}
+function rgSectionHTML(k){return k==='normativa'?REGLAMENTO:(typeof REGLAMENTO_SECCIONES==='object'&&typeof REGLAMENTO_SECCIONES[k]==='string'?REGLAMENTO_SECCIONES[k]:'');}
+function rgHasContent(){return RG_SECTIONS.some(k=>!!rgSectionHTML(k)?.trim());}
+function rgRememberSection(){
+ const box=document.getElementById('view-reglamento');if(!box||box.dataset.rgContext!==rgContext())return;
+ const k=box.dataset.rgSection,ed=box.querySelector('#rg-editor'),reader=box.querySelector('.rg-reader');
+ if(RG_SECTIONS.includes(k)&&ed&&_rgEdit)_rgDrafts[k]=ed.innerHTML;
+ if(RG_SECTIONS.includes(k))_rgScroll[k]=(ed||reader)?.scrollTop||0;
+}
+function rgChangeSection(k){
+ if(_rgSaving||!RG_SECTIONS.includes(k))return;
+ if(_rgLinkDraft){rgLinkStatus('rg_link_pending');document.getElementById('rg-link-url')?.focus();return;}
+ rgRememberSection();_rgSection=k;_rgEdit=Object.prototype.hasOwnProperty.call(_rgDrafts,k);renderReglamento(true);
+ document.getElementById('rg-tab-'+k)?.focus({preventScroll:true});
+}
+function rgDiscardSection(){
+ if(_rgSaving)return;
+ delete _rgDrafts[_rgSection];_rgEdit=false;renderReglamento(true);
+}
+function rgSectionNav(){
+ return '<div class="rg-section-tabs" role="tablist" aria-label="'+(LANG==='en'?'Rules sections':'Secciones del reglamento')+'">'+RG_SECTIONS.map(k=>'<button type="button" role="tab" id="rg-tab-'+k+'" aria-controls="rg-section-panel" aria-selected="'+(k===_rgSection)+'" tabindex="'+(k===_rgSection?'0':'-1')+'" data-rg-section="'+k+'"'+(_rgSaving?' disabled':'')+'>'+rgSectionLabel(k)+'</button>').join('')+'</div>';
+}
+function rgBindSections(box){
+ box.querySelectorAll('[data-rg-section]').forEach(b=>{
+  b.addEventListener('click',()=>rgChangeSection(b.dataset.rgSection));
+  b.addEventListener('keydown',e=>{const i=RG_SECTIONS.indexOf(b.dataset.rgSection);let n;
+   if(e.key==='ArrowRight')n=(i+1)%4;else if(e.key==='ArrowLeft')n=(i+3)%4;else if(e.key==='Home')n=0;else if(e.key==='End')n=3;else return;
+   e.preventDefault();rgChangeSection(RG_SECTIONS[n]);
+  });
+ });
+}
+
 // v3.9.3 — hyperlinks are limited to explicit HTTP(S) URLs. This function is
 // shared by the form and HTML sanitizer: never trust an existing href/target.
 function rgLinkUrl(value, inferHttps=false){
@@ -363,16 +400,20 @@ function renderReglamento(resetDraft=false){
   const cont=document.getElementById('view-reglamento');
   if(!cont)return;
   const admin=!_ligaReadOnly && esAdmin(currentUser);
-  const vacio=!REGLAMENTO||!REGLAMENTO.trim();
+  const key=rgContext();
+  if(_rgContext!==key){_rgSection='normativa';_rgDrafts=Object.create(null);_rgScroll=Object.create(null);if(_rgContext)_rgEdit=false;_rgContext=key;}
+  if(!resetDraft)rgRememberSection();
+  if(!admin)_rgEdit=false;
+  const sectionHTML=rgSectionHTML(_rgSection),vacio=!sectionHTML||!sectionHTML.trim();
   const oldEditor=cont.querySelector('#rg-editor');
-  const sameLeague=cont.dataset.rgLeague===String(_ligaActual);
-  const draft=!resetDraft&&_rgEdit&&admin&&sameLeague&&oldEditor?oldEditor.innerHTML:null;
+  const sameLeague=cont.dataset.rgLeague===String(_ligaActual)&&cont.dataset.rgSection===_rgSection&&cont.dataset.rgContext===key;
+  const draft=!resetDraft&&_rgEdit&&admin&&sameLeague&&oldEditor?oldEditor.innerHTML:(_rgDrafts[_rgSection]??null);
   const linkDraft=!resetDraft&&_rgEdit&&admin&&sameLeague?rgSnapshotLinkDraft():null;
-  const draftTop=oldEditor&&sameLeague?oldEditor.scrollTop:0;
+  const draftTop=oldEditor&&sameLeague?oldEditor.scrollTop:(_rgScroll[_rgSection]||0);
   const old=cont.querySelector('.rg-reader');
-  const oldTop=old&&cont.dataset.rgLeague===String(_ligaActual)?old.scrollTop:0;
-  let h='<div class="card rg-card">';
-  h+='<div id="rg-title" class="section-lbl"><i class="ti ti-book"></i> '+t('rg_title')+'</div>';
+  const oldTop=old&&sameLeague?old.scrollTop:(_rgScroll[_rgSection]||0);
+  let h='<div class="card rg-card">'+rgSectionNav()+'<section id="rg-section-panel" role="tabpanel" aria-labelledby="rg-tab-'+_rgSection+'">';
+  h+='<div id="rg-title" class="section-lbl"><i class="ti ti-book"></i> '+rgSectionLabel(_rgSection)+'</div>';
   if(_rgEdit && admin){
     // Barra de herramientas del editor enriquecido.
     h+='<div class="rg-toolbar">';
@@ -400,30 +441,31 @@ function renderReglamento(resetDraft=false){
     h+='<p id="rg-highlight-status" class="rg-highlight-status" role="status" aria-live="polite" aria-atomic="true"></p></div>';
     h+='</div>';
     h+=rgLinkPanel();
-    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rg-title" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(draft!==null?draft:(REGLAMENTO||''))+'</div>';
+    h+='<div id="rg-editor" class="rg-editor" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="rg-title" data-ph="'+t('rg_placeholder')+'">'+sanitizarReglamento(draft!==null?draft:(sectionHTML||''))+'</div>';
     h+='<input type="file" id="rg-file" accept="image/*" style="display:none" onchange="rgInsertFile(this)">';
     h+='<div class="rg-hint">'+t('rg_img_hint')+'</div>';
     h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:10px">';
     h+='<button class="btn btn-primary" onclick="guardarReglamento()"><i class="ti ti-check"></i> '+t('rg_save')+'</button>';
-    h+='<button class="btn" onclick="_rgEdit=false;renderReglamento()">'+t('close')+'</button>';
+    h+='<button class="btn" onclick="rgDiscardSection()">'+(LANG==='en'?'Discard edits':'Descartar edición')+'</button>';
     h+='<button class="btn btn-sm" onclick="copiarReglamentoUI()"><i class="ti ti-copy"></i> '+t('rg_copy')+'</button>';
     h+='</div>';
   } else {
     if(vacio){
-      h+='<p class="legend-txt">'+t('rg_empty')+'</p>';
+      h+='<p class="legend-txt">'+(LANG==='en'?'No content has been published in this section yet.':'Todavía no hay contenido publicado en esta sección.')+'</p>';
     } else {
       h+='<p id="rg-scroll-hint" class="rg-scroll-hint">'+t('rg_scroll_hint')+'</p>';
-      h+='<div class="rg-reader" tabindex="0" role="region" aria-labelledby="rg-title" aria-describedby="rg-scroll-hint"><div class="rg-content">'+sanitizarReglamento(REGLAMENTO)+'</div></div>';   // sanitizado al vuelo (limpia contenido viejo)
+      h+='<div class="rg-reader" tabindex="0" role="region" aria-labelledby="rg-title" aria-describedby="rg-scroll-hint"><div class="rg-content">'+sanitizarReglamento(sectionHTML)+'</div></div>';   // sanitizado al vuelo (limpia contenido viejo)
     }
     if(admin){
       h+='<div class="gap-sm" style="flex-wrap:wrap;margin-top:12px">';
-      h+='<button class="btn btn-primary" onclick="_rgEdit=true;renderReglamento()"><i class="ti ti-edit"></i> '+(vacio?t('rg_create'):t('rg_edit'))+'</button>';
+      h+='<button class="btn btn-primary" onclick="_rgEdit=true;renderReglamento()"><i class="ti ti-edit"></i> '+(LANG==='en'?(vacio?'Write section':'Edit section'):(vacio?'Crear sección':'Editar sección'))+'</button>';
       if(!vacio) h+='<button class="btn btn-sm" onclick="copiarReglamentoUI()"><i class="ti ti-copy"></i> '+t('rg_copy')+'</button>';
       h+='</div>';
     }
   }
-  h+='</div>';
+  h+='</section></div>';
   cont.innerHTML=h;
+  cont.dataset.rgSection=_rgSection;cont.dataset.rgContext=key;rgBindSections(cont);
   cont.dataset.rgLeague=String(_ligaActual);
   const reader=cont.querySelector('.rg-reader');if(reader)reader.scrollTop=oldTop;
   // Enganchar el pegado de imágenes en el editor.
@@ -433,6 +475,7 @@ function renderReglamento(resetDraft=false){
   if(ed){ ed.addEventListener('paste', rgOnPaste);ed.scrollTop=draftTop;rgRestoreLinkDraft(linkDraft); }
   if(!ed&&cont.querySelector('.rg-content a[href]')){const hint=document.createElement('p');hint.className='rg-link-help';hint.textContent=t('rg_link_reader_hint');cont.querySelector('.rg-reader').before(hint);}
   rgRefreshTextColors();
+  if(_rgSaving){cont.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);if(ed)ed.contentEditable='false';}
 }
 // Comandos de formato (negrita, listas, etc.). onmousedown + preventDefault para
 // no perder la selección del texto en el editor.
@@ -444,11 +487,12 @@ const RG_IMG_MAX = 2*1024*1024;  // 2 MB
 function rgInsertFile(inp){
   const f=inp.files&&inp.files[0]; if(!f)return;
   if(f.size>RG_IMG_MAX){ alert(t('rg_img_big')); inp.value=''; return; }
-  rgComprimirImg(f, (dataUrl)=>{ if(dataUrl) rgInsertImg(dataUrl); });
+  const context=rgContext(),section=_rgSection,editor=document.getElementById('rg-editor');
+  rgComprimirImg(f, (dataUrl)=>{ if(dataUrl&&context===rgContext()&&section===_rgSection&&editor===document.getElementById('rg-editor'))rgInsertImg(dataUrl); });
   inp.value='';
 }
 function rgInsertImg(dataUrl){
-  const ed=document.getElementById('rg-editor'); if(!ed)return;
+  const ed=document.getElementById('rg-editor'); if(!ed||!_rgEdit||_rgSaving||_ligaReadOnly||!esAdmin(currentUser)||typeof dataUrl!=='string'||!/^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(dataUrl))return;
   ed.focus();
   document.execCommand('insertHTML',false,'<img src="'+dataUrl+'" style="max-width:100%;height:auto;border-radius:8px;margin:6px 0">');
 }
@@ -478,7 +522,8 @@ function rgOnPaste(ev){
       ev.preventDefault();
       const f=it.getAsFile();
       if(f&&f.size>RG_IMG_MAX){ alert(t('rg_img_big')); return; }
-      rgComprimirImg(f, (dataUrl)=>{ if(dataUrl) rgInsertImg(dataUrl); });
+      const context=rgContext(),section=_rgSection,editor=document.getElementById('rg-editor');
+  rgComprimirImg(f, (dataUrl)=>{ if(dataUrl&&context===rgContext()&&section===_rgSection&&editor===document.getElementById('rg-editor'))rgInsertImg(dataUrl); });
       return;
     }
   }
@@ -501,14 +546,28 @@ function formatearReglamento(txt){
 }
 async function guardarReglamento(){
   const ed=document.getElementById('rg-editor');
-  if(!ed||!_rgEdit||_ligaReadOnly||!esAdmin(currentUser))return;
+  if(!ed||!_rgEdit||_rgSaving||_ligaReadOnly||!esAdmin(currentUser))return;
   if(_rgLinkDraft){rgLinkStatus('rg_link_pending');document.getElementById('rg-link-url')?.focus();return;}
-  REGLAMENTO=sanitizarReglamento(ed.innerHTML);
-  if(!await _criticalSave()){toast(t('fix_save_failed'));return;}
-  _rgEdit=false;
-  renderReglamento();
-  renderSubTabs();   // la pestaña puede aparecer/desaparecer si pasó de vacío a lleno
-  toast(t('rg_saved'));
+  const context=rgContext(),section=_rgSection,html=sanitizarReglamento(ed.innerHTML),previous=rgSectionHTML(section);
+  const previousSections={...REGLAMENTO_SECCIONES};
+  _rgDrafts[section]=html;_rgSaving=true;
+  const box=document.getElementById('view-reglamento');box.setAttribute('aria-busy','true');
+  box.querySelectorAll('button,input,select').forEach(b=>b.disabled=true);ed.contentEditable='false';
+  try{
+    if(section==='normativa')REGLAMENTO=html;else REGLAMENTO_SECCIONES={...REGLAMENTO_SECCIONES,[section]:html};
+    const ok=await _criticalSave();
+    if(context!==rgContext())return;
+    if(!ok){
+      if(section==='normativa')REGLAMENTO=previous;else REGLAMENTO_SECCIONES=previousSections;
+      toast(t('fix_save_failed'));return;
+    }
+    delete _rgDrafts[section];_rgEdit=false;toast(t('rg_saved'));renderSubTabs();
+  }catch(_){
+    if(context===rgContext()){if(section==='normativa')REGLAMENTO=previous;else REGLAMENTO_SECCIONES=previousSections;toast(t('fix_save_failed'));}
+  }finally{
+    _rgSaving=false;box.removeAttribute('aria-busy');
+    if(context===rgContext())renderReglamento(true);
+  }
 }
 // Limpia el HTML del reglamento: permite solo etiquetas de formato seguras y quita
 // cualquier script/handler. Así el HTML se puede mostrar sin riesgo de inyección.
@@ -558,23 +617,29 @@ function sanitizarReglamento(html,pegado){
 }
 // Copiar el reglamento de otra liga.
 async function copiarReglamentoUI(){
-  document.getElementById('modal-title').textContent=t('rg_copy_title');
-  document.getElementById('modal-body').innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  if(_rgSaving||_ligaReadOnly||!esAdmin(currentUser))return;
+  const context=rgContext(),section=_rgSection,body=document.getElementById('modal-body');
+  document.getElementById('modal-title').textContent=t('rg_copy_title')+' · '+rgSectionLabel(section);
+  body.innerHTML='<div class="pm-past-load">'+t('past_loading')+'</div>';
+  const loading=body.firstElementChild;
+  const valid=()=>context===rgContext()&&section===_rgSection&&body.firstElementChild===loading&&document.getElementById('modal-bg').classList.contains('open')&&!_ligaReadOnly&&esAdmin(currentUser);
   document.getElementById('modal-actions').innerHTML='<button class="btn" onclick="closeM()">'+t('close')+'</button>';
   document.getElementById('modal-bg').classList.add('open');
   try{
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})});
-    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw Error('Could not list leagues');
+    const d=await r.json();if(!valid())return;
     const otras=(d.ligas||[]).filter(l=>l.id!==(_ligaActual||'liga-actual'));
-    const body=document.getElementById('modal-body');
     if(!otras.length){ body.innerHTML='<div class="pm-past-empty">'+t('rg_copy_none')+'</div>'; return; }
-    body.innerHTML='<p class="legend-txt" style="margin-top:0">'+t('rg_copy_desc')+'</p>'
+    body.innerHTML='<p class="legend-txt" style="margin-top:0">'+(LANG==='en'?'Only this section will be copied as an editable draft: ':'Solo se copiará esta sección como borrador editable: ')+rgSectionLabel(section)+'.</p>'
       +'<div class="lm-list">'+otras.map(l=>
         '<button class="btn rg-src-btn" onclick="copiarReglamentoDe(\''+escJsAttr(l.id)+'\',\''+escJsAttr(l.nombre)+'\')">'
         +'<i class="ti ti-book"></i> '+escPast(l.nombre)+'</button>').join('')+'</div>';
-  }catch(_){ document.getElementById('modal-body').innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
+  }catch(_){ if(valid())body.innerHTML='<div class="pm-past-empty">'+t('past_loading_err')+'</div>'; }
 }
 async function copiarReglamentoDe(ligaId,nombre){
+  const context=rgContext(),section=_rgSection;
+  if(_rgSaving||_ligaReadOnly||!esAdmin(currentUser))return;
   try{
     let estado=null;
     const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:ligaId})});
@@ -583,9 +648,10 @@ async function copiarReglamentoDe(ligaId,nombre){
       const r2=await fetch(_conLiga2('/api/state',ligaId),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
       if(r2.ok){ const d=await r2.json().catch(()=>null); estado=d&&d.state; }
     }
-    const regla=estado&&typeof estado.REGLAMENTO==='string'?estado.REGLAMENTO:'';
-    if(!regla.trim()){ alert(t('rg_copy_empty').replace('{n}',nombre)); return; }
-    REGLAMENTO=regla;
+    if(context!==rgContext()||section!==_rgSection||_ligaReadOnly||!esAdmin(currentUser))return;
+    const regla=section==='normativa'?(typeof estado?.REGLAMENTO==='string'?estado.REGLAMENTO:''):(typeof estado?.REGLAMENTO_SECCIONES?.[section]==='string'?estado.REGLAMENTO_SECCIONES[section]:'');
+    if(!regla.trim()){ alert((LANG==='en'?'No published content in this section: ':'No hay contenido publicado en esta sección: ')+rgSectionLabel(section)+' · '+nombre); return; }
+    _rgDrafts[section]=sanitizarReglamento(regla);
     closeM();
     _rgEdit=true;   // abrir en edición para que el admin revise antes de guardar
     renderReglamento(true);

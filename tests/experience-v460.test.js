@@ -1,6 +1,8 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
-const E=require('../public/rating-engine'),X=require('../public/rating-explainer'),H=require('../public/match-history');
+// The same sporting tests run before or after optional Security Part 1.
+const E=fs.existsSync(path.join(__dirname,'../api/_rating-engine.js'))?require('../api/_rating-engine'):require('../public/rating-engine');
+const X=require('../public/rating-explainer'),H=require('../public/match-history');
 const u=id=>({jugadorId:id,role:'player'});
 const m=(n,a='A',b='B',extra={})=>({id:n,aName:a,bName:b,sets:[[6,3],[6,4]],status:'confirmed',date:'2026-09-01',...extra});
 function calculated(n){const data=E.prepare([{id:'league',users:{A:u('A'),B:u('B')},matches:Array.from({length:n},(_,i)=>m(i)),cycles:[]}]);return E.calculate(data,{asOf:'2026-09-22'});}
@@ -53,7 +55,7 @@ test('UX460 root overscroll is disabled without blocking zoom or native touch sc
  const s=fs.readFileSync(path.join(__dirname,'../public/experience-v460.css'),'utf8');assert.match(s,/html\{overscroll-behavior-y:none\}/);assert.ok(!/touch-action:\s*none|overflow-y:\s*hidden/.test(s));assert.ok(s.includes('body{overscroll-behavior-y:auto}'));assert.ok(s.includes('overscroll-behavior-y:auto'));assert.match(s,/:is\(#view-general,#view-rating\)/);
 });
 test('UX460 all new UI assets included with one release, cookie helper has no new public Function',()=>{
- const s=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');for(const f of ['experience-v460.css','session-client.js','rating-client.js','rating-explainer.js','rating.js','match-history.js'])assert.ok(s.includes(f+'?v=sohail-v460-unified-experience'));
+ const s=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');for(const f of ['experience-v460.css','session-client.js','rating-client.js','rating-explainer.js','rating.js','match-history.js'])assert.ok(s.includes(f+'?v='+(f==='match-history.js'?'sohail-v480-rules-injuries':'sohail-v460-unified-experience')));
  assert.ok(s.indexOf('session-client.js')<s.indexOf('bootstrap.js?v='));assert.ok(!fs.existsSync(path.join(__dirname,'../api/session.js')));
 });
 

@@ -116,7 +116,7 @@
    if(playoff.started||playoff.preview&&activeAdmin())defs.push(['po','playoffs']);
    if(canUseLeagueResults())defs.push(['liga-resultados','ui36_result_tools']);
    // Rules always closes the League tab list, including when playoffs is visible.
-   if(REGLAMENTO?.trim()||activeAdmin())defs.push(['reglamento','rg_tab']);
+   if((typeof rgHasContent==='function'?rgHasContent():REGLAMENTO?.trim())||activeAdmin())defs.push(['reglamento','rg_tab']);
   }else if(area==='matches')defs=[['partidos','ui_matches'],['cargar','ui_start'],['pendientes','ui_review']];
   else if(subView==='jugadores')defs=[['jugadores','ui_players'],['perfil','ui_profile']];
   const tabs=document.getElementById('tabs');tabs.style.display=defs.length?'flex':'none';
@@ -182,7 +182,7 @@
  function card(title,body,action=''){return '<section class="card ui-section"><div class="ui-section-heading"><h2>'+e(title)+'</h2>'+action+'</div>'+body+'</section>';}
  function matchCard(m,selection=false){
   const [a,b]=m.po?m.poNames:[m.aName,m.bName];const tag=m.po?t('playoffs')+' · '+m.tLabel+' · '+(m.which==='cons'?t('re_consolation'):'') : t('cycle')+' '+m.cycle+' · '+groupName(m.g);
-  const score=m.np?'NJ':m.wo&&!m.sets?.length?'W.O.':(m.sets||[]).map(s=>s.join('–')).join(' / ')+(m.wo?' · RET':'');
+  const score=m.np?(m.npReason==='injury'?(LANG==='en'?'INJ':'LES'):'NJ'):m.wo&&!m.sets?.length?'W.O.':(m.sets||[]).map(s=>s.join('–')).join(' / ')+(m.wo?' · RET':'');
   return '<article class="ui-match"><div class="ui-match-meta">'+(selection?'<input type="checkbox" class="ui-pending-select" value="'+m.id+'" aria-label="'+e(a+' vs '+b)+'">':'')+'<span>'+e(tag)+'</span><span class="badge '+(m.status==='confirmed'?'badge-ok':m.status==='disputed'?'badge-disp':'badge-pend')+'">'+e(t(m.status==='confirmed'?'validated_result':m.status==='disputed'?'disputed_result':'legend_pending'))+'</span></div><div class="ui-match-main"><strong>'+e(a)+' <span class="ui-vs">vs</span> '+e(b)+'</strong><b>'+e(score||'—')+'</b></div><div class="ui-match-meta"><span>'+e(m.club||'—')+' · '+e(m.date||'—')+'</span><button type="button" class="ui-link-button" data-ui-match="'+m.id+'">'+e(t('ui_open_match'))+' '+icon('arrow')+'</button></div></article>';
  }
  function pageTitle(title,sub,actions=''){return '<header class="ui-page-head"><div><p class="ui-eyebrow">'+e(leagueName())+'</p><h1>'+e(title)+'</h1><p>'+e(sub)+'</p></div>'+actions+'</header>';}

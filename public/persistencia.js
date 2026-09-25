@@ -24,7 +24,7 @@ let _lastSaved=null,_saving=false,_pendingForce=false,_loadOK=false,_dbEmpty=fal
 // tienen la app abierta, la segunda en guardar recibe 409 en vez de pisar a la primera.
 let _stateV=0;
 function _serialize(){
-  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:Object.fromEntries(Object.entries(USERS).map(([n,u])=>{const v={...u};delete v.key;return [n,v];})),PUNTOS,AJUSTES_PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LOGIN_TITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,LEAGUE_TEXT_COLORS,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,LOGIN_HEADER,JOIN_REQUESTS});
+  return JSON.stringify({_v:_stateV,cycles,matches,matchId,activeN,playoff,DESTINO,FECHAS,PO_FECHAS,ALLNAMES,users:Object.fromEntries(Object.entries(USERS).map(([n,u])=>{const v={...u};delete v.key;return [n,v];})),PUNTOS,AJUSTES_PUNTOS,LOG,LEAGUE_NAME,LEAGUE_SUBTITLE,LOGIN_TITLE,LEAGUE_COLOR_PRI,LEAGUE_COLOR_ACC,LEAGUE_COLOR_HL,LEAGUE_TEXT_COLORS,CLUBS,COLOR_DISPUTA,RATING_ON,RATING_SEEDS,RATING_OVERRIDES,REGLAMENTO,REGLAMENTO_SECCIONES:typeof REGLAMENTO_SECCIONES==='undefined'?{}:REGLAMENTO_SECCIONES,LOGIN_HEADER,JOIN_REQUESTS});
 }
 
 function _hydrate(d){try{
@@ -87,6 +87,8 @@ function _hydrate(d){try{
   if(Array.isArray(d.LOG))LOG=d.LOG;
   if(d.LEAGUE_NAME)LEAGUE_NAME=d.LEAGUE_NAME;
   REGLAMENTO=(typeof d.REGLAMENTO==='string')?d.REGLAMENTO:'';
+  REGLAMENTO_SECCIONES={};
+  for(const key of ['horarios','reservas','cancelaciones'])if(typeof d.REGLAMENTO_SECCIONES?.[key]==='string')REGLAMENTO_SECCIONES[key]=d.REGLAMENTO_SECCIONES[key];
   LEAGUE_SUBTITLE=typeof d.LEAGUE_SUBTITLE==='string'?d.LEAGUE_SUBTITLE:'';
   // typeof==='string' (no truthy-check): un LOGIN_TITLE vacío es un valor
   // válido y querido (significa "usar LEAGUE_NAME por defecto"), a diferencia
