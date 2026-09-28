@@ -43,5 +43,5 @@ module.exports=require('./_http').wrap(async function(req,res){
   require('./_session').clearCookie(res);
   return res.status(200).json({ok:true,passwordDefault:false,passwordTemporary:false,requiresLogin:true});
  }
-});
+},{route:'password'});
 module.exports=require('./_session').withCookie(module.exports);

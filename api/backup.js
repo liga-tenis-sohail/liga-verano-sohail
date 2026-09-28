@@ -1,139 +1,41 @@
-// =====================================================================
-// GET /api/backup   -> { ok, size, uploaded, keptOld }
-//
-// Endpoint disparado por el cron de Vercel (vercel.json → crons). Lee todas
-// las tablas del sistema, empaqueta un JSON, lo comprime (gzip) y lo sube al
-// bucket 'backups' de Supabase Storage.
-//
-// Seguridad: se protege con un token en el header 'x-backup-secret'. Vercel
-// lo pasa configurando el header en el cron. Sin token válido, 401.
-// (Sin secreto adicional Vercel cron podría llamarse desde afuera.)
-//
-// Retención: borra backups > 90 días.
-// =====================================================================
-const zlib = require('zlib');
-const { promisify } = require('util');
-const gzip = promisify(zlib.gzip);
-
-const { SUPA_URL, supaHeaders, envOK, logAudit } = require('./_lib');
-
-// Nombre del bucket. Debe crearse manualmente desde Supabase Dashboard →
-// Storage → New bucket → nombre "backups" → PRIVATE.
-const BUCKET = 'backups';
-const RETENTION_DAYS = 90;
-
-async function fetchAll(tabla,extra){
- const rows=[],size=500;let offset=0;
- for(;;){
-  const q=(extra||'order=id.asc')+'&limit='+size+'&offset='+offset;
-  const r=await fetch(SUPA_URL+'/rest/v1/'+tabla+'?'+q,{headers:supaHeaders(),signal:AbortSignal.timeout(20000)});
-  if(!r.ok)throw new Error('No se pudo exportar '+tabla+' ('+r.status+').');
-  const page=await r.json();if(!Array.isArray(page))throw new Error('Respuesta de tabla inválida: '+tabla);
-  rows.push(...page);if(!page.length)break;
-  offset+=page.length;
-  // A smaller server-side max_rows is not a signal of EOF: continue until empty.
-  if(offset>1000000)throw new Error('La copia excede el límite seguro. Usá un backup nativo de Postgres.');
+'use strict';
+// Existing three-day cron. A complete snapshot is encrypted before leaving
+// the function. No automatic deletion: retain earlier copies until recovery
+// has been tested and an independent copy exists.
+const crypto=require('node:crypto');
+const lib=require('./_lib'),B=require('./_backup-security');
+const BUCKET='backups';
+const storage=(path,options={})=>fetch(lib.SUPA_URL+'/storage/v1/'+path,{...options,headers:lib.supaHeaders(options.headers),signal:AbortSignal.timeout(20000)});
+module.exports=async function(req,res){
+ if(!lib.envOK(res))return;
+ const bearer=String(req.headers.authorization||'').startsWith('Bearer ')?req.headers.authorization.slice(7):'';
+ if(!B.sameSecret(bearer,process.env.CRON_SECRET)&&!B.sameSecret(req.headers['x-backup-secret'],process.env.BACKUP_SECRET))return res.status(401).json({error:'No autorizado.',code:'BACKUP_UNAUTHORIZED'});
+ const secret=process.env.BACKUP_ENCRYPTION_KEY;
+ B.key(secret); // Do not fall back to plaintext when the key is missing.
+ await require('./_request-security').consume(req,'backup','shared-cron');
+ const started=Date.now();
+ try{
+  const br=await storage('bucket/'+BUCKET);
+  if(!br.ok)throw Object.assign(new Error('Backup bucket unavailable'),{code:'BACKUP_BUCKET_UNAVAILABLE'});
+  const bucket=await br.json();
+  if(bucket.id!==BUCKET||bucket.public!==false)throw Object.assign(new Error('Backup bucket must be private'),{code:'BACKUP_BUCKET_NOT_PRIVATE'});
+  const snapshot=await lib.rpc('sohail_p3_backup_snapshot',{});
+  const encrypted=await B.seal(snapshot,secret,process.env.BACKUP_KEY_ID||'primary');
+  const name='backup-'+new Date().toISOString().replace(/[:.]/g,'-')+'-'+crypto.randomBytes(4).toString('hex')+'.sohail.enc';
+  const up=await storage('object/'+BUCKET+'/'+name,{method:'POST',headers:{'Content-Type':'application/octet-stream','x-upsert':'false'},body:encrypted});
+  if(!up.ok)throw Object.assign(new Error('Backup upload failed'),{code:'BACKUP_UPLOAD_FAILED'});
+  const check=await storage('object/'+BUCKET+'/'+name);
+  if(!check.ok||Number(check.headers.get('content-length')||0)>B.MAX_FILE)throw Object.assign(new Error('Backup verification failed'),{code:'BACKUP_VERIFY_FAILED'});
+  const downloaded=Buffer.from(await check.arrayBuffer());
+  if(downloaded.length!==encrypted.length||B.digest(downloaded)!==B.digest(encrypted))throw Object.assign(new Error('Backup verification failed'),{code:'BACKUP_VERIFY_FAILED'});
+  await B.open(downloaded,secret); // Confirms GCM integrity and bounded decompression.
+  let cleanup='ok';
+  try{await lib.rpc('sohail_p3_cleanup',{});await require('./_auth-security').sessionRPC('cleanup');}catch(_){cleanup='pending';}
+  await lib.logAudit('system','backup.ok',name,{version:3,sizeBytes:encrypted.length,verified:true,ms:Date.now()-started},null);
+  return res.status(200).json({ok:true,file:name,sizeBytes:encrypted.length,verified:true,encrypted:true,counts:snapshot.counts,cleanup,retention:'manual-no-deletion',totalMs:Date.now()-started});
+ }catch(e){
+  await lib.logAudit('system','backup.fail',null,{code:/^[A-Z_]+$/.test(e.code||'')?e.code:'BACKUP_FAILED'},null);
+  throw Object.assign(new Error('Backup failed; earlier copies were not deleted.'),{status:503,code:/^[A-Z_]+$/.test(e.code||'')?e.code:'BACKUP_FAILED'});
  }
- return rows;
-}
-
-module.exports = async function handler(req, res){
-  if(req.method!=='GET')return res.status(405).json({error:'Método no permitido'});
-  res.setHeader('Cache-Control','no-store');
-  if(!envOK(res)) return;
-
-  // Autorización: aceptamos DOS mecanismos:
-  //  a) Vercel Cron estándar: header Authorization: Bearer <CRON_SECRET>
-  //     (Vercel lo agrega automáticamente si la env var CRON_SECRET está seteada)
-  //  b) Header custom x-backup-secret con BACKUP_SECRET (para llamadas manuales)
-  const cronSecret = process.env.CRON_SECRET;
-  const backupSecret = process.env.BACKUP_SECRET;
-  if(!cronSecret && !backupSecret){
-    return res.status(500).json({ error: 'Faltan CRON_SECRET y BACKUP_SECRET en Vercel.' });
-  }
-  const authHeader = req.headers['authorization'] || '';
-  const gotBearer = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  const gotCustom = req.headers['x-backup-secret'] || '';
-  const ok = (cronSecret && gotBearer === cronSecret) || (backupSecret && gotCustom === backupSecret);
-  if(!ok){
-    return res.status(401).json({ error: 'No autorizado.' });
-  }
-
-  const started = Date.now();
-  try {
-    // 1) Exportación paginada de datos persistentes, incluyendo todo audit_log.
-    // rate_limits es efímero. Este JSON no es un snapshot transaccional de Postgres.
-    const exports=[['liga_state','order=id.asc'],['liga_index','order=id.asc'],['jugadores','order=id.asc'],['passkeys','order=credential_id.asc'],['audit_log','order=id.asc'],['mensajes','order=id.asc'],['admin_notify_channels','order=id.asc'],['sohail_account_security','order=id.asc'],['sohail_identity_registry','order=id.asc'],['sohail_data_operations','order=id.asc'],['sohail_login_order','order=id.asc']];
-    const tables={};
-    // Sequential to reduce memory pressure and avoid a burst of concurrent queries.
-    for(const [name,query]of exports)tables[name]=await fetchAll(name,query);
-    const snapshot={version:2,generated_at:new Date().toISOString(),started_at:new Date(started).toISOString(),consistency:'logical-export-not-transactional',tables};
-
-    const json = JSON.stringify(snapshot);
-    const gz = await gzip(Buffer.from(json, 'utf8'));
-
-    // 2) Subir a Storage. El nombre incluye fecha y hora ISO para orden natural.
-    const now = new Date();
-    const fname = 'backup-' + now.toISOString().replace(/[:.]/g, '-') + '.json.gz';
-    const upR = await fetch(SUPA_URL + '/storage/v1/object/' + BUCKET + '/' + fname, {
-      method: 'POST',
-      headers:supaHeaders({'Content-Type':'application/gzip','x-upsert':'false'}),
-      body: gz
-    });
-    if(!upR.ok){
-      const txt = await upR.text().catch(()=>'');
-      throw new Error('Storage upload ' + upR.status + ' ' + txt.slice(0, 200));
-    }
-
-    // 3) Retención: listar objetos y borrar los > RETENTION_DAYS.
-    let keptOld = 0;
-    try {
-      const listR = await fetch(SUPA_URL + '/storage/v1/object/list/' + BUCKET, {
-        method: 'POST',
-        headers:supaHeaders({'Content-Type':'application/json'}),
-        body: JSON.stringify({ limit: 1000, sortBy: { column: 'name', order: 'desc' } })
-      });
-      if(listR.ok){
-        const files = await listR.json();
-        const cutoff = Date.now() - RETENTION_DAYS * 24 * 3600 * 1000;
-        const toDelete = [];
-        for(const f of files){
-          // Parseamos la fecha del nombre: "backup-YYYY-MM-DDTHH-MM-SS-mmmZ.json.gz"
-          const m = f.name && f.name.match(/^backup-(\d{4})-(\d{2})-(\d{2})T/);
-          if(!m) continue;
-          const d = new Date(m[1] + '-' + m[2] + '-' + m[3]);
-          if(d.getTime() < cutoff) toDelete.push(f.name);
-        }
-        keptOld = files.length - toDelete.length;
-        if(toDelete.length){
-          await fetch(SUPA_URL + '/storage/v1/object/' + BUCKET, {
-            method: 'DELETE',
-            headers:supaHeaders({'Content-Type':'application/json'}),
-            body: JSON.stringify({ prefixes: toDelete })
-          }).catch(()=>{});
-        }
-      }
-    } catch(_){ /* la retención es best-effort */ }
-
-    // Never export active sessions or challenges. Garbage collection reuses the
-    // existing cron and cannot turn a completed backup into a false failure.
-    let authCleanup='ok';
-    try{await require('./_auth-security').sessionRPC('cleanup');}
-    catch(_){authCleanup='pending';await logAudit('system','session.cleanup.fail',null,{},null);}
-    logAudit('system', 'backup.ok', fname, { sizeBytes: gz.length, ms: Date.now() - started }, null);
-
-    return res.status(200).json({
-      ok: true,
-      file: fname,
-      sizeBytes: gz.length,
-      totalMs: Date.now() - started,
-      keptOld,
-      authCleanup
-    });
-  } catch(e){
-    logAudit('system', 'backup.fail', null, { error: String(e.message || e).slice(0, 300) }, null);
-    return res.status(500).json({ error: 'Backup failed: ' + (e.message || 'desconocido') });
-  }
 };
-
-module.exports = require('./_http').wrap(module.exports);
+module.exports=require('./_http').wrap(module.exports,{route:'backup'});

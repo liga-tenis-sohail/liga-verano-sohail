@@ -18,7 +18,7 @@ module.exports = async function handler(req, res){
   try {
     return await _handler(req, res);
   } catch(err){
-    console.error('❌ notify-channels crash:', err && err.stack ? err.stack : err);
+    console.error('Sohail handler failed; response contains the request reference.');
     if(!res.headersSent){
       return res.status(err.status||500).json({error:err.status?err.message:'Error interno.',code:err.code||'INTERNAL_ERROR'});
     }
@@ -257,4 +257,5 @@ async function borrar(req, res, session, ip, token){
   return res.status(200).json({ ok: true, removed, token });
 }
 
+module.exports = require('./_http').wrap(module.exports,{route:'notify-channels'});
 module.exports = require('./_session').withCookie(module.exports);

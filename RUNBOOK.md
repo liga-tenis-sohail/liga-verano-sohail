@@ -1,113 +1,82 @@
-# Sohail — operación segura · Parte 1/v4.8.1 con corrección de despliegue v4.8.2
+# Sohail — operación segura · Parte 3 v5.0.0
 
-## Estado y alcance
+Base: `52ebc3498520501593085fc018477d9631279028` (v4.9.1). Esta guía sustituye las instrucciones operativas anteriores; no modifica reglas deportivas.
 
-La corrección de despliegue se prepara sobre `49e2ffc436c6fd5aa4de34e4083d7a59e1e906d6`,
-con Parte 1/v4.8.1 ya cargada. No cambia la versión funcional ni los recursos del navegador.
-El usuario informa MFA con Google Authenticator en GitHub, Vercel y Supabase.
-Esta entrega conserva ese MFA y no instala nada en la base de datos.
-Integra las cuatro secciones de reglamento y la gestión de lesiones de v4.8.
-No aplicar de nuevo los ZIP v4.7.1 o v4.8 después de esta entrega integrada.
+## Publicación controlada
 
-Las instrucciones antiguas de compartir claves, usar contraseñas iniciales comunes,
-pegar estados completos directamente en SQL o dar secretos de producción a todos
-los previews quedan retiradas como procedimiento operativo.
+Configurar una regla clásica para `main`: Pull Request obligatorio, chequeo **Integridad, regresión y seguridad local**, rama actualizada y reglas aplicadas también a administradores. No exigir una segunda aprobación si no hay otro mantenedor. Desactivar force push, borrado y Lock branch. El archivo no activa esta configuración remota.
 
-## Publicar
+Trabajar en una rama, subir los archivos completos, abrir PR, esperar las comprobaciones y fusionar. Mantener Node 22, raíz del proyecto en la raíz de la repo, salida `dist/` y `npm run release:check`. No publicar `public/` directamente ni desactivar pruebas ante un error. No agregar `public: false` a vercel.json: el validador de esta liga lo rechazó.
 
-Aplicar el fix según `INSTRUCCIONES_FIX_VERCEL_v482.md`. Las referencias de las
-guías anteriores a poner `public: false` en vercel.json quedan retiradas.
-Conservar el proyecto Vercel y el dominio de los
-jugadores. No cambiar `APP_BASE_URL`, RP ID ni los orígenes de passkeys por transferir
-la propiedad del repositorio. Revisar siempre cuál es la cuenta personal vinculada
-al propietario de Vercel antes de cambiar la conexión Git.
+Con GitHub CLI autenticado y permisos adecuados, `node scripts/check-branch-protection.cjs` consulta la regla sin modificarla. Un 403/404 no se considera éxito. La fuente sigue siendo visible mientras GitHub sea público: proteger una rama no equivale a privatizarla.
 
-`vercel.json` fija la salida `dist` y un build con comprobaciones. NO incluir
-la propiedad `public`: el validador de los despliegues actuales la rechaza.
-En Vercel → proyecto → Settings → Security, mantener **Build Logs and Source
-Protection** y **Git Fork Protection** activados. El build no puede verificar
-ni activar esos ajustes del panel. Revisar `/_src` y `/_logs` sin iniciar sesión.
-No subir `dist` generado, datos, archivos .env ni pruebas de navegador a GitHub.
-Para trabajar localmente: Node 22; `npm run release:check`.
+## Instalación de Parte 3
 
-`check` conserva integridad y pruebas y agrega las comprobaciones de fuente y salida.
-El build Vercel repite las comprobaciones, para no depender de que su integración
-espere al workflow GitHub. Ninguna de estas medidas impide que un propietario con
-permisos de escritura cambie la propia configuración; limitar colaboradores sigue
-siendo necesario. GitHub Free privado no ofrece todas las protecciones obligatorias
-que existen para repositorios públicos.
+Conservar primero el código, una copia recuperable de los datos y el esquema. Incorporar el paquete previo y aprobar **Verificar SQL y dependencias Seguridad Parte 3**, sin secretos de producción. El workflow instala y prueba PostgreSQL 17 desechable y verifica la biblioteca de Excel descargada oficialmente.
 
-## Reglamento y lesiones
+Después ejecutar SQL10 y SQL11 en el Supabase actual: **55 filas, todas true**. Configurar `BACKUP_ENCRYPTION_KEY` en Production antes de publicar el código completo. Los archivos de `tests/security-db` y `tests/security-part3-db` nunca deben ejecutarse en Supabase real. No repetir el setup histórico ni abrir tablas para resolver un error.
 
-Normativa conserva REGLAMENTO. Horarios, Reservas y Cancelaciones son documentos
-informativos separados; no se inventan políticas. Las lesiones se registran desde
-Jugadores → Lesiones, solo por administradores autorizados. Una ausencia por lesión
-no es un W.O.: no adjudica puntos, no consume la ventana del rating y no crea un
-rival H2H. Dar el alta no borra las ausencias pasadas. Esta integración no modifica
-los 19 archivos de ejecución entregados en v4.8.
+La migración es aditiva. Cierra permisos actuales de las tablas y funciones de la aplicación; también permisos predeterminados del dueño ejecutor, globalmente y en `public`, para futuros objetos. Las nuevas funciones necesitan grants explícitos. No modifica objetos existentes de `auth`/`storage` ni los defaults de otros dueños.
 
-## Dependencias
+## Cuentas y deporte
 
-La dependencia de servidor sigue siendo `@simplewebauthn/server` 13.3.2. No se cambió
-su implementación ni se verificó su criptografía en esta entrega.
+Se conservan contraseñas nuevas de 6–128 caracteres, `tenis` temporal y restablecimiento elegido por el administrador, con cambio personal obligatorio. También scrypt, passkeys, sesiones revocables de hasta 24 horas y verificación reciente de operaciones sensibles. No regresar a un backend anterior a Parte 2. El MFA de los paneles no agrega MFA obligatorio a todos los jugadores.
 
-Acorn 8.15.0, con licencia MIT y checksum, se incluye solo como herramienta local
-de análisis/compactación; nunca se publica al navegador. Mantener su licencia.
+El rating conserva su motor, 50 partidos y umbral provisional de 15. Las lesiones siguen sin puntos de partido, con accesos desde jugadores/resultados y leyenda. Se conservan las cuatro categorías del reglamento.
 
-Mientras falte un lockfile versionado, el instalador señala explícitamente que la
-resolución inicial NO es reproducible. Generar y revisar `package-lock.json` con el
-workflow manual **Revisar dependencias (Parte 1)**, descargar el artefacto y subir
-ese archivo a la raíz. No fusionar automáticamente los PR de Dependabot: primero
-actualizarlos con el fix de main, revisar cambios de compatibilidad y comprobar las
-passkeys cuando cambie su biblioteca. No desactivar alertas para hacer pasar el audit.
-Después se usa `npm ci` y un lock incoherente falla: no se
-reemplaza silenciosamente por una resolución nueva. No usar `npm audit fix --force`.
+## Límites operativos y navegador
 
-## Credenciales y sesiones — pendientes de Parte 2
+Las cuotas compartidas usan ventanas fijas: público 120, acceso 30, lectura 240, escritura 60 y pesado 12 por 60 segundos. Una cabecera de sesión no autoriza por sí sola: el handler verifica el acceso. El backup tiene cuota global de tres por cinco minutos, después de comprobar su secreto. Varias personas bajo el mismo Wi-Fi comparten un presupuesto; un 429 requiere esperar Retry-After, no repetir escrituras automáticamente. Cada comprobación añade una consulta de base. No es una protección completa contra ataques distribuidos.
 
-Esta Parte 1 NO corrige aún la revocación al salir, NO cambia el formato PBKDF2
-existente, NO genera invitaciones y NO activa verificación reciente para acciones
-sensibles. La existencia de MFA en los paneles de infraestructura no incorpora MFA
-a las cuentas de jugadores de la aplicación.
+Los errores internos son genéricos y tienen un identificador. Las auditorías nuevas filtran ciertos campos sensibles, pero no reescriben registros anteriores; los registros existentes pueden incluir IP y actor.
 
-No pegar secretos ni códigos MFA en chats, issues, logs, archivos o comandos
-compartidos. Si se confirma exposición de una clave real, priorizar su revocación
-y rotación coordinada: ocultar el repositorio no basta. Un hash administrativo
-histórico se retiró del setup legado; no se comprobó si coincide con una credencial
-vigente. Su presencia anterior permanece en el historial Git hasta una revisión
-específica. No borrar el historial como sustituto de rotar una credencial expuesta.
+La CSP limita scripts de elemento y conexiones, bloquea eval y marcos, pero **conserva atributos de eventos inline y estilos inline**. No es una CSP estricta completa ni sustituye la sanitización.
 
-## Copias y recuperación
+Excel usa SheetJS 0.20.3 a demanda. XLSX/JSON: hasta 5 MiB; XLS antiguo: 2 MiB. XLSX requiere un navegador compatible con `DecompressionStream('deflate-raw')`; si falta, pide actualizarlo. Revisa estructura y contenido expandido, con máximos de 64 MiB totales, 16 MiB por entrada y 3.000 entradas. No recorta una importación para hacerla pasar. XLS no tiene un análisis equivalente del contenedor. No se incluye un antivirus ni se garantiza detectar todo archivo hostil.
 
-Respaldar el código y mantener una copia recuperable de la base antes de operaciones
-de producción. El ZIP de código anterior NO es una copia de Supabase.
-No ejecutar TRUNCATE ni pegar JSON de restauración sin un procedimiento probado.
-Las mejoras de consistencia, copia independiente y recuperación se completan en
-Parte 3. Esta Parte 1 conserva el cron existente de backup y no lo ejecuta.
+Las imágenes de mensajes admiten formatos raster revisados por firma y tamaño, no SVG/HTML. No es una decodificación forense completa de imágenes.
 
-Ante un fallo del nuevo build, no alterar la base: revisar el primer paso fallido.
-Para una emergencia después del despliegue, usar una versión funcional conocida
-según el instructivo, recordando que una versión anterior puede volver a exponer
-archivos públicos. Una vez validada Parte 1, conservarla como punto de recuperación
-para las Partes 2 y 3 y revisar las URLs antiguas de Vercel antes de retirarlas.
+## Vercel y secretos
 
-## Privacidad real
+Activar Vercel Authentication + Standard Protection. Comprobar sin sesión URLs antiguas, aliases y proyectos adicionales; el dominio habitual de producción debe seguir mostrando el login de la liga. Mantener Git Fork Protection y Build Logs and Source Protection.
 
-Revisar por separado: visibilidad GitHub; acceso a `_src` y `_logs`; URLs de
-publicaciones anteriores; lista de colaboradores; conexiones Git; permisos de
-previews. **Build Logs and Source Protection**, configurado en el panel Vercel,
-protege las vistas de fuente/logs, no la interfaz ni la repo de GitHub. No usar
-`--public` al publicar por CLI. Las publicaciones anteriores requieren revisión aparte.
-El JavaScript enviado al navegador sigue siendo inspeccionable aunque tenga nombres
-hash y menos comentarios. Copias ya descargadas no se recuperan por privatizar.
+El nuevo backend devuelve PREVIEW_DATA_DISABLED en Preview. No activar `SOHAIL_PREVIEW_DATA_ACCESS=1` con claves productivas; las pruebas funcionales de preview necesitan una base aislada. Retirar secretos productivos de Preview/Development: el bloqueo de la API no protege un build malicioso que pueda leer variables. Ningún ZIP verifica el panel ni protege retroactivamente los despliegues antiguos.
 
-## Referencias de plataforma
+No compartir claves, tokens o MFA en capturas, chats, issues o archivos. Ante exposición confirmada, rotar de forma coordinada; borrar código o privatizar no revoca una clave filtrada.
 
-- GitHub, transferencia de repositorios: https://docs.github.com/en/repositories/creating-and-managing-repositories/transferring-a-repository
-- Vercel, integración Git y restricciones Hobby: https://vercel.com/docs/git
-- Vercel, protección de código/logs: https://vercel.com/docs/project-configuration/security-settings
-- npm, instalación reproducible: https://docs.npmjs.com/cli/v10/commands/npm-ci/
+## Backups cifrados y retención
 
-Documentación consultada el 25 de septiembre de 2026. Respetar las cuotas gratuitas
-y la condición de uso personal no comercial de Vercel Hobby. No se verificó la
-situación comercial de la liga ni se contrataron servicios.
+Generar PRIVADAMENTE una clave aleatoria de 32 bytes, por ejemplo con `openssl rand -hex 32`. Guardar los 64 dígitos hexadecimales en un gestor y una copia independiente, además de `BACKUP_ENCRYPTION_KEY` en Vercel Production. No reutilizar otros secretos. `BACKUP_KEY_ID` es una etiqueta opcional. Al rotar, conservar las claves e identificadores anteriores.
+
+El cron sigue cada tres días. Obtiene una instantánea de 11 tablas, cifra con AES-256-GCM, sube al bucket privado y vuelve a descargar y verificar. Solo termina con verified:true tras completar esa comprobación. Sin clave, con bucket público o datos alterados, falla sin caer a texto plano ni borrar copias anteriores.
+
+Los datos persistentes incluyen perfiles, credenciales y configuración. No se exportan sesiones activas, desafíos ni códigos temporales. El límite es 250.000 filas por tabla y 32 MiB sin comprimir: superarlo requiere un respaldo nativo, no una copia parcial.
+
+No hay borrado automático. Revisar almacenamiento y retención; eliminar manualmente solo copias con sustituto independiente verificado. Los archivos .json.gz antiguos siguen siendo sensibles y no se recifran automáticamente. Los Excel descargados desde la aplicación son distintos: no reciben este cifrado.
+
+**Sin la clave no se recupera una copia cifrada.** Conservar una copia independiente fuera de Supabase. No subir backups, claves, Excel o archivos descifrados a GitHub.
+
+## Verificar y recuperar
+
+Descargar una copia .sohail.enc fuera de la repo. Con Node 22 y la clave en el entorno privado:
+`node scripts/verify-backup.cjs /ruta/privada/archivo.sohail.enc`
+El comando verifica cifrado, integridad, descompresión y cantidades; no muestra contactos ni credenciales y no escribe en la base.
+
+`--decrypt-to /ruta/privada/nuevo.json` crea un archivo sensible nuevo fuera de la repo, con permisos 0600. No sobrescribe archivos. No compartirlo y retirarlo cuando deje de ser necesario.
+
+El ensayo del workflow restaura tablas ficticias en un esquema separado. No prueba una restauración total del proyecto real. Conservar también esquema, roles, objetos de Storage y configuración de infraestructura: no forman parte de esta exportación lógica.
+
+Ante fallos, conservar el primer error y preferir una corrección hacia adelante. No ejecutar TRUNCATE ni sobreescribir cuentas con hashes antiguos. Una restauración de credenciales exige revisar revocaciones y secretos antes de reabrir la liga. Volver a v4.9.1 retiraría Parte 3 y reactivaría el backup antiguo sin cifrado; no es una reversión automática segura.
+
+## Dependencias y límites pendientes
+
+Se mantiene SimpleWebAuthn 13.3.2. No se certifica aquí su criptografía ni una auditoría npm. Cuando falte package-lock.json, usar el workflow Revisar dependencias (Parte 1); no fabricar un lock ni ejecutar npm audit fix --force. Conservar la licencia de Acorn, utilizado solo para construir y verificar, no publicado al navegador.
+
+Sigue siendo necesario verificar la instalación real, los ajustes remotos, la copia independiente y la recuperación. Ninguna batería local certifica la ausencia de vulnerabilidades o impide toda imitación de la interfaz.
+
+Fuentes oficiales consultadas el 26/09/2026:
+- https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
+- https://vercel.com/docs/deployment-protection
+- https://www.postgresql.org/docs/17/xfunc-volatility.html
+- https://www.postgresql.org/docs/17/sql-alterdefaultprivileges.html
+- https://docs.sheetjs.com/docs/getting-started/installation/standalone/

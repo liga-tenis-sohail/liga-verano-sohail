@@ -9,7 +9,7 @@ function secretFindings(text){
   ['secret-key',/\bsb_secret_[A-Za-z0-9_-]{20,}\b/g],
   ['github-token',/\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,})\b/g],
   ['private-key',/-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----/g],
-  ['credential-literal',/\b(?:SESSION_SECRET|SUPABASE_SERVICE_KEY|BACKUP_SECRET|CRON_SECRET|RESEND_API_KEY)\s*[:=]\s*['"][^'"\r\n]{24,}['"]/g],
+  ['credential-literal',/\b(?:SESSION_SECRET|SUPABASE_SERVICE_KEY|BACKUP_SECRET|CRON_SECRET|RESEND_API_KEY|BACKUP_ENCRYPTION_KEY)\s*[:=]\s*['"][^'"\r\n]{24,}['"]/g],
   ['retired-admin-hash',/['"]super_hash['"]\s*,\s*['"]v[12]:[a-f0-9]{64}['"]/g]
  ];
  for(const [type,re]of patterns)for(const m of text.matchAll(re)){
@@ -48,9 +48,9 @@ function vercelConfigFindings(v){
  const required={
   '/(.*)':{
    'x-content-type-options':'nosniff',
-   'referrer-policy':'strict-origin-when-cross-origin',
-   'permissions-policy':'publickey-credentials-get=(self), publickey-credentials-create=(self)',
-   'content-security-policy':"frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+   'referrer-policy':'no-referrer',
+   'permissions-policy':'publickey-credentials-get=(self), publickey-credentials-create=(self), camera=(), microphone=(), geolocation=()',
+   'content-security-policy':"default-src 'self'; script-src 'self' https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js; script-src-elem 'self' https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js; script-src-attr 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/; font-src 'self' https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/; img-src 'self' data: blob:; connect-src 'self'; worker-src 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
    'x-frame-options':'DENY'
   },
   '/assets/(.*)':{'cache-control':'public, max-age=31536000, immutable'},
@@ -84,7 +84,7 @@ function check(root=path.resolve(__dirname,'..')){
  walk(root);
  for(const n of files){
   if(/(^|\/)\.env(?:\.|$)/.test(n)&&!n.endsWith('.env.example')){failures.push({file:n,type:'environment-file'});continue;}
-  if(/\.(?:pem|p12|pfx|xlsx?|csv|dump|db|sqlite3?|zip|tar|gz)$/i.test(n)){failures.push({file:n,type:'private-data-or-archive'});continue;}
+  if(/\.(?:sohail\.enc|key|pem|p12|pfx|xlsx?|csv|dump|db|sqlite3?|zip|tar|gz)$/i.test(n)){failures.push({file:n,type:'private-data-or-archive'});continue;}
   if(!/\.(?:js|cjs|mjs|json|ya?ml|html|css|sql|txt|md)$/.test(n))continue;
   const p=path.join(root,n);if(fs.statSync(p).size>5*1024*1024){failures.push({file:n,type:'unreviewed-large-file'});continue;}
   const text=fs.readFileSync(p,'utf8');

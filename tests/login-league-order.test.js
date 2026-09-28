@@ -1,4 +1,5 @@
 'use strict';
+const protectedTables=require('./support/mock-db.cjs').protectedTables;
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {createDB,fixture,req,call,lib}=require('./support/mock-db.cjs');
 const handler=require('../api/liga'),O=require('../public/league-order');
@@ -94,12 +95,12 @@ test('ORDER430 DB closure/reopening between load and save requires fresh list',(
  const order=ids(db);db.tables.liga_index.find(l=>l.id==='old').estado='activa';const r=await post(db,{accion:'guardar',version:0,ids:order});assert.equal(r.body.code,'LEAGUES_CHANGED');assert.deepEqual(saved(db),[]);
 }));
 test('ORDER430 database save failure cannot report success or change league data',()=>dbRun(async db=>{
- const before=structuredClone(db.tables);db.failWrites=1;
- assert.equal((await post(db,{accion:'guardar',version:0,ids:ids(db)})).status,503);assert.deepEqual(db.tables,before);
+ const before=structuredClone(protectedTables(db));db.failWrites=1;
+ assert.equal((await post(db,{accion:'guardar',version:0,ids:ids(db)})).status,503);assert.deepEqual(protectedTables(db),before);
 }));
 test('ORDER430 missing optional settings never prevents public listing/login, management explains SQL requirement',()=>dbRun(async db=>{
  delete db.tables.sohail_login_order;const l=await list();assert.equal(l.status,200);assert.equal(l.body.loginOrderAvailable,false);assert.equal(O.closed(l.body.ligas).length,6);
- const r=await post(db,{accion:'leer'});assert.equal(r.status,503);assert.equal(r.body.code,'LOGIN_ORDER_SCHEMA_REQUIRED');assert.match(r.body.error,/06_login_league_order.sql/);
+ const r=await post(db,{accion:'leer'});assert.equal(r.status,503);assert.equal(r.body.code,'LOGIN_ORDER_SCHEMA_REQUIRED');assert.match(r.body.requestId,/^[a-f0-9-]{36}$/);assert.ok(!r.body.error.includes('06_login'));
 }));
 test('ORDER430 invalid persisted settings fail closed for editing and use historical fallback publicly',()=>dbRun(async db=>{
  config(db).league_ids=['old','old'];assert.equal((await post(db,{accion:'leer'})).status,503);assert.equal((await list()).body.loginOrderAvailable,false);
@@ -126,6 +127,6 @@ test('ORDER430 migration static security contract and full delivery wiring',()=>
  const html=read('public/index.html');for(const f of ['league-order.js','login-league-order.js','login-league-order.css'])assert.ok(html.includes(f+'?v=sohail-v430-login-league-order'));
  assert.ok(html.indexOf('league-order.js?')<html.indexOf('login-auth.js?'));
  assert.ok(html.indexOf('login-league-order.js?')<html.indexOf('bootstrap.js?'));
- assert.match(read('api/backup.js'),/\['sohail_login_order','order=id.asc'\]/);
+ assert.ok(require('../api/_backup-security').TABLES.includes('sohail_login_order'));assert.match(read('10_security_part3.sql'),/sohail_login_order/);
  assert.ok(read('07_verify_login_league_order.sql').includes('11_dependencia_04_instalada'));
 });

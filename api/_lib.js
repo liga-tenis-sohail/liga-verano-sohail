@@ -152,6 +152,7 @@ function filterForSession(state, session){
     if(session&&name===session.u)u.passwordDefault=!!session.m;
     delete u.pass;
     if(!admin&&(!session||name!==session.u)){delete u.email;delete u.tel;delete u._credentialId;}
+    if(!admin){for(const k of ['identityRef','_credentialId','credentialVersion','passwordTemporary','profileAlternatives','alternatives','provenance','perfilAlternativas','perfilUnificado'])delete u[k];}
   }
   if(!admin){state.JOIN_REQUESTS=[];state.LOG=[];}
   return state;
@@ -412,7 +413,7 @@ async function logAudit(actor, action, target, details, actorIp){
         actor_ip: actorIp ? String(actorIp).slice(0, 45) : null,
         action: String(action || '').slice(0, 60),
         target: target ? String(target).slice(0, 200) : null,
-        details: details || null
+        details: require('./_content-security').auditDetails(details) || null
       })
     });
   } catch(_){ /* silent, audit no debe bloquear */ }
@@ -483,7 +484,7 @@ async function leerMensajes({ ligaId, tipo, ciclo, grupo, limite }){
   const r = await fetch(url, { headers: supaHeaders({ select: undefined }) });
   if(!r.ok) throw new Error('Supabase read mensajes ' + r.status);
   const rows = await r.json();
-  return Array.isArray(rows) ? rows.reverse() : [];
+  return Array.isArray(rows) ? rows.reverse().map(require('./_content-security').message) : [];
 }
 
 // Lee solo los mensajes NUEVOS (id mayor al último que el cliente ya tiene).
@@ -503,7 +504,7 @@ async function leerMensajesDesde({ ligaId, tipo, ciclo, grupo, desdeId }){
   const r = await fetch(url, { headers: supaHeaders() });
   if(!r.ok) throw new Error('Supabase read mensajes ' + r.status);
   const rows = await r.json();
-  return Array.isArray(rows) ? rows : [];
+  return Array.isArray(rows) ? rows.map(require('./_content-security').message) : [];
 }
 
 
