@@ -25,3 +25,13 @@ evidence/
 coverage/
 playwright-report/
 .DS_Store
+
+# Security Part 3: encrypted exports and private key files are not build inputs.
+*.sohail.enc
+*.key
+*.pem
+*.p12
+*.pfx
+backup-*.json
+sohail-backup-*.json
+decrypted-backup*.json
