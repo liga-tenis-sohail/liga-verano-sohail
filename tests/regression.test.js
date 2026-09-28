@@ -420,11 +420,11 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
  }));
  test('HST12 missing global identity is explicit, not a guessed name match',()=>usingHistory(async({db,current})=>{
   delete db.state().users.Alicia.jugadorId;
-  const out=await H.collect({current:current(),name:'Alicia',token:'not-used',fetcher:bridge(db)});assert.equal(out.records.length,0);assert.ok(out.issues.some(i=>i.reason==='no-global-id'));assert.equal(out.index.length,3);
+  const out=await H.collect({current:current(),name:'Alicia',token:'not-used',fetcher:bridge(db)});assert.equal(out.records.length,0);assert.ok(out.issues.some(i=>i.reason==='no-global-id'));assert.equal(out.index.length,1);
  }));
  test('HST13 read errors are retained when selecting a failed league instead of inventing zero',()=>usingHistory(async({db,current})=>{
-  db.fault=({name,url})=>name==='liga_state'&&url.searchParams.get('id')==='eq.otra-activa';
-  const c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});await c.load();const s=H.selectScope(c.snapshot(),'league:otra-activa','liga-actual');assert.equal(s.unavailable,true);assert.ok(s.issues.length);assert.equal(c.snapshot().index.length,3);
+  db.fault=({name})=>name==='sohail_perf_source';
+  const c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});await c.load();const s=H.selectScope(c.snapshot(),'league:otra-activa','liga-actual');assert.equal(c.snapshot().error,true);assert.equal(c.snapshot().ready,false);assert.equal(s.records.length,0);
  }));
  test('HST14 individual league selection filters only that league without changing the source',()=>usingHistory(async({db,current})=>{
   const c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});await c.load();
@@ -433,7 +433,7 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
  test('HST15 public archived viewer includes closed history but never fetches active states without login',()=>usingHistory(async({db})=>{
   const past=db.state('anterior'),urls=[];const fetcher=bridge(db);
   const c=H.createController({current:()=>({id:'anterior',nombre:'Finalizada',estado:'finalizada',users:past.users,matches:past.matches}),name:'Alicia',token:()=>null,valid:()=>true,fetcher:(url,...args)=>{urls.push(url);return fetcher(url,...args);}});
-  await c.load();const out=c.snapshot();assert.equal(out.records.length,2);assert.ok(out.issues.some(i=>i.reason==='login-required'));assert.ok(urls.every(u=>!u.startsWith('/api/state')));
+  await c.load();const out=c.snapshot();assert.equal(out.records.length,2);assert.ok(out.index.every(i=>i.estado==='finalizada'));assert.ok(urls.every(u=>!u.startsWith('/api/state')));
  }));
  test('HST16 three participant playoff is rejected as ambiguous, not truncated to two',()=>{
   const out=H.project({users:{Alicia:{jugadorId:'a'}},matches:[{id:1,po:true,poNames:['Alicia','Beto','Ciro']}]},{id:'old',nombre:'Old'},{id:'a',name:'Alicia'});assert.equal(out.records.length,0);assert.ok(out.issues.includes('ambiguous'));
@@ -451,7 +451,7 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
  });
  test('HST20 selecting a league never sends session-selection parameters',()=>usingHistory(async({db,current})=>{
   const urls=[],f=bridge(db);await H.collect({current:current(),name:'Alicia',token:db.token(),fetcher:(url,...args)=>{urls.push(url);return f(url,...args);}});
-  assert.ok(urls.some(u=>u.endsWith('&historial=1')));assert.ok(urls.every(u=>!u.includes('elegir=')));
+  assert.deepEqual(urls,['/api/liga?operacion=history']);assert.ok(urls.every(u=>!u.includes('elegir=')));
  }));
 }
 

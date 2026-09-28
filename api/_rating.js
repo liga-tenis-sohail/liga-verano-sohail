@@ -62,14 +62,11 @@ async function handler(req,res){
   const body=req.body&&typeof req.body==='object'&&!Array.isArray(req.body)?req.body:{};
   if(Object.keys(body).some(k=>!['playerKey','snapshot'].includes(k)))throw error(400,'INVALID_RATING_REQUEST','El rating usa únicamente resultados guardados, no datos enviados desde el navegador.');
   if(body.playerKey!==undefined&&(typeof body.playerKey!=='string'||body.playerKey.length>600))throw error(400,'INVALID_PLAYER','Perfil inválido.');
-  const leagues=await stableSnapshot(!!session);
-  // Re-check security after the potentially long history read. A revoked session
-  // must not receive a cached/private sporting universe from its earlier check.
+  const fast=await fastSnapshot(!!session,body.playerKey);
+  // Mandatory fresh authorization, including on persistent cache hits.
   if(session&&!await lib.auth(req))throw error(401,'UNAUTHENTICATED','Tu sesión venció durante la lectura.');
-  const asOf=new Date().toISOString().slice(0,10),snapshot=digest({model:E.VERSION,asOf,leagues});
-  let computed=cache.get(snapshot);
-  if(!computed){computed=E.calculate(E.prepare(leagues),{asOf});cache.set(snapshot,computed);while(cache.size>2)cache.delete(cache.keys().next().value);}
-  const manifest=leagues.map(l=>({id:l.id,name:l.name,state:l.state,version:l.v,matches:l.matches.filter(m=>m.status==='confirmed'&&!m.np).length}));
+  const {computed,manifest,snapshot,asOf}=fast;
+  res.setHeader('X-Sohail-Rating-Cache',fast.hit);
   if(body.playerKey!==undefined){
    if(body.snapshot!==snapshot)throw error(409,'RATING_SOURCE_CHANGED','El cálculo cambió. Actualizá la tabla antes de consultar los partidos.');
    const info=computed.info[body.playerKey];if(!info)throw error(404,'PLAYER_NOT_FOUND','El perfil no forma parte del historial autorizado.');
@@ -77,10 +74,33 @@ async function handler(req,res){
   }
   const info=Object.create(null),people=Object.create(null),overrides=Object.create(null);
   for(const [k,v]of Object.entries(computed.info)){const {selected,...summary}=v;info[k]=summary;const p=computed.people[k];people[k]={label:p.label,aliases:p.aliases};}
-  for(const l of leagues)overrides[l.id]=l.overrides;
+  Object.assign(overrides,fast.overrides);
   return res.status(200).json({ok:true,complete:true,version:E.VERSION,snapshot,asOf,ts:new Date().toISOString(),scope:session?'all-registered':'finalized-public',
    window:50,method:{...E.DEFAULTS,provisionalMatches:E.PROVISIONAL_MATCHES},weakBridgeCount:computed.weakBridgeCount,info,people,byLeague:computed.byLeague,overrides,leagues:manifest,matchCount:computed.matchCount,componentCount:computed.componentCount,
    issueCounts:computed.issues.reduce((o,x)=>{o[x.code]=(o[x.code]||0)+1;return o;},{}),iterations:computed.iterations});
  }catch(e){return res.status(e.status||e instanceof E.RatingError&&422||503).json({code:e.code||'RATING_UNAVAILABLE',error:e.code?e.message:'No se pudo calcular el rating completo. Probá de nuevo.'});}
 }
-module.exports={handler,project,stableSnapshot};
+const inflight=new Map();
+async function fastSnapshot(priv,playerKey){
+ const read=full=>lib.rpc('sohail_perf_source',{p_private:priv,p_snapshot:full,p_model:E.VERSION,p_player:playerKey??null});
+ const source=await read(false);
+ if(!source||!Array.isArray(source.index)||typeof source.signature!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(source.asOf||''))throw error(503,'RATING_SOURCE_UNAVAILABLE','No se pudo leer el rating completo.');
+ const snapshot=digest({model:E.VERSION,asOf:source.asOf,signature:source.signature,private:priv});
+ const finish=(payload,hit)=>({computed:payload.computed,overrides:payload.overrides,snapshot,asOf:source.asOf,hit,manifest:payload.manifest.map(l=>({...l,version:source.index.find(x=>x.id===l.id)?.version??l.version}))});
+ if(source.cache)return finish(source.cache,'persistent');
+ if(cache.has(snapshot))return finish(cache.get(snapshot),'memory');
+ if(!inflight.has(snapshot)){
+  const work=(async()=>{
+   const full=await read(true);
+   if(full.signature!==source.signature||full.asOf!==source.asOf)throw error(409,'RATING_SOURCE_CHANGED','El historial cambió. Actualizá el rating.');
+   if(!Array.isArray(full.states))throw error(503,'RATING_SOURCE_INCOMPLETE','Falta el historial completo.');
+   const leagues=project(full.index,full.states,priv),computed=E.calculate(E.prepare(leagues),{asOf:full.asOf});
+   const payload={computed,overrides:Object.fromEntries(leagues.map(l=>[l.id,l.overrides])),manifest:leagues.map(l=>({id:l.id,name:l.name,state:l.state,version:l.v,matches:l.matches.filter(m=>m.status==='confirmed'&&!m.np).length}))};
+   const stored=await lib.rpc('sohail_perf_cache_put',{p_private:priv,p_signature:full.signature,p_model:E.VERSION,p_as_of:full.asOf,p_payload:payload});
+   if(!stored){const current=await read(false);if(current.signature!==full.signature||current.asOf!==full.asOf)throw error(409,'RATING_SOURCE_CHANGED','El historial cambió. Actualizá el rating.');}
+   cache.set(snapshot,payload);while(cache.size>2)cache.delete(cache.keys().next().value);return payload;
+  })();inflight.set(snapshot,work);work.finally(()=>inflight.delete(snapshot)).catch(()=>{});
+ }
+ return finish(await inflight.get(snapshot),'computed');
+}
+module.exports={handler,project,stableSnapshot,fastSnapshot};

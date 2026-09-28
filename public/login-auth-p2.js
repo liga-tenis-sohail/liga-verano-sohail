@@ -702,7 +702,7 @@ function montarAppTrasLogin(){
     viewCycle=activeN;renderShell();showSub('grupos');
     // Calcular el rating global (todas las ligas) en segundo plano. Cuando termina,
     // refresca la vista para que la columna y la ficha muestren los números.
-    if(RATING_ON){ calcularRatingGlobal(true).then(()=>{ try{ if(subView==='grupos'||subView==='rating') showSub(subView); }catch(_){}}); }
+    if(RATING_ON){const token=_token;setTimeout(()=>{if(token!==_token||!currentUser)return;calcularRatingGlobal(false).then(()=>{try{if(token===_token&&(subView==='grupos'||subView==='rating'))showSub(subView);}catch(_){}}).catch(()=>{});},0);}
   }
   document.getElementById('login-pass').value='';
   clearForm();
@@ -754,6 +754,7 @@ function entrarConToken(d){
   return true;
 }
 async function doLogout(){
+  if(window.SohailLeagueHistory)SohailLeagueHistory.clearCache();
   const logoutResult=window.SohailSession?SohailSession.logout():Promise.resolve({ok:true});
   if(window.SohailSecurity)SohailSecurity.cancel();
   _loginAttemptVersion++;setLoginBusy(false);

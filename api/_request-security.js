@@ -73,6 +73,8 @@ function category(req,route){
  if(route==='backup')return null; // The backup handler consumes ONLY after checking its secret.
  if(['login','password','passkey'].includes(route))return 'auth';
  const a=req.body?.accion||'',mode=req.body?.mode||'',op=req.query?.operacion;
+ if(route==='liga'&&op==='history')return 'read';
+ if(route==='liga'&&op==='storage')return mode==='clean'?'write':'read';
  if(route==='liga'){
   if(op==='rating')return 'heavy';
   if(op==='restore')return mode==='status'?'read':'heavy';

@@ -1,5 +1,5 @@
 /* Sohail v3.9.8 — lectura deportiva entre ligas activas y archivadas. No escribe ni cambia de sesión.
-   Usa exclusivamente listar/ver y GET state (NUNCA elegir=1). La identidad
+   Usa una proyección deportiva del servidor (NUNCA elegir=1). La identidad
    entre temporadas se resuelve por historialId (o jugadorId sin fusión), nunca por parecido del nombre.
    No se guardan estados, credenciales ni historiales en localStorage. */
 (function(root,factory){
@@ -70,38 +70,22 @@
    const data=await r.json();if(!data||typeof data!=='object')throw new Error('invalid-response');return data;
   }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
  }
+ const memory=new Map();let cacheToken=null;
+ function clearCache(){memory.clear();cacheToken=null;}
  async function collect({current,name,token,signal,fetcher}){
-  const target={name,id:pid(current.users?.[name])};
-  if(!validId(current.id)||!name)throw new Error('invalid-context');
-  const d=await jsonRequest(fetcher,'/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'listar'})},signal);
-  const index=uniqueIndex(d.ligas,current),out={records:[],leagues:[],index,issues:[],total:index.length,linked:!!target.id};
-  const others=index.filter(l=>l.id!==current.id);let cursor=0;
-  // A global link is required; guessing by name can join two real people.
-  if(!target.id){out.issues.push({reason:'no-global-id'});return out;}
-  async function worker(){
-   while(cursor<others.length){
-    const entry=others[cursor++];if(signal?.aborted)throw new Error('aborted');
-    try{
-     let state;
-     if(entry.estado==='finalizada'){
-      const response=await jsonRequest(fetcher,'/api/liga',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({accion:'ver',id:entry.id})},signal);state=response.estado;
-     }else{
-      if(!token){out.issues.push({id:entry.id,name:entry.nombre,reason:'login-required'});continue;}
-      const response=await jsonRequest(fetcher,'/api/state?liga='+encodeURIComponent(entry.id)+'&historial=1',{headers:{Authorization:'Bearer '+token}},signal);state=response.state;
-     }
-     const p=project(state,entry,target);
-     out.records.push(...p.records);out.leagues.push({...entry,count:p.records.length,cycles:Array.isArray(state.cycles)?state.cycles.filter(c=>c&&Number.isSafeInteger(c.n)).map(c=>({n:c.n})):[]});
-     p.issues.forEach(reason=>out.issues.push({id:entry.id,name:entry.nombre,reason}));
-    }catch(err){
-     if(signal?.aborted)throw err;
-     out.issues.push({id:entry.id,name:entry.nombre,reason:err.status===403?'unavailable':'read-error'});
-    }
-   }
-  }
-  await Promise.all(Array.from({length:Math.min(3,others.length)},worker));
+  const id=pid(current.users?.[name]);if(!validId(current.id)||!name)throw new Error('invalid-context');
+  if(!id)return {records:[],leagues:[],index:uniqueIndex([],current),issues:[{reason:'no-global-id'}],total:1,linked:false};
+  if(cacheToken!==token){memory.clear();cacheToken=token;}
+  const key=JSON.stringify([current.id,id,name]),cached=memory.get(key);
+  const body={name,id,currentId:current.id};if(cached)body.signature=cached.signature;
+  const headers={'Content-Type':'application/json'};if(token)headers.Authorization='Bearer '+token;
+  const d=await jsonRequest(fetcher,'/api/liga?operacion=history',{method:'POST',headers,body:JSON.stringify(body)},signal);
   if(signal?.aborted)throw new Error('aborted');
-  // Output order does not depend on network timing.
-  out.leagues.sort((a,b)=>index.findIndex(e=>e.id===a.id)-index.findIndex(e=>e.id===b.id));return out;
+  if(d.complete!==true||typeof d.signature!=='string')throw new Error('incomplete-history');
+  if(d.notModified){if(!cached||cached.signature!==d.signature)throw new Error('invalid-cache');return structuredClone(cached);}
+  if(!Array.isArray(d.records)||!Array.isArray(d.index)||!Array.isArray(d.leagues)||!Array.isArray(d.issues))throw new Error('invalid-history');
+  if(cacheToken===token&&JSON.stringify(d).length<1000000){memory.set(key,structuredClone(d));while(memory.size>8)memory.delete(memory.keys().next().value);}
+  return d;
  }
  function createController({current,name,token,valid,fetcher}){
   let data=null,error=false,busy=false,attempted=false,controller=null,seq=0;
@@ -131,5 +115,5 @@
   return {...snapshot,records:snapshot.records.filter(m=>m._mhLeagueId===id),leagues,total:1,
    issues:snapshot.issues.filter(i=>!i.id||i.id===id),unavailable:snapshot.ready&&!leagues.length};
  }
- return Object.freeze({validId,uniqueIndex,project,collect,createController,recordKey,selectScope});
+ return Object.freeze({validId,uniqueIndex,project,collect,createController,recordKey,selectScope,clearCache});
 });

@@ -1,6 +1,6 @@
 'use strict';
-const crypto=require('node:crypto');
-function wrap(handler,options={}){return async function(req,res){
+const crypto=require('node:crypto'),context=require('./_request-context');
+function wrap(handler,options={}){return function(req,res){return context.run(async()=>{
  const gate=require('./_request-security');
  const requestId=crypto.randomUUID();
  res.setHeader('Cache-Control','no-store');
@@ -8,6 +8,7 @@ function wrap(handler,options={}){return async function(req,res){
  res.setHeader('X-Sohail-Request-Id',requestId);
  const json=res.json;
  res.json=function(payload){
+  context.headers(this);
   // Also covers handlers which catch their own DB/Storage errors.
   if(this.statusCode>=500&&payload&&typeof payload==='object'){
    payload={code:/^[A-Z0-9_]{1,64}$/.test(payload.code||'')?payload.code:'SERVICE_UNAVAILABLE',error:gate.english(req)?'The operation could not be completed. Retry later.':'No se pudo completar la operación. Intentá nuevamente.',requestId};
@@ -26,5 +27,5 @@ function wrap(handler,options={}){return async function(req,res){
   if(status===405&&options.route)res.setHeader('Allow',gate.METHODS[options.route].join(', '));
   if(!res.headersSent)return res.status(status).json({error:gate.english(req)&&e.en?e.en:status<500?e.message:'No se pudo completar la operación. Intentá nuevamente.',code,currentV:e.currentV,requestId});
  }finally{res.json=json;}
-};}
+});};}
 module.exports={wrap};

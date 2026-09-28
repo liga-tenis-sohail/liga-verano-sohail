@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/backup",
-      "schedule": "0 4 */3 * *"
+      "schedule": "0 4 * * *"
     }
   ],
   "headers": [
@@ -54,5 +54,13 @@
   "framework": null,
   "buildCommand": "npm run release:check",
   "outputDirectory": "dist",
-  "installCommand": "node scripts/install-dependencies.cjs"
+  "installCommand": "node scripts/install-dependencies.cjs",
+  "regions": [
+    "lhr1"
+  ],
+  "functions": {
+    "api/backup.js": {
+      "maxDuration": 60
+    }
+  }
 }

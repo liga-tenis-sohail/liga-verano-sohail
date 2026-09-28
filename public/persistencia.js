@@ -281,9 +281,10 @@ async function _doPersist(){
           if(JSON.stringify(DESTINO)===JSON.stringify(sent.DESTINO))DESTINO=JSON.parse(JSON.stringify(d.destinos));
           sent.DESTINO=d.destinos;
         }
+        const ratingChanged=ratingDataChanged(_lastSaved,sent);
         sent._v=_stateV;_lastSaved=JSON.stringify(sent);
         if(d.token)_token=d.token;_lastSaveError='';_hideLoadError();
-        if(typeof RATING_ON!=='undefined'&&RATING_ON&&typeof calcularRatingGlobal==='function')calcularRatingGlobal(true).catch(()=>{});
+        if(ratingChanged&&typeof RATING_ON!=='undefined'&&RATING_ON&&typeof calcularRatingGlobal==='function')calcularRatingGlobal(true).catch(()=>{});
         return true;
       }
       _lastSaveError=(typeof apiError==='function'?apiError(d):d.error)||t('fix_save_failed');
@@ -323,3 +324,10 @@ if(typeof window!=='undefined'&&window.addEventListener){
 // ========================================================================
 
 // Estado local: cache del último fetch para poder editar sin refetch inmediato.
+
+// Ignore changes which cannot affect the model. Conservative on sport/identity metadata.
+function ratingDataChanged(previous,next){
+ try{const a=typeof previous==='string'?JSON.parse(previous):previous;if(!a)return true;
+ const pick=x=>({matches:x.matches,cycles:x.cycles,seeds:x.RATING_SEEDS,overrides:x.RATING_OVERRIDES,users:Object.fromEntries(Object.entries(x.users||{}).map(([n,u])=>[n,{name:u.name,jugadorId:u.jugadorId,historialId:u.historialId,historialNombre:u.historialNombre}]))});
+ return JSON.stringify(pick(a))!==JSON.stringify(pick(next));}catch(_){return true;}
+}
