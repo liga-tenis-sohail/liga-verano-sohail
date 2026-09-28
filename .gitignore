@@ -1,30 +1,27 @@
-# Never version runtime secrets, player data or generated output.
+# Build inputs (including tests) are needed for the release gate.
+# Only dist/ is served to visitors, as declared in vercel.json.
 .env
 .env.*
 !.env.example
-.vercel/
-node_modules/
-dist/
-.sohail-build/
-.sohail-publish-*/
+.vercel
+node_modules
+dist
+.sohail-build
+.sohail-publish-*
 *.log
+*.zip
 *.xlsx
 *.xls
 *.csv
-*.sql.gz
 *.dump
 *.db
 *.sqlite*
-*.zip
-*.tar
-*.tar.gz
 *.json.gz
-backups/
-backup/
-evidence/
-coverage/
-playwright-report/
-.DS_Store
+backups
+backup
+evidence
+coverage
+playwright-report
 
 # Security Part 3: encrypted exports and private key files are not build inputs.
 *.sohail.enc
