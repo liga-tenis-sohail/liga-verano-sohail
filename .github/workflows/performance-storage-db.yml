@@ -1,0 +1,54 @@
+name: Verificar rendimiento y almacenamiento v5.1
+run-name: "Rendimiento v5.1 · ${{ github.ref_name }} · ${{ github.sha }}"
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: Rendimiento y rotación · PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: sohail_security_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sohail_security_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout sin credenciales persistentes
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: Migración y permisos con datos ficticios
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg() { docker exec -i "$DB_CONTAINER" psql -U postgres -d sohail_security_test -v ON_ERROR_STOP=1 "$@"; }
+          pg < tests/security-db/fixture.sql
+          pg < 08_security_part2.sql
+          pg < tests/security-part3-db/fixture.sql
+          pg < 10_security_part3.sql
+          pg < 12_performance_storage.sql
+          pg < 12_performance_storage.sql
+          pg -At -F '|' < 13_verify_performance_storage.sql | tee /tmp/perf-checks.txt
+          awk -F '|' 'NF==2 && $2=="t"{n++;next}{bad=1}END{exit(bad || n!=50)}' /tmp/perf-checks.txt
+          pg < tests/performance-storage-db/assertions.sql
+          pids=()
+          for n in $(seq 1 12); do
+            (printf "SET ROLE service_role; SELECT public.sohail_perf_backup('acquire',jsonb_build_object('owner',gen_random_uuid()))->>'ok';\n" | pg -qAt > "/tmp/lease-$n.txt") &
+            pids+=("$!")
+          done
+          for p in "${pids[@]}"; do wait "$p"; done
+          cat /tmp/lease-*.txt > /tmp/lease-all.txt
+          test "$(grep -c '^true$' /tmp/lease-all.txt)" -eq 1
+          test "$(grep -c '^false$' /tmp/lease-all.txt)" -eq 11
+          printf '## SQL12/13 aprobados\n\nInstalación repetida, 50 verificaciones, proyecciones, cache, limpieza de reglas, permisos y exclusión concurrente. Solo PostgreSQL desechable; no se conectó a Supabase ni Storage reales.\n' >> "$GITHUB_STEP_SUMMARY"
