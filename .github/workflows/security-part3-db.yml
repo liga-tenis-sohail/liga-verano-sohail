@@ -1,0 +1,67 @@
+name: Verificar SQL y dependencias Seguridad Parte 3
+run-name: "Parte 3 previa · ${{ github.ref_name }} · ${{ github.sha }}"
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: PostgreSQL 17 y Excel · Seguridad Parte 3
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: sohail_security_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-test-only
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sohail_security_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout sin credenciales persistentes
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      - name: PostgreSQL desechable sin datos reales
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg() { docker exec -i "$DB_CONTAINER" psql -U postgres -d sohail_security_test -v ON_ERROR_STOP=1 "$@"; }
+          pg < tests/security-db/fixture.sql
+          pg < 08_security_part2.sql
+          pg < tests/security-part3-db/fixture.sql
+          pg < 10_security_part3.sql
+          pg < 10_security_part3.sql
+          pg -At -F '|' < 11_verify_security_part3.sql | tee /tmp/p3-checks.txt
+          awk -F '|' 'NF==2 && $2=="t"{n++;next}{bad=1}END{exit(bad || n!=55)}' /tmp/p3-checks.txt
+          pg < tests/security-part3-db/assertions.sql
+          # Concurrency: 20 simultaneous callers share a three-request budget.
+          # Avoid straddling the five-minute window in a slow runner.
+          sec=$(( $(date +%s) % 300 ))
+          if [ "$sec" -gt 270 ]; then sleep "$((301-sec))"; fi
+          for n in $(seq 1 20); do
+            (printf "SET ROLE service_role; SELECT public.sohail_p3_budget('backup',repeat('c',64))->>'allowed';\n" | pg -qAt > "/tmp/p3-concurrent-$n.txt") &
+          done
+          wait
+          cat /tmp/p3-concurrent-*.txt > /tmp/p3-concurrent-all.txt
+          test "$(grep -c '^true$' /tmp/p3-concurrent-all.txt)" -eq 3
+          test "$(grep -c '^false$' /tmp/p3-concurrent-all.txt)" -eq 17
+      - name: Node de la aplicación
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Probar SheetJS oficial, sin secretos ni instalar paquetes
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --max-time 60 --max-filesize 1500000 \
+            'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js' -o /tmp/sohail-reviewed-sheetjs.cjs
+          node tests/security-part3-db/sheetjs-smoke.cjs /tmp/sohail-reviewed-sheetjs.cjs
+          sha256sum /tmp/sohail-reviewed-sheetjs.cjs
+          printf '## Parte 3 previa aprobada\n\nPostgreSQL 17 desechable: instalación repetida, 55 verificaciones, permisos, snapshot y presupuesto concurrente. Excel: escritura y lectura con SheetJS oficial. No se accedió a Supabase real.\n' >> "$GITHUB_STEP_SUMMARY"
