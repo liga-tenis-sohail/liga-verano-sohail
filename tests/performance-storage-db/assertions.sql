@@ -1,0 +1,74 @@
+-- NEVER EXECUTE IN SUPABASE. Disposable GitHub service database only.
+DO $$ BEGIN IF current_database()<>'sohail_security_test' THEN RAISE EXCEPTION 'TEST DATABASE ONLY'; END IF; END $$;
+SET ROLE service_role;
+UPDATE public.liga_state SET data=jsonb_set(jsonb_set(data,'{cycles}','[]'::jsonb),'{REGLAMENTO}','"Texto con imagen <img src=\"data:image/png;base64,AAAA\" title=\"1 > 0\"> fin"'::jsonb) WHERE id='liga-anterior';
+UPDATE public.liga_state SET data=jsonb_set(data,'{users,admin}',(SELECT data->'users'->'admin' FROM public.liga_state WHERE id='liga-actual')) WHERE id='liga-anterior';
+INSERT INTO public.liga_index(id,nombre,estado,orden) VALUES('liga-anterior','Liga anterior de prueba','finalizada',2) ON CONFLICT(id) DO UPDATE SET estado='finalizada';
+DO $$
+DECLARE s jsonb; h text; before_data jsonb; p jsonb; c jsonb; out jsonb; own uuid='44444444-4444-4444-8444-444444444444'; today date=(statement_timestamp() AT TIME ZONE 'UTC')::date; old_file text; fname text; n integer; key text=repeat('a',64);
+BEGIN
+ s:=public.sohail_perf_login_source('admin');
+ IF jsonb_array_length(s->'index')<>2 OR jsonb_array_length(s->'states')<>1 THEN RAISE EXCEPTION 'Login scope failed';END IF;
+ s:=public.sohail_perf_login_source('not-a-member');IF s->'states'->0->'data' IS DISTINCT FROM '{"users":{}}'::jsonb THEN RAISE EXCEPTION 'Unrelated state leaked';END IF;
+ s:=public.sohail_perf_source(false,true,'',NULL,NULL);
+ IF jsonb_array_length(s->'index')<>1 OR s->'states'->0->>'id'<>'liga-anterior' THEN RAISE EXCEPTION 'Public projection scope';END IF;
+ IF (s->'states'->0->'data'->'users'->'admin') ? 'pass' OR (s->'states'->0->'data') ? 'REGLAMENTO' THEN RAISE EXCEPTION 'Sensitive/heavy fields projected';END IF;
+ h:=s->>'signature';
+ UPDATE public.liga_state SET data=jsonb_set(data,'{_v}',to_jsonb((data->>'_v')::int+1))||'{"LEAGUE_COLOR_PRI":"#010203"}'::jsonb WHERE id='liga-anterior';
+ IF public.sohail_perf_source(false,false,'',NULL,NULL)->>'signature'<>h THEN RAISE EXCEPTION 'Cosmetic change invalidates sports';END IF;
+ s:=public.sohail_perf_source(false,true,'',NULL,h);IF s->'states'<>'null'::jsonb THEN RAISE EXCEPTION 'Conditional projection not omitted';END IF;
+ UPDATE public.liga_state SET data=jsonb_set(data,'{matches}',(data->'matches')||'{"id":"changed-result"}'::jsonb) WHERE id='liga-anterior';
+ IF public.sohail_perf_manifest(false)->>'signature'=h THEN RAISE EXCEPTION 'Sport change not invalidated';END IF;
+ IF public.sohail_perf_cache_put(false,h,'test',today,'{}') THEN RAISE EXCEPTION 'Stale cache accepted';END IF;
+ h:=public.sohail_perf_manifest(false)->>'signature';p:='{"computed":{"info":{"a":{"selected":[1],"rating":2},"b":{"selected":[2],"rating":3}}}}'::jsonb;
+ IF NOT public.sohail_perf_cache_put(false,h,'test',today,p) THEN RAISE EXCEPTION 'Current cache not accepted';END IF;
+ s:=public.sohail_perf_source(false,false,'test',NULL,NULL);IF s->'cache'->'computed'->'info'->'a' ? 'selected' THEN RAISE EXCEPTION 'Provenance in summary';END IF;
+ s:=public.sohail_perf_source(false,false,'test','a',NULL);
+ IF s->'cache'->'computed'->'info'->'a'->'selected' IS DISTINCT FROM '[1]'::jsonb OR s->'cache'->'computed'->'info'->'b' ? 'selected' THEN RAISE EXCEPTION 'Detail projection incorrect';END IF;
+ IF public.sohail_perf_source(true,false,'test',NULL,NULL)->'cache'<>'null'::jsonb THEN RAISE EXCEPTION 'Cache crosses scope';END IF;
+ IF public.sohail_perf_cache_put(false,h,'test',today-1,p) THEN RAISE EXCEPTION 'Yesterday cache accepted';END IF;
+ BEGIN INSERT INTO public.sohail_derived_cache(scope,signature,model,as_of,payload) VALUES('other',h,'test',today,p);RAISE EXCEPTION 'Other scope accepted';EXCEPTION WHEN check_violation THEN NULL;END;
+ BEGIN INSERT INTO public.sohail_derived_cache(scope,signature,model,as_of,payload) VALUES('authenticated',h,'test',today,jsonb_build_object('large',repeat('x',4194305)));RAISE EXCEPTION 'Oversized cache accepted';EXCEPTION WHEN check_violation THEN NULL;END;
+ s:=public.sohail_p2_session('create',jsonb_build_object('id',key,'public_id','66666666-6666-4666-8666-666666666666','principal','n:admin','epoch',0,'method','password'));
+ IF NOT (s->>'ok')::boolean THEN RAISE EXCEPTION 'Fixture session failed: %',s;END IF;
+ c:=jsonb_build_object('actor','admin','source','liga-actual','principal','n:admin','epoch',0,'sid',key,'league','liga-anterior');
+ out:=public.sohail_perf_rules('export',c);
+ IF NOT (out->>'ok')::boolean OR out->>'format'<>'sohail-rules-archive-1' THEN RAISE EXCEPTION 'Rules export failed: %',out;END IF;
+ SELECT data INTO before_data FROM public.liga_state WHERE id='liga-anterior';
+ s:=public.sohail_perf_rules('clean',c||jsonb_build_object('digest',repeat('b',64),'version',out->'version','kind','images'));IF s->>'code'<>'CONFLICT' THEN RAISE EXCEPTION 'Stale rules digest accepted';END IF;
+ s:=public.sohail_perf_rules('clean',c||jsonb_build_object('digest',out->>'digest','version',out->'version','kind','images'));
+ IF NOT coalesce((s->>'ok')::boolean,false) OR NOT coalesce((s->>'changed')::boolean,false) THEN RAISE EXCEPTION 'Rules cleanup failed: %',s;END IF;
+ SELECT data INTO p FROM public.liga_state WHERE id='liga-anterior';
+ IF (p-ARRAY['REGLAMENTO','REGLAMENTO_SECCIONES','_v']) IS DISTINCT FROM (before_data-ARRAY['REGLAMENTO','REGLAMENTO_SECCIONES','_v']) THEN RAISE EXCEPTION 'Non-rule data changed';END IF;
+ IF p->>'REGLAMENTO'<>'Texto con imagen  fin' THEN RAISE EXCEPTION 'Quoted image cleanup corrupted text: %',p->>'REGLAMENTO';END IF;
+ IF public.sohail_perf_rules('export',c||'{"league":"liga-actual"}'::jsonb)->>'code'<>'RULES_NOT_AVAILABLE' THEN RAISE EXCEPTION 'Active league not blocked';END IF;
+ UPDATE public.sohail_auth_sessions SET revoked_at=now() WHERE id=key;
+ IF public.sohail_perf_rules('report',c)->>'code'<>'SESSION_EXPIRED' THEN RAISE EXCEPTION 'Revoked session accepted';END IF;
+ s:=public.sohail_perf_backup('acquire',jsonb_build_object('owner',own));IF NOT (s->>'ok')::boolean THEN RAISE EXCEPTION 'Acquire failed';END IF;
+ IF public.sohail_perf_backup('acquire',jsonb_build_object('owner','55555555-5555-4555-8555-555555555555'))->>'code'<>'BACKUP_BUSY' THEN RAISE EXCEPTION 'Concurrent lease accepted';END IF;
+ IF public.sohail_perf_backup('plan',jsonb_build_object('owner','55555555-5555-4555-8555-555555555555'))->>'code'<>'BACKUP_LOCK_LOST' THEN RAISE EXCEPTION 'Foreign lease accepted';END IF;
+ FOR n IN 0..3 LOOP
+  fname:='daily-v510-'||to_char(today-n,'YYYY-MM-DD')||'-'||repeat(n::text,32)||'.sohail.enc';
+  INSERT INTO public.sohail_backup_runs(file,day,verified,digest,size_bytes) VALUES(fname,today-n,true,repeat('c',64),100);
+  IF n=3 THEN old_file:=fname;END IF;
+ END LOOP;
+ s:=public.sohail_perf_backup('plan',jsonb_build_object('owner',own));
+ IF jsonb_array_length(s->'keep')<>3 OR s->'remove' IS DISTINCT FROM jsonb_build_array(old_file) THEN RAISE EXCEPTION 'Wrong three-day plan';END IF;
+ PERFORM public.sohail_perf_backup('deleted',jsonb_build_object('owner',own,'files',jsonb_build_array(old_file,s->'keep'->0->>'file')));
+ IF (SELECT count(*) FROM public.sohail_backup_runs)<>3 THEN RAISE EXCEPTION 'Deleted a protected copy';END IF;
+ PERFORM public.sohail_perf_backup('release',jsonb_build_object('owner',own));
+END $$;
+RESET ROLE;
+SET ROLE anon;
+DO $$ BEGIN
+ BEGIN PERFORM public.sohail_perf_source(true,true,'',NULL,NULL);RAISE EXCEPTION 'Anon called source';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN PERFORM * FROM public.sohail_derived_cache;RAISE EXCEPTION 'Anon read cache';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+END $$;
+RESET ROLE;
+SET ROLE authenticated;
+DO $$ BEGIN
+ BEGIN PERFORM public.sohail_perf_login_source('admin');RAISE EXCEPTION 'Client called login source';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN PERFORM * FROM public.sohail_backup_runs;RAISE EXCEPTION 'Client read retention';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+END $$;
+RESET ROLE;
+SELECT 'performance-storage assertions passed' AS result;
