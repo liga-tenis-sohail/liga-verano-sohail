@@ -9,6 +9,7 @@ function create(){
   calls.push({path:p,method});
   if(db.storageFail?.(p,method))return new Response('{}',{status:503});
   if(p==='/storage/v1/bucket/backups')return Response.json({id:'backups',public:db.bucketPublic});
+  if(p==='/storage/v1/object/backups'&&method==='DELETE'){for(const file of JSON.parse(options.body).prefixes)objects.delete('/storage/v1/object/backups/'+file);return Response.json([]);}
   if(p.startsWith('/storage/v1/object/backups/')){
    if(method==='POST'){objects.set(p,Buffer.from(options.body));return Response.json({ok:true});}
    if(method==='GET'&&objects.has(p)){

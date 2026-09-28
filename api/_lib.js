@@ -97,10 +97,10 @@ async function auth(req,allowDefault){
   const session=verifyToken(h.startsWith('Bearer ')?h.slice(7):'');
   // Los tokens de la versión anterior se invalidan en este despliegue.
   if(!session||!session.pk||!Number.isSafeInteger(session.sv)||!ligaIdOK(session.src))return null;
-  const account=await require('./_auth-security').validateSession(session);
+  const [account,source]=await Promise.all([require('./_auth-security').validateSession(session),readState(session.src,{fresh:true})]);
   if(!account||Number(account.epoch)!==session.sv)return null;
   session.authAt=account.authAt;session.amr=account.amr;
-  const source=await readState(session.src),u=source&&source.users&&source.users[session.u];
+  const u=source&&source.users&&source.users[session.u];
   if(!u||u.inactive||principalKey(session.u,u)!==session.pk)return null;
   session.r=u.role||'player';session.m=!!account.must_change;
   if(session.m&&!allowDefault)throw Object.assign(new Error('Primero cambiá la contraseña predeterminada.'),{status:403,code:'PASSWORD_CHANGE_REQUIRED'});
@@ -210,7 +210,14 @@ function ligaIdOK(id){
 }
 
 const _readVersions = new WeakMap();
-async function readState(ligaId){
+const context=require('./_request-context');
+async function readState(ligaId,options){
+ const id=ligaId||LIGA_DEFAULT;
+ const d=await context.read('state:'+id,()=>readStateDirect(id),options);
+ if(d)_readVersions.set(d,Number.isSafeInteger(d._v)?d._v:0);
+ return d;
+}
+async function readStateDirect(ligaId){
   const id = ligaId || LIGA_DEFAULT;
   if(!ligaIdOK(id)) throw new Error('ligaId inválido');
   const r = await fetch(SUPA_URL + '/rest/v1/liga_state?id=eq.' + encodeURIComponent(id) + '&select=data', {
@@ -228,7 +235,12 @@ async function readState(ligaId){
 
 // Se guarda igual que antes: la columna `data` recibe el JSON como texto.
 // Ahora la fila destino la define ligaId (default: la liga histórica).
-async function rpc(name, body){
+async function rpc(name,body){
+ const readonly=['sohail_perf_source','sohail_perf_login_source','sohail_p3_budget'];
+ if(!readonly.includes(name))context.clear();
+ return context.measure(()=>rpcDirect(name,body));
+}
+async function rpcDirect(name, body){
   const r=await fetch(SUPA_URL+'/rest/v1/rpc/'+name,{
     method:'POST',headers:supaHeaders({'Content-Type':'application/json'}),body:JSON.stringify(body),signal:AbortSignal.timeout(20000)
   });

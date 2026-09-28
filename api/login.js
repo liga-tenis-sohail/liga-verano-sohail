@@ -48,7 +48,7 @@ const { securityFor, makeSession, principalKey, hashV1, hashV2, POR_DEFECTO_V2, 
         rateLimitCheck, rateLimitFail, rateLimitClear, logAudit, clientIP } = require('./_lib');
 
 const {authenticate,createSession}=require('./_auth-security');
-const {findMemberships} = require('./_login-read');
+const {findMemberships,readLoginIndex} = require('./_login-read');
 
 const MAX_FAILS = 5;      // por usuario
 const MAX_IP    = 12;     // por IP: tolera una familia tras el mismo router
@@ -110,7 +110,7 @@ module.exports = async function handler(req, res){
 // =====================================================================
 async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   let idx;
-  try { idx = await readLigaIndex(); }
+  try { idx = await readLoginIndex(user); }
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
 
   const activas = idx.filter(l => l.estado === 'activa');
@@ -141,7 +141,6 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
     logAudit(user, 'login.fail', activas.map(l => l.id).join(','), null, ip);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
-  await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
 
   const disponibles = encontradoEn.filter(e => !e.u.inactive && principalKey(user,e.u) === authRecord.id);
   if(!disponibles.length) return res.status(403).json({error:'Tu cuenta está inactiva. Contactá al administrador.'});
@@ -154,7 +153,7 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   // --- Caso simple: una sola liga activa -> login directo ---
   if(disponibles.length === 1){
     const d = disponibles[0];
-    const session = await createSession(user,role,d.ligaId,d.state,authRecord,req);
+    const session = await createLoginSession(ip,user,role,d.ligaId,d.state,authRecord,req);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       token: signToken(session),
@@ -173,7 +172,7 @@ async function loginCuentaGestionGlobal({ req, res, user, pass, ip, body }){
   // pero el state se pide después de elegir, vía /api/state?elegir=1
   // (mismo selector que usa un jugador en 2+ ligas). No hay liga por
   // defecto: el admin siempre pasa por esta pantalla si tiene 2+. ---
-  const session = await createSession(user,role,disponibles[0].ligaId,disponibles[0].state,authRecord,req);
+  const session = await createLoginSession(ip,user,role,disponibles[0].ligaId,disponibles[0].state,authRecord,req);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     token: signToken(session),
@@ -233,14 +232,13 @@ async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, bod
     logAudit(user, 'login.fail', ligaId, null, ip);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
-  await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
 
   if(u.inactive)return res.status(403).json({error:'Tu cuenta está inactiva.'});
   const mustChangePw = !!authRecord.must_change;
   const role = u.role || (user === 'superadmin' ? 'superadmin' : 'admin');
 
   const exp = Date.now() + SESSION_MIN * 60 * 1000;
-  const session = await createSession(user,role,ligaId,state,authRecord,req);
+  const session = await createLoginSession(ip,user,role,ligaId,state,authRecord,req);
 
   logAudit(user, 'login.ok.admin', ligaId, { role, sinLigasActivas: true }, ip);
 
@@ -266,7 +264,7 @@ async function loginCuentaGestionSinLigasActivas({ req, res, user, pass, ip, bod
 // =====================================================================
 async function loginJugadorGlobal({ req, res, user, pass, ip }){
   let idx;
-  try { idx = await readLigaIndex(); }
+  try { idx = await readLoginIndex(user); }
   catch(e){ return res.status(503).json({ error: 'No se pudo leer la lista de ligas.' }); }
 
   const activas = idx.filter(l => l.estado === 'activa');
@@ -294,7 +292,6 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
     logAudit(user, 'login.fail', activas.map(l => l.id).join(','), null, ip);
     return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
   }
-  await Promise.all([rateLimitClear('u:' + user), rateLimitClear('i:' + ip)]);
 
   const mustChangePw = !!authRecord.must_change;
 
@@ -312,7 +309,7 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   // --- Caso simple: una sola liga activa disponible -> login directo ---
   if(disponibles.length === 1){
     const d = disponibles[0];
-    const session = await createSession(user,'player',d.ligaId,d.state,authRecord,req);
+    const session = await createLoginSession(ip,user,'player',d.ligaId,d.state,authRecord,req);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
       token: signToken(session),
@@ -330,7 +327,7 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   // --- Caso multi-liga: se emite el token (la contraseña ya se validó),
   // pero el state se pide después de elegir, vía /api/entrar-liga. El
   // session no lleva ligaId todavía: se completa en ese segundo paso. ---
-  const session = await createSession(user,'player',disponibles[0].ligaId,disponibles[0].state,authRecord,req);
+  const session = await createLoginSession(ip,user,'player',disponibles[0].ligaId,disponibles[0].state,authRecord,req);
   res.setHeader('Cache-Control', 'no-store');
   return res.status(200).json({
     token: signToken(session),
@@ -347,3 +344,7 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
 module.exports = require('./_http').wrap(module.exports,{route:'login'});
 
 module.exports = require('./_session').withCookie(module.exports);
+
+async function createLoginSession(ip,...args){
+ const [session]=await Promise.all([createSession(...args),rateLimitClear('u:'+args[0]),rateLimitClear('i:'+ip)]);return session;
+}

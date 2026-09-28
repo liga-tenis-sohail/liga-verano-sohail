@@ -33,4 +33,10 @@ async function findMemberships(leagues, name, accepts) {
     return u && accepts(u);
   }).map(({league, state}) => ({ligaId: league.id, nombre: league.nombre, state, u: state.users[name]}));
 }
-module.exports = {CONCURRENCY, readLeagueStates, findMemberships};
+async function readLoginIndex(name){
+ const d=await lib.rpc('sohail_perf_login_source',{p_user:name});
+ if(!d||!Array.isArray(d.index)||!Array.isArray(d.states))throw Object.assign(new Error('No se pudo leer el acceso completo.'),{status:503,code:'LOGIN_LEAGUES_UNAVAILABLE'});
+ for(const row of d.states)require('./_request-context').seed('state:'+row.id,row.data);
+ return d.index;
+}
+module.exports = {CONCURRENCY, readLeagueStates, findMemberships,readLoginIndex};

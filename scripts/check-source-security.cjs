@@ -33,8 +33,9 @@ function vercelConfigFindings(v){
  const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
  const keys=(x,allowed)=>object(x)&&Object.keys(x).every(k=>allowed.includes(k));
  if(!object(v)){add('vercel-config-not-object');return result;}
- const allowed=['$schema','crons','headers','framework','buildCommand','outputDirectory','installCommand'];
+ const allowed=['$schema','crons','headers','framework','buildCommand','outputDirectory','installCommand','regions','functions'];
  if(Object.prototype.hasOwnProperty.call(v,'public'))add('unsupported-vercel-public-property');
+ if(JSON.stringify(v.regions)!==JSON.stringify(['lhr1'])||JSON.stringify(v.functions)!==JSON.stringify({'api/backup.js':{maxDuration:60}}))add('unreviewed-function-region-duration');
  if(Object.keys(v).some(k=>!allowed.includes(k)))add('unreviewed-vercel-property');
  const expected={
   '$schema':'https://openapi.vercel.sh/vercel.json',framework:null,
@@ -43,7 +44,7 @@ function vercelConfigFindings(v){
  };
  if(Object.entries(expected).some(([k,value])=>!Object.prototype.hasOwnProperty.call(v,k)||v[k]!==value))add('publication-boundary');
  // Retain the existing three-day backup schedule. It is never executed by a build.
- if(!Array.isArray(v.crons)||v.crons.length!==1||!keys(v.crons[0],['path','schedule'])||v.crons[0].path!=='/api/backup'||v.crons[0].schedule!=='0 4 */3 * *')add('unreviewed-cron-configuration');
+ if(!Array.isArray(v.crons)||v.crons.length!==1||!keys(v.crons[0],['path','schedule'])||v.crons[0].path!=='/api/backup'||v.crons[0].schedule!=='0 4 * * *')add('unreviewed-cron-configuration');
  if(!Array.isArray(v.headers)||v.headers.length!==3){add('invalid-header-configuration');return result;}
  const required={
   '/(.*)':{

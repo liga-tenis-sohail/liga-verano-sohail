@@ -6,7 +6,7 @@ const lib=require('../../api/_lib');
 const p2=require('./auth-part2.cjs');
 function result(data,status=200){return {status,ok:status<400,headers:new Headers(),json:async()=>structuredClone(data),text:async()=>JSON.stringify(data)};}
 function createDB(states){
- const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[],sohail_login_order:[],sohail_auth_sessions:[],sohail_auth_challenges:[],sohail_request_budgets:[]},requests:[],fault:null,latency:0,failWrites:0};
+ const db={tables:{liga_state:[],liga_index:[],jugadores:[],sohail_account_security:[],passkeys:[],rate_limits:[],mensajes:[],audit_log:[],admin_notify_channels:[],password_resets:[],sohail_identity_registry:[],sohail_data_operations:[],sohail_login_order:[],sohail_auth_sessions:[],sohail_auth_challenges:[],sohail_request_budgets:[],sohail_derived_cache:[],sohail_backup_runs:[],sohail_backup_lock:[]},requests:[],fault:null,latency:0,failWrites:0};
  db._tokens=new Map();
  db.setStates=(list)=>{db._tokens.clear();for(const name of Object.keys(db.tables))db.tables[name]=[];db.tables.sohail_login_order.push({id:1,version:0,league_ids:[]});db.tables.sohail_identity_registry.push({id:1,version:0,data:{links:{},profiles:{},decisions:{}}});for(const item of list){db.tables.liga_state.push({id:item.id,data:structuredClone(item.state)});db.tables.liga_index.push({id:item.id,nombre:item.state.LEAGUE_NAME||item.id,estado:item.estado||'activa',orden:db.tables.liga_index.length});for(const[n,u]of Object.entries(item.state.users)){const key=lib.principalKey(n,u);if(!db.tables.sohail_account_security.some(a=>a.id===key))db.tables.sohail_account_security.push({id:key,pass_hash:u.pass,epoch:0,must_change:false,tutorial_epoch:1,tutorial_done_epoch:1,tutorial_version:1});if(u.jugadorId&&!db.tables.jugadores.some(j=>j.id===u.jugadorId))db.tables.jugadores.push({id:u.jugadorId,nombre:n,pass:u.pass,email:n.toLowerCase()+'@example.invalid'});}};for(const row of db.tables.liga_state)for(const n of Object.keys(row.data.users))db.token(n,row.id);};
  function rows(name,url){return db.tables[name].filter(row=>{for(const[k,v]of url.searchParams){if(['select','limit','offset','order','on_conflict'].includes(k))continue;
@@ -22,6 +22,7 @@ function createDB(states){
   if(db.latency)await new Promise(r=>setTimeout(r,db.latency));
   if(db.fault&&db.fault({name,method,url,body}))return result({error:'Database failure simulated'},503);
   if(url.pathname.includes('/rpc/')){
+   if(name.startsWith('sohail_perf_')){try{return result(require('./performance-db.cjs').rpc(db,name,body,lib));}catch(e){return result({error:'Performance SQL contract failure'},503);}}
    if(name==='sohail_p3_budget'){
     const limits={public:120,auth:30,read:240,write:60,heavy:12,backup:3},cap=limits[body.p_category];
     if(!cap||!/^([0-9a-f]{64})$/.test(body.p_key))return result({error:'invalid budget'},400);
@@ -121,5 +122,5 @@ function req(db,name='Alicia',body={},query={},method='POST'){return {headers:{a
 async function call(handler,request){const headers={};let body;const res={statusCode:200,headersSent:false,setHeader(k,v){headers[k]=v;},getHeader:k=>headers[k],status(n){this.statusCode=n;return this;},json(v){body=v;this.headersSent=true;return this;},end(v){body=v;this.headersSent=true;}};await handler(request,res);return {status:res.statusCode,body,headers};}
 // Quota accounting is an expected side effect of API reads. This helper omits
 // ONLY that ephemeral table: credentials, sessions and sporting data still compare.
-function protectedTables(db){const {sohail_request_budgets,...data}=db.tables;return data;}
+function protectedTables(db){const {sohail_request_budgets,sohail_derived_cache,...data}=db.tables;return data;}
 module.exports={createDB,fixture,match,req,call,lib,protectedTables};

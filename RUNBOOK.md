@@ -1,6 +1,6 @@
-# Sohail — operación segura · Parte 3 v5.0.0
+# Sohail — operación segura · Rendimiento v5.1.0
 
-Base: `52ebc3498520501593085fc018477d9631279028` (v4.9.1). Esta guía sustituye las instrucciones operativas anteriores; no modifica reglas deportivas.
+Base de v5.1: `84aa3da2200b04faeac2d76281dc3f3cf9522e34` (Partes 1–3 y v4.9.1). Esta guía sustituye las instrucciones operativas anteriores; no modifica reglas deportivas.
 
 ## Publicación controlada
 
@@ -48,11 +48,11 @@ No compartir claves, tokens o MFA en capturas, chats, issues o archivos. Ante ex
 
 Generar PRIVADAMENTE una clave aleatoria de 32 bytes, por ejemplo con `openssl rand -hex 32`. Guardar los 64 dígitos hexadecimales en un gestor y una copia independiente, además de `BACKUP_ENCRYPTION_KEY` en Vercel Production. No reutilizar otros secretos. `BACKUP_KEY_ID` es una etiqueta opcional. Al rotar, conservar las claves e identificadores anteriores.
 
-El cron sigue cada tres días. Obtiene una instantánea de 11 tablas, cifra con AES-256-GCM, sube al bucket privado y vuelve a descargar y verificar. Solo termina con verified:true tras completar esa comprobación. Sin clave, con bucket público o datos alterados, falla sin caer a texto plano ni borrar copias anteriores.
+Desde v5.1, el cron es diario a las 04:00 UTC (Hobby puede ejecutarlo dentro de esa hora). Obtiene una instantánea de 11 tablas, cifra con AES-256-GCM, sube al bucket privado y vuelve a descargar y verificar. Solo termina con verified:true tras completar esa comprobación. Sin clave, con bucket público o datos alterados, falla sin caer a texto plano ni borrar copias anteriores.
 
 Los datos persistentes incluyen perfiles, credenciales y configuración. No se exportan sesiones activas, desafíos ni códigos temporales. El límite es 250.000 filas por tabla y 32 MiB sin comprimir: superarlo requiere un respaldo nativo, no una copia parcial.
 
-No hay borrado automático. Revisar almacenamiento y retención; eliminar manualmente solo copias con sustituto independiente verificado. Los archivos .json.gz antiguos siguen siendo sensibles y no se recifran automáticamente. Los Excel descargados desde la aplicación son distintos: no reciben este cifrado.
+Hay rotación automática SOLO de los archivos nuevos daily-v510 registrados por este backend: conservar las últimas tres fechas UTC verificadas. Primero se verifica la copia nueva y las conservadas; después se eliminan las anteriores mediante Storage API. Nunca vaciar el bucket. Fallos de verificación o de borrado conservan copias y se informan con retention.ok=false. Si falla el día nuevo, se conservan fechas anteriores aunque superen tres días. Una repetición el mismo día reutiliza la primera copia verificada: no crea una nueva instantánea de ese día. Eliminar manualmente las copias antiguas de otros prefijos solo después de exportarlas y comprobar sustitutos independientes. Los archivos .json.gz antiguos siguen siendo sensibles y no se recifran automáticamente. Los Excel descargados desde la aplicación son distintos: no reciben este cifrado.
 
 **Sin la clave no se recupera una copia cifrada.** Conservar una copia independiente fuera de Supabase. No subir backups, claves, Excel o archivos descifrados a GitHub.
 
@@ -80,3 +80,25 @@ Fuentes oficiales consultadas el 26/09/2026:
 - https://www.postgresql.org/docs/17/xfunc-volatility.html
 - https://www.postgresql.org/docs/17/sql-alterdefaultprivileges.html
 - https://docs.sheetjs.com/docs/getting-started/installation/standalone/
+
+
+## Rendimiento v5.1: instalar después de comprobar PostgreSQL
+
+1. Incorporar solo el paquete previo (SQL12, SQL13, tests/performance-storage-db/assertions.sql y .github/workflows/performance-storage-db.yml). Exigir también el trabajo Rendimiento y rotación · PostgreSQL 17 antes de continuar.
+2. Una vez aprobado y con respaldo, ejecutar 12_performance_storage.sql y luego 13_verify_performance_storage.sql: 50 filas, todas true. Nunca ejecutar los archivos de tests en Supabase.
+3. Publicar todos los reemplazos completos de v5.1 en un único PR. No cambiar el MFA, contraseñas, SESSION_SECRET ni BACKUP_ENCRYPTION_KEY.
+4. El vercel.json configura una sola región Londres (lhr1), salida dist, validación completa antes de publicar y backup con máximo 60 segundos. Comprobar en el despliegue real.
+
+SQL12 no borra reglamentos, temporadas ni backups existentes. Agrega cuatro tablas privadas: versiones deportivas, caché derivada, exclusión de backup y registro de sus objetos. Los dos últimos son control operativo, no objetos del bucket. No se exportan en el backup lógico: las versiones/cachés se reconstruyen, y una recuperación requiere revisar los archivos de Storage y su registro antes de reactivar la retención.
+
+El login obtiene la pertenencia en una lectura coherente. Reutilización de lecturas limitada a UNA solicitud HTTP; no se cachea la autorización entre usuarios. Cada validación consulta de nuevo sesión/epoch/rol y los cálculos e historiales verifican otra vez el permiso antes de responder. El coste de scrypt no cambia. Las lecturas de resultados y guardados conservan CAS y el estado completo necesario.
+
+El rating conserva el mismo motor y resultado numérico. La firma incluye la proyección deportiva, el índice, el modelo y el día UTC; las versiones de datos completos se informan separadamente. No usa cambios de reglamento o colores para invalidar el deporte. La proyección es conservadora: algunos metadatos deportivos pueden ocasionar recálculo aunque no afecten el valor final. Caché en base: máximo dos filas, 4 MiB JSON cada una (más overhead/índices físicos); no es ahorro neto de disco garantizado. Si el resultado no cabe, se sirve completo y no se guarda parcialmente. Proyección completa de historial por identidad y respuesta condicional verificada, con caché SOLO en memoria de la pestaña, máximo ocho entradas de menos de un millón de caracteres cada una. Al cambiar token se limpia. No se reducen partidos ni temporadas.
+
+Administrar liga → Archivos y copias → Espacio y reglamentos archivados → Revisar espacio: muestra ligas finalizadas que esa cuenta puede administrar. Descargar el documento original JSON, comprobarlo, conservarlo fuera de la repo y marcar la confirmación. Por defecto quitar imágenes y conservar texto; la opción de retirar todo es explícita. Las ligas activas no se limpian. El servidor exige rol vigente, sesión reciente y digest/versión exactos. Descargar no prueba automáticamente que se guardó la copia: la casilla es la confirmación del responsable. Para recuperar, abrir el archivo local y volver a cargar el contenido de sus cuatro categorías bajo un procedimiento administrativo controlado; no restaurar el estado entero de una liga por un documento.
+
+Ver tiempos de carga conserva solo las últimas 100 muestras en memoria. Muestra tiempo de solicitudes hasta cabeceras, no la espera completa hasta que una pantalla es utilizable. Server-Timing mide el trabajo instrumentado; db_calls es un contador de lecturas/RPC instrumentadas, no todas las conexiones de red del proceso. Ninguna muestra contiene contraseña, token o nombre de jugador. No se presenta el objetivo de login en dos segundos como una garantía obtenida.
+
+Una copia diaria deja ventana de recuperación corta. Mantener una copia cifrada periódica independiente y su clave. No rotar la clave de cifrado sin un plan: las copias retenidas con otra clave no pasarán la verificación y el backend conservará antes que borrar. Ante límite de tiempo, se informa retención pendiente y se reintenta en una ejecución posterior. El contrato de Storage se prueba localmente con un adaptador, no mediante borrados reales.
+
+El motor, las contraseñas y la seguridad siguen separados del caché; no usar caché pública de CDN para sesiones o permisos. La división completa de módulos JS y la separación de imágenes del estado activo no forman parte de v5.1. La privacidad efectiva del repositorio y los controles del panel siguen requiriendo revisión independiente.

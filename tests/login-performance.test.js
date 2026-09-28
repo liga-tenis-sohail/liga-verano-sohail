@@ -28,7 +28,7 @@ test('LOGIN410 regular versioned login does not download the complete player cat
  assert.equal(db.requests.some(q=>q.name==='sohail_account_security'&&q.method==='GET'),true);
  assert.equal(r.body.state.users.Alicia.pass,undefined);
 }));
-test('LOGIN410 concurrent membership reads keep newest league choices and original source identity',()=>withDB(async db=>{
+test('LOGIN510 single membership snapshot keeps newest choices and original source identity',()=>withDB(async db=>{
  const states=leagues(9).map(l=>({id:l.id,state:fixture()}));db.setStates(states);
  let active=0,peak=0;const original=db.fetch;
  global.fetch=async(url,opts)=>{
@@ -36,10 +36,10 @@ test('LOGIN410 concurrent membership reads keep newest league choices and origin
   try{return await original(url,opts);}finally{if(isState)active--;}
  };
  const r=await signIn();assert.equal(r.status,200);assert.equal(r.body.ligas.length,9);assert.equal(r.body.ligas[0].id,'liga-8');
- assert.equal(lib.verifyToken(r.body.token).src,'liga-0');assert.equal(peak,4);
+ assert.equal(lib.verifyToken(r.body.token).src,'liga-0');assert.equal(peak,0);assert.equal(db.requests.filter(x=>x.name==='sohail_perf_login_source').length,1);
 }));
 test('LOGIN410 failed reads return 503, not a new session or a password-failure penalty',()=>withDB(async db=>{
- db.fault=q=>q.name==='liga_state';const r=await signIn();assert.equal(r.status,503);assert.equal(r.body.token,undefined);
+ db.fault=q=>q.name==='sohail_perf_login_source';const r=await signIn();assert.equal(r.status,503);assert.equal(r.body.token,undefined);
  assert.equal(db.requests.some(q=>q.name==='rate_limits'&&q.method!=='GET'),false);
 }));
 test('LOGIN410 wrong password still updates shared user and IP limits',()=>withDB(async db=>{
@@ -59,7 +59,7 @@ test('LOGIN410 administrative choices do not include a foreign account with the 
  const r=await signIn('admin');assert.equal(r.status,200);assert.equal(r.body.ligaId,'liga-actual');assert.equal(r.body.eligeLiga,undefined);
 }));
 test('LOGIN410 metadata outage cannot silently trigger emergency administrator login',()=>withDB(async db=>{
- db.fault=q=>q.name==='liga_index';const r=await signIn('superadmin');assert.equal(r.status,503);assert.equal(r.body.token,undefined);
+ db.fault=q=>q.name==='sohail_perf_login_source';const r=await signIn('superadmin');assert.equal(r.status,503);assert.equal(r.body.token,undefined);
 }));
 test('LOGIN410 public directory concurrent requests share one build and expose only public names',()=>withDB(async db=>{
  const users=freshUsers();db.latency=2;

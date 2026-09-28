@@ -47,6 +47,7 @@
   reset:['danger','Borrar resultados o retroceder un ciclo','Delete results or go back a cycle','Cada opción tiene un alcance distinto. Leé qué se conserva y qué se borra antes de confirmar.','Each option has a different scope. Read what is kept and what is deleted before confirming.','reiniciar borrar retroceder resultados playoffs ciclo'],
   'new-season':['danger','Reiniciar la liga para otra temporada','Reset the league for another season','No es crear una liga independiente: reinicia la actual y borra partidos. Solo superadministrador.','This does not create a separate league: it resets the current one and deletes results. Super administrator only.','reiniciar liga temporada borrar'],
   simulation:['danger','Simulación sobre la liga actual','Simulation on the current league','Generar y quitar partidos de demostración. No es un entorno de prueba.','Generate and remove demonstration results. This is not a test environment.','simular demo prueba ficticios'],
+  storage:['files','Espacio y reglamentos archivados','Storage and archived rules','Revisar el peso y descargar una copia antes de limpiar contenido de ligas finalizadas.','Review size and download an archive before cleaning finalized league content.','espacio peso almacenamiento reglamento limpiar'],
   other:['other','Otros controles','Other controls','Controles preservados sin clasificación.','Preserved controls without a category.','otros']
  };
  const lang=()=>typeof LANG==='string'&&LANG==='en'?'en':'es';
@@ -63,6 +64,8 @@
  function link(label,route,tab){const b=button(label);b.addEventListener('click',()=>{if(!allowed())return;if(route==='jugadores'&&tab)memo('players').category=tab;SohailUI.go(route);});return b;}
  function makeTask(id,body){const n=el('div','card');n.dataset.adminTask=id;if(body)n.append(body);return n;}
  function prepare(root){
+  if(!root.querySelector('[data-admin-task="storage"]')){const n=makeTask('storage');n.append(button(lang()==='en'?'Open storage review':'Revisar espacio'));n.firstChild.onclick=()=>global.SohailStorage?.open();const b=button(lang()==='en'?'View load timings':'Ver tiempos de carga');b.onclick=()=>global.SohailPerformance?.show();n.append(b);root.append(n);}
+
   // Move the actual demo buttons, retaining both handlers and all confirmation logic.
   const demos=['demoFillUI()','undoDemoUI()'].map(a=>root.querySelector('button[onclick="'+a+'"]')).filter(Boolean);
   if(demos.length&&!root.querySelector('[data-admin-task="simulation"]')){const n=makeTask('simulation'),line=el('div','gap-sm');line.append(...demos);n.append(el('p','aw-warning',text('simulation')),line);root.append(n);}

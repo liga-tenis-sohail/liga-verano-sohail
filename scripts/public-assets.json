@@ -54,7 +54,10 @@
     "security-account.js",
     "security-account.css",
     "login-title.js",
-    "import-security.js"
+    "import-security.js",
+    "storage-maintenance.js",
+    "performance-ui.js",
+    "performance-v510.css"
   ],
   "optional": [
     "favicon.ico"

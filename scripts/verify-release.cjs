@@ -45,7 +45,7 @@ function verify(root){
  const order=['score-rules.js','core-estado.js','i18n-revision.js','destinos-auto.js','data-operations.js','player-identity.js','player-duplicates.js','shell-render.js','persistencia.js','admin-workspace.js','ui-modern.js','history-leagues.js','match-history.js','result-editor.js','bootstrap.js','rating.js'];
  add('required modules exist and retain dependency order',order.every((n,i)=>local.includes(n)&&(!i||local.indexOf(n)>local.indexOf(order[i-1]))));
  add('no nested public/public',!fs.existsSync(path.join(root,'public','public')));
- const v=path.join(root,'vercel.json');if(fs.existsSync(v)){try{const j=JSON.parse(fs.readFileSync(v,'utf8'));add('Vercel valid JSON',!!j);add('backup schedule retained',j.crons?.some(c=>c.path==='/api/backup'&&c.schedule==='0 4 */3 * *'));}catch(e){add('Vercel valid JSON',false,e.message);}}
+ const v=path.join(root,'vercel.json');if(fs.existsSync(v)){try{const j=JSON.parse(fs.readFileSync(v,'utf8'));add('Vercel valid JSON',!!j);add('daily backup schedule',j.crons?.some(c=>c.path==='/api/backup'&&c.schedule==='0 4 * * *'));}catch(e){add('Vercel valid JSON',false,e.message);}}
  return checks;
 }
 module.exports={verify};
