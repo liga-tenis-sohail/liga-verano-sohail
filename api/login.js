@@ -344,6 +344,6 @@ async function loginJugadorGlobal({ req, res, user, pass, ip }){
   });
 }
 
-module.exports = require('./_http').wrap(module.exports);
+module.exports = require('./_http').wrap(module.exports,{route:'login'});
 
 module.exports = require('./_session').withCookie(module.exports);

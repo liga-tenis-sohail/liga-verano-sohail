@@ -1,4 +1,5 @@
 'use strict';
+const protectedTables=require('./support/mock-db.cjs').protectedTables;
 const test=require('node:test');const assert=require('node:assert/strict');
 process.env.SESSION_SECRET='LOCAL-TEST-NOT-A-PRODUCTION-SECRET';
 process.env.SUPABASE_URL='https://database.invalid';process.env.SUPABASE_SERVICE_KEY='sb_secret_test';
@@ -99,30 +100,21 @@ test('R5: playoff messages retain draw coordinates in INSERT and SELECT',async()
  await lib.leerMensajesDesde({ligaId:'prueba',tipo:'playoff',ciclo:0,grupo:3,desdeId:1});assert.ok(calls[2].url.includes('grupo=eq.3'));
  }finally{global.fetch=prev;}
 });
-test('R6: backup exports all pages even if server max_rows is smaller than request',async()=>{
- const prev=global.fetch,prior=process.env.BACKUP_SECRET;process.env.BACKUP_SECRET='TESTBACKUP';let snapshot;
- global.fetch=async(url,o={})=>{
-  const u=new URL(url);
-  if(u.pathname.includes('/storage/v1/object/backups/')){snapshot=JSON.parse(require('node:zlib').gunzipSync(o.body));return{ok:true};}
-  if(u.pathname.includes('/storage/'))return{ok:true,json:async()=>[]};
-  if(o.method==='POST')return{ok:true,json:async()=>[]};
-  const offset=Number(u.searchParams.get('offset')||0),table=u.pathname.split('/').at(-1);
-  const n=table==='mensajes'?503:2;
-  return{ok:true,json:async()=>Array.from({length:Math.max(0,Math.min(100,n-offset))},(_,i)=>({id:i+offset}))};
- };
- let status,body;const res={headersSent:false,setHeader(){},status(s){status=s;return this;},json(x){body=x;return this;}};
- try{await require('../api/backup')({method:'GET',headers:{'x-backup-secret':'TESTBACKUP'}},res);
-  assert.equal(status,200);assert.equal(body.ok,true);assert.equal(snapshot.tables.mensajes.length,503);
-  assert.deepEqual(Object.keys(snapshot.tables).sort(),['admin_notify_channels','audit_log','jugadores','liga_index','liga_state','mensajes','passkeys','sohail_account_security','sohail_data_operations','sohail_identity_registry','sohail_login_order']);
-  assert.equal(snapshot.consistency,'logical-export-not-transactional');
- }finally{global.fetch=prev;if(prior===undefined)delete process.env.BACKUP_SECRET;else process.env.BACKUP_SECRET=prior;}
+test('R6: backup exports complete RPC snapshot, independent of REST max_rows',async()=>{
+ const M=require('./support/mock-db.cjs'),B=require('../api/_backup-security'),db=require('./support/backup-db.cjs').create(),old=global.fetch,env={...process.env};
+ process.env.BACKUP_SECRET='TESTBACKUP';process.env.BACKUP_ENCRYPTION_KEY=require('node:crypto').randomBytes(32).toString('hex');global.fetch=db.fetch;
+ db.tables.mensajes=Array.from({length:503},(_,id)=>({id,texto:'test'}));
+ try{const r=await M.call(require('../api/backup'),{method:'GET',headers:{'x-backup-secret':'TESTBACKUP'}});assert.equal(r.status,200);assert.equal(r.body.verified,true);
+  const {snapshot}=await B.open([...db.backupObjects.values()][0],process.env.BACKUP_ENCRYPTION_KEY);
+  assert.equal(snapshot.tables.mensajes.length,503);assert.equal(snapshot.consistency,'single-statement-snapshot');assert.deepEqual(Object.keys(snapshot.tables).sort(),[...B.TABLES].sort());
+  assert.ok(!db.requests.some(x=>x.name==='mensajes'&&x.method==='GET'));
+ }finally{global.fetch=old;process.env=env;}
 });
-test('R6: failure reading a backup table never uploads a partial success',async()=>{
- const prev=global.fetch,prior=process.env.BACKUP_SECRET;process.env.BACKUP_SECRET='TESTBACKUP';let uploaded=false;
- global.fetch=async(url,o={})=>{if(url.includes('/storage/'))uploaded=true;if(o.method==='POST')return{ok:true};return{ok:false,status:503};};
- let status;const res={headersSent:false,setHeader(){},status(s){status=s;return this;},json(){return this;}};
- try{await require('../api/backup')({method:'GET',headers:{'x-backup-secret':'TESTBACKUP'}},res);assert.equal(status,500);assert.equal(uploaded,false);}
- finally{global.fetch=prev;if(prior===undefined)delete process.env.BACKUP_SECRET;else process.env.BACKUP_SECRET=prior;}
+test('R6: failure reading snapshot never uploads a partial success or deletes earlier copies',async()=>{
+ const M=require('./support/mock-db.cjs'),db=require('./support/backup-db.cjs').create(),old=global.fetch,env={...process.env};
+ process.env.BACKUP_SECRET='TESTBACKUP';process.env.BACKUP_ENCRYPTION_KEY=require('node:crypto').randomBytes(32).toString('hex');global.fetch=db.fetch;db.fault=q=>q.name==='sohail_p3_backup_snapshot';
+ try{const r=await M.call(require('../api/backup'),{method:'GET',headers:{'x-backup-secret':'TESTBACKUP'}});assert.equal(r.status,503);assert.equal(db.backupObjects.size,0);assert.ok(!db.storageCalls.some(x=>x.method==='DELETE'||x.method==='POST'));}
+ finally{global.fetch=old;process.env=env;}
 });
 test('R6: tutorial acknowledgement cannot hide a newer reset',async()=>{
  const f=authFixture();f.account.tutorial_epoch=3;f.account.tutorial_version=1;
@@ -139,7 +131,7 @@ test('R6: malicious future tutorial versions rejected',async()=>{
  await mockedAuth(f,()=>require('../api/_tutorial')({...requestFor(tokenFor()),method:'POST',body:{version:100,epoch:1,status:'completed'}},res));assert.equal(status,409);
 });
 test('R6: wrong request method cannot save league state',async()=>{
- let status;const res={headersSent:false,status(s){status=s;return this;},json(){return this;}};await require('../api/save')({method:'GET',headers:{}},res);assert.equal(status,405);
+ let status;const res={headersSent:false,setHeader(){},status(s){status=s;return this;},json(){return this;}};await require('../api/save')({method:'GET',headers:{}},res);assert.equal(status,405);
 });
 test('R6: no unconditional PostgREST state upsert remains in central writer',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../api/_lib.js'),'utf8');const fn=source.slice(source.indexOf('async function writeState('),source.indexOf('async function readCatalogo('));
@@ -340,10 +332,10 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
  const handler=require('../api/liga');
  async function withDupDB(fn){const original=global.fetch;const db=createDB();global.fetch=db.fetch;try{return await fn(db);}finally{global.fetch=original;}}
  for(const user of ['admin','superadmin'])test('DUP catalogue: authorised '+user+' reads names/IDs only, no writes',()=>withDupDB(async db=>{
-  const before=JSON.stringify(db.tables);const r=await dupCall(handler,dupReq(db,user,{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));
+  const before=JSON.stringify(protectedTables(db));const r=await dupCall(handler,dupReq(db,user,{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));
   assert.equal(r.status,200);assert.equal(r.body.complete,true);assert.ok(r.body.jugadores.length>0);
   assert.ok(r.body.jugadores.every(j=>Object.keys(j).sort().join(',')==='jugadorId,nombre'));
-  assert.equal(JSON.stringify(db.tables),before);
+  assert.equal(JSON.stringify(protectedTables(db)),before);
   assert.ok(db.requests.filter(x=>x.name==='jugadores').every(x=>x.method==='GET'&&x.query.includes('select=id,nombre')));
  }));
  test('DUP catalogue: player is forbidden',()=>withDupDB(async db=>{const r=await dupCall(handler,dupReq(db,'Alicia',{accion:'duplicadosCatalogo',ligaId:'liga-actual'}));assert.equal(r.status,403);assert.ok(!db.requests.some(x=>x.name==='jugadores'));}));
@@ -385,11 +377,11 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
  }));
  test('HST02 sporting projection excludes credentials, contacts, requests and logs even for admin',()=>usingHistory(async({db})=>{
   db.state('otra-activa').LOG=[{secret:'private'}];db.state('otra-activa').JOIN_REQUESTS=[{email:'private@example.invalid'}];
-  const before=structuredClone(db.tables);
+  const before=structuredClone(protectedTables(db));
   const r=await M.call(stateHandler,M.req(db,'admin',{}, {liga:'otra-activa',historial:'1'},'GET'));
   assert.equal(r.status,200);assert.equal(r.body.state.LOG,undefined);assert.equal(r.body.state.JOIN_REQUESTS,undefined);
   for(const u of Object.values(r.body.state.users))for(const key of ['pass','email','tel','_credentialId','identityRef'])assert.equal(u[key],undefined,key);
-  assert.deepEqual(db.tables,before);
+  assert.deepEqual(protectedTables(db),before);
  }));
  test('HST03 history read cannot also select the destination league',()=>usingHistory(async({db})=>{
   const r=await M.call(stateHandler,M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'1',elegir:'1'},'GET'));assert.equal(r.status,400);assert.equal(r.body.token,undefined);
@@ -411,8 +403,8 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
   db.tables.liga_index=db.tables.liga_index.filter(l=>l.id!=='otra-activa');assert.equal((await M.call(stateHandler,M.req(db,'Alicia',{}, {liga:'otra-activa',historial:'1'},'GET'))).status,404);
  }));
  test('HST09 all history combines current, inactive membership in active league and finished leagues',()=>usingHistory(async({db,current})=>{
-  const before=structuredClone(db.tables),c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});
-  assert.equal(await c.load(),true);const out=c.snapshot();assert.equal(out.records.length,4);assert.equal(out.leagues.length,3);assert.equal(out.issues.length,0);assert.deepEqual(db.tables,before);
+  const before=structuredClone(protectedTables(db)),c=H.createController({current,name:'Alicia',token:()=>db.token(),valid:()=>true,fetcher:bridge(db)});
+  assert.equal(await c.load(),true);const out=c.snapshot();assert.equal(out.records.length,4);assert.equal(out.leagues.length,3);assert.equal(out.issues.length,0);assert.deepEqual(protectedTables(db),before);
   assert.equal(D.summarize(D.records(out.records,'Alicia'),'Alicia').played,4);
   assert.equal(new Set(out.records.map(m=>m._mhKey)).size,4);
  }));

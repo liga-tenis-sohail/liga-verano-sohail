@@ -528,4 +528,5 @@ module.exports = async (req, res) => {
   }
 };
 
+module.exports = require('./_http').wrap(module.exports,{route:'passkey'});
 module.exports = require('./_session').withCookie(module.exports);

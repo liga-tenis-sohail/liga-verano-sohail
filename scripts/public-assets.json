@@ -52,7 +52,9 @@
     "rating-explainer.js",
     "rating.js",
     "security-account.js",
-    "security-account.css"
+    "security-account.css",
+    "login-title.js",
+    "import-security.js"
   ],
   "optional": [
     "favicon.ico"

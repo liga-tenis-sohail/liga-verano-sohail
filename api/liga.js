@@ -34,15 +34,10 @@ function idDeJugador(nombre){
 // re-comprime del lado del servidor: hacerlo bien requeriría una librería
 // de imágenes que este proyecto no tiene, y el tope ya cubre el caso real.
 const IMAGEN_MSG_MAX_CHARS = 700000;   // ~500KB de imagen en base64
-function imagenValida(v){
-  if(v == null || v === '') return { ok: true, valor: null };   // sin adjunto, válido
-  if(typeof v !== 'string' || !v.startsWith('data:image/')){
-    return { ok: false, error: 'El adjunto tiene que ser una imagen.' };
-  }
-  if(v.length > IMAGEN_MSG_MAX_CHARS){
-    return { ok: false, error: 'La imagen es demasiado grande (máximo ~500KB una vez comprimida).' };
-  }
-  return { ok: true, valor: v };
+function imagenValida(v,req){
+ if(v==null||v==='')return {ok:true,valor:null};
+ const value=require('./_content-security').safeImage(v,IMAGEN_MSG_MAX_CHARS);
+ return value?{ok:true,valor:value}:{ok:false,error:require('./_request-security').english(req||{})?'Invalid image: use PNG, JPEG, GIF or WebP, up to about 500 KB. SVG and HTML are not allowed.':'Imagen inválida: usá PNG, JPEG, GIF o WebP, hasta ~500 KB. SVG y HTML no se admiten.'};
 }
 
 // Genera la escala de puntos por posición con la fórmula estándar de la liga:
@@ -318,8 +313,8 @@ module.exports = async function handler(req, res){
     // arriba): permite avisar algo con una captura o documento sin
     // depender de WhatsApp aparte. Un mensaje puede llevar SOLO imagen,
     // sin texto — por eso el chequeo de "vacío" ahora contempla ambos.
-    const imgCheck = imagenValida(body.imagen);
-    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error });
+    const imgCheck = imagenValida(body.imagen,req);
+    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error, code: 'INVALID_IMAGE' });
     if(!texto && !imgCheck.valor) return res.status(400).json({ error: 'El mensaje está vacío.' });
     if(texto.length > 2000) return res.status(400).json({ error: 'El mensaje es demasiado largo (máximo 2000 caracteres).' });
 
@@ -393,8 +388,8 @@ module.exports = async function handler(req, res){
 
     // El adjunto de imagen es exclusivo admin — un jugador que manda a su
     // propio grupo no puede adjuntar nada (solo texto), igual que antes.
-    const imgCheck = esAdminMsg ? imagenValida(body.imagen) : { ok: true, valor: null };
-    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error });
+    const imgCheck = esAdminMsg ? imagenValida(body.imagen,req) : { ok: true, valor: null };
+    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error, code: 'INVALID_IMAGE' });
     if(!texto && !imgCheck.valor) return res.status(400).json({ error: 'El mensaje está vacío.' });
 
     try {
@@ -450,8 +445,8 @@ module.exports = async function handler(req, res){
     }
 
     // El adjunto de imagen es exclusivo admin — mismo criterio que enviarGrupo.
-    const imgCheck = esAdminMsg ? imagenValida(body.imagen) : { ok: true, valor: null };
-    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error });
+    const imgCheck = esAdminMsg ? imagenValida(body.imagen,req) : { ok: true, valor: null };
+    if(!imgCheck.ok) return res.status(400).json({ error: imgCheck.error, code: 'INVALID_IMAGE' });
     if(!texto && !imgCheck.valor) return res.status(400).json({ error: 'El mensaje está vacío.' });
 
     try {
@@ -885,4 +880,4 @@ module.exports = async function handler(req, res){
   return res.status(400).json({ error: 'Acción desconocida: ' + accion });
 };
 
-module.exports = require('./_http').wrap(module.exports);
+module.exports = require('./_http').wrap(module.exports,{route:'liga'});

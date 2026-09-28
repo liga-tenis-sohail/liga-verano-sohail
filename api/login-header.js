@@ -17,11 +17,6 @@
 const { readState, LIGA_DEFAULT, ligaIdOK, envOK } = require('./_lib');
 
 module.exports = async function handler(req, res){
-  // Cabeceras CORS mínimas por si alguna vez lo llaman desde otro dominio
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if(req.method === 'OPTIONS'){ return res.status(200).end(); }
-
   if(!envOK(res)) return;
   if(req.method !== 'GET'){
     return res.status(405).json({ error: 'Método no permitido' });
@@ -43,20 +38,12 @@ module.exports = async function handler(req, res){
     // Sanitizamos igual que en el frontend: filtramos links vacíos, limitamos
     // cantidad razonable (20), validamos tipos. Así el cliente puede confiar
     // en la forma del payload y renderear sin más validaciones.
-    return res.status(200).json({
-      color: (typeof lh.color === 'string' && lh.color) ? lh.color : '#0E3470',
-      textColor: (typeof lh.textColor === 'string') ? lh.textColor : '',
-      colorDark: (typeof lh.colorDark === 'string') ? lh.colorDark : '',
-      textColorDark: (typeof lh.textColorDark === 'string') ? lh.textColorDark : '',
-      links: Array.isArray(lh.links)
-        ? lh.links.filter(l => l && typeof l.text === 'string' && typeof l.url === 'string' && l.text && l.url).slice(0, 20)
-        : []
-    });
+    return res.status(200).json(require('./_content-security').headerConfig(lh));
   } catch(e){
     // Nunca romper el login por un error acá. Devolvemos default y logueamos.
-    console.error('login-header error:', e && e.message);
+    console.error('login-header unavailable');
     return res.status(200).json(defaultCfg);
   }
 };
 
-module.exports = require('./_http').wrap(module.exports);
+module.exports = require('./_http').wrap(module.exports,{route:'login-header'});

@@ -36,4 +36,4 @@ module.exports = async function handler(req, res){
   }
 };
 
-module.exports = require('./_http').wrap(module.exports);
+module.exports = require('./_http').wrap(module.exports,{route:'audit'});
