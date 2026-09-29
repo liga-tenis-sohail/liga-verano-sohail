@@ -9,10 +9,12 @@
 // Si no hay sesión recuperable, inicia el login habitual; nunca autentica
 // a partir del nombre o de los valores de localStorage.
 (async function(){
-  updateLangUI();
-  const resumed=window.SohailSession?await SohailSession.restore():false;
-  if(!resumed)initLogin();
-  updateLangUI();
+  const note=()=>{const el=document.getElementById('login-err');if(el){el.style.display='block';el.textContent=document.documentElement.lang==='en'?'Could not complete loading. Reload the page to retry.':'No se pudo completar la carga. Recargá la página para reintentar.';}};
+  try{updateLangUI();}catch(_){note();}
+  let resumed=false;
+  try{resumed=window.SohailSession?await SohailSession.restore():false;}catch(_){note();}
+  if(!resumed){try{await initLogin();}catch(_){note();}}
+  try{updateLangUI();}catch(_){note();}
 })();
 // v4.0: historical linking never transfers a password or an account identity.
 async function abrirVincularJugador(nombreActual){
@@ -27,4 +29,4 @@ function renombrarJugadorEnLiga(oldName,newName){
   return renamePlayerEverywhere(oldName,newName);
 }
 
-if(typeof applyStaticTranslations==='function')applyStaticTranslations();
+if(typeof applyStaticTranslations==='function'){try{applyStaticTranslations();}catch(_){/* Login initialization remains available. */}}

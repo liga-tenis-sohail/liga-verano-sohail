@@ -24,7 +24,7 @@ module.exports={fixture,match};
 const vm=require('node:vm');const fs=require('node:fs');const path=require('node:path');
 function persistenceContext(fetcher){
  const base=fixture();
- const ctx={console:{log(){},warn(){},error(){}},fetch:fetcher,AbortSignal,JSON,Promise,Blob,setTimeout:()=>0,setInterval:()=>0,clearTimeout(){},structuredClone,atob:s=>Buffer.from(s,'base64').toString(),t:k=>k,
+ const ctx={SohailRequest:require('../public/request-task'),LANG:'es',console:{log(){},warn(){},error(){}},fetch:fetcher,AbortSignal,JSON,Promise,Blob,setTimeout:()=>0,setInterval:()=>0,clearTimeout(){},structuredClone,atob:s=>Buffer.from(s,'base64').toString(),t:k=>k,
    document:{getElementById:()=>null,addEventListener(){},createElement:()=>({style:{},appendChild(){},replaceChildren(){},setAttribute(){}}),body:{appendChild(){}}},window:{addEventListener(){}},
    currentUser:{name:'Alicia'},_token:'token-test',_ligaActual:'liga-test',_ligaReadOnly:false,RATING_ON:false,
    cycles:base.cycles,matches:[],matchId:1,activeN:1,playoff:base.playoff,DESTINO:{},FECHAS:{},PO_FECHAS:{},ALLNAMES:base.ALLNAMES,USERS:base.users,PUNTOS:{},AJUSTES_PUNTOS:{},LOG:[],LEAGUE_NAME:'Prueba',LEAGUE_SUBTITLE:'',LOGIN_TITLE:'',LEAGUE_COLOR_PRI:'#123456',LEAGUE_COLOR_ACC:'#123456',LEAGUE_COLOR_HL:'#123456',LEAGUE_TEXT_COLORS:{},CLUBS:base.CLUBS,COLOR_DISPUTA:'#123456',RATING_SEEDS:{},RATING_OVERRIDES:{},REGLAMENTO:'',LOGIN_HEADER:{},JOIN_REQUESTS:[]};
@@ -40,7 +40,7 @@ test('R2: conflicto SQL se propaga y nunca cae a un upsert incondicional',async(
 });
 test('R2: cambios en vuelo quedan pendientes y se transmiten en segundo envío',async()=>{
  let resolve, calls=[];
- const ctx=persistenceContext(async(_,o)=>{calls.push(JSON.parse(o.body));if(calls.length===1)await new Promise(r=>resolve=r);return {ok:true,json:async()=>({version:3+calls.length})};});
+ const ctx=persistenceContext(async(_,o)=>{calls.push(JSON.parse(o.body));if(calls.length===1)await new Promise(r=>resolve=r);return {ok:true,json:async()=>({ok:true,version:3+calls.length})};});
  vm.runInContext("LEAGUE_NAME='Primero'",ctx);const p=vm.runInContext('persist(true)',ctx);
  vm.runInContext("LEAGUE_NAME='Segundo'",ctx);resolve();await p;
  assert.equal(calls.length,2);assert.equal(calls[0].state.LEAGUE_NAME,'Primero');assert.equal(calls[1].state.LEAGUE_NAME,'Segundo');
@@ -52,11 +52,11 @@ test('R2: 409 no adopta la versión remota ni reenvía datos antiguos',async()=>
  assert.equal(n,1);assert.equal(vm.runInContext('_stateV',ctx),3);assert.equal(vm.runInContext('_saveConflict',ctx),true);
 });
 test('R2: respuesta tardía no modifica otra liga',async()=>{
- let resolve;const ctx=persistenceContext(async()=>{await new Promise(r=>resolve=r);return{ok:true,json:async()=>({version:100,token:'old'})};});
+ let resolve;const ctx=persistenceContext(async()=>{await new Promise(r=>resolve=r);return{ok:true,json:async()=>({ok:true,version:100,token:'old'})};});
  const p=vm.runInContext('_doPersist()',ctx);ctx._ligaActual='otra-liga';resolve();await p;assert.equal(vm.runInContext('_stateV',ctx),3);assert.equal(ctx._token,'token-test');
 });
 test('R2: dos invocaciones simultáneas se serializan',async()=>{
- let resolve,n=0;const ctx=persistenceContext(async()=>{n++;await new Promise(r=>resolve=r);return{ok:true,json:async()=>({version:4})};});
+ let resolve,n=0;const ctx=persistenceContext(async()=>{n++;await new Promise(r=>resolve=r);return{ok:true,json:async()=>({ok:true,version:4})};});
  const a=vm.runInContext('_doPersist()',ctx),b=vm.runInContext('_doPersist()',ctx);resolve();await Promise.all([a,b]);assert.equal(n,1);
 });
 function authFixture(epoch=0,must=false){const state=fixture();return {state,account:{id:'n:Alicia',epoch,must_change:must,pass_hash:lib.hashV2('segura123'),tutorial_epoch:1,tutorial_done_epoch:0,tutorial_version:0}};}
@@ -420,7 +420,7 @@ test('R7: fallo de revocación impide vinculación',async()=>{const original=glo
  }));
  test('HST12 missing global identity is explicit, not a guessed name match',()=>usingHistory(async({db,current})=>{
   delete db.state().users.Alicia.jugadorId;
-  const out=await H.collect({current:current(),name:'Alicia',token:'not-used',fetcher:bridge(db)});assert.equal(out.records.length,0);assert.ok(out.issues.some(i=>i.reason==='no-global-id'));assert.equal(out.index.length,1);
+  const out=await H.collect({current:current(),name:'Alicia',token:db.token('admin'),fetcher:bridge(db)});assert.equal(out.records.length,1);assert.ok(out.issues.some(i=>i.reason==='no-global-id'));assert.ok(out.records.every(m=>m._mhLeagueId==='liga-actual'));
  }));
  test('HST13 read errors are retained when selecting a failed league instead of inventing zero',()=>usingHistory(async({db,current})=>{
   db.fault=({name})=>name==='sohail_perf_source';

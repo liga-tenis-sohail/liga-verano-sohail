@@ -505,6 +505,12 @@ async function renombrarPasskey(credId, labelActual){
   }
 }
 
+function loginResponseValid(d){
+  if(d&&d.eligeLiga!==undefined&&typeof d.eligeLiga!=='boolean')return false;
+  if(!d||typeof d.token!=='string'||!d.token||typeof d.name!=='string'||!d.name||!['player','admin','superadmin'].includes(d.role))return false;
+  if(d.eligeLiga===true)return Array.isArray(d.ligas)&&d.ligas.length>0&&d.ligas.every(l=>l&&typeof l.id==='string');
+  return typeof d.ligaId==='string'&&!!d.ligaId&&SohailRequest.stateValid(d.state)&&!!d.state.users[d.name];
+}
 async function doLogin(){
   if(_loginBusy)return;
   const field=document.getElementById('login-pass');if(field)field.type='password';if(window.SohailUI)SohailUI.updateLogin();
@@ -523,10 +529,10 @@ async function doLogin(){
     // LOGIN UNIFICADO: ya no se manda ligaId de antemano para un jugador
     // (admin/superadmin siguen mandando _ligaActual, que el server ignora
     // para 'player'). El server busca al usuario en todas las ligas activas.
-    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined}),signal:AbortSignal.timeout(20000)});
-    const d=await r.json().catch(()=>({}));
+    const {response:r,data:d}=await SohailRequest.json(fetch,'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user:uv,pass:pv,ligaId:_ligaActual||undefined})},{timeout:20000});
     if(attempt!==_loginAttemptVersion)return;
     if(!r.ok){e.textContent=apiError(d);e.style.display='block';return;}
+    if(!loginResponseValid(d)){e.textContent=t('err_no_data');e.style.display='block';return;}
     _token=d.token;
     if(window.SohailSession)SohailSession.enable();
     _ligaReadOnly=false;_sessionExpiring=false;
@@ -593,7 +599,7 @@ async function doLogin(){
   }finally{
     if(attempt===_loginAttemptVersion){setLoginBusy(false);if(btn)btn.textContent=t('enter')||'Entrar';}
   }
-  montarAppTrasLogin();
+  try{montarAppTrasLogin();}catch(_){SohailRequest.notice(document.getElementById('view-grupos'),()=>montarAppTrasLogin());}
 }
 
 // ============================================================================
@@ -672,8 +678,8 @@ async function elegirLigaTrasLogin(ligaId){
 // Monta la app tras un login exitoso (con clave o con passkey). currentUser,
 // _token y el estado ya deben estar cargados antes de llamar a esto.
 function montarAppTrasLogin(){
-  _saveConflict=false;
-  setTimeout(()=>maybeShowTutorial(false),500);
+  _saveConflict=false;if(typeof _saveUnconfirmed!=='undefined')_saveUnconfirmed=false;if(typeof _unconfirmedAttempt!=='undefined')_unconfirmedAttempt=null;
+  setTimeout(()=>{Promise.resolve().then(()=>maybeShowTutorial(false)).catch(()=>{});},500);
   const e=document.getElementById('login-err');
   if(e) e.style.display='none';
   _lastActivity=Date.now();
@@ -702,7 +708,7 @@ function montarAppTrasLogin(){
     viewCycle=activeN;renderShell();showSub('grupos');
     // Calcular el rating global (todas las ligas) en segundo plano. Cuando termina,
     // refresca la vista para que la columna y la ficha muestren los números.
-    if(RATING_ON){const token=_token;setTimeout(()=>{if(token!==_token||!currentUser)return;calcularRatingGlobal(false).then(()=>{try{if(token===_token&&(subView==='grupos'||subView==='rating'))showSub(subView);}catch(_){}}).catch(()=>{});},0);}
+    if(RATING_ON){const token=_token;setTimeout(()=>{if(token!==_token||!currentUser)return;Promise.resolve().then(()=>calcularRatingGlobal(false)).then(()=>{try{if(token===_token&&(subView==='grupos'||subView==='rating'))showSub(subView);}catch(_){}}).catch(()=>{});},0);}
   }
   document.getElementById('login-pass').value='';
   clearForm();
@@ -718,6 +724,7 @@ function montarAppTrasLogin(){
 // o si mustChangePw hay que aplicarlo después de elegir liga.
 function entrarConToken(d){
   const e=document.getElementById('login-err');
+  if(!loginResponseValid(d)){if(e){e.textContent=t('err_no_data');e.style.display='block';}return false;}
   _token=d.token;
   if(window.SohailSession)SohailSession.enable();
   _ligaReadOnly=false;_sessionExpiring=false;
@@ -765,7 +772,7 @@ async function doLogout(){
   if(window.SohailUI)SohailUI.updateLogin();
   if(typeof cerrarSelectorLigaHdr==='function')cerrarSelectorLigaHdr(false);
   document.getElementById('sohail-guide')?.remove();document.getElementById('_pwforce')?.remove();
-  _tutorialRecord=null;_tutorialSeenSession='';_tutorialBusy=false;_saveConflict=false;
+  _tutorialRecord=null;_tutorialSeenSession='';_tutorialBusy=false;_saveConflict=false;if(typeof _saveUnconfirmed!=='undefined')_saveUnconfirmed=false;if(typeof _unconfirmedAttempt!=='undefined')_unconfirmedAttempt=null;
   closeM();clearForm();currentUser=null;_token=null;_loadOK=false;_lastActivity=0;_sessionExpiring=false;_hdrLigasCache=null;
   document.getElementById('main-app').style.display='none';
   document.getElementById('login-screen').style.display='block';

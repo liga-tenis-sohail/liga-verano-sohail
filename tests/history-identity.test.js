@@ -14,7 +14,7 @@ test('H2H: an opponent lacking a link in another league is not guessed by name',
 test('HISTORY: sporting projection never carries contact fields or authentication data',()=>{const c=current();c.state.users['Ana Actual'].pass='secret';c.state.matches[0].privateField='secret';const out=H.project(c.state,c.entry,target,{current:true});assert.ok(!JSON.stringify(out).includes('secret'));});
 test('HISTORY: collector includes active, archived and retained editions without switching sessions',async()=>{
  const c=current(),p=past(),other=season('other-active','Otra activa',p.state.users,[m(1,'Ana Histórica','Luis Histórico','2026-09-18')]);const requests=[];
- const records=[...H.project(p.state,p.entry,target).records,...H.project(other.state,other.entry,target).records];
- const fetcher=async(url,op)=>{requests.push({url,op});return {ok:true,json:async()=>({complete:true,signature:'a'.repeat(64),leagues:[p.entry,other.entry],index:[c.entry,p.entry,other.entry],records,issues:[],total:3,linked:true})};};
- const out=await H.collect({current:{...c.entry,...c.state},name:target.name,token:'local-test',fetcher});assert.equal(out.leagues.length,2);assert.equal(out.records.length,3);assert.equal(requests.length,1);assert.equal(requests[0].url,'/api/liga?operacion=history');assert.ok(!requests[0].url.includes('elegir'));
+ const records=[...H.project(c.state,c.entry,target,{current:true}).records,...H.project(p.state,p.entry,target).records,...H.project(other.state,other.entry,target).records];
+ const fetcher=async(url,op)=>{requests.push({url,op});return {ok:true,json:async()=>({complete:true,coherent:true,currentId:c.entry.id,signature:'a'.repeat(64),leagues:[c.entry,p.entry,other.entry],index:[c.entry,p.entry,other.entry],records,issues:[],total:3,linked:true})};};
+ const out=await H.collect({current:{...c.entry,...c.state},name:target.name,token:'local-test',fetcher});assert.equal(out.leagues.length,3);assert.equal(out.records.length,5);assert.equal(requests.length,1);assert.equal(requests[0].url,'/api/liga?operacion=history');assert.ok(!requests[0].url.includes('elegir'));
 });

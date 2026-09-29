@@ -316,7 +316,7 @@
  }
  const aggregateScopes=()=>[['all',t('mh_all')],['groups',t('mh_groups')],['po',t('playoffs')],['main',t('mh_main')],['cons',t('mh_cons')]];
  function redrawPage(){const focus=document.activeElement?.id,scroll=window.scrollY;render();if(focus)document.getElementById(focus)?.focus({preventScroll:true});window.scrollTo({top:scroll,behavior:'auto'});}
- function loadPageArchive(){const c=forPage();if(!c)return;const job=c.load();redrawPage();job.finally(()=>{if(pageArchive===c&&currentUser&&subView==='partidos')redrawPage();});}
+ function loadPageArchive(){const c=forPage();if(!c)return;const job=c.load();redrawPage();job.then(()=>{if(pageArchive===c&&currentUser&&subView==='partidos')redrawPage();}).catch(()=>{if(pageArchive===c)SohailRequest.notice(document.getElementById('mh-panel'),loadPageArchive);});}
  function dataset(){
   const name=selectedPlayer(),c=forPage(),snap=chosenSnapshot(c?.snapshot(),name?'all':'current',currentSnapshot());
   const base=D.records(snap?snap.records:matches,name,state.tab==='h2h'?'all':state.scope);
@@ -397,9 +397,10 @@
   const archive=aggregateAllowed?archiveController(name,()=>valid()&&host._mhPlayerDispose===dispose,context):null;
   if(!aggregateAllowed)view.leagueScope='current';
   const scopeOptions=()=>scopeChoices(view.leagueScope,archive?.snapshot(),context());
+  const stopRefresh=global.SohailRequest?SohailRequest.watch(()=>{archive?.cancel();loadPlayerArchive();},()=>valid()&&!!host.getClientRects().length):()=>{};
   function loadPlayerArchive(){
    if(!archive)return;
-   const job=archive.load();redraw();job.finally(()=>{if(valid()&&host._mhPlayerDispose===dispose)redraw();});
+   const job=archive.load();redraw();job.then(()=>{if(valid()&&host._mhPlayerDispose===dispose)redraw();}).catch(()=>{if(valid())SohailRequest.notice(host,loadPlayerArchive);});
   }
   function redraw(){const f=host.contains(document.activeElement)?document.activeElement?.id:'',sc=host.closest('.modal')?.scrollTop;draw();if(f)document.getElementById(f)?.focus({preventScroll:true});const modal=host.closest('.modal');if(modal&&sc!=null)modal.scrollTop=sc;}
   host.classList.add('mh-player-view');host.dataset.playerName=name;
@@ -473,7 +474,7 @@
   });
   const modal=document.getElementById('modal-bg'),body=document.getElementById('modal-body');
   const lifecycleObserver=new MutationObserver(()=>{if(!valid()||!modal.classList.contains('open'))dispose();});
-  function dispose(){archive?.cancel();languageObserver.disconnect();lifecycleObserver.disconnect();if(host._mhPlayerDispose===dispose)delete host._mhPlayerDispose;}
+  function dispose(){stopRefresh();archive?.cancel();languageObserver.disconnect();lifecycleObserver.disconnect();if(host._mhPlayerDispose===dispose)delete host._mhPlayerDispose;}
   host._mhPlayerDispose=dispose;
   languageObserver.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
   if(modal){lifecycleObserver.observe(modal,{attributes:true,attributeFilter:['class']});if(body)lifecycleObserver.observe(body,{childList:true,subtree:true});}
@@ -520,7 +521,7 @@
    }
    host.innerHTML=html+'<button type="button" class="btn" data-profile-details>'+e(t('mhp_title'))+'</button>';
   }
-  function load(){const job=archive.load();draw();job.finally(()=>{if(valid())draw();});}
+  function load(){const job=archive.load();draw();job.then(()=>{if(valid())draw();}).catch(()=>{if(valid())SohailRequest.notice(host,load);});}
   host.onclick=ev=>{
    const b=ev.target.closest('button');if(!b||!valid())return;
    if(b.hasAttribute('data-history-leagues')){scope=b.dataset.historyLeagues;draw();}
@@ -528,9 +529,10 @@
    else if(b.hasAttribute('data-profile-details'))openPlayer(name,{tab:'stats'});
   };
   host.onchange=ev=>{if(!valid()||!ev.target.hasAttribute('data-history-league'))return;const id=ev.target.value;if(!archive.snapshot().index.some(l=>l.id===id))return;scope=id===_ligaActual?'current':'league:'+id;draw();};
+  const stopRefresh=global.SohailRequest?SohailRequest.watch(()=>{archive.cancel();load();},()=>valid()&&!!host.getClientRects().length):()=>{};
   const lang=new MutationObserver(()=>{if(valid())draw();else dispose();});
   const life=new MutationObserver(()=>{if(!valid())dispose();});
-  function dispose(){archive.cancel();lang.disconnect();life.disconnect();if(host._historySummaryDispose===dispose)delete host._historySummaryDispose;}
+  function dispose(){stopRefresh();archive.cancel();lang.disconnect();life.disconnect();if(host._historySummaryDispose===dispose)delete host._historySummaryDispose;}
   host._historySummaryDispose=dispose;
   lang.observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
   const parent=document.getElementById('view-perfil');if(parent)life.observe(parent,{childList:true});
@@ -542,5 +544,7 @@
   const ctx=currentSnapshot(),me=D.person(a,ctx),rival=D.person(b,ctx);if(me.key===rival.key)return false;
   return openPlayer(a,{tab:'h2h',rival:rival.key,leagueScope:'all'});
  }
- global.SohailHistory=Object.freeze({render,openPlayer,mountPlayer,openH2H,mountSummary});
+ function enter(){pageArchive?.cancel();try{return render();}catch(_){SohailRequest.notice(document.getElementById('view-partidos'),enter);}}
+ if(global.SohailRequest)SohailRequest.watch(enter,()=>!!currentUser&&subView==='partidos');
+ global.SohailHistory=Object.freeze({render:enter,openPlayer,mountPlayer,openH2H,mountSummary});
 })(typeof window!=='undefined'?window:globalThis);

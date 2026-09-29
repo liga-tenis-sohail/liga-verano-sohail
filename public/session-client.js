@@ -4,7 +4,7 @@
  */
 (function(root,factory){
  'use strict';
- const api=factory();
+ const api=factory(root);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else {
   const storage=()=>{try{return root.localStorage;}catch(_){return null;}};
@@ -33,20 +33,21 @@
    }
   });
  }
-})(typeof globalThis!=='undefined'?globalThis:this,function(){
+})(typeof globalThis!=='undefined'?globalThis:this,function(root){
  'use strict';
+ const requests=()=>typeof module==='object'&&module.exports&&typeof require==='function'?require('./request-task'):root.SohailRequest;
  const HINT='sohail-session-present-v1',DISABLED='sohail-session-disabled-v1';
  function create({fetcher,storage=null,accept=()=>true,busy=()=>{},error=()=>{},timeout=15000,getToken=()=>''}){
   let generation=0,controller=null,pending=null,logoutPending=Promise.resolve({ok:true});
   const get=k=>{try{return storage?.getItem(k)??null;}catch(_){return null;}};
   const put=(k,v)=>{try{if(v==null)storage?.removeItem(k);else storage?.setItem(k,v);}catch(_){}};
   function enable(){put(DISABLED,null);put(HINT,'1');}
-  function cancel(){generation++;controller?.abort();controller=null;pending=null;}
+  function cancel(){const active=!!controller;generation++;controller?.abort();controller=null;pending=null;if(active)busy(false);}
   async function request(action,signal){
-   const res=await fetcher('/api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Sohail-Session':'1',...(action==='session-logout'&&getToken()?{Authorization:'Bearer '+getToken()}:{})},
-    credentials:'same-origin',cache:'no-store',body:JSON.stringify({accion:action}),signal,keepalive:action==='session-logout'});
-   const data=await res.json();
+   const {response:res,data}=await requests().json(fetcher,'/api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Sohail-Session':'1',...(action==='session-logout'&&getToken()?{Authorization:'Bearer '+getToken()}:{})},
+    credentials:'same-origin',cache:'no-store',body:JSON.stringify({accion:action}),signal,keepalive:action==='session-logout'},{signal,timeout});
    if(!res.ok){if(res.status===401&&action==='session-resume')return {authenticated:false};throw new Error(data.code||'SESSION_UNAVAILABLE');}
+   if(action==='session-logout'&&data.ok!==true)throw new Error('LOGOUT_UNCONFIRMED');
    return data;
   }
   function logout(){
@@ -69,7 +70,7 @@
      if(version!==generation||get(DISABLED)==='1')return false;
      if(!data.authenticated){put(HINT,null);return false;}
      if(!data.token||!data.state||!data.name||!data.ligaId)throw new Error('INCOMPLETE_SESSION');
-     const ok=await accept(data);if(ok)enable();return !!ok;
+     const ok=await accept(data);if(version!==generation||get(DISABLED)==='1')return false;if(ok)enable();return !!ok;
     }catch(e){if(version===generation)error(e);return false;}
     finally{clearTimeout(timer);if(version===generation){pending=null;controller=null;busy(false);}}
    })();

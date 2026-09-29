@@ -4,11 +4,12 @@
    No se guardan estados, credenciales ni historiales en localStorage. */
 (function(root,factory){
  'use strict';
- const api=factory();
+ const api=factory(root);
  if(typeof module==='object'&&module.exports)module.exports=api;
  else root.SohailLeagueHistory=api;
-})(typeof globalThis!=='undefined'?globalThis:this,function(){
+})(typeof globalThis!=='undefined'?globalThis:this,function(root){
  'use strict';
+ const requests=()=>typeof module==='object'&&module.exports&&typeof require==='function'?require('./request-task'):root.SohailRequest;
  const validId=v=>typeof v==='string'&&/^[a-z0-9][a-z0-9-]{0,63}$/.test(v);
  const own=(o,k)=>Object.prototype.hasOwnProperty.call(o||{},k);
  const pid=u=>{const id=u?.historialId||u?.jugadorId;return typeof id==='string'&&id.trim()?id:null;};
@@ -59,53 +60,57 @@
   });
   return {records:Array.from(byKey).filter(([k])=>!conflicts.has(k)).map(([,v])=>v.record),issues:Array.from(new Set(issues))};
  }
- async function jsonRequest(fetcher,url,options,signal){
-  const controller=new AbortController(),abort=()=>controller.abort();
-  if(signal?.aborted)throw new Error('aborted');
-  signal?.addEventListener('abort',abort,{once:true});
-  const timer=setTimeout(abort,12000);
-  try{
-   const r=await fetcher(url,{...options,cache:'no-store',signal:controller.signal});
-   if(!r.ok){const err=new Error('http-'+r.status);err.status=r.status;throw err;}
-   const data=await r.json();if(!data||typeof data!=='object')throw new Error('invalid-response');return data;
-  }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);}
+ async function jsonRequest(fetcher,url,options,signal,timeout=12000){
+  const {response:r,data}=await requests().json(fetcher,url,{...options,cache:'no-store'},{signal,timeout});
+  if(!r.ok)throw Object.assign(new Error('http-'+r.status),{status:r.status,code:data.code});
+  return data;
  }
- const memory=new Map();let cacheToken=null;
- function clearCache(){memory.clear();cacheToken=null;}
- async function collect({current,name,token,signal,fetcher}){
+ const memory=new Map();let cacheToken=null,cacheEpoch=0;
+ function clearCache(){memory.clear();cacheToken=null;cacheEpoch++;}
+ async function collect({current,name,token,signal,fetcher,timeout=12000}){
   const id=pid(current.users?.[name]);if(!validId(current.id)||!name)throw new Error('invalid-context');
-  if(!id)return {records:[],leagues:[],index:uniqueIndex([],current),issues:[{reason:'no-global-id'}],total:1,linked:false};
-  if(cacheToken!==token){memory.clear();cacheToken=token;}
+
+  if(cacheToken!==token){memory.clear();cacheToken=token;cacheEpoch++;}
+  const cacheGeneration=cacheEpoch;
   const key=JSON.stringify([current.id,id,name]),cached=memory.get(key);
-  const body={name,id,currentId:current.id};if(cached)body.signature=cached.signature;
+  const body={name,id:id||'',currentId:current.id,coherent:true};if(cached)body.signature=cached.signature;
   const headers={'Content-Type':'application/json'};if(token)headers.Authorization='Bearer '+token;
-  const d=await jsonRequest(fetcher,'/api/liga?operacion=history',{method:'POST',headers,body:JSON.stringify(body)},signal);
+  const d=await jsonRequest(fetcher,'/api/liga?operacion=history',{method:'POST',headers,body:JSON.stringify(body)},signal,timeout);
   if(signal?.aborted)throw new Error('aborted');
-  if(d.complete!==true||typeof d.signature!=='string')throw new Error('incomplete-history');
+  if(d.complete!==true||!/^([a-f0-9]{64})$/.test(d.signature||'')||d.coherent!==true||d.currentId!==current.id)throw new Error('incomplete-history');
   if(d.notModified){if(!cached||cached.signature!==d.signature)throw new Error('invalid-cache');return structuredClone(cached);}
-  if(!Array.isArray(d.records)||!Array.isArray(d.index)||!Array.isArray(d.leagues)||!Array.isArray(d.issues))throw new Error('invalid-history');
-  if(cacheToken===token&&JSON.stringify(d).length<1000000){memory.set(key,structuredClone(d));while(memory.size>8)memory.delete(memory.keys().next().value);}
+  if(!Array.isArray(d.records)||!Array.isArray(d.index)||!Array.isArray(d.leagues)||!Array.isArray(d.issues)||!d.index.some(l=>l.id===current.id)||!d.leagues.some(l=>l.id===current.id)||d.records.some(m=>!m||typeof m!=='object'||!validId(m._mhLeagueId)))throw new Error('invalid-history');
+  if(cacheGeneration===cacheEpoch&&cacheToken===token&&JSON.stringify(d).length<1000000){memory.set(key,structuredClone(d));while(memory.size>8)memory.delete(memory.keys().next().value);}
   return d;
  }
- function createController({current,name,token,valid,fetcher}){
-  let data=null,error=false,busy=false,attempted=false,controller=null,seq=0;
-  async function load(){
-   if(busy)return false;
-   if(!valid())return false;
-   const mine=++seq;controller=new AbortController();busy=true;error=false;attempted=true;
-   try{
-    const value=await collect({current:current(),name,token:token(),signal:controller.signal,fetcher});
-    if(mine!==seq||!valid())return false;
-    data=value;return true;
-   }catch(_){if(mine===seq&&valid()){data=null;error=true;}return false;}
-   finally{if(mine===seq)busy=false;}
+ function createController({current,name,token,valid,fetcher,timeout=12000}){
+  let data=null,error=false,busy=false,attempted=false,controller=null,seq=0,pending=null,acceptedContext=null;
+  const context=()=>{const c=current();return JSON.stringify([c.id,pid(c.users?.[name]),name,token()]);};
+  function cancel(){seq++;controller?.abort();controller=null;pending=null;busy=false;data=null;error=false;attempted=false;acceptedContext=null;}
+  function load(force=false){
+   if(!valid())return Promise.resolve(false);
+   const key=context();
+   if(busy&&!force&&key===acceptedContext)return pending;
+   if(busy)cancel();
+   const mine=++seq,ctl=new AbortController();controller=ctl;busy=true;error=false;attempted=true;data=null;acceptedContext=key;
+   const work=(async()=>{
+    try{
+     const value=await collect({current:current(),name,token:token(),signal:ctl.signal,fetcher,timeout});
+     if(mine!==seq||!valid()||key!==context())return false;
+     data=value;return true;
+    }catch(_){if(mine===seq&&valid()&&key===context()){data=null;error=true;}return false;}
+    finally{if(mine===seq){busy=false;pending=null;controller=null;}}
+   })();pending=work;return work;
   }
   function snapshot(){
-   const c=current(),p=project({users:c.users,matches:c.matches},c,{name,id:pid(c.users?.[name])},{current:true});
-   const remote=data?.records||[];
-   return {records:p.records.concat(remote.filter(m=>m._mhLeagueId!==c.id)),issues:[...p.issues.map(reason=>({id:c.id,name:c.nombre,reason})),...(data?.issues||[])],index:data?.index||[{id:c.id,nombre:c.nombre,estado:c.estado||''}],leagues:[{id:c.id,nombre:c.nombre,estado:c.estado||'',cycles:c.cycles||[],count:p.records.length},...(data?.leagues||[]).filter(l=>l.id!==c.id)],total:data?.total||1,ready:!!data,error,busy,attempted};
+   const c=current();
+   if(acceptedContext!==null&&acceptedContext!==context())cancel();
+   // The active season and other seasons come from ONE server snapshot.
+   // Unsaved edits are intentionally excluded from global statistics.
+   return {records:data?.records||[],issues:data?.issues||[],index:data?.index||[{id:c.id,nombre:c.nombre,estado:c.estado||''}],
+    leagues:data?.leagues||[],total:data?.total||1,ready:!!data,error,busy,attempted};
   }
-  return Object.freeze({load,snapshot,cancel:()=>{seq++;controller?.abort();busy=false;data=null;error=false;attempted=false;}});
+  return Object.freeze({load,snapshot,cancel});
  }
  function selectScope(snapshot,scope,currentId){
   if(!snapshot||scope==='all')return snapshot;

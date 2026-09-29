@@ -2,6 +2,7 @@
   "version": 1,
   "entry": "index.html",
   "assets": [
+    "request-task.js",
     "theme.js",
     "webauthn.js",
     "estilos.css",
