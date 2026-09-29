@@ -181,46 +181,51 @@ function importBackup(input){
   return SohailRestore.start(input);
 }
 function initEmptyLeague(){toast(t('fix_init_disabled'));}
+function _hasPendingChanges(){
+  try{return !!_unconfirmedAttempt||(_lastSaved!==null&&_serialize()!==_lastSaved);}catch(_){return true;}
+}
 function _showLoadError(msg){
   try{
     let b=document.getElementById('_loaderr');
     if(!b){b=document.createElement('div');b.id='_loaderr';b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#791F1F;color:#fff;padding:10px 16px;font-size:13px;line-height:1.4;text-align:center;box-shadow:0 2px 12px rgba(0,0,0,.35);font-family:system-ui,-apple-system,sans-serif';document.body.appendChild(b);}
     b.replaceChildren(document.createTextNode('⚠️ '+msg+' '));
     const btn=document.createElement('button');btn.type='button';btn.textContent=t('fix_reload');
-    btn.onclick=()=>{if(_loadOK&&_serialize()!==_lastSaved&&!confirm(t('fix_reload_confirm')))return;location.reload();};b.appendChild(btn);b.setAttribute('role','alert');
+    btn.onclick=()=>{if(_hasPendingChanges()&&!confirm(t('fix_reload_confirm')))return;location.reload();};b.appendChild(btn);b.setAttribute('role','alert');
 
   }catch(e){}
 }
 function _hideLoadError(){var b=document.getElementById('_loaderr');if(b)b.remove();}
 
+let _stateLoadSequence=0;
 async function loadState(){
   if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(!_token){console.warn('⚠️ loadState sin sesión');return;}
   console.log('🔄 Cargando estado desde el servidor...');
-  let d;const requestLiga=_ligaActual,requestSession=_saveSessionKey(),localBefore=_serialize();
+  let d;const readNumber=++_stateLoadSequence,requestToken=_token,requestLiga=_ligaActual,requestSession=_saveSessionKey(),localBefore=_serialize();
   try{
-    const r=await fetch(_conLiga('/api/state'),{headers:{Authorization:'Bearer '+_token},cache:'no-store'});
-    if(requestLiga!==_ligaActual||requestSession!==_saveSessionKey())return;
+    const result=await SohailRequest.json(fetch,_conLiga('/api/state'),{headers:{Authorization:'Bearer '+_token},cache:'no-store'},{timeout:15000});
+    const r=result.response;d=result.data;
+    if(readNumber!==_stateLoadSequence||requestToken!==_token||requestLiga!==_ligaActual||requestSession!==_saveSessionKey())return;
     if(r.status===401){_token=null;_loadOK=false;_showLoadError(t('err_session_expired'));return;}
-    d=await r.json().catch(()=>({}));
-    if(requestLiga!==_ligaActual||requestSession!==_saveSessionKey()||(_loadOK&&localBefore!==_serialize()))return;
-    if(r.status===403){_token=null;_showLoadError(d.error||t('err_no_access'));return;}
-    if(d.token)_token=d.token;   // sesión deslizante
-    if(!r.ok){_loadOK=false;_showLoadError(d.error||'Error al leer la base de datos. Para proteger tus datos NO se guardará nada.');return;}
+    if(readNumber!==_stateLoadSequence||requestToken!==_token||requestLiga!==_ligaActual||requestSession!==_saveSessionKey()||(_loadOK&&localBefore!==_serialize()))return;
+    if(r.status===403){_token=null;_loadOK=false;_showLoadError(d.error||t('err_no_access'));return;}
+        if(!r.ok){_loadOK=false;_showLoadError((typeof LANG!=='undefined'&&LANG==='en'?t('err_no_data'):(d.error||t('err_no_data'))));return;}
   }catch(e){
     console.error('❌ Excepción al leer estado:',e);
-    if(requestLiga!==_ligaActual||requestSession!==_saveSessionKey())return;
-    _loadOK=false;_showLoadError('No se pudo leer la base de datos. Para proteger tus datos NO se guardará nada. Recarga en unos segundos.');
+    if(readNumber!==_stateLoadSequence||requestToken!==_token||requestLiga!==_ligaActual||requestSession!==_saveSessionKey())return;
+    _loadOK=false;_showLoadError(t('err_no_data'));
     return;
   }
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return;
-  if(d&&d.state){
+  if(d&&SohailRequest.stateValid(d.state)){
+    _loadOK=false;
+    if(typeof d.token==='string'&&d.token)_token=d.token;
     const ok=_hydrate(d.state);
-    if(!ok){console.error('❌ Hydrate falló — autosave BLOQUEADO');_showLoadError('Los datos se leyeron pero no se pudieron aplicar. Para proteger tu información NO se guardará nada. Recarga.');return;}
+    if(!ok){console.error('❌ Hydrate falló — autosave BLOQUEADO');_showLoadError(t('err_hydrate'));return;}
     _lastSaved=_serialize();
-    _saveConflict=false;
+    _saveConflict=false;_saveUnconfirmed=false;_unconfirmedAttempt=null;
     _loadOK=true;
     _hideLoadError();
     console.log('✅ Estado cargado correctamente');
@@ -230,19 +235,26 @@ async function loadState(){
     // NUNCA sobrescribimos acá. El autosave queda bloqueado (_loadOK sigue false).
     _dbEmpty=true;_loadOK=false;
     console.warn('⚠️ Lectura VACÍA — NO se sobrescribe nada (protección de datos).');
-    _showLoadError('La base respondió sin datos. Para proteger tu información NO se guardó nada. Si es momentáneo, recarga. Si es una liga NUEVA, entra como admin y usa "Copia de seguridad → Inicializar liga".');
+    _showLoadError(t('err_no_data'));
   }
 }
 
 // Guardado crítico para operaciones de alta importancia (playoffs, backups).
 // Espera el envío actual y requiere confirmación; nunca reintenta un 409 con datos antiguos.
 // Se conserva una copia pendiente y se detiene el autosave ante un conflicto.
-let _saveInFlight=null,_saveConflict=false;
+let _saveInFlight=null,_saveConflict=false,_saveUnconfirmed=false,_unconfirmedAttempt=null;
+function _unconfirmedSaveNotice(sent){
+  _saveUnconfirmed=true;
+  if(sent)_unconfirmedAttempt=JSON.parse(JSON.stringify(sent));
+  _lastSaveError=typeof LANG!=='undefined'&&LANG==='en'?'Save not confirmed. Automatic saving is paused. Export your pending changes, reload and check the result before sending again.':'Guardado no confirmado. El guardado automático está pausado. Exportá los cambios pendientes, recargá y comprobá el resultado antes de volver a enviar.';
+  _showLoadError(_lastSaveError);
+  const bar=document.getElementById('_loaderr');if(bar){const b=document.createElement('button');b.type='button';b.className='btn';b.textContent=t('fix_export_pending');b.onclick=exportPendingChanges;bar.appendChild(b);}
+}
 function _saveSessionKey(){
-  try{const p=JSON.parse(atob((_token||'').split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));return [p.u,p.pk,p.sv].join(':');}catch(_){return _token;}
+  try{const p=JSON.parse(atob((_token||'').split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));return [p.u,p.pk,p.sv,p.sid||''].join(':');}catch(_){return _token;}
 }
 function exportPendingChanges(){
-  const blob=new Blob([JSON.stringify({kind:'SOHAIL_PENDING_REVIEW',ligaId:_ligaActual,savedBase:_lastSaved?JSON.parse(_lastSaved):null,pending:JSON.parse(_serialize())},null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify({kind:'SOHAIL_PENDING_REVIEW',ligaId:_ligaActual,savedBase:_lastSaved?JSON.parse(_lastSaved):null,pending:JSON.parse(_serialize()),sentUnconfirmed:_unconfirmedAttempt},null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sohail-cambios-pendientes.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function _conflictNotice(){
@@ -254,7 +266,7 @@ async function _criticalSave(){
   if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
-  if(!_loadOK||_saveConflict||!_token||_ligaReadOnly)return false;
+  if(!_loadOK||_saveConflict||_saveUnconfirmed||!_token||_ligaReadOnly)return false;
   _prioritySave=true;
   try{if(_saveInFlight)await _saveInFlight;return await _doPersist();}
   finally{_prioritySave=false;}
@@ -264,16 +276,16 @@ async function _doPersist(){
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
   if(_saveInFlight)return _saveInFlight;
-  if(!_token||!_loadOK||_saveConflict||_ligaReadOnly||document.getElementById('_pwforce'))return false;
+  if(!_token||!_loadOK||_saveConflict||_saveUnconfirmed||_ligaReadOnly||document.getElementById('_pwforce'))return false;
   if(typeof syncDestinosAuto==='function')syncDestinosAuto();
   const json=_serialize(),sent=JSON.parse(json),liga=_ligaActual,user=currentUser&&currentUser.name,sessionKey=_saveSessionKey();
   _saveInFlight=(async()=>{
     try{
-      const r=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({state:sent,ligaId:liga||undefined}),signal:AbortSignal.timeout(30000)});
-      const d=await r.json().catch(()=>({}));
+      const {response:r,data:d}=await SohailRequest.json(fetch,'/api/save',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({state:sent,ligaId:liga||undefined})},{timeout:30000});
       if(liga!==_ligaActual||user!==(currentUser&&currentUser.name)||sessionKey!==_saveSessionKey())return false;
       if(r.ok){
-        _stateV=Number.isSafeInteger(d.version)?d.version:sent._v+1;
+        if(d.ok!==true||!Number.isSafeInteger(d.version)||d.version!==sent._v+1){_unconfirmedSaveNotice(sent);return false;}
+        _stateV=d.version;
         // SOLO esta instantánea fue confirmada. Los cambios posteriores siguen sucios.
         // El servidor puede fijar el modo automático con el primer resultado.
         // No pisar una edición de destinos hecha mientras viajaba esta petición.
@@ -284,14 +296,16 @@ async function _doPersist(){
         const ratingChanged=ratingDataChanged(_lastSaved,sent);
         sent._v=_stateV;_lastSaved=JSON.stringify(sent);
         if(d.token)_token=d.token;_lastSaveError='';_hideLoadError();
+        try{window.dispatchEvent(new Event('sohail-data-saved'));}catch(_){}
         if(ratingChanged&&typeof RATING_ON!=='undefined'&&RATING_ON&&typeof calcularRatingGlobal==='function')calcularRatingGlobal(true).catch(()=>{});
         return true;
       }
       _lastSaveError=(typeof apiError==='function'?apiError(d):d.error)||t('fix_save_failed');
       if(r.status===409){_saveConflict=true;_conflictNotice();return false;}
       if(r.status===401){_token=null;_showLoadError(t('err_session_expired_save'));return false;}
+      if(r.status>=500||r.status===408){_unconfirmedSaveNotice(sent);return false;}
       _showLoadError(_lastSaveError);return false;
-    }catch(e){_lastSaveError=t('fix_network_pending');_showLoadError(_lastSaveError);return false;}
+    }catch(e){if(liga===_ligaActual&&user===(currentUser&&currentUser.name)&&sessionKey===_saveSessionKey())_unconfirmedSaveNotice(sent);return false;}
   })();
   try{return await _saveInFlight;}finally{_saveInFlight=null;}
 }
@@ -299,7 +313,7 @@ async function persist(force){
   if(_dataOperationBusy)return false;
   // Una visita guiada nunca guarda su contexto temporal.
   if(typeof isTutorialRunning==='function'&&isTutorialRunning())return false;
-  if(!_token||!_loadOK||_ligaReadOnly||_saveConflict||document.getElementById('_pwforce'))return false;
+  if(!_token||!_loadOK||_ligaReadOnly||_saveConflict||_saveUnconfirmed||document.getElementById('_pwforce'))return false;
   if(typeof syncDestinosAuto==='function')syncDestinosAuto();
   if(_prioritySave)return false;
   if(_saving){_pendingForce=true;return false;}
@@ -310,10 +324,10 @@ async function persist(force){
   if(ok&&(_pendingForce||_serialize()!==_lastSaved)){_pendingForce=false;return await persist(false);}
   return ok;
 }
-if(typeof setInterval!=='undefined')setInterval(()=>persist(false),12000);
+if(typeof setInterval!=='undefined')setInterval(()=>{Promise.resolve().then(()=>persist(false)).catch(()=>_showLoadError(t('fix_save_failed')));},12000);
 if(typeof window!=='undefined'&&window.addEventListener){
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist(false);});
-  window.addEventListener('beforeunload',event=>{if(_token&&_loadOK&&!_ligaReadOnly&&(typeof isTutorialRunning==='function'&&isTutorialRunning()?tutorialHasUnsavedState():_serialize()!==_lastSaved)){event.preventDefault();event.returnValue='';}});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persist(false).catch(()=>_showLoadError(t('fix_save_failed')));});
+  window.addEventListener('beforeunload',event=>{if(_token&&!_ligaReadOnly&&(typeof isTutorialRunning==='function'&&isTutorialRunning()?tutorialHasUnsavedState():_hasPendingChanges())){event.preventDefault();event.returnValue='';}});
 }
 
 // ========================================================================

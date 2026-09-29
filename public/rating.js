@@ -6,7 +6,7 @@
  const tr=(a,b)=>es()?a:b;
  const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const league=()=>typeof _ligaActual==='string'?_ligaActual:'liga-actual';
- const client=window.SohailRatingClient.create({getToken:()=>typeof _token==='string'?_token:'',fetcher:(...args)=>fetch(...args)});
+ const client=window.SohailRatingClient.create({getToken:()=>typeof _token==='string'?_token:'',fetcher:(...args)=>fetch(...args),getLanguage:()=>es()?'es':'en'});
  let _draw=0,_adjustContext=null;
  const context=()=>[league(),typeof _saveSessionKey==='function'?_saveSessionKey():typeof _token==='string'?_token:''].join('|');
  if(typeof TRANSLATIONS!=='undefined'){
@@ -38,7 +38,7 @@
  }
  async function calcularRatingGlobal(force){
   const result=await client.load(!!force||currentVersionAhead());
-  if(result&&currentVersionAhead()&&!client.peek().error)return client.load(true);
+  if(result&&currentVersionAhead()&&!client.peek().error){const next=await client.load(true);if(next&&currentVersionAhead()){client.clear();return null;}return next;}
   return result;
  }
  function ratingStatus(r){return !r.partidos?tr('Sin partidos','No matches'):r.provisional?tr('Provisional','Provisional'):tr('Establecido','Established');}
@@ -57,14 +57,20 @@
   if(!d)return '';
   return `<p class="rating-snapshot">${escape(d.scope==='all-registered'?tr('Todas las ligas registradas','All registered leagues'):tr('Consulta pública: solo ligas finalizadas','Public view: finalized leagues only'))} · ${d.leagues.length} ${escape(tr('ligas','leagues'))} · ${d.matchCount} ${escape(tr('partidos con juego','matches with play'))}<br>${escape(tr('Lectura completa: ','Complete snapshot: '))}${escape(new Date(d.ts).toLocaleString(es()?'es-ES':'en-GB'))} · ${escape(d.version)} · ${escape(d.snapshot.slice(0,10))}${s.stale?' · '+escape(tr('Pendiente de actualizar','Update pending')):''}</p>`;
  }
- function renderRating(){
+ function renderRating(checked=false){
   const box=document.getElementById('view-rating');if(!box)return;
-  const serial=++_draw,s=client.peek();
+  const serial=++_draw,scope=context();
+  if(!checked){
+   box.innerHTML='<div class="card" role="status">'+escape(tr('Comprobando el rating vigente…','Checking the current rating…'))+'</div>';
+   calcularRatingGlobal(true).then(()=>{if(serial===_draw&&scope===context())renderRating(true);}).catch(()=>{if(serial===_draw&&scope===context())SohailRequest.notice(box,()=>renderRating());});
+   return;
+  }
+  const s=client.peek();
   box.classList.add('rating-v440');
   if(!s.data){
    box.innerHTML=`<div class="card"><h2>${escape(tr('Rating Sohail','Sohail rating'))}</h2>${statusHTML(s)}<p>${escape(s.error?tr('No se publicó ningún cálculo parcial.','No partial rating was published.'):tr('Leyendo el historial completo…','Reading the complete history…'))}</p><div class="rating-tools"></div></div>${guide()}`;
    if(s.error)box.querySelector('.rating-tools').append(button(tr('Reintentar','Retry'),()=>refresh()));
-   else calcularRatingGlobal(false).then(()=>{if(serial===_draw)renderRating();});
+   else box.querySelector('.rating-tools').append(button(tr('Comprobar de nuevo','Check again'),()=>refresh()));
    return;
   }
   const d=s.data,seen=new Set(),list=[];
@@ -87,22 +93,22 @@
   box.querySelectorAll('[data-player]').forEach(b=>b.onclick=()=>showPlayerHistory(list[+b.dataset.player].name));
   box.querySelectorAll('[data-detail]').forEach(b=>b.onclick=()=>detail(list[+b.dataset.detail].name));
   box.querySelectorAll('[data-adjust]').forEach(b=>b.onclick=()=>abrirAjusteRating(list[+b.dataset.adjust].name));
-  if(!s.error&&(s.stale||currentVersionAhead())&&!s.busy)calcularRatingGlobal(true).then(()=>{if(serial===_draw)renderRating();});
+  // Further updates are explicit or triggered by foreground/connectivity signals.
  }
  async function refresh(){
   const box=document.getElementById('view-rating');box?.querySelectorAll('.rating-tools button').forEach(b=>{b.disabled=true;b.textContent=tr('Actualizando…','Updating…');});
-  await calcularRatingGlobal(true);renderRating();
+  renderRating();
  }
  function modal(title,body){document.getElementById('modal-title').textContent=title;document.getElementById('modal-body').innerHTML=body;document.getElementById('modal-actions').replaceChildren(button(tr('Cerrar','Close'),()=>closeM()));document.getElementById('modal-bg').classList.add('open');}
  async function detail(name){
   const r=ratingUTRDe(name),d=client.peek().data;if(!r||!d)return;
   modal(tr('Detalle del rating: ','Rating detail: ')+name,`<section class="rating-detail"><p>${escape(tr('Calculado: ','Computed: '))}<strong>${r.ratingCalculado.toFixed(2)}</strong> · ${escape(tr('Confianza: ','Confidence: '))}${escape(confidence(r))} (${r.fiab}/100; ${escape(tr('índice, no probabilidad','index, not probability'))})</p><dl><dt>${escape(tr('Estado del rating','Rating status'))}</dt><dd>${escape(ratingStatus(r))} · ${escape(tr('umbral: 15 partidos','threshold: 15 matches'))}</dd><dt>${escape(tr('Partidos utilizados / disponibles','Used / available matches'))}</dt><dd>${r.partidos} / ${r.totalMatches}</dd><dt>${escape(tr('Rivales distintos','Distinct opponents'))}</dt><dd>${r.uniqueOpponents}</dd><dt>${escape(tr('STB ganados–perdidos','Match tiebreaks won–lost'))}</dt><dd>${r.stbWins}–${r.stbLosses}</dd><dt>${escape(tr('Sin fecha conocida','Unknown date'))}</dt><dd>${r.missingDates}</dd><dt>${escape(tr('Días desde el último partido','Days since last match'))}</dt><dd>${r.inactiveDays??'—'}</dd><dt>${escape(tr('Referencia inicial','Initial reference'))}</dt><dd>${r.prior.toFixed(2)} · ${escape(({'manual-consistent':tr('seed coherente entre ligas','consistent cross-league seed'),'first-recorded-group':tr('grupo del primer partido registrado','first recorded match group'),'neutral':tr('referencia neutra','neutral reference')}[r.priorSource]||r.priorSource))}</dd></dl><p>${escape(tr('El tamaño efectivo resume pesos desiguales; no descarta registros: ','Effective size summarizes unequal weights; it does not remove records: '))}${r.effectiveMatches.toFixed(1)} · ${escape(tr('partidos incluidos: ','matches included: '))}${r.partidos}</p>${window.SohailRatingExplainer.reasonsHTML(r.confidenceReasons,es()?'es':'en')}${r.unlinked?`<p class="rating-alert">${escape(tr('Esta ficha no tiene identificador global. Vinculá sus perfiles históricos desde Jugadores para reunirlos; no se unen por parecido del nombre.','This profile has no global identifier. Link historical profiles in Players; name similarity does not merge people.'))}</p>`:''}<p data-rating-load role="status">${escape(tr('Cargando los partidos utilizados…','Loading the selected matches…'))}</p><div data-rating-selected></div></section>`);
-  const target=document.querySelector('[data-rating-selected]'),status=document.querySelector('[data-rating-load]');
-  try{const response=await client.details(r.key,d.snapshot);if(!target.isConnected)return;
+  const target=document.querySelector('[data-rating-selected]'),status=document.querySelector('[data-rating-load]'),scope=context();
+  try{const response=await client.details(r.key,d.snapshot);if(!target.isConnected||scope!==context())return;
    const labels=new Map(response.leagues.map(l=>[l.id,l.name]));
    status.textContent=tr('Estos son los registros usados, del más nuevo al más viejo.','These are the selected records, newest first.');
    target.innerHTML='<ol class="rating-matches">'+response.selected.map(m=>`<li><strong>${escape(m.date||tr('Sin fecha','Unknown date'))}</strong> · ${escape(labels.get(m.leagueId)||m.leagueId)}<br>${escape(tr('Rival: ','Opponent: '))}${escape(d.people[m.opponentKey]?.label||'—')} · ${m.gamesFor}–${m.gamesAgainst} games${m.stbEvidence?' + STB':''}${m.retired?' · RET':''}<small>${escape(m.key)} · ${escape(tr('Peso temporal/rival','Time/opponent weight'))}: ${m.weight.toFixed(3)} · ${escape(tr('Temporal','Time'))}: ${m.timeWeight.toFixed(3)} · ${escape(tr('Rival','Opponent'))}: ${m.opponentWeight.toFixed(3)}<br>${m.independentOpponentMatches} ${escape(tr('partidos del rival contra otras personas','opponent matches against other people'))} · ${m.independentOpponentDiversity} ${escape(tr('rivales independientes','independent opponents'))}</small></li>`).join('')+'</ol>';
-  }catch(e){if(status.isConnected)status.textContent=e.message;}
+  }catch(e){if(status.isConnected&&scope===context())status.textContent=tr('No se pudo comprobar este detalle. Cerrá y volvé a abrirlo.','This detail could not be verified. Close and reopen it.');}
  }
  function abrirAjusteRating(name){
   if(!isAdmin())return;
@@ -125,7 +131,7 @@
   const buttons=document.getElementById('modal-actions').querySelectorAll('button');buttons.forEach(x=>x.disabled=true);
   let saved=false;
   try{saved=await _criticalSave();if(ctx.key!==context())return;if(!saved){RATING_SEEDS=oldS;RATING_OVERRIDES=oldO;status.textContent=tr('No se confirmó el guardado. Resolvé el aviso de conexión o conflicto antes de reintentar.','Save was not confirmed. Resolve the connection or conflict notice before retrying.');return;}
-   closeM();await calcularRatingGlobal(true);if(typeof subView!=='undefined'&&subView==='rating')renderRating();toast(tr('Ajustes guardados.','Adjustments saved.'));
+   closeM();await calcularRatingGlobal(true);if(typeof subView!=='undefined'&&subView==='rating')renderRating(true);toast(tr('Ajustes guardados.','Adjustments saved.'));
   }catch(e){if(!saved&&ctx.key===context()){RATING_SEEDS=oldS;RATING_OVERRIDES=oldO;}if(status.isConnected)status.textContent=e.message;}
   finally{buttons.forEach(x=>x.disabled=false);}
  }
@@ -137,5 +143,6 @@
   if(r.stale)parts.push(escape(tr('lectura anterior','previous snapshot')));
   return `<div class="rt-ficha"><div class="rt-ficha-num">${r.rating.toFixed(2)}</div><div class="rt-ficha-side"><div class="rt-ficha-lbl">Rating Sohail${badge}</div><div class="rt-ficha-sub">${parts.join(' · ')}</div></div></div>`;
  }
+ if(window.SohailRequest)SohailRequest.watch(()=>renderRating(),()=>typeof currentUser!=='undefined'&&!!currentUser&&typeof subView!=='undefined'&&subView==='rating');
  Object.assign(window,{calcularRatingGlobal,ratingUTRDe,ratingUTRfmt,renderRating,abrirAjusteRating,guardarAjusteRating,ratingFichaHTML});
 })();

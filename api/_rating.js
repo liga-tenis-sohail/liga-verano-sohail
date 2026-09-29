@@ -25,7 +25,7 @@ function project(index,states,authenticated){
  return selected.map(l=>{
   if(!lib.ligaIdOK(l.id))throw error(503,'INVALID_LEAGUE_INDEX','El índice de ligas tiene un identificador inválido.');
   let s=map.get(l.id);if(typeof s==='string'){try{s=JSON.parse(s);}catch(_){s=null;}}
-  if(!s||!Array.isArray(s.matches)||!s.users||typeof s.users!=='object')throw error(503,'RATING_SOURCE_INCOMPLETE','Falta el estado deportivo de una liga. Se conserva el cálculo completo anterior.');
+  if(!s||!Array.isArray(s.matches)||!s.users||typeof s.users!=='object')throw error(503,'RATING_SOURCE_INCOMPLETE','Falta el estado deportivo de una liga. No se publicó ningún cálculo parcial.');
   const users=Object.create(null),seeds=Object.create(null),overrides=Object.create(null);
   for(const [n,u]of Object.entries(s.users)){
    if(!u||typeof u!=='object')continue;
@@ -81,24 +81,47 @@ async function handler(req,res){
  }catch(e){return res.status(e.status||e instanceof E.RatingError&&422||503).json({code:e.code||'RATING_UNAVAILABLE',error:e.code?e.message:'No se pudo calcular el rating completo. Probá de nuevo.'});}
 }
 const inflight=new Map();
+const obj=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
+function payloadValid(p,index,playerKey){
+ if(!obj(p)||!obj(p.computed)||!obj(p.overrides)||!Array.isArray(p.manifest))return false;
+ const c=p.computed;
+ if(!obj(c.info)||!obj(c.people)||!obj(c.byLeague)||!Array.isArray(c.issues)||!Number.isFinite(c.matchCount)||!Number.isFinite(c.componentCount))return false;
+ if(p.manifest.length!==index.length||new Set(p.manifest.map(x=>x?.id)).size!==index.length||!index.every(l=>p.manifest.some(m=>m?.id===l.id)))return false;
+ for(const [k,v] of Object.entries(c.info)){
+  if(!obj(v)||!['ratingCalculado','prior','effectiveMatches'].every(n=>Number.isFinite(v[n]))||!Number.isInteger(v.partidos)||v.partidos<0||v.partidos>50||v.ratingCalculado<0.01||v.ratingCalculado>16||!obj(c.people[k])||!Array.isArray(c.people[k].aliases))return false;
+  if(['pctGames','nivelRivales'].some(n=>v[n]!=null&&!Number.isFinite(v[n])))return false;
+ }
+ if(!Object.values(c.byLeague).every(l=>obj(l)&&Object.values(l).every(k=>typeof k==='string'&&own(c.info,k))))return false;
+ if(playerKey!==undefined&&c.info[playerKey]&&!Array.isArray(c.info[playerKey].selected))return false;
+ return true;
+}
 async function fastSnapshot(priv,playerKey){
- const read=full=>lib.rpc('sohail_perf_source',{p_private:priv,p_snapshot:full,p_model:E.VERSION,p_player:playerKey??null});
- const source=await read(false);
+ const read=(full,model=E.VERSION)=>lib.rpc('sohail_perf_source',{p_private:priv,p_snapshot:full,p_model:model,p_player:playerKey??null});
+ const bypass=process.env.SOHAIL_RATING_CACHE_DISABLED==='1';
+ let source;
+ try{source=await read(bypass,bypass?'':E.VERSION);}
+ catch(e){
+  // One bounded fallback to the same authorized source, without joining a
+  // derived payload. Missing schema/source still fails; never use old data.
+  source=await read(true,'');
+ }
  if(!source||!Array.isArray(source.index)||typeof source.signature!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(source.asOf||''))throw error(503,'RATING_SOURCE_UNAVAILABLE','No se pudo leer el rating completo.');
  const snapshot=digest({model:E.VERSION,asOf:source.asOf,signature:source.signature,private:priv});
  const finish=(payload,hit)=>({computed:payload.computed,overrides:payload.overrides,snapshot,asOf:source.asOf,hit,manifest:payload.manifest.map(l=>({...l,version:source.index.find(x=>x.id===l.id)?.version??l.version}))});
- if(source.cache)return finish(source.cache,'persistent');
- if(cache.has(snapshot))return finish(cache.get(snapshot),'memory');
+ if(!bypass&&payloadValid(source.cache,source.index,playerKey))return finish(source.cache,'persistent');
+ if(!bypass&&payloadValid(cache.get(snapshot),source.index,playerKey))return finish(cache.get(snapshot),'memory');
+ if(inflight.size>=2&&!inflight.has(snapshot))throw error(503,'RATING_BUSY','Hay cálculos en curso. Reintentá en unos segundos.');
  if(!inflight.has(snapshot)){
   const work=(async()=>{
-   const full=await read(true);
+   const full=Array.isArray(source.states)?source:await read(true,'');
    if(full.signature!==source.signature||full.asOf!==source.asOf)throw error(409,'RATING_SOURCE_CHANGED','El historial cambió. Actualizá el rating.');
    if(!Array.isArray(full.states))throw error(503,'RATING_SOURCE_INCOMPLETE','Falta el historial completo.');
    const leagues=project(full.index,full.states,priv),computed=E.calculate(E.prepare(leagues),{asOf:full.asOf});
    const payload={computed,overrides:Object.fromEntries(leagues.map(l=>[l.id,l.overrides])),manifest:leagues.map(l=>({id:l.id,name:l.name,state:l.state,version:l.v,matches:l.matches.filter(m=>m.status==='confirmed'&&!m.np).length}))};
-   const stored=await lib.rpc('sohail_perf_cache_put',{p_private:priv,p_signature:full.signature,p_model:E.VERSION,p_as_of:full.asOf,p_payload:payload});
-   if(!stored){const current=await read(false);if(current.signature!==full.signature||current.asOf!==full.asOf)throw error(409,'RATING_SOURCE_CHANGED','El historial cambió. Actualizá el rating.');}
-   cache.set(snapshot,payload);while(cache.size>2)cache.delete(cache.keys().next().value);return payload;
+   let stored=false;
+   if(!bypass){try{stored=await lib.rpc('sohail_perf_cache_put',{p_private:priv,p_signature:full.signature,p_model:E.VERSION,p_as_of:full.asOf,p_payload:payload});}catch(_){/* Optional cache write: validate fresh versions below. */}}
+   if(!stored){const current=await read(false,'');if(current.signature!==full.signature||current.asOf!==full.asOf)throw error(409,'RATING_SOURCE_CHANGED','El historial cambió. Actualizá el rating.');}
+   if(!bypass)cache.set(snapshot,payload);while(cache.size>2)cache.delete(cache.keys().next().value);return payload;
   })();inflight.set(snapshot,work);work.finally(()=>inflight.delete(snapshot)).catch(()=>{});
  }
  return finish(await inflight.get(snapshot),'computed');
