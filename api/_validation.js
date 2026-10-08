@@ -47,6 +47,7 @@ function validateMatch(m,state,admin){
   if(!names.every(n=>own(state.users,n)))bad('Jugador no encontrado.');
   if(!admin&&names.some(n=>state.users[n].inactive))deny('Un jugador inactivo no puede participar en una nueva carga.');
   if(!Array.isArray(m.sets))bad('Falta el marcador.');
+  if(own(m,'wo')&&typeof m.wo!=='boolean')bad('Tipo de resultado inválido.');
   if(own(m,'npReason')||own(m,'injurySide')){
     if(m.npReason!=='injury'||![0,1].includes(m.injurySide)||m.np!==true||m.status!=='confirmed'||m.wo||m.winner||m.retiroDe||m.sets.length||m.po)bad('Lesión: sin juego, sin ganador y sin puntos.');
   }
