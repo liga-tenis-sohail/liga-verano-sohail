@@ -658,7 +658,7 @@ function computeStats(cycN,gid){
     if(m.wo){
       if(Array.isArray(m.sets)&&m.sets.length&&m.sets.every(s=>Array.isArray(s)&&s.length>=2&&isFinite(s[0])&&isFinite(s[1]))){
         let w1=0,w2=0,a_gw=0,a_gl=0;
-        m.sets.forEach(([x,y])=>{if(x>y)w1++;else w2++;a_gw+=x;a_gl+=y;});
+        m.sets.forEach(([x,y])=>{if(validSet(x,y)){if(x>y)w1++;else w2++;}a_gw+=x;a_gl+=y;});
         a.sg+=w1;a.sp+=w2;b.sg+=w2;b.sp+=w1;
         a.gw+=a_gw;a.gl+=a_gl;b.gw+=a_gl;b.gl+=a_gw;
       }
@@ -689,7 +689,7 @@ function computeStats(cycN,gid){
       if(m.wo){
         if(Array.isArray(m.sets)&&m.sets.length&&m.sets.every(st2=>Array.isArray(st2)&&st2.length>=2&&isFinite(st2[0])&&isFinite(st2[1]))){
           let w1=0,w2=0,a_gw=0,a_gl=0;
-          m.sets.forEach(([x,y])=>{if(x>y)w1++;else w2++;a_gw+=x;a_gl+=y;});
+          m.sets.forEach(([x,y])=>{if(validSet(x,y)){if(x>y)w1++;else w2++;}a_gw+=x;a_gl+=y;});
           h[m.aName].sg+=w1;h[m.aName].sp+=w2;h[m.bName].sg+=w2;h[m.bName].sp+=w1;
           h[m.aName].gw+=a_gw;h[m.aName].gl+=a_gl;h[m.bName].gw+=a_gl;h[m.bName].gl+=a_gw;
         }

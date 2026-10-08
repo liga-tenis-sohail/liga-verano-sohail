@@ -25,9 +25,23 @@
     return {ok:true};
   }
   function validRetirement(sets){
-    // El proyecto registra únicamente sets completos previos al abandono.
-    if(!Array.isArray(sets)||sets.length>2||!sets.every(s=>pair(s)&&validSet(...s)))return false;
-    return sets.length!==2||(sets[0][0]>sets[0][1])!==(sets[1][0]>sets[1][1]);
+    // RET: keep the games actually played. Only the final recorded set may
+    // be unfinished; earlier sets must be complete. No play after match end.
+    // An empty array retains the existing W.O. (no games recorded) format.
+    if(!Array.isArray(sets)||sets.length>2||!sets.every(pair))return false;
+    const won=[0,0];
+    for(let i=0;i<sets.length;i++){
+      if(!pair(sets[i]))return false;
+      const [a,b]=sets[i];
+      if(a<0||b<0)return false;
+      if(validSet(a,b))won[a>b?0:1]++;
+      else{
+        const hi=Math.max(a,b),lo=Math.min(a,b);
+        const inProgress=hi<=5||(hi===6&&(lo===5||lo===6));
+        if(!inProgress||i!==sets.length-1)return false;
+      }
+    }
+    return won[0]<2&&won[1]<2;
   }
   function winnerIndex(sets){return sets.reduce((n,s)=>n+(s[0]>s[1]?1:-1),0)>0?0:1;}
   return Object.freeze({validSet,validSTB,validMatch,validRetirement,winnerIndex});
