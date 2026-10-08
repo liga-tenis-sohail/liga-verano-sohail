@@ -1,0 +1,59 @@
+{
+  "version": "5.1.2",
+  "baseCommit": "fafc3260d21292eecae9a500a17513c2f9e1d90d",
+  "baseRelease": "5.1.1",
+  "preparedDate": "2026-10-08",
+  "productionModified": false,
+  "sqlRequired": false,
+  "files": [
+    {
+      "path": "api/_validation.js",
+      "action": "replace",
+      "baseGitBlob": "e9dc64a9ac44c7412bce1a668dc1ecd4df8c73a1",
+      "sha256": "128c460a099c369411cdb86bb17bc3c9e5236e2bf28cbe3bb7ecd679f17dc066",
+      "bytes": 14847
+    },
+    {
+      "path": "public/score-rules.js",
+      "action": "replace",
+      "baseGitBlob": "40614c7787225f94ebde28d1d8c1fde819247a12",
+      "sha256": "02b5fa571391c06450701e9c2c815f8a052a3d53a57045808adb636edcb192e1",
+      "bytes": 2299
+    },
+    {
+      "path": "public/result-editor.js",
+      "action": "replace",
+      "baseGitBlob": "3b35619fe4ca675919473618835fc1d288ab8096",
+      "sha256": "a7774c9b07ea5dd08b02b22742e38bd6d73f0e0de16372ae136a6e2e138acee9",
+      "bytes": 36653
+    },
+    {
+      "path": "public/core-estado.js",
+      "action": "replace",
+      "baseGitBlob": "93369acc46448274d4155faf121f9a88a66ddf6d",
+      "sha256": "500935f81a4f120c16fb1323f8b1e616a1ea82c92615f0fe8ad333e28523f818",
+      "bytes": 155224
+    },
+    {
+      "path": "public/match-history.js",
+      "action": "replace",
+      "baseGitBlob": "dd1d0e018cb97aedaaf4982ee8c32585ee27aa49",
+      "sha256": "7b228b3c2ed54f8d9dfccd71c1a9959299ed3b70d08883e5004b9e0aa923f6f5",
+      "bytes": 59200
+    },
+    {
+      "path": "tests/regression.test.js",
+      "action": "replace",
+      "baseGitBlob": "924290f868c47c8b3b808a5373f5851f5a136317",
+      "sha256": "02d45cc3de33e961f7b0b260a33f6b35b13207bae4ba462f63b7b709526e24b7",
+      "bytes": 52246
+    },
+    {
+      "path": "tests/retirement-partials-v512.test.js",
+      "action": "add",
+      "baseGitBlob": null,
+      "sha256": "9727fbcaa80da44b89aff5dedcb0f647ed4e6048b1feee599fb1fc8d58ddb54c",
+      "bytes": 17884
+    }
+  ]
+}
