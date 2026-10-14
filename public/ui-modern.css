@@ -924,3 +924,23 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
 .inj-league-legend{display:flex;align-items:flex-start;gap:10px;font-size:12px;line-height:1.6;padding-top:12px;margin-top:12px;border-top:1px solid var(--border);color:var(--text)}
 .inj-legend-mark{display:inline-flex;flex-shrink:0;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:6px;padding:1px 6px;font-size:11px}
 @media(max-width:520px){.re-injury-tools>.btn{width:100%;justify-content:center}.inj-dialog{padding:14px}.inj-dialog-head>h2{font-size:20px}.inj-league-legend{font-size:11px}}
+
+/* v5.1.3 — shared Matches/Review count. The same red and white in both themes.
+   Mobile badges float beside the icon; desktop/tab badges stay in the row. */
+.ui-v3 .ui-nav-item{position:relative}
+.ui-v3 .ui-match-count{
+ display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+ box-sizing:border-box;min-width:18px;height:18px;padding:0 5px;margin-left:4px;
+ border:0;border-radius:999px;background:#c0392b!important;color:#fff!important;
+ font-size:11px;font-weight:750;line-height:1;font-variant-numeric:tabular-nums;
+ white-space:nowrap;vertical-align:middle;transition:none;pointer-events:none;
+}
+.ui-v3 .ui-match-count[hidden]{display:none!important}
+.ui-sidebar .ui-nav-item>.ui-match-count,.ui-more-grid .ui-nav-item>.ui-match-count{margin-left:auto}
+@media(max-width:900px){
+ .ui-bottom .ui-nav-item>.ui-match-count{
+  position:absolute;top:0;right:max(2px,calc(50% - 28px));margin:0;
+  min-width:18px;height:18px;font-size:10px;padding:0 4px;
+  box-shadow:0 0 0 2px var(--surface);
+ }
+}
