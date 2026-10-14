@@ -1201,35 +1201,41 @@ function movePlayer(name,fromG,toG){if(fromG===toG)return;const c=cycles[activeN
 function removePlayerCycle(name,fromG){const c=cycles[activeN-1];if(!c||!c.groups)return;const a=(c.groups[fromG-1]||{}).players||[];const i=a.indexOf(name);if(i>=0)a.splice(i,1);}
 function movePlayerUI(name,fromG,toG){if(!toG)return;movePlayer(name,fromG,parseInt(toG));renderAdmin();persist(true);toast(name+' movido a '+groupName(parseInt(toG))+'.');}
 
-function updateBadge() {
-  // Async renders and language changes may finish after logout.
-  if(!currentUser){const badge=document.getElementById('pend-n');if(badge){badge.textContent='0';badge.style.display='none';}return;}
-  const pend = matches.filter(m => m.status === 'pending');
-  const disp = matches.filter(m => m.status === 'disputed');
-  // Para el badge del admin: partidos donde el rival (no-reporter) puede confirmar
-  // Si el rival está inactivo, sigue contando para que el admin sepa que debe resolverlo
-  const userPend = pend.filter(m => {
-    if(m.po) return m.poNames && m.poNames.includes(currentUser.name);
-    return m.aName === currentUser.name || m.bName === currentUser.name;
-  });
-  // Excluir del badge partidos donde AMBOS jugadores son inactivos (nadie puede resolverlos sin admin)
-  const activePend = pend.filter(m=>{
-    const a=m.po?(m.poNames&&m.poNames[0]):m.aName;
-    const b=m.po?(m.poNames&&m.poNames[1]):m.bName;
-    return !(USERS[a]&&USERS[a].inactive&&USERS[b]&&USERS[b].inactive);
-  });
-  const cnt = esAdmin(currentUser) ? (activePend.length + disp.length) : userPend.length;
-  const pn = document.getElementById('pend-n');
-  if (pn) {
-    pn.textContent = cnt;
-    if (cnt > 0) {
-      pn.style.background = 'var(--danger)';
-      pn.style.color = '#fff';
-      pn.style.display = 'inline-block';
-    } else {
-      pn.style.display = 'none';
-    }
+// v5.1.3: one league-wide count for Matches and Review. No saved/unread
+// counter: it is derived from the loaded records on every refresh.
+function matchNotificationCounts() {
+  const counts = {pending:0, disputed:0, total:0};
+  if(!currentUser || _ligaReadOnly) return counts;
+  const admin = esAdmin(currentUser);
+  for(const m of Array.isArray(matches) ? matches : []) {
+    if(!m || !['pending','disputed'].includes(m.status)) continue;
+    const names = m.po ? m.poNames : [m.aName,m.bName];
+    if(!Array.isArray(names) || names.length!==2 ||
+       names.some(n=>typeof n!=='string'||!n) || names[0]===names[1]) continue;
+    if(!admin && !names.includes(currentUser.name)) continue;
+    // Preserve Review's existing administrative rule: pending records with
+    // BOTH accounts inactive are excluded; disputes still require attention.
+    if(admin && m.status==='pending' &&
+       names.every(n=>Object.prototype.hasOwnProperty.call(USERS,n) && USERS[n]?.inactive)) continue;
+    counts[m.status]++;
   }
+  counts.total = counts.pending + counts.disputed;
+  return counts;
+}
+function updateBadge() {
+  const counts = matchNotificationCounts();
+  // Retain the legacy Review badge when the modern navigation is unavailable.
+  const pn = document.getElementById('pend-n');
+  if(pn) {
+    pn.textContent = counts.total>99 ? '99+' : String(counts.total);
+    pn.hidden = counts.total===0;
+    pn.style.display = counts.total>0 ? 'inline-block' : 'none';
+    if(counts.total>0) {pn.style.background='var(--danger)';pn.style.color='#fff';}
+  }
+  // A late callback after logout clears every badge. This hook only paints;
+  // it never renders the shell, changes data, or calls updateBadge again.
+  if(typeof window.SohailUI?.updateMatchNotifications==='function')
+    window.SohailUI.updateMatchNotifications(counts);
 }
 
 // Pinta el desplegable a partir de una estructura ya conocida. No toca la red:
