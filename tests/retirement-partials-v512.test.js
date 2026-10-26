@@ -69,7 +69,7 @@ function model(sets=[['4','0'],['','']],extra={}){return {
 function groupStats(list){
  const src=read('public/core-estado.js'),start=src.indexOf('function computeStats(cycN,gid){'),end=src.indexOf('function findMatch(',start);
  assert.ok(start>=0&&end>start,'real production computeStats must be present');
- const c={cycles:fixture().cycles,matches:json(list),validSet:Score.validSet};
+ const c={cycles:fixture().cycles,matches:json(list),validSet:Score.validSet,SohailScore:Score};
  vm.createContext(c);vm.runInContext(src.slice(start,end),c);
  return json(c.computeStats(1,1));
 }

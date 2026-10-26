@@ -51,6 +51,12 @@ function validateMatch(m,state,admin){
   if(own(m,'npReason')||own(m,'injurySide')){
     if(m.npReason!=='injury'||![0,1].includes(m.injurySide)||m.np!==true||m.status!=='confirmed'||m.wo||m.winner||m.retiroDe||m.sets.length||m.po)bad('Lesión: sin juego, sin ganador y sin puntos.');
   }
+  if(own(m,'woPolicy')){
+    const p=m.woPolicy;
+    if(!score.isWalkover(m)||m.po||!p||typeof p!=='object'||Array.isArray(p)||
+       Object.keys(p).length!==2||typeof p.loserPoints!=='boolean'||typeof p.loserPlayed!=='boolean')
+      bad('La decisión sobre el ausente requiere dos opciones booleanas y solo se aplica a W.O. de liga sin sets.');
+  }
   if(m.np){if(!admin||m.po||m.sets.length)bad('No jugado: solo el administrador y sin sets.');return;}
   if(typeof m.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(m.date)||Number.isNaN(Date.parse(m.date))||new Date(m.date).toISOString().slice(0,10)!==m.date)bad('Fecha de partido inválida.');
   if(m.wo){
@@ -183,6 +189,9 @@ function protectState(current,incoming,session,admin,manage){
       if(m.status!=='pending'||m.locked||m.vBy||m.np)deny('Solo el administrador confirma resultados.');
       m.reporter=session.u;delete m.vBy;m.locked=false;
     }
+    if(!admin&&own(m,'woPolicy')&&(!score.isWalkover(m)||m.po||m.woPolicy?.loserPoints!==false||m.woPolicy?.loserPlayed!==false))
+      deny('Solo un administrador puede decidir los puntos y el partido computado al ausente.');
+    if(!before&&score.isWalkover(m)&&!m.po&&!own(m,'woPolicy'))m.woPolicy={loserPoints:false,loserPlayed:false};
     validateMatch(m,admin?incoming:current,admin);
     if(!admin&&m.po){
       // Presentation metadata is authoritative on the server as well.
@@ -197,6 +206,7 @@ function protectState(current,incoming,session,admin,manage){
   incoming.matchId=Math.max(Number.isSafeInteger(incoming.matchId)?incoming.matchId:0,...incoming.matches.map(m=>m.id+1),1);
   // El log que trae un jugador no es una fuente confiable de auditoría.
   if(!admin)incoming.LOG=current.LOG||[];
+  require('./_cycle-close').protect(current,incoming,session);
   return incoming;
 }
 module.exports={AppError,identityRef,protectState,validateMatch,safeTree,participants,validateRuleSections};

@@ -45,7 +45,7 @@ test('INJ does not consume rating window or change any computed player level',()
 }));
 test('INJ standings: both get zero game/match points, no victories or losses',()=>{
  const source=fs.readFileSync(path.join(__dirname,'../public/core-estado.js'),'utf8');const start=source.indexOf('function computeStats('),end=source.indexOf('\nfunction ',start+1);
- const state=fixture(),session={u:'admin',r:'admin'},p=I.plan(state,session,B(state));const c=vm.createContext({cycles:state.cycles,matches:p.next.matches});vm.runInContext(source.slice(start,end),c);
+ const state=fixture(),session={u:'admin',r:'admin'},p=I.plan(state,session,B(state));const c=vm.createContext({cycles:state.cycles,matches:p.next.matches,SohailScore:require('../public/score-rules')});vm.runInContext(source.slice(start,end),c);
  const stats=vm.runInContext('computeStats(1,1)',c);for(const s of stats){assert.equal(s.pts,0);assert.equal(s.g,0);assert.equal(s.p,0);assert.equal(s.sg,0);assert.equal(s.gw,0);}assert.equal(stats.find(s=>s.name==='Alicia').nj,2);
 });
 for(const section of ['horarios','reservas','cancelaciones'])test('RULES admin saves independent '+section+' document without changing legacy content',()=>run(async db=>{const s=structuredClone(db.state()),before=s.REGLAMENTO;s.REGLAMENTO_SECCIONES={[section]:'<p>Text</p>'};assert.equal((await call(save,req(db,'admin',{state:s,ligaId:'liga-actual'}))).status,200);assert.equal(db.state().REGLAMENTO,before);assert.equal(db.state().REGLAMENTO_SECCIONES[section],'<p>Text</p>');}));
@@ -77,13 +77,13 @@ for(const lang of ['es','en'])test('INJ league report does not count absences as
  const s=I.plan(fixture(),{u:'admin',r:'admin'},B(fixture())).next;s.matches.push(match({id:10,status:'confirmed',aName:'Diego',bName:'Elena'}));
  const source=fs.readFileSync(path.join(__dirname,'../public/login-auth-p2.js'),'utf8'),start=source.indexOf('function exportarLigaExcel(){'),end=source.indexOf('\n// Renombrar una passkey',start);
  const sheets={},XLSX={utils:{book_new:()=>({}),aoa_to_sheet:a=>a,book_append_sheet:(w,s,n)=>{sheets[n]=s;}},writeFile:()=>{}};
- const ctx=vm.createContext({XLSX,USERS:s.users,matches:s.matches,cycles:s.cycles,playoff:{},CLUBS:[],LANG:lang,LEAGUE_NAME:'Synthetic league',window:{},toast:()=>{},t:k=>k,findPlayer:()=>null});vm.runInContext(source.slice(start,end)+'\nexportarLigaExcel();',ctx);
+ const ctx=vm.createContext({XLSX,SohailScore:require('../public/score-rules'),USERS:s.users,matches:s.matches,cycles:s.cycles,playoff:{},CLUBS:[],LANG:lang,LEAGUE_NAME:'Synthetic league',window:{},toast:()=>{},t:k=>k,findPlayer:()=>null});vm.runInContext(source.slice(start,end)+'\nexportarLigaExcel();',ctx);
  const rows=sheets.export_sheet_jugadores;for(const name of ['Alicia','Beto','Ciro']){const row=rows.find(r=>r[0]===name);assert.equal(row[4],0);assert.equal(row[5],0);assert.equal(row[6],0);assert.equal(row[8],0);assert.equal(row[9],0);}
  const injuries=sheets.export_sheet_partidos.slice(1).filter(r=>r[3]==='Alicia');assert.equal(injuries.length,2);for(const r of injuries){assert.equal(r[5],'');assert.equal(r[6],'');assert.equal(r[7],lang==='en'?'Injury · not played · no points':'Lesión · no jugado · sin puntos');}
 });
 test('RULES and 491 public modules receive their exact cache version without duplicate loading',()=>{
  const s=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');for(const name of ['core-estado.js','persistencia.js','reglamento.js','shell-render.js','ui-modern.js','ui-modern.css','admin-workspace.js','jugadores-perfiles.js','resultados-y-grupos.js','admin-ciclos-config.js','login-auth-p2.js','history-leagues.js','match-history.js']){
-  const tag=['ui-modern.css','jugadores-perfiles.js','resultados-y-grupos.js'].includes(name)?'sohail-v491-passwords-injury-access':'sohail-v480-rules-injuries';
+  const tag=['ui-modern.css', 'result-editor.js', 'resultados-y-grupos.js', 'jugadores-perfiles.js', 'core-estado.js', 'shell-render.js', 'ui-modern.js', 'persistencia.js','admin-ciclos-config.js','login-auth-p2.js','history-leagues.js'].includes(name)?'sohail-v520-wo-zero':'sohail-v480-rules-injuries';
   assert.equal(s.split(name+'?v='+tag).length-1,1,name);
   assert.equal(s.split(name+'?v=').length-1,1,name+' loaded once');
  }

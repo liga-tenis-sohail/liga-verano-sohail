@@ -944,3 +944,31 @@ html .lt-sample,html .lt-sample *{background-color:var(--lt-bg)!important;color:
   box-shadow:0 0 0 2px var(--surface);
  }
 }
+/* v5.2 — walkover credit and zero-point destination review */
+.re-wo-policy{border:1px solid var(--border);border-radius:12px;padding:14px;margin:14px 0;background:var(--surface2)}
+.result-editor .re-wo-policy label{color:var(--text);display:flex;align-items:flex-start;gap:10px;margin:12px 0;font-size:14px;line-height:1.5}
+.result-editor .re-wo-policy label span{color:var(--text);font-weight:600}
+.re-wo-policy input[type=checkbox]{width:18px;height:18px;flex:0 0 18px;margin-top:2px}
+.re-wo-summary{font-size:13px;line-height:1.6;white-space:pre-line}
+.cycle-close-dialog{width:min(680px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);margin:auto;padding:0;border:1px solid var(--border);border-radius:16px;background:var(--surface);color:var(--text);font-family:inherit;overflow:hidden}
+.cycle-close-dialog[open]{display:flex;flex-direction:column}
+.cycle-close-dialog::backdrop{background:rgba(0,0,0,.6)}
+.cycle-close-dialog header,.cycle-close-dialog footer{padding:18px 20px;flex-shrink:0}
+.cycle-close-dialog header{border-bottom:1px solid var(--border)}
+.cycle-close-dialog h2{font-size:20px;margin:0 0 8px}
+.cycle-close-dialog h3{font-size:16px;margin:0 0 8px}
+.cycle-close-dialog p{font-size:14px;line-height:1.5;margin:6px 0}
+.cycle-close-dialog .zc-body{padding:16px 20px;min-height:0;overflow:auto;overscroll-behavior:contain}
+.cycle-close-dialog .zc-group{border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:14px}
+.cycle-close-dialog .zc-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(130px,1fr);gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--border)}
+.cycle-close-dialog .zc-row label{overflow-wrap:anywhere;font-size:14px}
+.cycle-close-dialog small{display:block;font-size:12px;color:var(--text2);margin-top:4px}
+.cycle-close-dialog select{min-height:44px;width:100%;font:inherit;font-size:14px;color:var(--text);background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:8px}
+.cycle-close-dialog footer{border-top:1px solid var(--border)}
+.cycle-close-dialog .zc-accept{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5;margin-bottom:14px}
+.cycle-close-dialog input[type=checkbox]{width:18px;height:18px;flex:0 0 18px;margin-top:2px}
+.cycle-close-dialog .zc-actions{display:flex;gap:10px;justify-content:flex-end}
+.cycle-close-dialog .zc-actions button{min-height:44px;white-space:normal}
+.cycle-close-dialog .zc-error{padding:12px;border:1px solid var(--danger);border-radius:8px}
+.cycle-close-dialog [hidden],.re-wo-policy[hidden]{display:none!important}
+@media(max-width:420px){.cycle-close-dialog header,.cycle-close-dialog footer,.cycle-close-dialog .zc-body{padding:12px}.cycle-close-dialog .zc-row{grid-template-columns:1fr}.cycle-close-dialog .zc-actions button{flex:1}}

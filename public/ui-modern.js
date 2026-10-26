@@ -312,14 +312,14 @@
    if(!_loadOK||_saveConflict)throw Error(t('fix_pending_first'));
    if(_serialize()!==_lastSaved&&!await _criticalSave())throw Error(t('fix_pending_first'));
    if(key!==_saveSessionKey()||liga!==_ligaActual)throw Error(t('ui_session_changed'));
-   before={matches,playoff,LOG,matchId};matches=JSON.parse(JSON.stringify(matches));playoff=JSON.parse(JSON.stringify(playoff));LOG=LOG.slice();
+   before={matches,playoff,LOG,matchId,cycles,activeN,viewCycle,selGroup,DESTINO};matches=JSON.parse(JSON.stringify(matches));playoff=JSON.parse(JSON.stringify(playoff));cycles=JSON.parse(JSON.stringify(cycles));DESTINO=JSON.parse(JSON.stringify(DESTINO));LOG=LOG.slice();
    run();
    if(!await _criticalSave()){
-    if(key===_saveSessionKey()&&liga===_ligaActual){matches=before.matches;playoff=before.playoff;LOG=before.LOG;matchId=before.matchId;}
+    if(key===_saveSessionKey()&&liga===_ligaActual){matches=before.matches;playoff=before.playoff;LOG=before.LOG;matchId=before.matchId;cycles=before.cycles;activeN=before.activeN;viewCycle=before.viewCycle;selGroup=before.selGroup;DESTINO=before.DESTINO;}
     return false;
    }
    return key===_saveSessionKey()&&liga===_ligaActual;
-  }catch(err){if(before&&key===_saveSessionKey()&&liga===_ligaActual){matches=before.matches;playoff=before.playoff;LOG=before.LOG;matchId=before.matchId;}toast(err.message||t('ui_save_failed'));return false;}
+  }catch(err){if(before&&key===_saveSessionKey()&&liga===_ligaActual){matches=before.matches;playoff=before.playoff;LOG=before.LOG;matchId=before.matchId;cycles=before.cycles;activeN=before.activeN;viewCycle=before.viewCycle;selGroup=before.selGroup;DESTINO=before.DESTINO;}toast(err.message||t('ui_save_failed'));return false;}
   finally{mutationBusy=false;}
  }
  async function validateSelected(ids){

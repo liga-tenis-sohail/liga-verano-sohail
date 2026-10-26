@@ -400,14 +400,17 @@ function exportarLigaExcel(){
       if(!stats[a] || !stats[b]) return;
       let ga = 0, gb = 0;
       (m.sets || []).forEach(s => { ga += s[0]||0; gb += s[1]||0; });
-      stats[a].pj++; stats[b].pj++;
+      const credit=SohailScore.walkoverPolicy(m),pureWO=SohailScore.isWalkover(m)&&!m.po;
+      const countA=!pureWO||m.winner===a||credit.loserPlayed,countB=!pureWO||m.winner===b||credit.loserPlayed;
+      if(countA)stats[a].pj++;if(countB)stats[b].pj++;
       stats[a].gg += ga; stats[a].gp += gb;
       stats[b].gg += gb; stats[b].gp += ga;
       // Ganador: quien ganó más sets
       let wa = 0, wb = 0;
       (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
-      if(wa > wb){ stats[a].pg++; stats[b].pp++; }
-      else if(wb > wa){ stats[b].pg++; stats[a].pp++; }
+      const winner=m.wo?m.winner:wa>wb?a:wb>wa?b:null;
+      if(winner===a){stats[a].pg++;if(countB)stats[b].pp++;}
+      else if(winner===b){stats[b].pg++;if(countA)stats[a].pp++;}
     });
     const jugadoresRows = [['Nombre','Grupo actual','Email','Teléfono','PJ','PG','PP','% Victorias','Games ganados','Games perdidos','Rating']];
     Object.keys(USERS).filter(n => n!=='admin' && n!=='superadmin').sort((a,b)=>a.localeCompare(b,'es')).forEach(n => {
@@ -435,7 +438,7 @@ function exportarLigaExcel(){
     } catch(_){}
 
     // ---- Hoja 3: Partidos ----
-    const partRows = [['Ciclo','Grupo','Fase','Jugador A','Jugador B','Sets','Ganador','Estado','Club']];
+    const partRows = [['Ciclo','Grupo','Fase','Jugador A','Jugador B','Sets','Ganador','Estado','Club','Ausente WO','Puntos ausente WO','PJ ausente WO']];
     matches.forEach(m => {
       const a = m.po ? (m.poNames && m.poNames[0]) : m.aName;
       const b = m.po ? (m.poNames && m.poNames[1]) : m.bName;
@@ -444,10 +447,11 @@ function exportarLigaExcel(){
       let ganador = '';
       let wa = 0, wb = 0;
       (m.sets || []).forEach(s => { if((s[0]||0) > (s[1]||0)) wa++; else if((s[1]||0) > (s[0]||0)) wb++; });
-      if(wa > wb) ganador = a; else if(wb > wa) ganador = b;
+      if(m.wo)ganador=m.winner||'';else if(wa > wb) ganador = a; else if(wb > wa) ganador = b;
       const estado = m.np&&m.npReason==='injury' ? (LANG==='en'?'Injury · not played · no points':'Lesión · no jugado · sin puntos') : (m.status || 'confirmed');
-      const club = (CLUBS && m.clubId) ? (CLUBS.find(c => c.id === m.clubId)?.name || '') : '';
-      partRows.push([m.cycle || '', m.g || '', fase, a, b, sets, ganador, estado, club]);
+      const club=m.club||((CLUBS&&m.clubId)?(CLUBS.find(c=>c.id===m.clubId)?.name||''):'');
+      const pureWO=SohailScore.isWalkover(m)&&!m.po,credit=SohailScore.walkoverPolicy(m);
+      partRows.push([m.cycle||'',m.g||'',fase,a,b,m.wo?(sets?sets+' · RET':'W.O.'):sets,ganador,estado,club,pureWO?m.retiroDe||'':'',pureWO?(credit.loserPoints?1:0):'',pureWO?(credit.loserPlayed?1:0):'']);
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(partRows), t('export_sheet_partidos'));
 

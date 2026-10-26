@@ -708,15 +708,17 @@ function exportExcel(){
     cy.groups.forEach((g,gi)=>{
       const gid=gi+1;
       gAOA.push([groupName(gid)]);
-      gAOA.push(['Destino','Jugador','Pts','G','P','NJ','SG','SP','Bal','P.Puesto','Extra','Total']);
+      gAOA.push(['Destino','Jugador','Pts','PJ','G','P','NJ','SG','SP','Bal','P.Puesto','Extra','Total']);
       const st=computeStats(cy.n,gid);
       const dest=DESTINO[gid]||[];
       st.forEach((s,i)=>{
-        const d=dest[i]||'';
+        const picked=cy.zeroPointDecision?.assignments?.find(r=>r.group===gid&&r.name===s.name);
+        const pending=cy.status==='active'&&cy.n<cycles.length&&s.pts===0&&st.filter(r=>r.pts===0&&!USERS[r.name]?.inactive).length>1;
+        const d=picked?.destination||(pending?(LANG==='en'?'Pending 0-point review':'Pendiente de revisión a 0'):dest[i]||'');
         const base=ptsForPos(gid,i);
         const ex=i===0?2:0;
         const isInactive=USERS[s.name]&&USERS[s.name].inactive;
-        gAOA.push([d, s.name+(isInactive?' (INACTIVO)':''), s.pts, s.g, s.p, s.nj, s.sg, s.sp, s.sg-s.sp, isInactive?'':base, ex>0?ex:'', isInactive?'':base+ex]);
+        gAOA.push([d, s.name+(isInactive?' (INACTIVO)':''), s.pts, s.g+s.p, s.g, s.p, s.nj, s.sg, s.sp, s.sg-s.sp, isInactive?'':base, ex>0?ex:'', isInactive?'':base+ex]);
       });
       gAOA.push([]);
       // Matriz de resultados
@@ -731,7 +733,7 @@ function exportExcel(){
           if(m&&m.np){row.push(m.npReason==='injury'?(LANG==='en'?'INJ - No points':'LES - Sin puntos'):'NJ');return;}
           if(m&&m.status==='confirmed'){
             const sc=m.aName===p?m.sets.map(([a,b])=>a+'-'+b).join(' '):m.sets.map(([a,b])=>b+'-'+a).join(' ');
-            row.push(sc);
+            row.push(m.wo?(sc?sc+' · RET':'W.O.')+' · '+m.winner:sc);
           } else row.push('');
         });
         gAOA.push(row);
@@ -741,7 +743,7 @@ function exportExcel(){
     gAOA.push([]);
   });
   const wsG=XLSX.utils.aoa_to_sheet(gAOA);
-  wsG['!cols']=[{wch:10},{wch:24},{wch:6},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:6},{wch:9},{wch:7},{wch:7}];
+  wsG['!cols']=[{wch:28},{wch:24},{wch:6},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:5},{wch:6},{wch:9},{wch:7},{wch:7}];
   XLSX.utils.book_append_sheet(wb,wsG,'Grupos');
 
   // ===== HOJA: PLAY OFFS =====
@@ -776,7 +778,7 @@ function exportExcel(){
   }
 
   // ===== HOJA: RESULTADOS (formato plano — base para importar) =====
-  const rAOA=[['Ciclo','Grupo','Jugador A','Jugador B','Resultado','Club','Fecha']];
+  const rAOA=[['Ciclo','Grupo','Jugador A','Jugador B','Resultado','Club','Fecha','Ganador WO/RET','Ausente WO','Puntos ausente WO','PJ ausente WO']];
   cycles.forEach(cy=>{
     if(!cy.groups)return;
     cy.groups.forEach((g,gi)=>{
@@ -786,7 +788,8 @@ function exportExcel(){
         const m=findMatch(cy.n,gid,players[i],players[j]);
         if(!m||m.status!=='confirmed'||m.po)continue;
         const sc=m.sets.map(([a,b])=>a+'-'+b).join(' ');
-        rAOA.push([cy.n,gid,m.aName,m.bName,sc,m.club||'',fmtDate(m.date)]);
+        const pureWO=SohailScore.isWalkover(m),credit=SohailScore.walkoverPolicy(m);
+        rAOA.push([cy.n,gid,m.aName,m.bName,m.wo?(sc?sc+' · RET':'W.O.'):sc,m.club||'',fmtDate(m.date),m.wo?m.winner||'':'',pureWO?m.retiroDe||'':'',pureWO?(credit.loserPoints?1:0):'',pureWO?(credit.loserPlayed?1:0):'']);
       }
     });
   });

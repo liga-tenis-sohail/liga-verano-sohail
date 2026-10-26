@@ -57,80 +57,10 @@ function undoDemoUI(){
   toast(t('toast_demo_undone'));
 }
 
-function startNextCycle(){
-  const c=getActive();
-  if(!c||!c.groups)return;
-  const need=pairsNeeded(c);
-  const done=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status==='confirmed').length;
-  const notC=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status!=='confirmed').length;
-  const faltanJugar=need-done-notC;  // partidos que ni siquiera se cargaron
-  // Los partidos CARGADOS pero sin validar (pendientes/en disputa) hay que resolverlos
-  // primero: no se puede cerrar dejando un resultado a medias sin decidir.
-  if(notC>0){toast(t('close_pending_first'));return;}
-  // Si faltan partidos por JUGAR (nunca se cargaron), el admin puede cerrar igual —
-  // puede pasar que no se jueguen todos. Se pide confirmación con el detalle.
-  if(faltanJugar>0){
-    if(!confirm(t('close_force_confirm').replace('{n}',faltanJugar)))return;
-  }
-  _doStartNextCycle(c);
-}
-// Ejecuta el cierre real del ciclo y el armado del siguiente. Separado de startNextCycle
-// para poder llamarlo tras la confirmación cuando se fuerza el cierre.
-function _doStartNextCycle(c){
-  if(typeof destinosAutoBeforeClose==='function'&&!destinosAutoBeforeClose())return;
-  const totalG=c.groups.length;
-  const buckets={};for(let k=1;k<=totalG;k++)buckets[k]=[];
-  c.groups.forEach((g,gi)=>{
-    const gid=gi+1;const st=computeStats(activeN,gid);ensureDestino(gid,st.length);
-    const dest=DESTINO[gid];
-    st.forEach((s,pos)=>{
-      if(USERS[s.name]&&USERS[s.name].inactive)return; // inactivos no se redistribuyen
-      const d=dest[pos]||('G'+Math.min(gid+1,totalG));
-      let dn=parseInt(d.replace('G',''));
-      if(!buckets[dn])dn=Math.min(Math.max(dn,1),totalG);
-      buckets[dn].push({name:s.name,total:ptsForPos(gid,pos)+(pos===0?2:0)});
-    });
-  });
-  const ng=[];for(let k=1;k<=totalG;k++)ng.push({players:buckets[k].sort((a,b)=>b.total-a.total).map(x=>x.name)});
-  c.status='finished';
-  let switched = false;
-  if(activeN<cycles.length){
-    const nx=cycles[activeN];
-    nx.groups=ng;
-    nx.status='active';
-    activeN=nx.n;
-    viewCycle=nx.n;
-    switched = true;
-    if(currentUser&&currentUser.role==='player'){const loc=findLoc(currentUser.name,activeN);if(loc)selGroup=loc.g;}
-    toast(tf('cycle_closed_next',{n:c.n,nx:nx.n}));
-  }else{
-    toast(t('cycle3_closed'));
-  }
-  
-  persist(true);
-  refreshAll();
-  if(switched) showSub('grupos');
-}
-
-function finishLastCycle(){
-  const c=getActive();
-  if(!c||!c.groups)return;
-  const need=pairsNeeded(c);
-  const done=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status==='confirmed').length;
-  const notC=matches.filter(m=>m.cycle===activeN&&!m.po&&m.status!=='confirmed').length;
-  const faltanJugar=need-done-notC;
-  // Igual que al cerrar un ciclo intermedio: los pendientes sin validar hay que
-  // resolverlos primero; los partidos no jugados se pueden dejar y forzar el cierre.
-  if(notC>0){toast(t('close_pending_first'));return;}
-  if(faltanJugar>0){
-    if(!confirm(t('close_force_confirm_last').replace('{n}',faltanJugar)))return;
-  }
-  c.status='finished';
-  persist(true);
-  renderShell();
-  showSub('admin');
-  toast(t('last_cycle_finished'));
-}
+function startNextCycle(){return SohailCycleCloseUI.start(false);}
+// All paths (including legacy callers) pass through the zero-point review.
+function _doStartNextCycle(){return SohailCycleCloseUI.start(false);}
+function finishLastCycle(){return SohailCycleCloseUI.start(true);}
 
 function editPuntosUI(gid){
   const c=cycles[viewCycle-1];
@@ -833,7 +763,7 @@ function renamePlayerEverywhere(oldName,newName){
   // ALLNAMES
   const idx=ALLNAMES.indexOf(oldName);if(idx>=0)ALLNAMES[idx]=newName;
   // Grupos de cada ciclo
-  cycles.forEach(c=>{if(!c.groups)return;c.groups.forEach(g=>{if(!g.players)return;const pi=g.players.indexOf(oldName);if(pi>=0)g.players[pi]=newName;});});
+  cycles.forEach(c=>{if(Array.isArray(c.zeroPointDecision?.assignments))c.zeroPointDecision.assignments.forEach(r=>{if(r.name===oldName)r.name=newName;});if(!c.groups)return;c.groups.forEach(g=>{if(!g.players)return;const pi=g.players.indexOf(oldName);if(pi>=0)g.players[pi]=newName;});});
   // Partidos (liga y playoff): todos los campos que guardan un nombre
   matches.forEach(m=>{
     if(m.aName===oldName)m.aName=newName;
@@ -886,6 +816,7 @@ function renamePlayerEverywhere(oldName,newName){
         if(d.b===oldName)d.b=newName;
         if(d.winner===oldName)d.winner=newName;
         if(d.reporter===oldName)d.reporter=newName;
+        if(Array.isArray(d.zeroPointAssignments))d.zeroPointAssignments.forEach(r=>{if(r.name===oldName)r.name=newName;});
       }
     });
   }

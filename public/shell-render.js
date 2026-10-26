@@ -134,10 +134,12 @@ function groupCardHTML(gid){
 
       let cls=st.map((s,i)=>{
         const pos0 = (s._pos0 !== undefined) ? s._pos0 : i;
-        const d=dest[pos0]||'',dn=parseInt((d||'G99').replace('G',''));
+        const chosen=c.zeroPointDecision?.assignments?.find(r=>r.group===gid&&r.name===s.name);
+        const zeroReview=c.status==='active'&&viewCycle<cycles.length&&s.pts===0&&!USERS[s.name]?.inactive&&st.filter(x=>x.pts===0&&!USERS[x.name]?.inactive).length>1;
+        const d=chosen?.destination||dest[pos0]||'',dn=parseInt((d||'G99').replace('G',''));
         const ar=dn<gid?'dest-up':dn>gid?'dest-down':'dest-same';
         const ic=dn<gid?'↑':dn>gid?'↓':'=';
-        const pendingDest=typeof SohailDestinos!=='undefined'&&SohailDestinos.meta({DESTINO})&&!SohailDestinos.validDestination(d,c.groups.length);
+        const pendingDest=zeroReview||typeof SohailDestinos!=='undefined'&&SohailDestinos.meta({DESTINO})&&!SohailDestinos.validDestination(d,c.groups.length);
         const ex=pos0===0?2:0;
         const base=ptsForPos(gid,pos0);
         // Ajuste manual del admin (bonus/penalidad) sobre el Total de ESTE
@@ -154,7 +156,7 @@ function groupCardHTML(gid){
           : '';
         const pInactive = USERS[s.name]&&USERS[s.name].inactive;
         const inactiveBadge = pInactive?("<span style=\"font-size:9px;background:#e55;color:#fff;border-radius:3px;padding:1px 4px;margin-left:4px;font-weight:700\">"+t('ui36_text_166')+"</span>"):'';
-        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.6':''}"><td>${(d||pendingDest)?`<span class="dest ${pendingDest?'badge-pend':ar}">${pendingDest?t('da_review'):ic+groupName(dn)}</span>`:''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${base}</td><td>${ex>0?ex:''}</td><td><strong>${totalFinal}</strong>${ajusteTxt}${ajusteBtn}</td></tr>`;
+        return `<tr class="${currentUser&&s.name===currentUser.name?'me-row':''}" style="${pInactive?'opacity:.6':''}"><td>${(d||pendingDest)?`<span class="dest ${pendingDest?'badge-pend':ar}">${pendingDest?t(zeroReview?'zc_review_needed':'da_review'):ic+groupName(dn)}</span>`:''}</td><td><span class="avatar">${getInitials(s.name)}</span><span class="nm-link" onclick="showPlayerHistory('${jsq(s.name)}')">${s.name}</span>${inactiveBadge}</td>${RATING_ON?'<td class="rt-cell">'+(ratingUTRfmt(s.name)?ratingUTRfmt(s.name)+(ratingUTRDe(s.name)&&ratingUTRDe(s.name).provisional?'<span class="rt-prov" title="'+t('rt_prov_t')+'">~</span>':''):'<span class=\"rt-none\">·</span>')+'</td>':''}<td><strong>${s.pts}</strong></td><td>${s.g+s.p}</td><td>${s.g}</td><td>${s.p}</td><td>${s.nj||''}</td><td>${s.sg}</td><td>${s.sp}</td><td>${s.sg-s.sp}</td><td>${base}</td><td>${ex>0?ex:''}</td><td><strong>${totalFinal}</strong>${ajusteTxt}${ajusteBtn}</td></tr>`;
       }).join('');
       
       // Para la MATRIZ de resultados: los activos siempre aparecen. Los inactivos
@@ -213,13 +215,13 @@ function groupCardHTML(gid){
       }).join('');
       
       const thPtsText = t('pts_classif') + (esAdmin(currentUser) ? ` <button class="edit-pts-btn" onclick="editPuntosUI(${gid})"><i class="ti ti-edit"></i> Editar</button>` : '');
-      const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th data-ui-stat="sets">${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th data-ui-stat="points">${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
+      const thr=`<tr><th>${t('destination')}</th><th>${t('player')}</th>${RATING_ON?'<th>'+t('rating_col')+'</th>':''}<th>Pts</th><th title="${attr(LANG==='en'?'Credited matches, including W.O. according to the administrator decision':'Partidos computados, incluidos WO según decisión del administrador')}">PJ</th><th>${t('won')}</th><th>${t('lost')}</th><th>${t('not_played')}</th><th data-ui-stat="sets">${t('sets_won')}</th><th>${t('sets_lost')}</th><th>${t('balance')}</th><th data-ui-stat="points">${t('pts_pos')}</th><th>${t('extra')}</th><th>${t('total')}</th></tr>`;
       
       const jump=(kind,label)=>`<button type="button" class="ui-link-button" data-ui-jump="${kind}" data-gid="${gid}">${attr(label)}</button>`;
       const matrix=mrows.replace(/<td([^>]*onclick="[^"]+"[^>]*)>/g,'<td$1 role="button" tabindex="0">');
       return `<div class="grp-card ui-group-card" id="ui-group-${gid}">
       <section class="card ui-standings-section"><div class="ui-section-heading"><h2>${t('ui_positions')} · ${groupName(gid)}</h2>${jump('results',t('ui_to_results'))}</div><p class="ui-muted">${t('cycle')} ${viewCycle} · ${players.length} ${t('players_col')} · ${c.status==='finished'?t('ui_finished'):t('ui_active')}</p>
-      <div class="overflow-x ui-standings-scroll" role="region" aria-label="${attr(t('ui_positions')+' · '+groupName(gid))}" tabindex="0"><table class="cls-table"><caption class="ui-sr-only">${groupName(gid)} · ${t('cycle')} ${viewCycle}</caption><thead><tr class="clg-head"><th colspan="${RATING_ON?10:9}"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div>
+      <div class="overflow-x ui-standings-scroll" role="region" aria-label="${attr(t('ui_positions')+' · '+groupName(gid))}" tabindex="0"><table class="cls-table"><caption class="ui-sr-only">${groupName(gid)} · ${t('cycle')} ${viewCycle}</caption><thead><tr class="clg-head"><th colspan="${RATING_ON?11:10}"></th><th colspan="3">${thPtsText}</th></tr>${thr}</thead><tbody>${cls}</tbody></table></div>
       <div class="ui-table-shortcuts">${jump('sets',t('ui_sets_balance')+' →')}${jump('points',t('ui_final_points')+' →')}</div><p class="ui-scroll-note">${t('ui_scroll_hint')}</p></section>
       <section class="card ui-matrix-section"><div class="ui-section-heading"><h2>${t('ui_results')} · ${groupName(gid)}</h2>${jump('positions',t('ui_back_positions'))}</div><p class="legend-txt ui-matrix-hint">${t('legend_matrix')}</p><div class="overflow-x ui-matrix-scroll" role="region" aria-label="${attr(t('ui_results')+' · '+groupName(gid))}" tabindex="0"><table class="res-table"><caption class="ui-sr-only">${t('ui_results')} · ${t('cycle')} ${viewCycle}</caption><thead><tr><th scope="col">${t('players_col')}</th>${head}</tr></thead><tbody>${matrix}</tbody></table></div></section>
       <section class="card ui-legend-section"><h3>${t('ui_group_legend')}</h3><p class="legend-txt">${t('legend_pts')}</p></section></div>`;

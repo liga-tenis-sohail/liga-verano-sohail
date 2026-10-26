@@ -33,6 +33,24 @@
  });
  Object.assign(TRANSLATIONS.es,{re_injury_manage:'Lesión · no jugado',re_injury_hint:'Administración: registrá desde acá uno o varios cruces no jugados por lesión, o corregí una ausencia. No es W.O. ni retiro; no otorga puntos.',re_injury_unavailable:'No se pudo abrir Lesiones. Recargá la página.'});
  Object.assign(TRANSLATIONS.en,{re_injury_manage:'Injury · not played',re_injury_hint:'Administrators: record one or more matches not played due to injury here, or correct an absence. This is not a walkover or retirement; no points are awarded.',re_injury_unavailable:'Could not open Injuries. Reload the page.'});
+ Object.assign(TRANSLATIONS.es,{
+  re_wo_policy:'Cómputo del ausente en la clasificación',re_wo_points:'Sumar 1 punto a quien no se presentó',re_wo_played:'Contar 1 partido jugado (derrota) a quien no se presentó',re_wo_policy_help:'Son decisiones independientes. El ganador siempre suma 3 puntos, 1 partido y 1 victoria. No se inventan sets ni juegos y el WO no aporta al rating.',re_wo_admin_only:'Solo el administrador puede cambiar estas opciones. Tu carga queda pendiente; por defecto el ausente no suma puntos ni partido.',re_wo_legacy:'Este resultado histórico conserva el criterio anterior (1 punto y 1 partido al ausente), salvo que lo cambies expresamente.',re_wo_credit:'{name}: {pts} puntos · {pj} partido(s) computado(s)',re_wo_credit_title:'Cómputo en la clasificación',re_wo_invalid:'Revisá las opciones de cómputo del WO.'
+ });
+ Object.assign(TRANSLATIONS.en,{
+  re_wo_policy:'League credit for the absent player',re_wo_points:'Award 1 point to the absent player',re_wo_played:'Count 1 played match (loss) for the absent player',re_wo_policy_help:'These choices are independent. The winner always receives 3 points, 1 match and 1 win. No sets or games are invented and W.O. does not affect rating.',re_wo_admin_only:'Only an administrator can change these options. Your report awaits validation; by default the absent player receives no points or match credit.',re_wo_legacy:'This historical result retains the previous rule (1 point and 1 match for the absent player) unless explicitly changed.',re_wo_credit:'{name}: {pts} points · {pj} credited match(es)',re_wo_credit_title:'League credit',re_wo_invalid:'Check the W.O. credit options.'
+ });
+ function woSummary(record){
+  if(!SohailScore.isWalkover(record)||record.po)return '';
+  const policy=SohailScore.walkoverPolicy(record),ns=[record.aName,record.bName];
+  if(!ns.includes(record.winner))return '';
+  return tf('re_wo_credit',{name:record.winner,pts:3,pj:1})+'\n'+tf('re_wo_credit',{name:ns.find(n=>n!==record.winner),pts:policy.loserPoints?1:0,pj:policy.loserPlayed?1:0});
+ }
+ function policyFields(m){
+  if(m.c.po)return '';
+  return '<fieldset class="re-wo-policy" hidden><legend>'+e(t('re_wo_policy'))+'</legend><p class="re-help">'+e(t('re_wo_policy_help'))+'</p>'+
+   (esAdmin(currentUser)?['woLoserPoints','woLoserPlayed'].map((key,i)=>'<label><input type="checkbox" data-field="'+key+'"'+(m[key]?' checked':'')+'><span>'+e(t(i?'re_wo_played':'re_wo_points'))+'</span></label>').join(''):'<p>'+e(t('re_wo_admin_only'))+'</p>')+
+   (SohailScore.isWalkover(m.original)&&!m.original.woPolicy?'<p class="re-help">'+e(t('re_wo_legacy'))+'</p>':'')+'</fieldset>';
+ }
  const e=s=>attr(s==null?'':s), copy=x=>JSON.parse(JSON.stringify(x));
  function injuryTools(c){
   if(c.po||!currentUser||!esAdmin(currentUser)||_ligaReadOnly||!_loadOK||typeof isTutorialRunning==='function'&&isTutorialRunning())return '';
@@ -71,8 +89,8 @@
   return c;
  }
  function createModel(c,id){const ex=c.editId!=null&&id.startsWith('re-modal-')?existingFor(c):null;const stored=ex?copy(ex):null;const ns=ex?names(ex):[];let sets=ex?copy(ex.sets||[]):[];if(ns[0]===c.b&&ns[1]===c.a)sets=sets.map(([a,b])=>[b,a]);
-  return{id,c:{...c,editId:ex?.id??c.editId},original:stored,league:_ligaActual,key:_saveSessionKey(),club:ex?.club||'',date:ex?.date||today(),sets:[sets[0]||['',''],sets[1]||['','']],stb:sets[2]?sets[2].slice(0,2):['',''],mode:ex?.wo?(ex.sets?.length?'ret':'wo'):'normal',loser:ex?.retiroDe||'',dirty:false,saving:false,host:null};}
- function readModel(m){if(!m.host)return;const q=n=>m.host.querySelector('[data-field="'+n+'"]');const checked=m.host.querySelector('[data-field="club"]:checked');m.club=checked?checked.value:'';for(const k of ['date','loser'])if(q(k))m[k]=q(k).value;for(let j=0;j<2;j++)if(q('stb'+j))m.stb[j]=q('stb'+j).value;for(let i=0;i<2;i++)for(let j=0;j<2;j++)if(q('s'+i+j))m.sets[i][j]=q('s'+i+j).value;}
+  return{id,c:{...c,editId:ex?.id??c.editId},original:stored,league:_ligaActual,key:_saveSessionKey(),club:ex?.club||'',date:ex?.date||today(),sets:[sets[0]||['',''],sets[1]||['','']],stb:sets[2]?sets[2].slice(0,2):['',''],mode:ex?.wo?(ex.sets?.length?'ret':'wo'):'normal',loser:ex?.retiroDe||'',woLoserPoints:SohailScore.isWalkover(ex)?SohailScore.walkoverPolicy(ex).loserPoints:false,woLoserPlayed:SohailScore.isWalkover(ex)?SohailScore.walkoverPolicy(ex).loserPlayed:false,dirty:false,saving:false,host:null};}
+ function readModel(m){if(!m.host)return;const q=n=>m.host.querySelector('[data-field="'+n+'"]');const checked=m.host.querySelector('[data-field="club"]:checked');m.club=checked?checked.value:'';for(const k of ['date','loser'])if(q(k))m[k]=q(k).value;for(const k of ['woLoserPoints','woLoserPlayed'])if(q(k)&&esAdmin(currentUser))m[k]=q(k).checked;for(let j=0;j<2;j++)if(q('stb'+j))m.stb[j]=q('stb'+j).value;for(let i=0;i<2;i++)for(let j=0;j<2;j++)if(q('s'+i+j))m.sets[i][j]=q('s'+i+j).value;}
  function slotOptions(){const out=[];for(let ti=0;ti<(playoff.tramos||[]).length;ti++){const tr=playoff.tramos[ti];for(const which of ['main','cons'])for(let ri=0;ri<(tr[which]||[]).length;ri++)for(let mi=0;mi<tr[which][ri].length;mi++){const s=tr[which][ri][mi];if(!s.a||!s.b)continue;if(!esAdmin(currentUser)&&(![s.a,s.b].includes(currentUser.name)||s.locked))continue;const recorded=!!SohailResultPolicy.existing(policyState(),{po:true,ti,which,ri,mi,a:s.a,b:s.b})||SohailResultPolicy.slotRecorded(policyState(),{po:true,ti,which,ri,mi});out.push({value:[ti,which,ri,mi].join(':'),disabled:recorded,label:tr.label+' · '+t(which==='main'?'re_main':'re_consolation')+' · '+s.a+' vs '+s.b+(recorded?' · '+t('guard_saved_option'):'')});}}return out;}
  function opt(value,label,selected,disabled=false){return '<option '+(disabled?'disabled ':'')+'value="'+e(value)+'" '+(String(value)===String(selected)?'selected':'')+'>'+e(label)+'</option>';}
  function validation(m){
@@ -88,6 +106,7 @@
   if(!/^\d{4}-\d{2}-\d{2}$/.test(m.date)||isNaN(Date.parse(m.date))||new Date(m.date).toISOString().slice(0,10)!==m.date)return{key:'re_date_error',field:'date'};
   if(m.mode!=='normal'&&![c.a,c.b].includes(m.loser))return{key:'re_special_need',field:'loser'};
   let sets=m.sets.map(s=>s.map(v=>v===''?NaN:Number(v)));
+  if(m.mode==='wo'&&!c.po&&esAdmin(currentUser)&&[m.woLoserPoints,m.woLoserPlayed].some(v=>v!==undefined&&typeof v!=='boolean'))return{key:'re_wo_invalid'};
   if(m.mode==='wo')return{ok:true,sets:[],winner:m.loser===c.a?c.b:c.a};
   if(m.mode==='ret'){
    // Remove only trailing, unstarted rows. Filtering all empty rows would
@@ -119,16 +138,21 @@
   for(let j=0;j<2;j++){const el=root.querySelector('[data-field="stb'+j+'"]');if(el){el.disabled=!split||m.saving;el.required=split;if(!split){el.value='';el.removeAttribute('aria-invalid');}}}
   const score=root.querySelector('.re-score');if(score)score.hidden=m.mode==='wo';
   const special=root.querySelector('.re-special-person');if(special){special.hidden=m.mode==='normal';special.querySelector('label').textContent=t(m.mode==='wo'?'re_no_show':'re_retired');special.querySelector('p').textContent=t(m.mode==='wo'?'re_wo_help':'re_ret_help');}
+  const woPolicy=root.querySelector('.re-wo-policy');if(woPolicy)woPolicy.hidden=m.mode!=='wo'||m.c.po;
   root.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===m.mode?'true':'false'));
   const info=root.querySelector('.re-two-complete');if(info)info.hidden=!(m.mode==='normal'&&!split&&ints.every(s=>SohailScore.validSet(...s)));
   const rev=snapshotForReview(m),summary=root.querySelector('.re-review-data');summary.replaceChildren();
   for(const [k,value]of [[t('re_club'),m.club||'—'],[t('re_date'),m.date||'—'],[t('re_match'),[m.c.a||t('re_a'),m.c.b||t('re_b')].join(' vs ')],[t('re_score'),rev.score]]){const dt=document.createElement('dt');dt.textContent=k;const dd=document.createElement('dd');dd.textContent=value;summary.append(dt,dd);}
+  if(m.mode==='wo'&&!m.c.po&&m.loser){
+   const record={wo:true,sets:[],aName:m.c.a,bName:m.c.b,winner:m.loser===m.c.a?m.c.b:m.c.a,woPolicy:{loserPoints:!!m.woLoserPoints,loserPlayed:!!m.woLoserPlayed}};
+   const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=t('re_wo_credit_title');dd.className='re-wo-summary';dd.textContent=woSummary(record);summary.append(dt,dd);
+  }
   const notice=root.querySelector('.re-scope');notice.textContent=tf('re_scope',{scope:scope(m.c)});
   const blocked=admission(m),guard=root.querySelector('[data-admission]');
   if(guard){guard.hidden=!blocked;guard.textContent=blocked?t(blocked):'';}
   // Keep context selectors usable so a new, unreported match can be chosen.
   root.querySelectorAll('input,select,button[data-mode],button[data-save]').forEach(el=>{
-   if(!el.hasAttribute('data-context'))el.disabled=!!blocked||m.saving||(el.dataset.field?.startsWith('stb')&&!split);
+   if(!el.hasAttribute('data-context'))el.disabled=!!blocked||m.saving||(el.dataset.field?.startsWith('woLoser')&&(!esAdmin(currentUser)||m.mode!=='wo'))||(el.dataset.field?.startsWith('stb')&&!split);
   });
  }
  function clubButtons(m){
@@ -162,7 +186,7 @@
    '<fieldset class="re-mode"><legend>'+e(t('re_special'))+'</legend><div>'+['normal','wo','ret'].map(k=>'<button type="button" data-mode="'+k+'" aria-pressed="'+(m.mode===k)+'">'+e(t('re_'+k))+'</button>').join('')+'</div></fieldset>'+
    '<div class="re-score"><h3>'+e(t('re_score'))+'</h3><p class="re-help">'+e(t('re_format'))+'</p><div class="re-score-board"><table class="re-score-table"><caption class="ui-sr-only">'+e(t('re_score'))+'</caption><thead><tr><th scope="col">Set</th><th scope="col" data-player="a">'+e(c.a||t('re_a'))+'</th><th scope="col" data-player="b">'+e(c.b||t('re_b'))+'</th></tr></thead><tbody><tr data-score-row="set1"><th scope="row">Set 1</th><td>'+num(0,0)+'</td><td>'+num(0,1)+'</td></tr><tr data-score-row="set2"><th scope="row">Set 2</th><td>'+num(1,0)+'</td><td>'+num(1,1)+'</td></tr><tr class="re-stb" data-score-row="stb" hidden><th scope="row">'+e(t('re_stb'))+'</th><td>'+tb(0)+'</td><td>'+tb(1)+'</td></tr></tbody></table></div><p id="'+id+'-stb-help" class="re-stb-reference" hidden>'+e(t('re_stb_help'))+'</p><p class="re-help re-tb-info">'+e(t('re_tb_help'))+'</p></div>'+
    '<p class="re-two-complete" hidden>'+SohailUI.icon('check')+e(t('re_no_third'))+'</p><section class="re-special-person" hidden><label for="'+id+'-loser"></label><select data-field="loser" id="'+id+'-loser">'+opt('',t('re_choose_player'),m.loser)+[c.a,c.b].filter(Boolean).map(n=>opt(n,n,m.loser)).join('')+'</select><p></p></section>'+
-   '<section class="re-review"><h3>'+SohailUI.icon('check')+e(t('re_review'))+'</h3><dl class="re-review-data"></dl></section><div class="re-error" role="alert" tabindex="-1" hidden></div><div class="re-actions"><button type="button" class="btn" data-close>'+e(t(isModal?'re_cancel':'re_reset'))+'</button><button type="button" class="btn btn-primary" data-save>'+SohailUI.icon('check')+'<span>'+e(t(m.original?'guard_save_edit':'re_save'))+'</span></button></div>';
+   policyFields(m)+'<section class="re-review"><h3>'+SohailUI.icon('check')+e(t('re_review'))+'</h3><dl class="re-review-data"></dl></section><div class="re-error" role="alert" tabindex="-1" hidden></div><div class="re-actions"><button type="button" class="btn" data-close>'+e(t(isModal?'re_cancel':'re_reset'))+'</button><button type="button" class="btn btn-primary" data-save>'+SohailUI.icon('check')+'<span>'+e(t(m.original?'guard_save_edit':'re_save'))+'</span></button></div>';
   if(isModal)host.closest('dialog').setAttribute('aria-labelledby',id+'-title');
   update(m);
   host.oninput=ev=>{if(ev.target.dataset.field&&!ev.target.dataset.context){readModel(m);m.dirty=true;update(m);ev.target.removeAttribute('aria-invalid');}};
@@ -215,7 +239,7 @@
   if(m.saving||SohailUI.isBusy()||typeof isTutorialRunning==='function'&&isTutorialRunning())return;
   readModel(m);const valid=validation(m);if(!valid.ok){showError(m,valid.key,valid.field);return;}
   if(m.original&&!confirm(tf('guard_confirm_edit',{match:[m.c.a,m.c.b].join(' vs '),scope:scope(m.c)})))return;
-  const c={...m.c},read=copy({club:m.club,date:m.date,mode:m.mode,loser:m.loser,sets:valid.sets,winner:valid.winner});const original=m.original?copy(m.original):null;
+  const c={...m.c},read=copy({club:m.club,date:m.date,mode:m.mode,loser:m.loser,woPolicy:{loserPoints:esAdmin(currentUser)&&!!m.woLoserPoints,loserPlayed:esAdmin(currentUser)&&!!m.woLoserPlayed},sets:valid.sets,winner:valid.winner});const original=m.original?copy(m.original):null;
   m.saving=true;m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=true);m.host.setAttribute('aria-busy','true');m.host.querySelector('[data-save] span').textContent=t('re_saving');
   let record;
   const saved=await SohailUI.mutation(()=>{
@@ -224,13 +248,14 @@
    const current=existingFor(c);if((original&&!current)||(!original&&current)||original&&JSON.stringify(current)!==JSON.stringify(original))throw Error(t('re_context_changed'));
    const admin=validaAlCargar(c.a,c.b),id=current?.id??matchId++;
    record={...(current||{}),id,sets:copy(read.sets),wo:read.mode!=='normal',date:read.date,club:read.club,reporter:currentUser.name,status:admin?'confirmed':'pending',locked:admin};
+   if(read.mode==='wo'&&!c.po)record.woPolicy=copy(read.woPolicy);else delete record.woPolicy;
    delete record.np;if(admin)record.vBy=currentUser.name;else delete record.vBy;
    if(read.mode!=='normal'){record.retiroDe=read.loser;record.winner=read.winner;}else{delete record.retiroDe;if(!c.po)delete record.winner;}
    if(c.po){Object.assign(record,{po:true,ti:c.ti,which:c.which,ri:c.ri,mi:c.mi,tLabel:playoff.tramos[c.ti].label,poNames:[c.a,c.b],winner:read.winner});delete record.aName;delete record.bName;delete record.cycle;delete record.g;}
    else Object.assign(record,{cycle:c.cycle,g:c.gid,aName:c.a,bName:c.b,po:false});
    const index=matches.findIndex(x=>x.id===id);if(index>=0)matches[index]=record;else matches.push(record);
    if(c.po)applyPoPending(record); // Pending redraws but never advances; confirmed rebuilds both draws.
-   addLog(c.po?(admin?'Playoff: validado (admin)':'Playoff: cargado'):(admin?'Liga: validado (admin)':'Liga: cargado'),{a:c.a,b:c.b,sets:record.sets,wo:record.wo,po:!!c.po,grupo:c.gid,cuadro:record.tLabel,which:c.which});
+   addLog(c.po?(admin?'Playoff: validado (admin)':'Playoff: cargado'):(admin?'Liga: validado (admin)':'Liga: cargado'),{a:c.a,b:c.b,sets:record.sets,wo:record.wo,woPolicy:record.woPolicy,po:!!c.po,grupo:c.gid,cuadro:record.tLabel,which:c.which});
   });
   m.saving=false;if(m.host.isConnected&&m.host.dataset.editorId===m.id){m.host.removeAttribute('aria-busy');m.host.querySelectorAll('button,input,select').forEach(el=>el.disabled=false);m.host.querySelector('[data-save] span').textContent=t(m.original?'guard_save_edit':'re_save');}
   if(saved){m.dirty=false;if(modal)activeModal?.close();else reset(m,m.host);const x=window.scrollX,y=window.scrollY;refreshAll();window.scrollTo({left:x,top:y,behavior:'auto'});toast(tf('re_saved_scope',{scope:scope(c),message:t(record.status==='confirmed'?'re_confirmed':'re_pending')}));}
@@ -260,5 +285,5 @@
   window.scrollTo({left:sx,top:sy,behavior:'auto'});
  }
  global.addEventListener('beforeunload',ev=>{if([...instances.values()].some(m=>m.dirty&&m.key===_saveSessionKey()&&m.league===_ligaActual)){ev.preventDefault();ev.returnValue='';}});
- global.SohailResults={open,renderPage,canLeave,isSaving,translate,clearSession,validation,update,creationBlock};
+ global.SohailResults={woSummary,open,renderPage,canLeave,isSaving,translate,clearSession,validation,update,creationBlock};
 })(window);

@@ -173,7 +173,7 @@ async function _handlerSave(req, res){
   await _dispararNotificaciones(current, incoming, session).catch(() => {});
 
   // 3. FINALMENTE devolvemos la respuesta al cliente
-  return res.status(200).json({ ok: true, version:incoming._v, token: renewIfStale(session) || undefined, destinos:destinosAuto.meta(incoming)?incoming.DESTINO:undefined });
+  return res.status(200).json({ ok: true, version:incoming._v, token: renewIfStale(session) || undefined, destinos:destinosAuto.meta(incoming)?incoming.DESTINO:undefined, woPolicies:incoming.matches.filter(m=>m.woPolicy).map(m=>({id:m.id,policy:m.woPolicy})), cycleDecisions:incoming.cycles.filter(c=>c.zeroPointDecision).map(c=>({n:c.n,decision:c.zeroPointDecision})) });
 };
 
 async function _dispararNotificaciones(current, incoming, session){
