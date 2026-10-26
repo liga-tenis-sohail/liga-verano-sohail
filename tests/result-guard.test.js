@@ -95,8 +95,8 @@ test('GUARD new No jugado refused in closed cycle',async()=>{
 test('GUARD historical records remain untouched during unrelated settings save',async()=>{
  const s=fixture();s.cycles[0].status='finished';s.matches=[match({sets:[null]})];const {db,response}=await apiCase(s,'admin',i=>{i.LEAGUE_NAME='Nuevo título';});assert.equal(response.status,200);assert.deepEqual(db.state().matches,s.matches);
 });
-test('GUARD automatic close without new results is still permitted',async()=>{
- const s=fixture();s.matches=[match({status:'confirmed',locked:true})];const {db,response}=await apiCase(s,'admin',i=>{i.cycles[0].status='finished';i.cycles[1]={n:2,status:'active',groups:clone(i.cycles[0].groups)};i.activeN=2;});assert.equal(response.status,200);assert.equal(db.state().activeN,2);
+test('GUARD close without new results is permitted after zero-point review',async()=>{
+ const s=fixture();s.matches=[match({status:'confirmed',locked:true})];const {db,response}=await apiCase(s,'admin',i=>{const rules=require('../public/cycle-close'),p=rules.plan(s);i.cycles[0].zeroPointDecision=rules.decision(p,p.ties.flatMap(t=>t.players.map(r=>({group:r.group,name:r.name,destination:r.destination}))));i.cycles[0].status='finished';i.cycles[1]={n:2,status:'active',groups:rules.nextGroups(p,i.cycles[0].zeroPointDecision)};i.activeN=2;});assert.equal(response.status,200);assert.equal(db.state().activeN,2);
 });
 test('GUARD concurrent close: stale form cannot save or silently adopt newer version',async()=>{
  const s=fixture(),db=createDB([{id:'liga-actual',state:s}]);const incoming=project(db.state());incoming.matches=[match()];db.state().cycles[0].status='finished';db.state()._v++;

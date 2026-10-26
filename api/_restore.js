@@ -52,6 +52,7 @@ function inspectArchive(raw){
  for(const m of raw.matches){
   if(!O.object(m)||!Number.isSafeInteger(m.id)||m.id<0||ids.has(m.id))throw new O.AppError(400,'DUPLICATE_MATCH_ID','Hay identificadores de partido inválidos o repetidos dentro de esta liga.');ids.add(m.id);
   if(('npReason' in m||'injurySide' in m)&&(m.npReason!=='injury'||![0,1].includes(m.injurySide)||m.np!==true||m.po||m.status!=='confirmed'||m.wo||m.winner||m.retiroDe||m.sets?.length))throw new O.AppError(400,'INVALID_BACKUP','Ausencia por lesión inválida en el partido '+m.id+'.');
+  if('woPolicy' in m&&(!score.isWalkover(m)||m.po||!O.object(m.woPolicy)||Object.keys(m.woPolicy).length!==2||typeof m.woPolicy.loserPoints!=='boolean'||typeof m.woPolicy.loserPlayed!=='boolean'))throw new O.AppError(400,'INVALID_BACKUP','Cómputo de W.O. inválido en el partido '+m.id+'.');
   const ns=m.po?m.poNames:[m.aName,m.bName];
   if(!Array.isArray(ns)||ns.length!==2||ns[0]===ns[1]||ns.some(n=>!names.has(n)))throw new O.AppError(400,'INVALID_BACKUP','Participantes inválidos en el partido '+m.id+'.');
   if(!['confirmed','pending','disputed'].includes(m.status)||!Array.isArray(m.sets)||m.sets.length>5||m.sets.some(s=>!Array.isArray(s)||s.length!==2||s.some(x=>!Number.isSafeInteger(x)||x<0||x>199)))throw new O.AppError(400,'INVALID_BACKUP','Marcador o estado estructuralmente inválido en el partido '+m.id+'.');

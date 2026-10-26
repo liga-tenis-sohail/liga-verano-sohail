@@ -294,6 +294,16 @@ async function _doPersist(){
           sent.DESTINO=d.destinos;
         }
         const ratingChanged=ratingDataChanged(_lastSaved,sent);
+        for(const item of Array.isArray(d.woPolicies)?d.woPolicies:[]){
+          const before=sent.matches.find(m=>m.id===item.id),now=matches.find(m=>m.id===item.id);
+          if(before&&now&&JSON.stringify(now.woPolicy)===JSON.stringify(before.woPolicy))now.woPolicy=JSON.parse(JSON.stringify(item.policy));
+          if(before)before.woPolicy=item.policy;
+        }
+        for(const item of Array.isArray(d.cycleDecisions)?d.cycleDecisions:[]){
+          const before=sent.cycles.find(c=>c.n===item.n),now=cycles.find(c=>c.n===item.n);
+          if(before&&now&&JSON.stringify(now.zeroPointDecision)===JSON.stringify(before.zeroPointDecision))now.zeroPointDecision=JSON.parse(JSON.stringify(item.decision));
+          if(before)before.zeroPointDecision=item.decision;
+        }
         sent._v=_stateV;_lastSaved=JSON.stringify(sent);
         if(d.token)_token=d.token;_lastSaveError='';_hideLoadError();
         try{window.dispatchEvent(new Event('sohail-data-saved'));}catch(_){}

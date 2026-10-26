@@ -6,6 +6,8 @@
 // ============================================================================
 Object.assign(TRANSLATIONS.es,{legend_injury:'Lesión: partido no jugado; 0 puntos para ambos, sin victoria ni derrota. No cuenta como PJ ni para el rating.',injury_manage_result:'Gestionar lesión',injury_from_result:'Podés gestionar esta ausencia acá o desde Cargar resultado → Lesión.'});
 Object.assign(TRANSLATIONS.en,{legend_injury:'Injury: match not played; 0 points for both players, no win or loss. It does not count as a played match or for rating.',injury_manage_result:'Manage injury',injury_from_result:'Manage this absence here or in Report result → Injury.'});
+TRANSLATIONS.es.legend_pts+=' <strong>WO:</strong> el ganador suma 3 puntos y 1 PJ. El administrador elige por separado 1 punto y/o 1 PJ (derrota) para el ausente. PJ = ganados + perdidos computados; no significa juego real. Los WO sin juego no modifican el rating.';
+TRANSLATIONS.en.legend_pts+=' <strong>W.O.:</strong> the winner receives 3 points and 1 credited match. The administrator independently chooses 1 point and/or 1 credited match (loss) for the absent player. PJ = credited wins + losses, not actual play. W.O. without play does not affect rating.';
 function validaAlCargar(a, b){
   // Un administrador valida al cargar, incluido su propio partido.
   // Antes se le bloqueaba para que no arbitrara lo suyo. Ahora el control es la
@@ -658,10 +660,11 @@ async function _submitResultImpl(){
     if(!v.ok){fAlert('✕ '+v.msg,'err');return;}
   }
   const esWO=!!(retQuien||woQuien);
+  const woPolicy=woQuien?{loserPoints:false,loserPlayed:false}:undefined;
   
   matches=matches.filter(m=>!(m.cycle===_cN&&m.g===gid&&!m.po&&((m.aName===repName&&m.bName===rivName)||(m.aName===rivName&&m.bName===repName))));
   const isAdmin=validaAlCargar(repName,rivName);
-  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:esWO,retiroDe:retQuien||woQuien||undefined,winner:esWO?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub||'',locked:isAdmin});
+  matches.push({id:matchId++,cycle:_cN,g:gid,aName:repName,bName:rivName,sets:s,wo:esWO,woPolicy,retiroDe:retQuien||woQuien||undefined,winner:esWO?winnerRet:undefined,date:fecha,status:isAdmin?'confirmed':'pending',vBy:isAdmin?currentUser.name:undefined,reporter:repName,club:formClub||'',locked:isAdmin});
   addLog(isAdmin?'Liga: validado (admin)':'Liga: cargado',{a:repName,b:rivName,sets:s,wo:esWO,grupo:gid,po:false});
   if(!await _criticalSave()){fAlert(t('fix_save_failed'),'err');return;}
   clearForm();
@@ -767,6 +770,9 @@ const statusLabel = m.status === 'confirmed' ?
 t('confirmed_label') : m.status === 'disputed' ? t('legend_disputed') : t('legend_pending');
 if(m.np){document.getElementById('modal-body').innerHTML=`<div class="modal-score"><p>${attr(p1)} &nbsp;vs&nbsp; ${attr(p2)}</p></div><p class="modal-meta" style="text-align:center"><strong>${m.npReason==='injury'?(LANG==='en'?'Not played due to injury · no points awarded':'No jugado por lesión · sin puntos'):t('ui36_text_231')}</strong> · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
 else{document.getElementById('modal-body').innerHTML=`<p class="modal-rep">${t('reported_by')} <strong>${attr(rep)}</strong>${m.vBy?` · ${t('validated_by')} <strong>${attr(m.vBy)}</strong>`:''}${m.club?` · Club <strong>${attr(m.club)}</strong>`:''}</p><div class="modal-score" style="${clubStyle(m.club)}"><p>${attr(p1)} ${attr(sc)} ${attr(p2)}</p></div><p class="modal-meta">${t('date_field')}: ${fmtDate(m.date)} · ${t('status_field')}: ${statusLabel}${m.locked?' · 🔒 '+t('locked_label'):''}</p>`;}
+if(window.SohailResults&&SohailScore.isWalkover(m)&&!m.po){
+ const detail=document.createElement('p');detail.className='re-wo-summary';detail.textContent=SohailResults.woSummary(m);document.getElementById('modal-body').appendChild(detail);
+}
 const acts=document.getElementById('modal-actions');let h='';const isAdmin=esAdmin(currentUser)&&!_ligaReadOnly;const isPend=m.status==='pending';
 if(isAdmin&&m.npReason==='injury'){
   h+=`<p class="lock-note">${attr(t('injury_from_result'))}</p><button type="button" class="btn btn-primary" data-manage-injury-result>${attr(t('injury_manage_result'))}</button>`;

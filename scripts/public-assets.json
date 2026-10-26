@@ -58,7 +58,9 @@
     "import-security.js",
     "storage-maintenance.js",
     "performance-ui.js",
-    "performance-v510.css"
+    "performance-v510.css",
+    "cycle-close.js",
+    "cycle-close-ui.js"
   ],
   "optional": [
     "favicon.ico"
