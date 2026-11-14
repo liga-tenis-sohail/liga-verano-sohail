@@ -1,0 +1,18 @@
+/* Uses the league's existing light/dark tokens; does not alter standings. */
+.sop-dialog{margin:auto;padding:0;border:1px solid var(--border,#d8dee8);border-radius:18px;width:min(920px,calc(100vw - 24px));max-width:calc(100vw - 24px);max-height:90dvh;background:var(--surface,#fff);color:var(--text,#1b2433);box-shadow:0 24px 80px #0005;font:inherit;overflow:hidden}
+.sop-dialog[open]{display:flex;flex-direction:column}.sop-dialog::backdrop{background:#10203699}
+.sop-head{padding:20px 24px;border-bottom:1px solid var(--border,#ddd)}.sop-head h2{margin:0;font-size:21px;line-height:1.3;color:inherit}
+.sop-body{padding:20px 24px;overflow-y:auto;overscroll-behavior:contain;min-height:0}.sop-body p{line-height:1.5;margin:0 0 12px}
+.sop-status{padding:0 24px 12px;white-space:pre-wrap;line-height:1.5;flex-shrink:0;max-height:22dvh;overflow:auto;color:var(--text2,#5b6675)}.sop-status:empty{padding:0}
+.sop-foot{padding:14px 24px;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border,#ddd);flex-shrink:0}
+.sop-button{padding:10px 14px;min-height:44px;border:1px solid var(--border2,#bbc5d4);border-radius:10px;background:var(--surface2,#edf1f6);color:var(--text,#1b2433);font:inherit;font-weight:600;cursor:pointer;line-height:1.25}
+.sop-primary{background:var(--action,#1b4f9c);color:var(--on-action,#fff);border-color:transparent}.sop-button:disabled{opacity:.5;cursor:not-allowed}.sop-button:focus-visible,.sop-dialog input:focus-visible,.sop-dialog select:focus-visible{outline:3px solid var(--pri,#1b4f9c);outline-offset:2px}
+.sop-help{font-size:14px;color:var(--text2,#5b6675)}.sop-error{padding:12px;border-radius:10px;background:var(--dangerBg,#fcebee);color:var(--dangerT,#791f1f);overflow-wrap:anywhere;white-space:pre-wrap}
+.sir-summary{padding:14px;border:1px solid var(--border,#ddd);border-radius:12px;background:var(--surface2,#edf1f6);font-weight:600;line-height:1.6}
+.sir-card{border:1px solid var(--border,#ddd);border-radius:12px;padding:16px;margin:14px 0;overflow-wrap:anywhere}.sir-card h3{font-size:16px;margin:0 0 10px}.sir-card[data-status=invalid]{border-color:var(--danger,#c0392b)}
+.sir-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sir-field{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;min-width:0}
+.sir-field input,.sir-field select{width:100%;min-width:0;border:1px solid var(--border2,#bbc5d4);border-radius:8px;padding:10px;min-height:44px;background:var(--surface,#fff);color:var(--text,#1b2433);font:inherit;font-size:16px}
+.sir-field input[aria-invalid=true]{border-color:var(--danger,#c0392b)}.sir-check{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px}.sir-check input{width:20px;height:20px;flex-shrink:0}
+.sir-review-list{margin:14px 0;border:1px solid var(--border,#ddd);border-radius:10px;padding:12px}.sir-review-list summary{cursor:pointer;font-weight:600;line-height:1.5}.sir-review-list p{font-size:14px;margin:8px 0;overflow-wrap:anywhere}
+.sir-page{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:14px}.sir-empty{padding:16px 0}.sop-body h3{margin:18px 0 10px}
+@media(max-width:560px){.sop-dialog{width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:94dvh;border-radius:14px}.sop-head,.sop-body{padding:16px}.sop-head h2{font-size:19px}.sop-status{padding-left:16px;padding-right:16px;font-size:14px}.sop-foot{padding:12px;gap:8px}.sop-foot .sop-button{flex:1 1 145px;font-size:14px}.sir-fields{grid-template-columns:1fr}.sir-card{padding:12px}.sir-page{flex-wrap:wrap}}
