@@ -19,7 +19,12 @@ function put(dir, file, content) {
 function fixture(fn, options = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sohail-upload-'));
   try {
-    for (const file of imports) put(dir, file, fs.readFileSync(path.join(root, file)));
+    // These fixtures exercise the older four-point import installer. The network
+    // extension is covered separately with real current server files.
+    for (const file of imports) {
+      const source = fs.readFileSync(path.join(root, file));
+      put(dir, file, file === 'public/operation-feedback.js' ? source.toString().replaceAll('SOHAIL_NETWORK_FEEDBACK_V1', 'LEGACY_FEEDBACK_FIXTURE') : source);
+    }
     put(dir, 'public/index.html', '<html><head></head><body>\n<script src="admin-ciclos-config.js?v=retained"></script>\n<script src="excel-loader.js?v=retained"></script>\n</body></html>\n<!-- unrelated content -->\n');
     put(dir, 'scripts/public-assets.json', JSON.stringify({ appRelease: 'retained-current-version', assets: ['existing.js'], custom: { keep: true } }, null, 2) + '\n');
     put(dir, 'api/liga.js', "'use strict';\nmodule.exports=function(req,res){if(req.query && req.query.operacion!==undefined){return 'retained';}};\n// unrelated routes\n");
