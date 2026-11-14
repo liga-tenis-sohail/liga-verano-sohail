@@ -60,6 +60,22 @@ function prepareImport(root) {
   }
   return { installer, edits };
 }
+// SOHAIL_NETWORK_FEEDBACK_V1: optional for older checkouts; required by the new client.
+function prepareNetwork(root) {
+  const name = 'scripts/install-network-feedback.cjs';
+  const client = fs.readFileSync(regularFile(root, 'public/operation-feedback.js'), 'utf8');
+  if (!fs.existsSync(path.join(root, name))) {
+    if (client.includes('SOHAIL_NETWORK_FEEDBACK_V1')) throw Error('NETWORK_FIX_FILE_MISSING: subi scripts/install-network-feedback.cjs junto con operation-feedback.js.');
+    return null;
+  }
+  regularFile(root, name);
+  for (const file of ['api/_request-security.js', 'api/_http.js']) regularFile(root, file);
+  const installer = require(path.join(root, name));
+  if (typeof installer.plan !== 'function' || typeof installer.install !== 'function') throw Error('NETWORK_FIX_INSTALLER_INVALID');
+  const edits = installer.plan(root);
+  if (!Array.isArray(edits) || edits.some(edit => !Array.isArray(edit) || !['api/_request-security.js', 'api/_http.js'].includes(edit[0]) || typeof edit[1] !== 'string')) throw Error('NETWORK_FIX_PLAN_INVALID');
+  return { installer, edits };
+}
 function runNpm(args, { root, env }) {
   const result = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, {
     cwd: root, env, stdio: 'inherit', shell: process.platform === 'win32'
@@ -71,6 +87,7 @@ function main({ root = defaultRoot, env = process.env, npmRunner = runNpm, logge
   root = fs.realpathSync(root);
   regularFile(root, 'package.json');
   const prepared = prepareImport(root);
+  const network = prepareNetwork(root); // Validate before dependency install or any source write.
   const lockPath = path.join(root, 'package-lock.json');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   if (fs.existsSync(lockPath)) {
@@ -90,13 +107,19 @@ function main({ root = defaultRoot, env = process.env, npmRunner = runNpm, logge
   // Integration happens AFTER successful dependency installation and BEFORE the
   // workflow's integrity checks/tests or Vercel's release:check build command.
   prepareImport(root); // Recheck paths and anchors before modifying the checkout.
+  prepareNetwork(root);
   const applied = prepared.installer.install(root, true);
   if (prepared.installer.plan(root).length) throw Error('IMPORT_UPLOAD_INTEGRATION_INCOMPLETE');
   logger.log('[SOHAIL_IMPORT_AUTO] Integracion lista: ' + applied.length + ' archivo(s) ajustado(s).');
   logger.log('[SOHAIL_IMPORT_AUTO] Continuan las pruebas y controles habituales; no se modificaron datos de la liga.');
+  if (network) {
+    const adjusted = network.installer.install(root, true);
+    if (network.installer.plan(root).length) throw Error('NETWORK_FIX_INTEGRATION_INCOMPLETE');
+    logger.log('[SOHAIL_NETWORK_FIX] Tutorial y avisos integrados: ' + adjusted.length + ' archivo(s). Limites y permisos conservados.');
+  }
   return { integrated: true, changed: applied.map(([file]) => file) };
 }
-module.exports = { validateLock, privacyConfigured, regularFile, prepareImport, main };
+module.exports = { validateLock, privacyConfigured, regularFile, prepareImport, prepareNetwork, main };
 if (require.main === module) {
   try {
     if (process.argv.length > 2) throw Error('El comando de instalacion no admite opciones para saltar controles.');
