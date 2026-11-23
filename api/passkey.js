@@ -152,6 +152,7 @@ module.exports = async (req, res) => {
       if(wait)return res.status(429).json({code:'AUTH_RATE_LIMIT',wait,error:'Demasiadas solicitudes. Esperá antes de reintentar.'});
       await lib.rateLimitFail(key,60,60000);
     }
+    if(accion==='admin-overview')return res.status(200).json(await require('./_passkey-overview').overview(req,body));
     // Reverification rotates the bearer without extending its absolute expiry.
     if(accion==='reauth-start'||accion==='reauth-finish'){
       const session=await lib.auth(req);

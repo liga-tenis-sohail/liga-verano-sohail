@@ -273,56 +273,47 @@ function renderThemeCard(){
 // ============================================================================
 // PANEL ADMIN DE PASSKEYS — el admin ve quién tiene ingreso rápido activado
 // y puede desactivar dispositivos de otros (útil si perdieron el iPhone).
-// Usa los endpoints admin-stats + admin-list-user + admin-delete-user.
+// Usa una consulta admin-overview y el borrado individual admin-delete-user.
 // ============================================================================
-async function cargarPasskeysAdmin(){
-  const metricsEl = document.getElementById('pk-admin-metrics');
-  const listEl = document.getElementById('pk-admin-list');
-  if(!metricsEl || !listEl) return;
-  mostrarSkeleton(listEl, 4);
+// No device requests while rendering a hidden panel or reloading the app.
+let _pkAdminRequest=null,_pkAdminCache=null;
+async function cargarPasskeysAdmin(force=false){
+  const metricsEl=document.getElementById('pk-admin-metrics'),listEl=document.getElementById('pk-admin-list');
+  if(!metricsEl||!listEl)return;
+  const ctx=[_ligaActual||'',_token||''].join('|');
+  const current=()=>ctx===[_ligaActual||'',_token||''].join('|')&&document.getElementById('pk-admin-list')===listEl;
+  const button='<button type="button" class="btn btn-sm" onclick="cargarPasskeysAdmin(true)">Consultar dispositivos</button>';
+  if(!force){
+    metricsEl.textContent='';
+    listEl.innerHTML='<p class="legend-txt">Pulsá Consultar dispositivos para cargar el listado. No se consulta al recargar la liga.</p>'+button;
+    return;
+  }
+  mostrarSkeleton(listEl,2);
   try{
-    // Traemos métricas y lista de todos los jugadores con passkey en paralelo.
-    // Para la lista, recorremos users y pedimos por cada uno que tenga passkeys
-    // (dos requests: stats primero, luego por jugador). Para no saturar Supabase
-    // con 60 requests, hacemos SOLO stats acá y expandimos por jugador on-click.
-    const rStats = await fetch('/api/passkey', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
-      body: JSON.stringify({ accion:'admin-stats', ligaId: _ligaActual || undefined })
-    });
-    const stats = await rStats.json().catch(()=>({}));
-    if(!rStats.ok) throw new Error(stats.error || 'stats failed');
-
-    // Métricas
-    metricsEl.innerHTML =
-      `<div class="metric-tile"><span class="metric-n">${stats.conPasskey||0}</span><span class="metric-lbl">${t('pk_admin_metric_users')}</span></div>` +
-      `<div class="metric-tile"><span class="metric-n">${stats.totalPasskeys||0}</span><span class="metric-lbl">${t('pk_admin_metric_devices')}</span></div>` +
-      `<div class="metric-tile"><span class="metric-n">${stats.pct||0}%</span><span class="metric-lbl">${t('pk_admin_metric_pct')}</span></div>`;
-
-    // Para el listado detallado, necesitamos saber qué jugadores tienen passkeys.
-    // El endpoint admin-stats devuelve totales pero no la lista. Hacemos una
-    // pasada por USERS local (que ya está en memoria) y pedimos passkeys por
-    // cada jugador. Para no explotar, solo pedimos jugadores activos (no inactive).
-    // Peor caso: 60 fetches en paralelo, ~2 s.
-    const users = USERS || {};
-    const jugadoresActivos = Object.keys(users)
-      .filter(n => (users[n].role || 'player') === 'player' && !users[n].inactive)
-      .sort((a,b) => a.localeCompare(b, 'es'));
-    if(!jugadoresActivos.length){ listEl.innerHTML = `<p class="legend-txt">${t('pk_admin_none')}</p>`; return; }
-
-    const rs = await Promise.all(jugadoresActivos.map(nom =>
-      fetch('/api/passkey', {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':'Bearer '+_token},
-        body: JSON.stringify({ accion:'admin-list-user', userName: nom, ligaId: _ligaActual || undefined })
-      }).then(r => r.ok ? r.json() : { passkeys: [] }).catch(() => ({ passkeys: [] }))
-    ));
-    const jugadoresConPasskeys = [];
-    rs.forEach((d, i) => {
-      if(d.passkeys && d.passkeys.length) jugadoresConPasskeys.push({ nombre: jugadoresActivos[i], passkeys: d.passkeys });
-    });
-    if(!jugadoresConPasskeys.length){ listEl.innerHTML = `<p class="legend-txt">${t('pk_admin_none')}</p>`; return; }
-
+    let stats;
+    if(_pkAdminCache&&_pkAdminCache.ctx===ctx&&Date.now()-_pkAdminCache.at<30000)stats=_pkAdminCache.data;
+    else{
+      if(!_pkAdminRequest||_pkAdminRequest.ctx!==ctx){
+        const request={ctx,promise:null};
+        request.promise=(async()=>{
+          const response=await fetch('/api/passkey',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+            body:JSON.stringify({accion:'admin-overview',ligaId:_ligaActual||undefined}),signal:AbortSignal.timeout(20000)});
+          const data=await response.json();
+          if(!response.ok||data.ok!==true||!Array.isArray(data.jugadores))throw new Error(typeof apiError==='function'?apiError(data):'No se pudieron consultar los dispositivos.');
+          if(ctx===[_ligaActual||'',_token||''].join('|'))_pkAdminCache={ctx,at:Date.now(),data};
+          return data;
+        })().finally(()=>{if(_pkAdminRequest===request)_pkAdminRequest=null;});
+        _pkAdminRequest=request;
+      }
+      stats=await _pkAdminRequest.promise;
+    }
+    if(!current())return;
+    metricsEl.innerHTML=
+      `<div class="metric-tile"><span class="metric-n">${Number(stats.conPasskey)||0}</span><span class="metric-lbl">${t('pk_admin_metric_users')}</span></div>`+
+      `<div class="metric-tile"><span class="metric-n">${Number(stats.totalPasskeys)||0}</span><span class="metric-lbl">${t('pk_admin_metric_devices')}</span></div>`+
+      `<div class="metric-tile"><span class="metric-n">${Number(stats.pct)||0}%</span><span class="metric-lbl">${t('pk_admin_metric_pct')}</span></div>`;
+    const jugadoresConPasskeys=stats.jugadores;
+    if(!jugadoresConPasskeys.length){listEl.innerHTML=`<p class="legend-txt">${t('pk_admin_none')}</p>`+button;return;}
     const fmtFecha = iso => { if(!iso) return t('pk_never_used'); try{ return new Date(iso).toLocaleDateString(); }catch(_){ return iso.slice(0,10); } };
     let html = '';
     jugadoresConPasskeys.forEach(j => {
@@ -344,15 +335,17 @@ async function cargarPasskeysAdmin(){
               `<div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><i class="ti ti-device-mobile" style="opacity:.6"></i> ${label}</div>` +
               `<div style="font-size:10.5px;color:var(--text2,#64748b);margin-top:2px">${t('pk_last_used')}: ${_pkEsc(p.lastUsedAt ? fmtFecha(p.lastUsedAt) : t('pk_never_used'))}</div>` +
             `</div>` +
-            `<button class="btn btn-sm" style="background:transparent;color:var(--danger);border:1px solid var(--danger);flex-shrink:0;font-size:11px;padding:4px 8px" onclick="desactivarPasskeyAdmin('${escUser}','${escCid}','${escLbl}')"><i class="ti ti-trash"></i></button>` +
+            `<button class="btn btn-sm" style="background:transparent;color:var(--danger);border:1px solid var(--danger);flex-shrink:0;font-size:11px;padding:4px 8px" data-pk-admin-delete="1" data-pk-user="${escUser}" data-pk-id="${escCid}" data-pk-label="${escLbl}"><i class="ti ti-trash"></i></button>` +
           `</div>`;
       });
       html += `</div></details>`;
     });
-    listEl.innerHTML = html;
+    listEl.innerHTML = html+button;
+    listEl.querySelectorAll('[data-pk-admin-delete]').forEach(b=>{b.onclick=()=>desactivarPasskeyAdmin(b.dataset.pkUser,b.dataset.pkId,b.dataset.pkLabel);});
   }catch(err){
+    if(!current())return;
     metricsEl.innerHTML = '';
-    listEl.innerHTML = `<p class="legend-txt" style="color:var(--danger)">${t('pk_list_err')}</p>`;
+    listEl.innerHTML = `<p role="alert" class="legend-txt" style="color:var(--danger)">${_pkEsc(err.message||t('pk_list_err'))}</p>`+button;
   }
 }
 
@@ -370,7 +363,8 @@ async function desactivarPasskeyAdmin(userName, credId, label){
     const d = await r.json().catch(()=>({}));
     if(!r.ok) throw new Error(apiError(d));
     toast(t('pk_admin_del_ok'));
-    cargarPasskeysAdmin();   // refrescar la lista
+    _pkAdminCache=null;
+    cargarPasskeysAdmin(true);   // refrescar tras una eliminación confirmada
   }catch(err){
     toast(t('pk_admin_del_err'));
   }
