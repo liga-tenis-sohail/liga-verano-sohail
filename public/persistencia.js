@@ -253,6 +253,9 @@ function _unconfirmedSaveNotice(sent){
 function _saveSessionKey(){
   try{const p=JSON.parse(atob((_token||'').split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));return [p.u,p.pk,p.sv,p.sid||''].join(':');}catch(_){return _token;}
 }
+function _sameVerifiedSaveSession(key){
+  return key===_saveSessionKey()||!!(typeof SohailSecurity!=='undefined'&&SohailSecurity.sameOperationSession?.(key));
+}
 function exportPendingChanges(){
   const blob=new Blob([JSON.stringify({kind:'SOHAIL_PENDING_REVIEW',ligaId:_ligaActual,savedBase:_lastSaved?JSON.parse(_lastSaved):null,pending:JSON.parse(_serialize()),sentUnconfirmed:_unconfirmedAttempt},null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='sohail-cambios-pendientes.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -282,7 +285,7 @@ async function _doPersist(){
   _saveInFlight=(async()=>{
     try{
       const {response:r,data:d}=await SohailRequest.json(fetch,'/api/save',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({state:sent,ligaId:liga||undefined})},{timeout:30000});
-      if(liga!==_ligaActual||user!==(currentUser&&currentUser.name)||sessionKey!==_saveSessionKey())return false;
+      if(liga!==_ligaActual||user!==(currentUser&&currentUser.name)||!_sameVerifiedSaveSession(sessionKey))return false;
       if(r.ok){
         if(d.ok!==true||!Number.isSafeInteger(d.version)||d.version!==sent._v+1){_unconfirmedSaveNotice(sent);return false;}
         _stateV=d.version;
@@ -315,7 +318,7 @@ async function _doPersist(){
       if(r.status===401){_token=null;_showLoadError(t('err_session_expired_save'));return false;}
       if(r.status>=500||r.status===408){_unconfirmedSaveNotice(sent);return false;}
       _showLoadError(_lastSaveError);return false;
-    }catch(e){if(liga===_ligaActual&&user===(currentUser&&currentUser.name)&&sessionKey===_saveSessionKey())_unconfirmedSaveNotice(sent);return false;}
+    }catch(e){if(liga===_ligaActual&&user===(currentUser&&currentUser.name)&&_sameVerifiedSaveSession(sessionKey))_unconfirmedSaveNotice(sent);return false;}
   })();
   try{return await _saveInFlight;}finally{_saveInFlight=null;}
 }

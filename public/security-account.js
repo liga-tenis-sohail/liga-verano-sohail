@@ -11,6 +11,8 @@
  const tr=k=>texts[en()?'en':'es'][k]||k;
  const getToken=()=>typeof _token==='string'?_token:'';
  const ctx=()=>[typeof _ligaActual==='string'?_ligaActual:'',typeof _saveSessionKey==='function'?_saveSessionKey():getToken()].join('|');
+ const rotations=api.rotationTracker();
+ const sameContext=before=>rotations.matches(before,ctx());
  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const translations={es:{exit:'Salir',pwf_why:'Ingresaste con una contraseña temporal. Elegí una personal de 6 a 128 caracteres para continuar.',pwf_short:'Usá entre 6 y 128 caracteres. Podés usar una frase y espacios.',pass_short:'Usá entre 6 y 128 caracteres; para un restablecimiento, también se admite tenis.',fix_change_password_for:'¿Asignar una contraseña temporal a {n}? Se cerrarán sus sesiones y deberá cambiarla al entrar.',ui36_text_213:'Contraseña temporal (6–128) o tenis',p2_temporary:texts.es.temporary,p2_revoke_keys:texts.es.revokeKeys,p2_reset_done:texts.es.resetDone},en:{exit:'Sign out',pwf_why:'You signed in using a temporary password. Choose a personal password of 6 to 128 characters to continue.',pwf_short:'Use 6 to 128 characters. Passphrases and spaces are allowed.',pass_short:'Use 6 to 128 characters; tenis is also allowed for a reset.',fix_change_password_for:'Assign a temporary password to {n}? Their sessions will be closed and they must change it at sign-in.',ui36_text_213:'Temporary password (6–128) or tenis',p2_temporary:texts.en.temporary,p2_revoke_keys:texts.en.revokeKeys,p2_reset_done:texts.en.resetDone}};
  if(typeof TRANSLATIONS!=='undefined')for(const l of ['es','en'])Object.assign(TRANSLATIONS[l],translations[l]);
@@ -68,7 +70,7 @@
      }
      if(closed)return;
      if(ctx()!==startContext||getToken()!==startToken||!result.token)throw Error(tr('expired'));
-     _token=result.token;root.SohailSession?.enable();finish(true);
+     _token=result.token;rotations.record(startContext,ctx());root.SohailSession?.enable();finish(true);
     }catch(e){if(!closed)error.textContent=e.message||tr('failed');}
     finally{busy=false;if(!closed){submit.disabled=false;pk.disabled=false;}}
    }
@@ -76,7 +78,11 @@
   }).finally(()=>{verification=null;});
   return verification;
  }
- root.fetch=api.guard({fetcher:originalFetch,origin:location.origin,getToken,context:ctx,verify});
+ root.fetch=api.guard({fetcher:originalFetch,origin:location.origin,getToken,context:ctx,verify,sameContext});
+ async function ensureFresh(){
+  try{const p=JSON.parse(atob(getToken().split('.')[0].replace(/-/g,'+').replace(/_/g,'/')));if(p.authAt>0&&Date.now()-p.authAt>=0&&Date.now()-p.authAt<540000)return true;}catch(_){}
+  return verify(); // Client convenience only; the server still enforces freshness.
+ }
  async function sessions(){
   if(document.getElementById('p2-sessions'))return;
   const start=ctx(),d=dialog('sessions');d.id='p2-sessions';d.append(node('p',tr('sessionsHint'),{'data-p2-text':'sessionsHint'}));
@@ -109,7 +115,7 @@
   const b=node('button',tr('retry'),{type:'button',class:'btn','data-p2-text':'retry'});b.onclick=async()=>{b.disabled=true;try{const r=await root.SohailSession.logout();if(r?.ok)panel.remove();}finally{b.disabled=false;}};
   panel.append(b);document.getElementById('login-screen')?.prepend(panel);
  }
- root.SohailSecurity={verify,sessions,logoutNotice,cancel:()=>{verificationDialog?.dispatchEvent(new Event('cancel',{cancelable:true}));document.getElementById('p2-sessions')?.remove();},
+ root.SohailSecurity={verify,ensureFresh,sessions,logoutNotice,sameOperationSession:key=>sameContext([typeof _ligaActual==='string'?_ligaActual:'',key].join('|')),cancel:()=>{rotations.clear();verificationDialog?.dispatchEvent(new Event('cancel',{cancelable:true}));document.getElementById('p2-sessions')?.remove();},
   cardHTML:()=>'<div class="card p2-account-card"><div class="section-lbl">'+escape(tr('sessions'))+'</div><p>'+escape(tr('sessionsHint'))+'</p><button class="btn" type="button" onclick="SohailSecurity.sessions()">'+escape(tr('open'))+'</button></div>',
   loginAgain:()=>{const el=document.getElementById('login-err');if(el){el.textContent=tr('loginAgain');el.style.display='block';}}};
  new MutationObserver(translate).observe(document.documentElement,{attributes:true,attributeFilter:['lang']});
@@ -117,7 +123,7 @@
  'use strict';
  // Automatic retry is allowed ONLY for the explicit pre-mutation step-up code,
  // once, to a same-origin allowlisted API, with unchanged league/account context.
- function guard({fetcher,origin,getToken,context,verify}){
+ function guard({fetcher,origin,getToken,context,verify,sameContext}){
   return async function(input,init={}){
    let eligible=false,headers,scope,token;
    try{
@@ -130,10 +136,20 @@
    if(!eligible||response.status!==403)return response;
    let body;try{body=await response.clone().json();}catch(_){return response;}
    if(body.code!=='REAUTH_REQUIRED'||context()!==scope||getToken()!==token||init.signal?.aborted)return response;
-   if(!await verify()||context()!==scope||init.signal?.aborted||!getToken())return response;
+   if(!await verify()||!(sameContext?sameContext(scope):context()===scope)||init.signal?.aborted||!getToken())return response;
    headers.set('Authorization','Bearer '+getToken());
    return fetcher(input,{...init,headers});
   };
  }
- return {guard};
+ // Memory-only receipt of a successful, locally requested verification.
+ // A new login, changed account/league, expired receipt, or logout cannot match.
+ function rotationTracker(now=Date.now){
+  const links=new Map();
+  function trim(){for(const [k,v]of links)if(now()-v.at>60000)links.delete(k);while(links.size>16)links.delete(links.keys().next().value);}
+  return {record(from,to){if(from!==to){links.set(from,{to,at:now()});trim();}},clear(){links.clear();},matches(from,to){
+   if(from===to)return true;trim();let p=from;const seen=new Set();
+   while(links.has(p)&&!seen.has(p)){seen.add(p);p=links.get(p).to;if(p===to)return true;}return false;
+  }};
+ }
+ return {guard,rotationTracker};
 });

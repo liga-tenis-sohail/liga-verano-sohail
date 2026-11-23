@@ -928,40 +928,29 @@ function setPoSize(v){
   playoff.forcedSize=newV;
   if(playoff.started||playoff.preview){rebuildAll();showPlayoffView();toast((""+t('ui36_text_155')+""));}
 }
-function addPlayerUI(){
-  const nom=(document.getElementById('ap-nom').value||'').trim();
-  const ape=(document.getElementById('ap-ape').value||'').trim();
-  const gid=+document.getElementById('ap-grp').value;
-  const full=(nom+' '+ape).trim();
+async function addPlayerUI(){
+  if(_altaJugadoresBusy)return;
+  const n=document.getElementById('ap-nom'),a=document.getElementById('ap-ape'),g=document.getElementById('ap-grp');
+  if(!n||!a||!g)return;
+  const nom=(n.value||'').trim(),ape=(a.value||'').trim(),gid=Number(g.value),full=(nom+' '+ape).replace(/\s+/g,' ').trim();
   if(!nom||!ape){toast(t('add_fill_both'));return;}
-  // gid=0 → "Sin grupo": alta local (USERS/ALLNAMES) sin ubicarlo en
-  // ningún grupo del ciclo activo. Antes esto se rechazaba con el toast
-  // "elegí un grupo"; ahora el select del form ofrece "Sin grupo" arriba
-  // de todo y ese caso se maneja acá. Cualquier otro valor no numérico
-  // sigue cayendo al toast (defensa contra un DOM manipulado).
-  if(isNaN(gid) || gid<0){toast(t('add_choose_group'));return;}
-  // Verificar si ya está en algún grupo activo (no solo en USERS/ALLNAMES)
-  const inAnyGroup = cycles.some(c=>c.groups&&c.groups.some(g=>(g.players||[]).includes(full)));
-  if(inAnyGroup){toast(t('add_exists'));return;}
-  // Si existe en USERS pero no en ningún grupo, limpiarlo y re-agregar
-  if(USERS[full]) delete USERS[full];
-  const idxA = ALLNAMES.indexOf(full);
-  if(idxA>=0) ALLNAMES.splice(idxA,1);
-  if(gid > 0){
-    addPlayerToCycle(full,gid);
-    renderPerfil();toast(tf('add_done',{name:full,g:groupName(gid)}));
-  } else {
-    // Alta sin grupo: mismo efecto interno que addPlayerToCycle (registrar
-    // en ALLNAMES + USERS) pero SIN empujarlo a ningún grupo del ciclo
-    // activo. El jugador queda listo para asignarle grupo después a mano
-    // desde Gestión de jugadores.
-    if(ALLNAMES.indexOf(full)<0) ALLNAMES.push(full);
-    if(!USERS[full]) USERS[full] = {role:'player', pass:null, name:full};
-    renderPerfil();toast(full+(""+t('ui36_text_156')+""));
+  if(!Number.isSafeInteger(gid)||gid<0){toast(t('add_choose_group'));return;}
+  // Existing accounts must be assigned via player management, never deleted/recreated.
+  if(!_altaJugadoresPending&&Object.keys(USERS).some(name=>name.toLocaleLowerCase()===full.toLocaleLowerCase())){
+    _altaNotice('El jugador ya existe. Asignale un grupo desde Gestión de jugadores; su ficha no se reemplazó.','ap-nom');return;
   }
-  // Primero guardar, DESPUÉS refrescar la lista: /api/users lee de la base,
-  // así que si refrescáramos antes traeríamos la lista sin el jugador nuevo.
-  persist(true).then(initLogin);
+  const btn=document.querySelector('[onclick="addPlayerUI()"]');
+  const controls=[n,a,g,btn].filter(Boolean),disabled=controls.map(el=>el.disabled);
+  controls.forEach(el=>{el.disabled=true;});if(btn)btn.textContent='Guardando…';
+  try{
+    const result=await guardarAltaJugadores([{nombre:full,grupo:gid}]);
+    renderPerfil();
+    toast(result.agregados.length?'Alta confirmada: '+result.agregados.join(', ')+'.':'El jugador ya estaba en la liga. No se duplicó ni reemplazó su ficha.');
+  }catch(e){_altaNotice(e.message||'No se pudo guardar. El formulario se conserva.','ap-nom');}
+  finally{
+    controls.forEach((el,i)=>{if(el.isConnected!==false)el.disabled=disabled[i];});
+    if(btn&&btn.isConnected!==false)btn.textContent=_altaJugadoresPending?'Comprobar guardado':t('add_btn');
+  }
 }
 async function setDestino(gid,pos,val){
   if(!puedeGestionarAdmins(currentUser)||_ligaReadOnly){toast(t('da_forbidden'));return;}

@@ -723,57 +723,100 @@ function ajActualizarCount(){
   const el=document.getElementById('aj-count'); if(!el)return;
   el.textContent=t('aj_total').replace('{n}', Object.keys(_addLigaSel).length);
 }
+// Confirmed, additive player creation. No local account deletion, no blind retry.
+let _altaJugadoresBusy=false,_altaJugadoresPending=null;
+function _altaContext(){return [_ligaActual||'',_saveSessionKey()].join('|');}
+function _altaSame(ctx){const i=ctx.indexOf('|');return ctx.slice(0,i)===(_ligaActual||'')&&_sameVerifiedSaveSession(ctx.slice(i+1));}
+function _altaProblem(message,code='PLAYER_SAVE_FAILED'){return Object.assign(new Error(message),{code});}
+function _altaNotice(message,anchorId){
+ const anchor=document.getElementById(anchorId),host=anchor?.parentElement;
+ if(host){let el=host.querySelector('[data-player-save-status]');if(!el){el=document.createElement('p');el.dataset.playerSaveStatus='1';el.setAttribute('role','alert');el.style.whiteSpace='normal';host.appendChild(el);}el.textContent=message;}
+ toast(message);
+}
+async function _altaRefresh(ctx){
+ const before=_serialize();
+ const {response,data}=await SohailRequest.json(fetch,'/api/state?liga='+encodeURIComponent(_ligaActual),{headers:{Authorization:'Bearer '+_token},cache:'no-store'},{timeout:15000});
+ if(!_altaSame(ctx))throw _altaProblem('La sesión o la liga cambió. No se aplicó la respuesta a esta pantalla.','PLAYER_CONTEXT_CHANGED');
+ if(before!==_serialize())throw _altaProblem('Hay otros cambios pendientes en la pantalla. Exportalos antes de recargar; no vuelvas a enviar esta alta.','PLAYER_LOCAL_CHANGES');
+ if(!response.ok||!SohailRequest.stateValid(data.state))throw _altaProblem('No se pudo comprobar la liga. Conservá el formulario y usá Comprobar guardado.','PLAYER_READ_FAILED');
+ if(!_hydrate(data.state))throw _altaProblem('No se pudo actualizar la pantalla. Comprobá el guardado antes de volver a enviar.','PLAYER_READ_FAILED');
+ if(typeof data.token==='string'&&data.token)_token=data.token;
+ _lastSaved=_serialize();_loadOK=true;_saveConflict=false;_saveUnconfirmed=false;_unconfirmedAttempt=null;_hideLoadError();
+ return data.state;
+}
+function _altaFound(state,j){
+ const normalized=n=>String(n||'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+ return Object.entries(state.users||{}).find(([name,u])=>u&&((j.jugadorId&&u.jugadorId===j.jugadorId)||(!j.jugadorId&&normalized(name)===normalized(j.nombre))))?.[0]||null;
+}
+async function guardarAltaJugadores(jugadores){
+ if(_altaJugadoresBusy)throw _altaProblem('El alta ya se está comprobando.','PLAYER_BUSY');
+ if(!_token||!currentUser||!esAdmin(currentUser)||_ligaReadOnly)throw _altaProblem('No tenés permiso para agregar jugadores en esta liga.','FORBIDDEN');
+ if(typeof isTutorialRunning==='function'&&isTutorialRunning())throw _altaProblem('Cerrá el tutorial antes de agregar jugadores.','TUTORIAL_ACTIVE');
+ if(!Array.isArray(jugadores)||!jugadores.length)throw _altaProblem('Seleccioná al menos un jugador.','INVALID_PLAYERS');
+ const ctx=_altaContext();let ownsLock=false;
+ _altaJugadoresBusy=true;
+ try{
+  if(_dataOperationBusy)throw _altaProblem('Hay otra operación en curso. Conservá el formulario e intentá después.','PLAYER_BUSY');
+  if(_altaJugadoresPending){
+   const pending=_altaJugadoresPending;
+   if(pending.snapshot!==_serialize())throw _altaProblem('Hay otros cambios locales. Exportalos antes de recargar; no vuelvas a enviar el alta.','PLAYER_LOCAL_CHANGES');
+   if(!_altaSame(pending.ctx)){_altaJugadoresPending=null;throw _altaProblem('Cambió la sesión. Comprobá los jugadores de esta liga antes de iniciar otra alta.','PLAYER_CONTEXT_CHANGED');}
+   _dataOperationBusy=true;ownsLock=true;
+   const state=await _altaRefresh(ctx),found=pending.jugadores.map(j=>_altaFound(state,j)).filter(Boolean);
+   const remaining=pending.jugadores.filter(j=>!_altaFound(state,j));
+   _altaJugadoresPending=null;
+   if(!found.length)throw _altaProblem('Comprobado: no se agregó ningún jugador. Los datos siguen en el formulario; podés volver a guardar.','PLAYER_NOT_SAVED');
+   return {ok:true,agregados:pending.confirmed?.agregados||found,recovered:true,remaining,refreshed:true};
+  }
+  if(!_loadOK||_saveConflict||_saveUnconfirmed)throw _altaProblem('Primero comprobá el estado de la liga y los cambios pendientes. Tus datos del alta no se borraron.','PLAYER_STATE_REQUIRED');
+  // Ask before starting the write deadline, so typing a password cannot time it out.
+  if(window.SohailSecurity?.ensureFresh&&!await SohailSecurity.ensureFresh())throw _altaProblem('Verificación cancelada. El alta no se envió y el formulario se conserva.','REAUTH_CANCELLED');
+  if(!_altaSame(ctx))throw _altaProblem('La sesión cambió. No se envió el alta.','PLAYER_CONTEXT_CHANGED');
+  if((_saveInFlight||_hasPendingChanges())&&!await _criticalSave())throw _altaProblem('No se confirmaron los cambios anteriores. El alta no se envió; conservá el formulario.','PLAYER_STATE_REQUIRED');
+  if(!_altaSame(ctx)||_dataOperationBusy)throw _altaProblem('Cambió el contexto de la operación. El alta no se envió.','PLAYER_CONTEXT_CHANGED');
+  const before=_serialize();_dataOperationBusy=true;ownsLock=true;
+  const pending={ctx:_altaContext(),jugadores:JSON.parse(JSON.stringify(jugadores)),snapshot:before,confirmed:null};_altaJugadoresPending=pending;
+  let result;
+  try{result=await SohailRequest.json(fetch,'/api/liga',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},
+   body:JSON.stringify({accion:'agregarJugadores',id:_ligaActual,ligaId:_ligaActual,jugadores})},{timeout:30000});}
+  catch(_){throw _altaProblem('No se confirmó el alta. El formulario se conserva. Usá Comprobar guardado antes de enviar otra vez.','PLAYER_SAVE_UNCONFIRMED');}
+  if(!_altaSame(pending.ctx))throw _altaProblem('La sesión cambió mientras se enviaba el alta. Comprobá el resultado antes de repetirla.','PLAYER_CONTEXT_CHANGED');
+  const {response,data}=result;
+  if(!response.ok){
+   if(response.status<500&&response.status!==408)_altaJugadoresPending=null;
+   const reason=typeof apiError==='function'?apiError(data):data.error;
+   throw _altaProblem((reason||'No se pudo completar el alta.')+' Los datos siguen en el formulario.',data.code||'PLAYER_SAVE_FAILED');
+  }
+  if(data.ok!==true||!Array.isArray(data.agregados))throw _altaProblem('Respuesta de alta incompleta. Usá Comprobar guardado; no vuelvas a crear al jugador.','PLAYER_SAVE_UNCONFIRMED');
+  pending.confirmed=data;
+  // A committed server version must not be overwritten by a stale autosave.
+  _loadOK=false;
+  if(before!==_serialize())throw _altaProblem('Alta guardada, pero hay otros cambios locales. Exportalos y comprobá el estado antes de continuar.','PLAYER_LOCAL_CHANGES');
+  try{await _altaRefresh(pending.ctx);}catch(e){throw _altaProblem('El servidor confirmó el alta. No la repitas: usá Comprobar guardado para actualizar la pantalla.','PLAYER_READ_FAILED');}
+  _altaJugadoresPending=null;
+  try{window.dispatchEvent(new Event('sohail-data-saved'));}catch(_){}
+  return {ok:true,agregados:data.agregados,remaining:[],refreshed:true};
+ }finally{if(ownsLock){if(_altaJugadoresPending&&_altaSame(_altaJugadoresPending.ctx))_loadOK=false;_dataOperationBusy=false;}_altaJugadoresBusy=false;}
+}
+
 async function agregarJugadoresConfirmar(){
+  if(_altaJugadoresBusy)return;
   const ids=Object.keys(_addLigaSel);
-  if(!ids.length){ toast(t('aj_none_sel')); return; }
-  // Separación por destino:
-  //   - grupo > 0 → endpoint agregarJugadores del backend (patrón original,
-  //     el backend resuelve jugadorId→nombre, agrega a la liga y ubica en
-  //     el grupo elegido).
-  //   - grupo === 0 → "Sin grupo": alta LOCAL en USERS/ALLNAMES a partir
-  //     del nombre que ya conocemos por _addLigaCat[i].nombre (viene del
-  //     catálogo cargado en abrirAgregarJugadores). No pasa por el
-  //     endpoint porque el endpoint espera un grupo válido — hacerlo así
-  //     evita depender de un cambio de contrato en /api/liga.
-  const jugadoresBackend = [];
-  const jugadoresLocales = [];
-  ids.forEach(jid=>{
-    const g = _addLigaSel[jid].grupo;
-    const j = _addLigaCat.find(x=>x.jugadorId===jid);
-    if(!j) return;
-    if(g > 0) jugadoresBackend.push({jugadorId:jid, grupo:g});
-    else jugadoresLocales.push({nombre: j.nombre});
-  });
-  const btn=event&&event.target?event.target.closest('button'):null;
+  if(!ids.length){toast(t('aj_none_sel'));return;}
+  const jugadores=ids.map(jid=>({jugadorId:jid,grupo:Number(_addLigaSel[jid].grupo)||0}));
+  const btn=document.querySelector('[onclick="agregarJugadoresConfirmar()"]');
   if(btn){btn.disabled=true;btn.textContent=t('aj_adding');}
   try{
-    // Orden importante: primero altas locales, después persist, después
-    // el fetch al backend, y recién ahí loadState. Si el loadState fuera
-    // ANTES del persist local, releería el estado del servidor y pisaría
-    // las altas locales que todavía no habíamos guardado.
-    if(jugadoresLocales.length){
-      jugadoresLocales.forEach(j=>{
-        const full = j.nombre;
-        if(!full) return;
-        if(ALLNAMES.indexOf(full)<0) ALLNAMES.push(full);
-        if(!USERS[full]) USERS[full] = { role:'player', pass:null, name: full };
-      });
+    const result=await guardarAltaJugadores(jugadores);
+    if(result.remaining.length){
+      for(const id of ids)if(!result.remaining.some(j=>j.jugadorId===id))delete _addLigaSel[id];
+      ajActualizarCount();
+      _altaNotice('Se comprobaron '+result.agregados.length+' jugadores. Revisá los restantes y guardalos.','aj-count');return;
     }
-    await persist(true);
-    let agregadosBackend = [];
-    if(jugadoresBackend.length){
-      const r=await fetch('/api/liga',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+_token},body:JSON.stringify({accion:'agregarJugadores', id:_ligaActual, jugadores: jugadoresBackend, ligaId:_ligaActual||undefined})});
-      const d=await r.json().catch(()=>({}));
-      if(!r.ok){ alert(d.error||t('aj_err')); if(btn){btn.disabled=false;btn.textContent=t('aj_add');} return; }
-      agregadosBackend = d.agregados || [];
-    }
-    closeM();
-    const total = agregadosBackend.length + jugadoresLocales.length;
-    toast(t('aj_done').replace('{n}', total));
-    await loadState();
-    renderShell();
-    showSub('perfil');
-  }catch(_){ alert(t('aj_err')); if(btn){btn.disabled=false;btn.textContent=t('aj_add');} }
+    closeM();renderShell();showSub('perfil');
+    toast(result.agregados.length?t('aj_done').replace('{n}',result.agregados.length):'Los jugadores ya estaban en la liga. No se duplicó ni reemplazó ninguna ficha.');
+  }catch(e){_altaNotice(e.message||t('aj_err'),'aj-count');}
+  finally{if(btn&&btn.isConnected!==false){btn.disabled=false;btn.textContent=_altaJugadoresPending?'Comprobar guardado':t('aj_add');}}
 }
 
 // ---- Cerrar / reabrir / eliminar ----

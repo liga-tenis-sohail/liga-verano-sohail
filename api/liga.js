@@ -25,6 +25,19 @@ function idDeJugador(nombre){
   return 'p_' + crypto.createHash('sha256').update(norm).digest('hex').slice(0, 10);
 }
 
+// In this additive flow, a concurrent or previously existing profile must never
+// be replaced by an upsert with pass:null. Read the winner after INSERT DO NOTHING.
+async function ensureAddPlayerProfile(candidate){
+  const l=require('./_lib'),headers=l.supaHeaders({'Content-Type':'application/json',Prefer:'resolution=ignore-duplicates,return=minimal'});
+  const r=await fetch(l.SUPA_URL+'/rest/v1/jugadores?on_conflict=id',{method:'POST',headers,body:JSON.stringify({...candidate,actualizado:new Date().toISOString()})});
+  if(!r.ok)throw Object.assign(new Error('No se pudo registrar la ficha. No se guardó el alta en la liga.'),{status:503,code:'PLAYER_PROFILE_UNAVAILABLE'});
+  const q=await fetch(l.SUPA_URL+'/rest/v1/jugadores?id=eq.'+encodeURIComponent(candidate.id)+'&select=id,nombre,email,pass',{headers:l.supaHeaders()});
+  if(!q.ok)throw Object.assign(new Error('No se pudo comprobar la ficha del jugador.'),{status:503,code:'PLAYER_PROFILE_UNAVAILABLE'});
+  const rows=await q.json(),record=Array.isArray(rows)&&rows.find(x=>x.id===candidate.id);
+  if(!record||typeof record.nombre!=='string'||!record.nombre.trim())throw Object.assign(new Error('Ficha de jugador incompleta.'),{status:503,code:'PLAYER_PROFILE_UNAVAILABLE'});
+  return record;
+}
+
 // Valida un adjunto de imagen para mensajes (solo admin puede mandar uno,
 // ver los 3 puntos que llaman esto: enviarAdmin/enviarGrupo/enviarPlayoff).
 // El cliente ya comprime la imagen antes de mandarla (mismo criterio que
@@ -130,6 +143,7 @@ module.exports = async function handler(req, res){
   // Keep the existing function count: dedicated operation flows are private
   // modules reached through this endpoint, not additional Vercel Functions.
   if(req.query && req.query.operacion!==undefined){
+    if(req.query.operacion==='import-results')return require('./_import-results').handler(req,res);
     if(req.query.operacion==='restore')return require('./_restore_route')(req,res);
     if(req.query.operacion==='identities')return require('./_identities_route')(req,res);
     if(req.query.operacion==='injuries')return require('./_injuries').handler(req,res);
@@ -626,48 +640,41 @@ module.exports = async function handler(req, res){
     const cicloActivo = estado.cycles && estado.cycles[(estado.activeN || 1) - 1];
     const numGroups = (cicloActivo && Array.isArray(cicloActivo.groups)) ? cicloActivo.groups.length : 0;
 
-    let catalogo = {}; try { catalogo = await readCatalogo(); } catch(e){ catalogo = {}; }
+    if(jugadoresIn.length>500)return res.status(400).json({code:'INVALID_PLAYERS',error:'Importá como máximo 500 jugadores por operación.'});
+    for(const j of jugadoresIn){
+      if(!j||typeof j!=='object'||Array.isArray(j)||(!j.jugadorId&&!j.nombre))return res.status(400).json({code:'INVALID_PLAYER',error:'Falta el nombre o la identidad del jugador.'});
+      if(j.nombre!==undefined&&(typeof j.nombre!=='string'||!j.nombre.trim()||j.nombre.trim().length>120||/[\u0000-\u001f\u007f]/.test(j.nombre)||['admin','superadmin','__proto__','constructor','prototype'].includes(j.nombre.trim().toLowerCase())))return res.status(400).json({code:'INVALID_PLAYER',error:'Nombre de jugador inválido o reservado.'});
+      const group=Number(j.grupo);
+      if(!Number.isSafeInteger(group)||group<0||group>numGroups)return res.status(400).json({code:'INVALID_GROUP',error:'El grupo de destino no existe. Revisá el grupo sin borrar el formulario.'});
+      if(group>0&&(cicloActivo?.status!=='active'||estado.playoff?.started))return res.status(409).json({code:'CYCLE_NOT_ACTIVE',error:'No se puede agregar al grupo de un ciclo cerrado o durante playoffs. Elegí Sin grupo.'});
+    }
+    let catalogo;try{catalogo=await readCatalogo();}catch(e){return res.status(503).json({code:'PLAYER_CATALOG_UNAVAILABLE',error:'No se pudo consultar el catálogo. No se agregó ningún jugador a la liga.'});}
+    for(const j of jugadoresIn)if(j.jugadorId&&(typeof j.jugadorId!=='string'||!Object.hasOwn(catalogo,j.jugadorId)))return res.status(400).json({code:'PLAYER_NOT_FOUND',error:'El jugador seleccionado ya no está en el catálogo. Revisá la selección.'});
     const agregados = [];
 
     for(const j of jugadoresIn){
       if(!j) continue;
       let perfil = null;
 
-      if(j.jugadorId && catalogo[j.jugadorId]){
-        perfil = catalogo[j.jugadorId];
-      } else if(j.email){
-        try { perfil = await buscarJugadorPorEmail(j.email); } catch(e){ perfil = null; }
-        if(!perfil && j.nombre){
-          const idPorNombre = idDeJugador(j.nombre);
-          if(catalogo[idPorNombre]){
-            perfil = catalogo[idPorNombre];
-            if(!perfil.email){
-              perfil.email = String(j.email).trim().toLowerCase();
-              try { await upsertJugador(perfil); } catch(e){}
-            }
-          } else {
-            perfil = { id: idPorNombre, nombre: String(j.nombre).trim(), email: String(j.email).trim().toLowerCase(), pass: null };
-            try { await upsertJugador(perfil); } catch(e){}
-          }
-        }
-      } else if(j.nombre){
-        const idPorNombre = idDeJugador(j.nombre);
-        if(catalogo[idPorNombre]){
-          perfil = catalogo[idPorNombre];
-        } else {
-          perfil = { id: idPorNombre, nombre: String(j.nombre).trim(), email: null, pass: null };
-          try { await upsertJugador(perfil); } catch(e){}
+      if(j.nombre&&Object.keys(estado.users).some(n=>n.trim().toLowerCase()===j.nombre.trim().toLowerCase()))continue;
+      if(j.jugadorId){
+        perfil=catalogo[j.jugadorId];
+      }else{
+        if(j.email)perfil=await buscarJugadorPorEmail(j.email);
+        if(!perfil&&j.nombre){
+          const candidateId=idDeJugador(j.nombre);
+          perfil=catalogo[candidateId]||await ensureAddPlayerProfile({id:candidateId,nombre:String(j.nombre).trim(),email:j.email?String(j.email).trim().toLowerCase():null,pass:null});
         }
       }
 
-      if(!perfil || !perfil.nombre) continue;
+      if(!perfil||typeof perfil.nombre!=='string'||!perfil.nombre.trim()||perfil.nombre.length>120)return res.status(400).json({code:'INVALID_PLAYER',error:'La ficha seleccionada no tiene un nombre válido.'});
       const nomNorm = perfil.nombre.trim().toLowerCase();
-      if(nomNorm === 'admin' || nomNorm === 'superadmin') continue;
+      if(['admin','superadmin','__proto__','prototype','constructor'].includes(nomNorm))return res.status(400).json({code:'INVALID_PLAYER',error:'Nombre reservado.'});
       // Ya está en esta liga: no se duplica (silenciosamente se saltea, el
       // frontend ya filtra esto de antemano al armar _addLigaCat, pero se
       // revalida acá por si el catálogo cambió entre que se abrió el modal
       // y se confirmó).
-      if(estado.ALLNAMES.includes(perfil.nombre)) continue;
+      if(Object.keys(estado.users).some(n=>n.trim().toLowerCase()===nomNorm)||estado.ALLNAMES.some(n=>n.trim().toLowerCase()===nomNorm)) continue;
 
       estado.ALLNAMES.push(perfil.nombre);
 
