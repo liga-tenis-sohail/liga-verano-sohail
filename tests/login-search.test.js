@@ -66,10 +66,10 @@ test('BOOT410 expired request cannot repopulate names after a session was authen
  x.context._token='new-session';x.context.currentUser={name:'Alicia'};x.resolveList({mode:'global',players:[{v:'Old'}]});await running;
  assert.equal(x.paints.length,1);
 });
-test('PACKAGE410 login retains native dropdown and names the combobox; Excel is not parser-blocking',()=>{
+test('PACKAGE login keeps only the native dropdown and adds read-only consultation; Excel is lazy',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
- assert.match(html,/<select id="login-user"/);assert.match(html,/id="login-user-search" role="combobox"/);
- assert.match(html,/aria-controls="login-user-suggestions"/);assert.ok(!/<script[^>]+src="https:[^"]*xlsx/.test(html));
+ assert.match(html,/<select id="login-user"/);assert.doesNotMatch(html,/id="login-user-search"/);
+ assert.match(html,/id="login-consult-league"/);assert.doesNotMatch(html,/id="login-user-suggestions"/);assert.ok(!/<script[^>]+src="https:[^"]*xlsx/.test(html));
  assert.ok(html.indexOf('excel-loader.js?v=')>html.indexOf('jugadores-perfiles.js?v='));
  assert.ok(html.includes('content="sohail-v480-rules-injuries"'));
 });

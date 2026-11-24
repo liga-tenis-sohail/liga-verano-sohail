@@ -60,7 +60,12 @@
     "performance-ui.js",
     "performance-v510.css",
     "cycle-close.js",
-    "cycle-close-ui.js"
+    "cycle-close-ui.js",
+    "league-consultation.js",
+    "league-consultation.css",
+    "operation-feedback.js",
+    "import-results-review.js",
+    "import-results.css"
   ],
   "optional": [
     "favicon.ico"

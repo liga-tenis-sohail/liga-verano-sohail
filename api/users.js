@@ -42,6 +42,8 @@ let cacheGlobal = null;   // { data, at }
 
 module.exports = async function handler(req, res){
   if(!envOK(res)) return;
+  // Public consultation is a separate minimal projection; no session is issued.
+  if(req.query && req.query.consulta!==undefined)return require('./_public-results').handler(req,res);
 
   // Qué liga: viene por query (?liga=anual-2026). Si NO viene, modo global.
   const q = (req.query && req.query.liga) ? String(req.query.liga) : '';
