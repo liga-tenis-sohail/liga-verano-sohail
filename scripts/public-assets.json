@@ -67,7 +67,9 @@
     "import-results-review.js",
     "import-results.css",
     "player-experience.js",
-    "player-experience.css"
+    "player-experience.css",
+    "login-presentation.css",
+    "signature-ui.css"
   ],
   "optional": [
     "favicon.ico"
