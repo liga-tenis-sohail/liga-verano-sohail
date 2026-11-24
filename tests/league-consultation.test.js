@@ -61,4 +61,27 @@ test('CONSULT retry-after prevents a new request until the server pause expires'
 test('CONSULT scoreboard reverses score to the row player without changing results',()=>{const r={kind:'played',a:'A',b:'B',sets:[[6,2],[7,6]]};assert.equal(Client.score(r,'A'),'6–2 / 7–6');assert.equal(Client.score(r,'B'),'2–6 / 6–7');assert.deepEqual(r.sets,[[6,2],[7,6]]);});
 test('CONSULT login has no search field, native dropdown is retained',()=>{const s=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');assert.match(s,/<select id="login-user"/);assert.doesNotMatch(s,/id="login-user-search"/);assert.match(s,/id="login-consult-league"/);assert.ok(s.indexOf('league-consultation.js')<s.indexOf('excel-loader.js'));});
 test('CONSULT public modules are loaded once and present in build allowlist',()=>{const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8'),manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../scripts/public-assets.json')));for(const file of ['league-consultation.js','league-consultation.css']){assert.equal(html.split(file+'?v=').length-1,1);assert.equal(manifest.assets.filter(f=>f===file).length,1);}});
-test('CONSULT 85 percent zoom is scoped to tables and can switch to 100',()=>{const css=fs.readFileSync(path.join(__dirname,'../public/league-consultation.css'),'utf8');assert.match(css,/--sohail-table-zoom:\.85/);assert.match(css,/data-sohail-table-size="100"/);assert.ok(!/(?:body|html)\s*\{[^}]*zoom\s*:/.test(css));assert.match(css,/min-width:128px/);assert.match(css,/@media print/);});
+test('CONSULT 85 percent zoom is scoped to tables and can switch to 100',()=>{const css=fs.readFileSync(path.join(__dirname,'../public/league-consultation.css'),'utf8');assert.match(css,/--sohail-table-zoom:\.85/);assert.match(css,/data-sohail-table-size="100"/);assert.ok(!/(?:body|html)\s*\{[^}]*zoom\s*:/.test(css));assert.match(css,/width:1%;min-width:0;max-width:none/);assert.match(css,/--sohail-name-max:min\(220px,46vw\)/);assert.match(css,/@media print/);});
+
+// Branding is public presentation only. No club IDs, links or arbitrary CSS.
+test('CONSULT palette contains only validated colors of the selected league and visible clubs',()=>{
+ const s=resultFixture();s.LEAGUE_COLOR_PRI='#234567';s.LEAGUE_COLOR_ACC='#ABCDEF';s.LEAGUE_COLOR_HL='#123456';
+ s.LEAGUE_TEXT_COLORS={light:'#112233',dark:'#fff000',header:'#ffffff',email:'PRIVATE_EMAIL'};
+ s.matches[0].club='Sohail';s.CLUBS=[{name:'Sohail',bg:'#21ABC0',id:'PRIVATE_ID',url:'PRIVATE_LINK'}, {name:'Hidden Club',bg:'#aabbcc'}];
+ const out=snapshot(s);assert.deepEqual(out.appearance,{primary:'#234567',accent:'#abcdef',highlight:'#123456',textColors:{light:'#112233',dark:'#fff000',header:'#ffffff'},clubs:[{name:'Sohail',color:'#21abc0'}]});
+ prohibited(out);assert.ok(!JSON.stringify(out).includes('PRIVATE_'));assert.ok(!JSON.stringify(out).includes('Hidden Club'));
+});
+test('CONSULT unsafe CSS colors are rejected at the projection boundary and in the client',()=>{
+ const s=resultFixture();s.LEAGUE_COLOR_PRI='url(https://example.invalid)';s.LEAGUE_COLOR_ACC='#ABC';s.LEAGUE_COLOR_HL={hex:'#ffffff'};
+ s.LEAGUE_TEXT_COLORS={header:'red; color:blue'};s.matches[0].club='Sohail';s.CLUBS=[{name:'Sohail',bg:'url(javascript:alert(1))'}];
+ const o=snapshot(s);assert.deepEqual(o.appearance,{primary:'#1b4f9c',accent:'#f5c518',highlight:'#ffedd5',textColors:{},clubs:[]});
+ for(const x of ['red','#abc','url(x)','#000000; color:red',null,{},'#ffffff\n'])assert.equal(Client.safeColor(x),null);
+ assert.equal(Client.safeColor('#12ABcd'),'#12abcd');
+});
+test('CONSULT no closed/unpublished result reveals club palette',()=>{
+ const s=fixture();s.CLUBS=[{name:'Private Club',bg:'#fedcba'}];s.matches=[match({status:'pending',club:'Private Club'}),match({id:2,cycle:2,status:'confirmed',club:'Private Club'})];
+ assert.deepEqual(snapshot(s).appearance.clubs,[]);
+});
+test('CONSULT theme tokens are scoped to dialog, not the login or root theme',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../public/league-consultation.js'),'utf8');assert.ok(src.includes('dialog.style.setProperty(k,v)'));assert.doesNotMatch(src,/\.setBrand\s*\(/);assert.doesNotMatch(src,/documentElement\.style/);assert.equal(Client.initials('José Fernández de la Torre'),'JF');
+});

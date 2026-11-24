@@ -1,74 +1,110 @@
-/* Table density is scoped. Never scale login, dialogs, forms or browser zoom. */
-:root{--sohail-table-zoom:.85}
+/* Sohail consultation: the same league tokens and component rhythm as the app.
+   Table density is scoped; do not scale the page, login or forms. */
+:root{--sohail-table-zoom:.85;--sohail-name-max:min(220px,46vw)}
 :root[data-sohail-table-size="100"]{--sohail-table-zoom:1}
-.ui-v3 #view-grupos table.cls-table,.ui-v3 #view-grupos table.res-table{zoom:var(--sohail-table-zoom);width:100%}
+.ui-v3 #view-grupos table.cls-table,.ui-v3 #view-grupos table.res-table{zoom:var(--sohail-table-zoom);width:100%;table-layout:auto}
 .ui-v3 #view-grupos table.cls-table{min-width:820px}
 .ui-v3 #view-grupos .cls-table th,.ui-v3 #view-grupos .cls-table td{padding:8px 6px}
-.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:first-child{width:76px;min-width:70px;max-width:86px;padding-left:5px;padding-right:5px}
-.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(2){width:144px;min-width:128px;max-width:160px;overflow-wrap:anywhere;white-space:normal!important}
+/* A 1% preferred width in auto table layout makes these columns follow their
+   intrinsic content. Only very long labels wrap, not the whole table. */
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:first-child{width:1%;min-width:0;max-width:none;padding-left:6px;padding-right:6px;white-space:nowrap!important}
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(2),.ui-v3 #view-grupos table.res-table tr>:first-child{width:1%;min-width:0;max-width:none;white-space:nowrap!important;overflow-wrap:normal}
+.ui-v3 #view-grupos :is(.cls-table,.res-table) .nm-link{display:inline-block;vertical-align:middle;width:max-content;max-width:var(--sohail-name-max);white-space:normal!important;overflow-wrap:anywhere}
 .ui-v3 #view-grupos .cls-table .dest{font-size:11px;padding:3px 5px;white-space:nowrap}
-.ui-v3 #view-grupos .cls-table .avatar{width:22px;height:22px;min-width:22px;font-size:10px;margin-right:5px}
+.ui-v3 #view-grupos .cls-table .avatar{width:22px;height:22px;min-width:22px;font-size:10px;margin-right:5px;vertical-align:middle}
 .ui-v3 #view-grupos table.res-table{min-width:590px}
 .ui-v3 #view-grupos table.res-table th,.ui-v3 #view-grupos table.res-table td{min-width:76px;padding:9px 7px}
-.ui-v3 #view-grupos table.res-table tr>:first-child{width:118px;min-width:108px;max-width:138px}
+.ui-v3 #view-grupos table.res-table tr>:first-child{min-width:0}
 .sohail-table-size{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
-.sohail-table-size button{min-height:36px;padding:6px 10px;font-size:12px;border:1px solid var(--border,#d6dfeb);border-radius:8px;background:var(--surface,#fff);color:var(--text,#17243a);cursor:pointer}
-.sohail-table-size button[aria-pressed="true"]{background:var(--pri,#1b4f9c);color:var(--priText,#fff);border-color:var(--pri,#1b4f9c)}
+.sohail-table-size button{min-height:36px;padding:6px 10px;font-size:12px;font-family:inherit;font-weight:650;border:1px solid var(--border2,#c8d0dc);border-radius:8px;background:var(--surface,#fff);color:var(--text,#17243a);cursor:pointer}
+.sohail-table-size button[aria-pressed="true"]{background:var(--action,#1b4f9c);color:var(--on-action,#fff);border-color:var(--action,#1b4f9c)}
 .sohail-table-size button:focus-visible{outline:3px solid var(--link,#1b4f9c);outline-offset:2px}
 .login-consult{margin-top:18px;padding-top:17px;border-top:1px solid var(--border,#d6dfeb)}
-#login-consult-league{width:100%;min-height:46px;background:var(--surface2,#edf1f6);color:var(--text,#17243a);border:1px solid var(--border,#d6dfeb);border-radius:10px;font-size:15px;font-weight:700;cursor:pointer}
+#login-consult-league{width:100%;min-height:46px;background:var(--soft,#e6f1fb);color:var(--link,#1b4f9c);border:1px solid var(--border2,#c8d0dc);border-radius:10px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer}
+#login-consult-league:hover{border-color:var(--action,#1b4f9c)}
 #login-consult-hint{font-size:12px;line-height:1.5;color:var(--text2,#536174);text-align:center;margin:9px 0 0}
-.sohail-consultation{margin:auto;padding:0;border:1px solid var(--border,#d6dfeb);border-radius:18px;background:var(--bg,#f4f7fb);color:var(--text,#17243a);width:min(1240px,calc(100vw - 32px));max-width:none;height:min(920px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);box-shadow:0 24px 80px #0005;overflow:hidden}
+.sohail-consultation{margin:auto;padding:0;border:1px solid var(--border,#d6dfeb);border-radius:18px;background:var(--bg,#eef2f7);color:var(--text,#17243a);font:inherit;width:min(1400px,calc(100vw - 32px));max-width:none;height:min(1000px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);box-shadow:var(--shadow-lg,0 24px 80px #0005);overflow:hidden;--consult-diagonal:#16243d}
 .sohail-consultation[open]{display:flex;flex-direction:column}
 .sohail-consultation::backdrop{background:rgba(15,26,45,.65)}
 .sohail-consultation *{box-sizing:border-box}
-.consult-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px 24px;background:var(--surface,#fff);border-bottom:1px solid var(--border,#d6dfeb);flex:none}
-.consult-head h1{font-size:23px;line-height:1.2;letter-spacing:-.025em;margin:0 0 8px;color:var(--text,#17243a)}
-.consult-badge{font-size:12px;color:var(--text2,#536174);margin:0}
-.sohail-consultation .btn{min-height:44px;font:inherit;font-size:13px;padding:10px 14px;white-space:normal;line-height:1.3;flex-shrink:0}
-.consult-body{padding:22px 24px;overflow-y:auto;overflow-x:hidden;min-height:0;flex:1}
-.consult-top-tools,.consult-filters{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin-bottom:16px}
-.consult-top-tools>div{flex:1;min-width:150px}
-.sohail-consultation label{display:block;font-size:12px;font-weight:700;margin:0 0 7px;color:var(--text2,#536174)}
-.sohail-consultation select{width:100%;min-width:0;max-width:100%;margin:0;padding:10px 12px;font-size:15px;min-height:44px;border:1px solid var(--border,#d6dfeb);border-radius:9px;background:var(--surface,#fff);color:var(--text,#17243a)}
-.consult-filters>div{min-width:115px}
-.consult-filters .sohail-table-size{margin-left:auto;align-self:center}
-.consult-filters .sohail-table-size button{min-height:36px;font-size:12px}
-.consult-status{font-size:12px;line-height:1.5;color:var(--text2,#536174);margin-bottom:16px;overflow-wrap:anywhere}
-.consult-status[role="alert"]{padding:12px 15px;border:1px solid var(--danger,#a42222);border-radius:10px;color:var(--text,#17243a);background:var(--surface,#fff)}
+/* Reuse .hdr and the live league palette, scoped to this dialog. */
+.sohail-consultation.ui-v3 .consult-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 22px;margin:0;border:0;border-top:4px solid var(--brand-accent,#f5c518);border-radius:0;background:var(--brand-bg,#1b4f9c)!important;color:var(--brand-ink,#fff)!important;flex:none;flex-wrap:nowrap}
+.consult-identity{display:flex;align-items:center;gap:13px;min-width:0}
+.consult-mark{width:43px;height:43px;display:flex;align-items:center;justify-content:center;flex:none;background:var(--brand-accent,#f5c518)!important;color:var(--brand-accent-ink,#172033)!important;border-radius:12px}
+.consult-mark svg{width:26px;height:26px;stroke:var(--brand-accent-ink,#172033)}
+.sohail-consultation .consult-head h1{font-size:22px;line-height:1.2;letter-spacing:-.02em;margin:0 0 4px;color:var(--brand-ink,#fff)!important;font-weight:750}
+.sohail-consultation .consult-head .consult-badge{font-size:12px;line-height:1.35;margin:0;color:var(--brand-ink,#fff)!important}
+.sohail-consultation.ui-v3 .consult-head .btn{background:transparent!important;color:var(--brand-ink,#fff)!important;border:1px solid currentColor!important;min-height:40px;justify-content:center}
+.sohail-consultation.ui-v3 .consult-head .btn:hover{background:color-mix(in srgb,var(--brand-ink,#fff) 12%,transparent)!important}
+.sohail-consultation .btn{min-height:44px;font:inherit;font-size:13px;font-weight:650;padding:9px 14px;white-space:normal;line-height:1.3;flex-shrink:0;justify-content:center}
+.consult-body{padding:22px 24px 28px;overflow-y:auto;overflow-x:hidden;min-height:0;flex:1}
+.sohail-consultation.ui-v3 .consult-toolbar{padding:16px 18px 12px;margin:0 0 20px;border-radius:var(--ui-radius,16px)}
+.consult-top-tools,.consult-filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap}
+.consult-top-tools>div{flex:1;min-width:0}
+.consult-top-tools>button{background:var(--soft,#e6f1fb);color:var(--link,#1b4f9c);border-color:var(--border2,#c8d0dc)}
+.sohail-consultation label{display:block;font-size:12px;font-weight:700;margin:0 0 6px;color:var(--text2,#536174)}
+.sohail-consultation select{appearance:none;width:100%;min-width:0;max-width:100%;margin:0;padding:10px 34px 10px 12px;font-family:inherit;font-size:14px;font-weight:600;line-height:1.3;height:44px;min-height:44px;border:1px solid var(--border2,#c8d0dc);border-radius:9px;background-color:var(--surface,#fff);color:var(--text,#17243a)}
+.consult-select-field{position:relative}
+.consult-select-field::after{content:"";position:absolute;right:15px;bottom:19px;width:7px;height:7px;border-right:2px solid var(--text2,#536174);border-bottom:2px solid var(--text2,#536174);transform:rotate(45deg);pointer-events:none}
+.consult-filters{padding:0 0 15px;margin-bottom:4px}
+.consult-filters>div{min-width:122px}
+.consult-filters .sohail-table-size{margin-left:auto;align-self:end;padding-bottom:4px}
+.consult-status{font-size:12px;line-height:1.5;color:var(--text2,#536174);margin-top:10px;overflow-wrap:anywhere}
+.consult-status[role="alert"]{padding:12px 15px;border:1px solid var(--notice-error-border,var(--danger,#a42222));border-radius:10px;color:var(--notice-error-ink,var(--text,#17243a));background:var(--notice-error-bg,var(--surface,#fff))}
 .consult-status p{margin:3px 0}
-.consult-league-name{font-size:24px;line-height:1.25;margin:4px 0 18px;overflow-wrap:anywhere}
-.consult-tabs{display:flex;gap:8px;border-bottom:1px solid var(--border,#d6dfeb);padding-bottom:12px;margin-bottom:20px}
-.sohail-consultation .consult-tab[aria-selected="true"]{background:var(--pri,#1b4f9c);border-color:var(--pri,#1b4f9c);color:var(--priText,#fff)}
-.consult-card{background:var(--surface,#fff);padding:18px;border:1px solid var(--border,#d6dfeb);border-radius:13px;margin:0 0 18px;min-width:0}
-.consult-section-title h3{font-size:16px;margin:0 0 14px;font-weight:700}
-.consult-table-scroll{max-width:100%;overflow:auto;border:1px solid var(--border,#d6dfeb);border-radius:9px;overscroll-behavior-x:contain;margin-bottom:12px}
+.consult-league-intro{margin:0 0 13px;padding-left:13px;border-left:4px solid var(--brand-accent,#f5c518)}
+.consult-eyebrow{font-size:11px;letter-spacing:.085em;text-transform:uppercase;font-weight:700;color:var(--link,#1b4f9c);margin-bottom:5px}
+.consult-league-name{font-size:24px;font-weight:750;letter-spacing:-.025em;line-height:1.25;margin:0;overflow-wrap:anywhere;color:var(--text,#17243a)}
+.consult-tabs{display:flex;gap:6px;border-bottom:1px solid var(--border,#d6dfeb);padding-bottom:9px;margin-bottom:15px}
+.sohail-consultation .consult-tab{min-width:126px;min-height:40px;border-radius:9px;background:var(--surface,#fff);color:var(--link,#1b4f9c)}
+.sohail-consultation .consult-tab[aria-selected="true"]{background:var(--action,#1b4f9c);border-color:var(--action,#1b4f9c);color:var(--on-action,#fff)}
+.sohail-consultation.ui-v3 .consult-card{background:var(--surface,#fff);padding:18px;border:1px solid var(--border,#d6dfeb);border-radius:var(--ui-radius,16px);margin:0 0 16px;min-width:0;box-shadow:var(--ui-shadow)}
+.consult-section-title{margin-bottom:13px;gap:8px}
+.consult-section-title h3{font-size:17px;line-height:1.35;margin:0;font-weight:720;letter-spacing:-.015em;color:var(--text,#17243a)}
+.consult-section-meta{color:var(--text2,#536174);font-size:12px;font-weight:550}
+.consult-table-scroll{max-width:100%;overflow:auto;border:1px solid var(--border2,#c8d0dc);border-radius:10px;overscroll-behavior-x:contain;margin-bottom:12px;scrollbar-width:thin;scrollbar-color:var(--control-border,var(--border2)) var(--surface2)}
 .consult-table-scroll:focus-visible{outline:3px solid var(--link,#1b4f9c);outline-offset:2px}
-.consult-table{width:100%;min-width:550px;border-collapse:separate;border-spacing:0;font-size:13px;zoom:var(--sohail-table-zoom)}
-.consult-table th,.consult-table td{padding:10px 8px;border-bottom:1px solid var(--border,#d6dfeb);text-align:center;line-height:1.4;vertical-align:middle;color:var(--text,#17243a)}
-.consult-table thead th{background:var(--soft,var(--surface2,#edf1f6));font-size:12px;font-weight:700;white-space:nowrap}
+.consult-table{width:100%;min-width:0;border-collapse:separate;border-spacing:0;table-layout:auto;font-size:14px;zoom:var(--sohail-table-zoom)}
+.consult-table th,.consult-table td{padding:10px 9px;border-bottom:1px solid var(--border,#d6dfeb);text-align:center;line-height:1.4;vertical-align:middle;color:var(--text,#17243a)}
+.consult-table thead th{background:var(--soft,#e6f1fb);color:var(--priD,#0e3470);font-size:13px;font-weight:700;white-space:nowrap}
 .consult-table tr:last-child td{border-bottom:0}
-.consult-group-table{min-width:850px}
-.consult-group-table tr>:first-child{width:74px;min-width:64px;white-space:nowrap}
-.consult-group-table tr>:nth-child(2),.consult-general tr>:nth-child(2){text-align:left;min-width:128px;width:150px;max-width:165px;white-space:normal;overflow-wrap:anywhere;position:sticky;left:0;background:var(--surface,#fff);z-index:1;box-shadow:6px 0 9px -8px #546b85}
-.consult-group-table thead tr>:nth-child(2),.consult-general thead tr>:nth-child(2){background:var(--soft,var(--surface2,#edf1f6));z-index:2}
-.consult-general tr>:nth-child(3){min-width:64px;width:74px}
-.consult-matrix{min-width:580px}
-.consult-matrix th{font-weight:600;min-width:92px;max-width:140px;white-space:normal!important;overflow-wrap:anywhere}
-.consult-matrix tr>:first-child{min-width:112px;width:130px;max-width:142px;text-align:left;position:sticky;left:0;z-index:2;background:var(--surface,#fff)}
-.consult-matrix thead tr>:first-child{background:var(--soft,var(--surface2,#edf1f6))}
-.consult-matrix td{white-space:nowrap;min-width:84px}
-.consult-matrix .consult-upper,.consult-matrix .consult-diagonal{background:var(--surface2,#edf1f6);color:var(--text2,#536174)}
-.consult-matrix .consult-result{background:var(--hl,#fff6c7)}
-.consult-matrix-caption{text-align:left;padding:10px;font-size:12px;color:var(--text2,#536174);caption-side:bottom}
-.consult-match-list td:nth-child(1),.consult-match-list td:nth-child(2){min-width:125px;max-width:160px;overflow-wrap:anywhere;text-align:left}
-.consult-hint{font-size:12px;line-height:1.6;color:var(--text2,#536174);margin:8px 0 14px}
+.consult-table .consult-player{display:inline-flex;align-items:center;gap:5px;vertical-align:middle;white-space:nowrap}
+.consult-player .avatar{flex:none;margin:0;width:22px;height:22px;font-size:10px}
+.consult-name{display:inline-block;max-inline-size:var(--sohail-name-max);width:max-content;white-space:normal;overflow-wrap:anywhere;line-height:1.3}
+/* Width depends on the longest displayed player in that table, not the viewport.
+   The header is included in the measurement; exceptionally long names wrap. */
+.consult-group-table tr>:first-child,.consult-general tr>:first-child,.consult-general tr>:nth-child(3){width:1%;min-width:0;white-space:nowrap}
+.consult-group-table tr>:nth-child(2),.consult-general tr>:nth-child(2),.consult-matrix tr>:first-child{width:1%;min-width:0;max-width:none;white-space:nowrap;text-align:left;position:sticky;left:0;background:var(--surface,#fff);z-index:2;box-shadow:6px 0 9px -8px #546b85}
+.consult-group-table thead tr>:nth-child(2),.consult-general thead tr>:nth-child(2){background:var(--soft,#e6f1fb);z-index:3}
+.consult-group-table tbody tr>:nth-child(2),.consult-general tbody tr>:nth-child(2){font-weight:650;color:var(--link,#1b4f9c)}
+.consult-group-table td:nth-child(3),.consult-group-table td:last-child,.consult-general td:last-child{font-weight:750}
+.consult-group-table .dest{font-size:11px;padding:4px 7px}
+.consult-matrix{min-width:0}
+.consult-matrix thead th{background:var(--brand-bg,#1b4f9c);color:var(--brand-ink,#fff);border-right:1px solid color-mix(in srgb,var(--brand-ink,#fff) 22%,transparent);font-weight:650;white-space:normal}
+.consult-matrix thead th:not(:first-child) .consult-name{max-inline-size:148px}
+.consult-matrix thead tr>:first-child{background:var(--brand-bg,#1b4f9c);color:var(--brand-ink,#fff);z-index:3}
+.consult-matrix tbody tr>:first-child{background:var(--soft,#e6f1fb);color:var(--link,#1b4f9c);font-weight:650;border-bottom:1px solid var(--border,#d6dfeb)}
+.consult-matrix td{white-space:nowrap;min-width:85px;border-right:1px solid var(--border,#d6dfeb);font-variant-numeric:tabular-nums}
+.consult-matrix td:last-child{border-right:0}
+.consult-matrix .consult-upper{background:var(--surface2,#edf1f6)}
+.consult-matrix .consult-diagonal{background:var(--consult-diagonal);color:#e2e7ef;font-weight:600}
+.consult-matrix .consult-result{background:var(--consult-club-bg,var(--soft,#e6f1fb));color:var(--consult-club-ink,var(--text,#17243a));font-weight:700}
+.consult-matrix .consult-special{background:var(--league-highlight,var(--warnBg,#fef3c7));color:var(--league-highlight-ink,var(--warnT,#92400e))}
+.consult-matrix-caption{text-align:left;padding:9px 10px;font-size:12px;color:var(--text2,#536174);caption-side:bottom;background:var(--surface,#fff);border-top:1px solid var(--border,#d6dfeb)}
+.consult-club-legend{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--text2,#536174);font-size:12px;margin:2px 0 7px}
+.consult-club-chip{display:inline-block;padding:3px 8px;border-radius:6px;font-size:12px;font-weight:650;background:var(--consult-club-bg,var(--surface2,#edf1f6));color:var(--consult-club-ink,var(--text,#17243a));overflow-wrap:anywhere}
+.consult-match-list td:nth-child(1),.consult-match-list td:nth-child(2),.consult-match-list td:nth-child(4){text-align:left}
+.consult-match-list td:nth-child(3),.consult-match-list td:nth-child(4){font-weight:650}
+.consult-match-list td:nth-child(3),.consult-match-list td:nth-child(6){white-space:nowrap}
+.consult-hint{font-size:12px;line-height:1.6;color:var(--text2,#536174);margin:7px 0 12px}
 @media(max-width:600px){
  .sohail-consultation{width:100%;height:100dvh;max-height:100dvh;margin:0;border-radius:0;border:0}
- .consult-head{padding:16px;align-items:start}.consult-head h1{font-size:20px}.consult-head .btn{max-width:125px}
- .consult-body{padding:16px 12px}.consult-card{padding:12px}.consult-league-name{font-size:21px}
- .consult-filters{gap:10px}.consult-filters>div{flex:1;min-width:100px}.consult-filters .sohail-table-size{flex:1 0 100%;margin-left:0}
- .consult-top-tools{align-items:stretch}.consult-top-tools>div{flex:1 0 100%}
- .ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(2){min-width:118px;max-width:145px;width:128px}
+ .sohail-consultation.ui-v3 .consult-head{padding:13px 12px;gap:8px}.consult-identity{gap:8px}.consult-mark{width:34px;height:34px;border-radius:9px}.consult-mark svg{width:22px;height:22px}
+ .sohail-consultation .consult-head h1{font-size:18px}.sohail-consultation .consult-head .consult-badge{font-size:11px}.sohail-consultation.ui-v3 .consult-head .btn{max-width:105px;font-size:11px;padding:7px 9px}
+ .consult-body{padding:14px 12px 22px}.sohail-consultation.ui-v3 .consult-card,.sohail-consultation.ui-v3 .consult-toolbar{padding:12px}.consult-league-name{font-size:21px}
+ .consult-top-tools{gap:8px;align-items:end}.consult-top-tools>div{flex:1;min-width:0}.consult-top-tools>button{font-size:12px;padding:8px 10px}
+ .sohail-consultation select{font-size:16px}.consult-tabs .consult-tab{flex:1;min-width:0}
+ .consult-filters{gap:10px}.consult-filters>div{flex:1;min-width:100px}.consult-filters .sohail-table-size{flex:1 0 100%;margin-left:0;padding:0}
+ .consult-section-title h3{font-size:16px}.consult-table th,.consult-table td{padding:9px 7px}
 }
 @media print{.ui-v3 #view-grupos table.cls-table,.ui-v3 #view-grupos table.res-table,.consult-table{zoom:1}.sohail-table-size{display:none!important}}

@@ -13,6 +13,9 @@
   const flip=name===result.b;
   return result.sets.map(s=>flip?s[1]+'–'+s[0]:s[0]+'–'+s[1]).join(' / ')+(result.kind==='retired'?' · RET':'');
  }
+ // Strict hex only. Public presentation data must not become arbitrary CSS.
+ function safeColor(value){return typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)?value.toLowerCase():null;}
+ function initials(name){return String(name||'').trim().split(/\s+/u).filter(Boolean).slice(0,2).map(w=>Array.from(w)[0]).join('').toUpperCase();}
  function retrySeconds(value,now=Date.now()){
   if(/^\d+$/.test(String(value||'')))return Math.min(300,Math.max(1,Number(value)));
   const at=Date.parse(value);return Number.isFinite(at)?Math.min(300,Math.max(1,Math.ceil((at-now)/1000))):30;
@@ -93,66 +96,113 @@
    const wrap=node('div',null,'consult-table-scroll');wrap.setAttribute('role','region');wrap.setAttribute('aria-label',label);wrap.tabIndex=0;
    const tbl=node('table',null,'consult-table '+cls),caption=node('caption',label,'ui-sr-only'),thead=node('thead'),tr=node('tr');
    for(const h of headings){const th=node('th',Array.isArray(h)?h[0]:h);th.scope='col';if(Array.isArray(h))th.title=h[1];tr.append(th);}thead.append(tr);tbl.append(caption,thead);
-   const tbody=node('tbody');for(const row of rows){const r=node('tr');row.forEach((v,i)=>{const td=node('td',v);if(i===1)td.title=String(v??'');r.append(td);});tbody.append(r);}tbl.append(tbody);wrap.append(tbl);return wrap;
+   const tbody=node('tbody');for(const row of rows){const r=node('tr');row.forEach((v,i)=>{const td=node('td');
+    if(cls==='consult-group-table'&&i===0)td.append(v);
+    else if((cls==='consult-group-table'||cls==='consult-general')&&i===1)td.append(playerName(v,true));
+    else if(cls==='consult-match-list'&&[0,1,3].includes(i))td.append(playerName(v));
+    else if(cls==='consult-match-list'&&i===4)td.append(clubBadge(v));
+    else td.textContent=String(v??'');
+    r.append(td);});tbody.append(r);}tbl.append(tbody);wrap.append(tbl);return wrap;
   }
-  function heading(title){const h=node('div',null,'consult-section-title');h.append(node('h3',title));return h;}
+  function heading(title,detail){const h=node('div',null,'ui-section-heading consult-section-title');h.append(node('h3',title));if(detail)h.append(node('span',detail,'consult-section-meta'));return h;}
+  function playerName(name,avatar=false){const wrap=node('span',null,'consult-player');
+   if(avatar){const mark=node('span',initials(name),'avatar');mark.setAttribute('aria-hidden','true');wrap.append(mark);}
+   wrap.append(node('span',name,'consult-name'));return wrap;
+  }
+  function destinationBadge(row,gid){const d=row.destination;const label=destination(row,gid);
+   if(d==null)return node('span',label);const kind=d<gid?'up':d>gid?'down':'same';
+   const badge=node('span',label,'dest dest-'+kind);badge.title=(kind==='up'?T('Ascenso','Promotion'):kind==='down'?T('Descenso','Relegation'):T('Permanencia','Stay'))+' · '+T('Grupo ','Group ')+d;return badge;
+  }
+  function ink(color){const appearance=root.SohailAppearance;if(appearance?.textOn)return appearance.textOn(color);
+   const light=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4));
+   return light[0]*.2126+light[1]*.7152+light[2]*.0722>.179?'#000000':'#ffffff';
+  }
+  function clubColor(name){const found=Array.isArray(data?.appearance?.clubs)?data.appearance.clubs.find(c=>c?.name===name):null;
+   return safeColor(found?.color)||(name==='Sohail'?'#d6ecfb':name==='Haza'||name==='Club Haza'?'#fce6cf':null);
+  }
+  function setClubColor(el,color){if(!color)return;el.style.setProperty('--consult-club-bg',color);el.style.setProperty('--consult-club-ink',ink(color));}
+  function clubBadge(name){const badge=node('span',name||'—','consult-club-chip');setClubColor(badge,clubColor(name));return badge;}
+  function applyAppearance(){
+   if(!dialog)return;const a=data?.appearance,appearance=root.SohailAppearance;
+   const p=safeColor(a?.primary),acc=safeColor(a?.accent),hl=safeColor(a?.highlight);
+   // Scope brand tokens to the dialog: changing league in the viewer never
+   // changes the signed-in app, login palette, or localStorage theme.
+   const keys=['--brand-bg','--brand-ink','--brand-accent','--brand-accent-ink','--action','--action-hover','--on-action','--pri','--priD','--soft','--link','--text','--text2','--league-highlight','--league-highlight-ink'];
+   keys.forEach(k=>dialog.style.removeProperty(k));
+   if(!p||!acc||!hl)return;
+   const dark=doc.documentElement.dataset.theme==='dark';
+   const requested={};for(const k of ['light','dark','header']){const color=safeColor(a?.textColors?.[k]);if(color)requested[k]=color;}
+   const palette=appearance?.textPalette?.(dark?'dark':'light',requested,p,acc),action=dark?'#245edb':appearance?.actionFor?.(p)||'#1b4f9c';
+   const tokens={'--brand-bg':p,'--brand-ink':palette?.header||ink(p),'--brand-accent':acc,'--brand-accent-ink':ink(acc),
+    '--action':action,'--action-hover':dark?'#1e4fbb':appearance?.mix?.(action,'#000000',.16)||action,'--on-action':'#ffffff',
+    '--pri':dark?'#93c5fd':action,'--priD':dark?'#bfdbfe':appearance?.mix?.(action,'#000000',.2)||action,'--link':dark?'#9bc7ff':action,
+    '--soft':dark?'#20334d':appearance?.mix?.(p,'#ffffff',.9)||'#e6f1fb','--league-highlight':hl,'--league-highlight-ink':ink(hl)};
+   if(palette){tokens['--text']=palette.main;tokens['--text2']=palette.muted;}
+   for(const [k,v]of Object.entries(tokens))dialog.style.setProperty(k,v);
+  }
+
   function destination(row,gid){const d=row.destination;return d==null?'—':(d<gid?'↑ ':d>gid?'↓ ':'= ')+'G'+d;}
   function renderGroup(c,g){
-   const section=node('section',null,'consult-card');section.append(heading(T('Clasificación del grupo ','Group standings ')+g.number));
-   section.append(table([T('Destino','Next group'),T('Jugador','Player'),'Pts','PJ',T('Gan.','Won'),T('Perd.','Lost'),['NJ',T('No jugados','Not played')],['SG',T('Sets ganados','Sets won')],['SP',T('Sets perdidos','Sets lost')],['± Sets',T('Balance de sets','Set difference')],T('Puesto','Position pts'),'Extra',T('Ajuste','Adjustment'),'Total'],g.rows.map(r=>[destination(r,g.number),r.name,r.points,r.played,r.wins,r.losses,r.notPlayed,r.setsWon,r.setsLost,r.setsBalance,r.base,r.extra,r.adjustment,r.total]),T('Clasificación del grupo ','Group standings ')+g.number,'consult-group-table'));
+   const section=node('section',null,'card consult-card');section.append(heading(T('Clasificación · Grupo ','Standings · Group ')+g.number,g.rows.length+' '+T('jugadores','players')));
+   section.append(table([T('Destino','Next group'),T('Jugador','Player'),'Pts','PJ',T('Gan.','Won'),T('Perd.','Lost'),['NJ',T('No jugados','Not played')],['SG',T('Sets ganados','Sets won')],['SP',T('Sets perdidos','Sets lost')],['± Sets',T('Balance de sets','Set difference')],T('Puesto','Position pts'),'Extra',T('Ajuste','Adjustment'),'Total'],g.rows.map(r=>[destinationBadge(r,g.number),r.name,r.points,r.played,r.wins,r.losses,r.notPlayed,r.setsWon,r.setsLost,r.setsBalance,r.base,r.extra,r.adjustment,r.total]),T('Clasificación del grupo ','Group standings ')+g.number,'consult-group-table'));
    section.append(node('p',T('Pts: puntos de partidos. Total: puntos que este grupo aporta a la clasificación general.','Pts: match points. Total: points contributed by this group to the overall standings.'),'consult-hint'));return section;
   }
   function renderResults(c,g){
-   const section=node('section',null,'consult-card');section.append(heading(T('Resultados · Grupo ','Results · Group ')+g.number));
+   const section=node('section',null,'card consult-card');section.append(heading(T('Resultados · Grupo ','Results · Group ')+g.number,g.results.length+' '+T('confirmados','confirmed')));
    const names=g.rows.map(r=>r.name),wrap=node('div',null,'consult-table-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label',T('Cuadro de resultados','Results matrix'));
    const matrix=node('table',null,'consult-table consult-matrix');matrix.append(node('caption',T('Marcador desde la perspectiva del jugador de la fila.','Score from the row player’s perspective.'),'consult-matrix-caption'));
-   const thead=node('thead'),header=node('tr');for(const name of [T('Jugador','Player'),...names]){const th=node('th',name);th.scope='col';header.append(th);}thead.append(header);matrix.append(thead);
-   const tbody=node('tbody');for(let i=0;i<names.length;i++){const tr=node('tr'),th=node('th',names[i]);th.scope='row';tr.append(th);
+   const thead=node('thead'),header=node('tr');for(const name of [T('Jugador','Player'),...names]){const th=node('th');th.scope='col';th.append(playerName(name));header.append(th);}thead.append(header);matrix.append(thead);
+   const tbody=node('tbody');for(let i=0;i<names.length;i++){const tr=node('tr'),th=node('th');th.scope='row';th.append(playerName(names[i]));tr.append(th);
     for(let j=0;j<names.length;j++){const td=node('td');if(i===j){td.textContent='—';td.className='consult-diagonal';}
      else if(j>i){td.className='consult-upper';td.setAttribute('aria-label',T('Ver la casilla simétrica','See the mirrored cell'));}
-     else{const m=g.results.find(m=>m.a===names[i]&&m.b===names[j]||m.b===names[i]&&m.a===names[j]);td.textContent=m?score(m,names[i]):'·';if(m){td.className='consult-result';td.title=[m.winner?T('Ganador: ','Winner: ')+m.winner:'',m.club,m.date].filter(Boolean).join(' · ');}}
+     else{const m=g.results.find(m=>m.a===names[i]&&m.b===names[j]||m.b===names[i]&&m.a===names[j]);td.textContent=m?score(m,names[i]):'·';if(m){td.className='consult-result'+(['walkover','not-played'].includes(m.kind)?' consult-special':'');if(m.kind==='played'||m.kind==='retired')setClubColor(td,clubColor(m.club));td.title=[m.winner?T('Ganador: ','Winner: ')+m.winner:'',m.club,m.date].filter(Boolean).join(' · ');}}
      tr.append(td);
     }tbody.append(tr);
    }matrix.append(tbody);wrap.append(matrix);section.append(wrap);
+   const clubs=[...new Set(g.results.map(r=>r.club).filter(Boolean))];if(clubs.length){const legend=node('div',null,'consult-club-legend');legend.append(node('span',T('Clubes','Clubs')));for(const name of clubs)legend.append(clubBadge(name));section.append(legend);}
    section.append(node('p',T('· Sin resultado confirmado. W.O.: no se jugó. RET: retiro. —: no jugado o diagonal.','· No confirmed result. W.O.: walkover. RET: retirement. —: not played or diagonal.'),'consult-hint'));
    if(!g.results.length)section.append(node('p',T('Este grupo todavía no tiene resultados confirmados.','This group has no confirmed results yet.')));
    else section.append(table([T('Jugador A','Player A'),T('Jugador B','Player B'),T('Resultado','Score'),T('Ganador','Winner'),'Club',T('Fecha','Date')],g.results.map(r=>[r.a,r.b,score(r,r.a),r.winner||'—',r.club||'—',r.date||'—']),T('Partidos confirmados','Confirmed matches'),'consult-match-list'));
    return section;
   }
   function render(){
-   if(!content||!data)return;content.replaceChildren();
-   const title=node('h2',data.league.name,'consult-league-name');content.append(title);
+   if(!content||!data)return;applyAppearance();content.replaceChildren();
+   const intro=node('div',null,'consult-league-intro'),title=node('h2',data.league.name,'consult-league-name');intro.append(node('p',T('Competición','Competition'),'consult-eyebrow'),title);content.append(intro);
    const nav=node('div',null,'consult-tabs');nav.setAttribute('role','tablist');nav.setAttribute('aria-label',T('Consulta deportiva','Sporting view'));
-   for(const [value,label]of [['results',T('Resultados','Results')],['standings',T('Clasificación','Standings')]]){const b=button(label,()=>{tab=value;render();},'btn consult-tab');b.id='consult-tab-'+value;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(tab===value));b.setAttribute('aria-controls','consult-sporting-panel');b.tabIndex=tab===value?0:-1;b.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();tab=tab==='results'?'standings':'results';render();doc.getElementById('consult-tab-'+tab)?.focus();}});nav.append(b);}content.append(nav);
+   for(const [value,label]of [['results',T('Resultados','Results')],['standings',T('Clasificación','Standings')]]){const b=button(label,()=>{tab=value;render();},'btn consult-tab'+(tab===value?' btn-primary':''));b.id='consult-tab-'+value;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(tab===value));b.setAttribute('aria-controls','consult-sporting-panel');b.tabIndex=tab===value?0:-1;b.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();tab=tab==='results'?'standings':'results';render();doc.getElementById('consult-tab-'+tab)?.focus();}});nav.append(b);}content.append(nav);
    const panel=node('div');panel.id='consult-sporting-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby','consult-tab-'+tab);content.append(panel);
    if(data.cycles.length){const filters=node('div',null,'consult-filters'),cyLabel=node('label',T('Ciclo','Cycle')),cy=node('select'),gLabel=node('label',T('Grupo','Group')),gs=node('select');cy.id='consult-cycle';gs.id='consult-group';cyLabel.htmlFor=cy.id;gLabel.htmlFor=gs.id;
     for(const c of data.cycles){const o=node('option',T('Ciclo ','Cycle ')+c.n+(c.status==='finished'?T(' · Cerrado',' · Closed'):T(' · En curso',' · Active')));o.value=String(c.n);cy.append(o);}cy.value=String(cycle);
     const c=data.cycles.find(c=>c.n===cycle)||data.cycles[0];cycle=c.n;
     for(const g of c.groups){const o=node('option',T('Grupo ','Group ')+g.number);o.value=String(g.number);gs.append(o);}gs.value=String(group);
     cy.addEventListener('change',()=>{cycle=Number(cy.value);group=1;render();});gs.addEventListener('change',()=>{group=Number(gs.value);render();});
-    const a=node('div'),b=node('div');a.append(cyLabel,cy);b.append(gLabel,gs);filters.append(a,b,sizeControl());panel.append(filters);
+    const a=node('div',null,'consult-select-field'),b=node('div',null,'consult-select-field');a.append(cyLabel,cy);b.append(gLabel,gs);filters.append(a,b,sizeControl());panel.append(filters);
     const g=c.groups.find(g=>g.number===group)||c.groups[0];if(g)panel.append(tab==='results'?renderResults(c,g):renderGroup(c,g));
    }
    if(tab==='standings'){
-    const section=node('section',null,'consult-card');section.append(heading(T('Clasificación general acumulada','Overall standings')));
+    const section=node('section',null,'card consult-card');section.append(heading(T('Clasificación general acumulada','Overall standings')));
     if(data.standings.length)section.append(table(['#',T('Jugador','Player'),T('Grupo','Group'),...data.cycles.map(c=>'C'+c.n),'Total'],data.standings.map(r=>[r.position,r.name,r.group?'G'+r.group:'—',...data.cycles.map(c=>r.cycles.find(p=>p.n===c.n)?.points||0),r.total]),T('Clasificación general','Overall standings'),'consult-general'));
     else section.append(node('p',T('Todavía no hay clasificación disponible.','No standings available yet.')));panel.append(section);
    }
-   if(tab==='results'&&data.playoffResults.length){const section=node('section',null,'consult-card');section.append(heading(T('Resultados confirmados de playoffs','Confirmed playoff results')));section.append(table([T('Jugador A','Player A'),T('Jugador B','Player B'),T('Resultado','Score'),T('Ganador','Winner')],data.playoffResults.map(r=>[r.a,r.b,score(r,r.a),r.winner||'—']),T('Resultados de playoffs','Playoff results'),'consult-match-list'));panel.append(section);}
+   if(tab==='results'&&data.playoffResults.length){const section=node('section',null,'card consult-card');section.append(heading(T('Resultados confirmados de playoffs','Confirmed playoff results')));section.append(table([T('Jugador A','Player A'),T('Jugador B','Player B'),T('Resultado','Score'),T('Ganador','Winner')],data.playoffResults.map(r=>[r.a,r.b,score(r,r.a),r.winner||'—']),T('Resultados de playoffs','Playoff results'),'consult-match-list'));panel.append(section);}
    if(tab==='results'&&!data.cycles.length&&!data.playoffResults.length)panel.append(node('p',T('Todavía no hay resultados publicados.','No published results yet.')));
   }
   function open(){
    if(dialog)return;
    if(typeof _loginBusy!=='undefined'&&_loginBusy)return; // Do not race a sign-in/session restoration.
-   returnFocus=doc.activeElement;dialog=node('dialog',null,'sohail-consultation');dialog.setAttribute('aria-labelledby','consult-title');
-   const head=node('header',null,'consult-head'),copy=node('div'),h=node('h1',T('Consultar liga','View league'));h.id='consult-title';copy.append(h,node('p',T('Solo lectura · Sin iniciar sesión','Read-only · No sign-in'),'consult-badge'));
-   head.append(copy,button(T('Volver al login','Back to sign-in'),close));dialog.append(head);
-   const body=node('div',null,'consult-body'),tools=node('div',null,'consult-top-tools'),field=node('div'),label=node('label',T('Liga','League'));select=node('select');select.id='consult-league';label.htmlFor=select.id;field.append(label,select);select.addEventListener('change',()=>{selected=select.value;cycle=null;group=1;data=null;content.replaceChildren();load();});
-   refresh=button(T('Actualizar','Refresh'),()=>load(!leagues.length));tools.append(field,refresh);status=node('div',null,'consult-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');content=node('div',null,'consult-content');body.append(tools,status,content);dialog.append(body);
+   returnFocus=doc.activeElement;dialog=node('dialog',null,'sohail-consultation ui-v3');dialog.setAttribute('aria-labelledby','consult-title');
+   const head=node('header',null,'hdr consult-head'),identity=node('div',null,'consult-identity'),mark=node('span',null,'consult-mark'),copy=node('div'),h=node('h1',T('Consultar liga','View league'));h.id='consult-title';copy.append(h,node('p',T('Solo lectura · Sin iniciar sesión','Read-only · No sign-in'),'consult-badge'));
+   // Same tennis-ball motif as login, created as fixed SVG DOM nodes.
+   const ns='http://www.w3.org/2000/svg',svg=doc.createElementNS(ns,'svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');svg.setAttribute('aria-hidden','true');
+   const circle=doc.createElementNS(ns,'circle');circle.setAttribute('cx','12');circle.setAttribute('cy','12');circle.setAttribute('r','9');const path=doc.createElementNS(ns,'path');path.setAttribute('d','M6 5c6 4 6 10 0 14M18 5c-6 4-6 10 0 14');svg.append(circle,path);mark.append(svg);identity.append(mark,copy);
+   head.append(identity,button(T('Volver al login','Back to sign-in'),close));dialog.append(head);
+   const body=node('div',null,'consult-body'),tools=node('div',null,'consult-top-tools'),field=node('div',null,'consult-select-field'),label=node('label',T('Liga','League'));select=node('select');select.id='consult-league';label.htmlFor=select.id;field.append(label,select);select.addEventListener('change',()=>{selected=select.value;cycle=null;group=1;data=null;applyAppearance();content.replaceChildren();load();});
+   refresh=button(T('Actualizar','Refresh'),()=>load(!leagues.length));tools.append(field,refresh);status=node('div',null,'consult-status');status.setAttribute('role','status');status.setAttribute('aria-live','polite');content=node('div',null,'consult-content');const top=node('div',null,'card consult-toolbar');top.append(tools,status);body.append(top,content);dialog.append(body);
    dialog.addEventListener('cancel',e=>{e.preventDefault();close();});doc.body.append(dialog);dialog.showModal();load(true);
   }
   launch.addEventListener('click',open);labelLaunch();
+ doc.addEventListener('sohail-theme-change',applyAppearance);
   new MutationObserver(()=>{labelLaunch();if(dialog&&data)render();}).observe(doc.documentElement,{attributes:true,attributeFilter:['lang']});
  }
- return Object.freeze({mount,score,retrySeconds,createReader});
+ return Object.freeze({mount,score,retrySeconds,createReader,safeColor,initials});
 });

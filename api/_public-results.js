@@ -34,6 +34,22 @@ function matchResult(m){
  return {a:text(a),b:text(b),sets:kind==='not-played'?[]:sets,kind,winner:text(winner),
   date:typeof m.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(m.date)?m.date:'',club:text(m.club,100)};
 }
+// Public appearance only: allowlist validated hex colours, and only clubs
+// already named in the visible results. Never publish the CLUBS/user objects.
+function publicAppearance(state,cycles,playoffResults){
+ const hex=v=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v.toLowerCase():null;
+ const names=new Set([...cycles.flatMap(c=>c.groups.flatMap(g=>g.results)),...playoffResults].map(r=>r.club).filter(Boolean));
+ const clubs=[],seen=new Set();
+ for(const c of Array.isArray(state.CLUBS)?state.CLUBS:[]){
+  if(!c||typeof c.name!=='string'||!names.has(c.name)||seen.has(c.name)||!hex(c.bg))continue;
+  seen.add(c.name);clubs.push({name:c.name,color:hex(c.bg)});
+ }
+ const textColors={};for(const key of ['light','dark','header']){
+  if(has(state.LEAGUE_TEXT_COLORS,key)){const color=hex(state.LEAGUE_TEXT_COLORS[key]);if(color)textColors[key]=color;}
+ }
+ return {primary:hex(state.LEAGUE_COLOR_PRI)||'#1b4f9c',accent:hex(state.LEAGUE_COLOR_ACC)||'#f5c518',
+  highlight:hex(state.LEAGUE_COLOR_HL)||'#ffedd5',textColors,clubs};
+}
 function project(state,entry,now=Date.now()){
  if(!published(entry))throw fail(404,'LEAGUE_NOT_PUBLIC','La liga no está disponible para consulta.');
  if(!state||!Array.isArray(state.cycles)||!Array.isArray(state.matches)||typeof Score.standings!=='function')
@@ -66,8 +82,9 @@ function project(state,entry,now=Date.now()){
   totals.get(b)-totals.get(a)||(byCycle.get(b)?.get(latest)||0)-(byCycle.get(a)?.get(latest)||0)||groupOf(a)-groupOf(b));
  const standings=ranked.map((name,i)=>({position:i+1,name:text(name),group:groupOf(name)===999?null:groupOf(name),
   total:totals.get(name),cycles:visible.map(c=>({n:c.n,points:byCycle.get(name)?.get(c.n)||0}))}));
+ const playoffResults=confirmed.filter(m=>m.po).map(matchResult).filter(Boolean);
  const out={schema:1,readOnly:true,league:{id:entry.id,name:text(entry.nombre),status:entry.estado},
-  activeCycle:active?.n||null,cycles,standings,playoffResults:confirmed.filter(m=>m.po).map(matchResult).filter(Boolean),
+  activeCycle:active?.n||null,cycles,standings,playoffResults,appearance:publicAppearance(state,cycles,playoffResults),
   consultedAt:new Date(now).toISOString()};
  // Cache/output size is bounded. The private state is never cached in this module.
  if(Buffer.byteLength(JSON.stringify(out))>2*1024*1024)throw fail(413,'PUBLIC_RESULTS_LIMIT','La consulta es demasiado grande. Contactá a la organización.');
