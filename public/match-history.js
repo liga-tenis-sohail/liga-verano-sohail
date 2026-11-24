@@ -282,7 +282,7 @@
   if(!opts.length)return h+'<p class="mh-note mh-empty-form">'+e(t('hh_no_played'))+'</p>';
   if(!selected)return h+'<p class="mh-note mh-empty-form">'+e(t(rivalKey?'hh_stale':'hh_intro'))+'</p>';
   const total=D.headToHead(list,name,selected.key,context),rows=total.list;
-  h+='<section class="mh-h2h-summary" aria-label="'+e(t('hh_balance'))+'"><p class="mh-h2h-caption">'+e(t('hh_balance'))+'</p><div class="mh-h2h-score"><div><strong>'+e(name)+'</strong><b>'+total.wins+'</b></div><span aria-hidden="true">—</span><div><strong>'+e(selected.name)+'</strong><b>'+total.losses+'</b></div></div><p class="mh-note">'+e(tf('hh_totals',{n:total.decided,wo:total.wo}))+'</p><p class="mh-note">'+e(t('hh_method'))+'</p></section>';
+  h+='<section class="mh-h2h-summary" aria-label="'+e(t('hh_balance'))+'"><p class="mh-h2h-caption">'+e(t('hh_balance'))+'</p><div class="mh-h2h-score"><div><strong>'+e(name)+'</strong><b>'+total.wins+'</b></div><span aria-hidden="true">—</span><div><strong>'+e(selected.name)+'</strong><b>'+total.losses+'</b></div></div>'+(total.decided?'<div class="px-h2h-bar" role="img" aria-label="'+e(name+': '+total.wins+' · '+selected.name+': '+total.losses)+'"><span style="flex:'+total.wins+'"></span><span style="flex:'+total.losses+'"></span></div>':'')+'<p class="mh-note">'+e(tf('hh_totals',{n:total.decided,wo:total.wo}))+'</p><p class="mh-note">'+e(t('hh_method'))+'</p></section>';
   if(total.pending||total.disputed||total.np||total.unresolved)h+='<p class="mh-note">'+e(tf('hh_records',total))+'</p>';
   if(rows.some(m=>m._mhLeagueId&&m._mhLeagueId!==context.id&&!D.opponent(m,name,context)?.id))h+='<p class="mh-note">'+e(t('hh_identity'))+'</p>';
   h+='<h2 class="mh-h2h-title">'+e(t('hh_list'))+'</h2>';
@@ -380,6 +380,7 @@
   host.onchange=ev=>{if(ev.target.hasAttribute('data-history-league')){const id=ev.target.value,c=forPage();if(!c||!c.snapshot().index.some(l=>l.id===id))return;state.leagueScope=id===_ligaActual?'current':'league:'+id;state.scope='all';state.query='';state.limit=30;if(!c.snapshot().attempted)loadPageArchive();else redrawPage();return;}if(ev.target.hasAttribute('data-mh-rival')){state.rival=ev.target.value;state.limit=30;paint();document.getElementById('mh-h2h-rival')?.focus({preventScroll:true});return;}if(ev.target.id==='mh-scope')state.scope=ev.target.value;else if(ev.target.id==='mh-player'){state.player=ev.target.value;state.rival='';forPage();state.leagueScope=canAggregate(selectedPlayer())?'all':'current';render();return;}else return;state.limit=30;paint();};
   host.onkeydown=ev=>{const b=ev.target.closest('[data-mh-tab]');if(!b||!['ArrowLeft','ArrowRight','Home','End'].includes(ev.key))return;ev.preventDefault();state.tab=moveTab(state.tab,ev.key);paint();document.getElementById('mh-tab-'+state.tab)?.focus({preventScroll:true});};
   paint();
+  global.SohailPlayerUX?.mountMatches(host);
   const archive=forPage();if(isRemoteScope(state.leagueScope)&&archive&&!archive.snapshot().attempted)loadPageArchive();
  }
  // v3.3 — per-player sporting card. Uses the same read-only data engine and
@@ -423,6 +424,7 @@
   function paintPanels(){
    if(!valid())return;
    view.leagueScope=aggregateAllowed?'all':'current';
+   global.SohailPlayerUX?.mountEvolution(host,{name,cycles:cyclesList,leagueId:context().id,leagueName:options.leagueName,records:archive?.snapshot()?.records||[],localRecords:source(),includeStats:true});
    const snapshot=chosenSnapshot(archive?.snapshot(),view.leagueScope,context());
    const list=D.records(snapshot?snapshot.records:source(),name,view.tab==='h2h'?'all':view.scope),notice=archiveStatus(snapshot);
    const phase=host.querySelector('[data-mhp-scope]')?.closest('label');if(phase)phase.hidden=view.tab==='h2h';
@@ -536,6 +538,7 @@
     html+='<p class="mh-note">'+e(t('mh_short_note'))+'</p>';
    }
    host.innerHTML=html+'<button type="button" class="btn" data-profile-details>'+e(t('mhp_title'))+'</button>';
+   global.SohailPlayerUX?.mountSummary(host,{name,cycles,leagueId:_ligaActual,leagueName:currentSnapshot().nombre,records:all.records||[],localRecords:matches,includeStats:true});
   }
   function load(){const job=archive.load();draw();job.then(()=>{if(valid())draw();}).catch(()=>{if(valid())SohailRequest.notice(host,load);});}
   host.onclick=ev=>{

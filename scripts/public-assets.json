@@ -65,7 +65,9 @@
     "league-consultation.css",
     "operation-feedback.js",
     "import-results-review.js",
-    "import-results.css"
+    "import-results.css",
+    "player-experience.js",
+    "player-experience.css"
   ],
   "optional": [
     "favicon.ico"
