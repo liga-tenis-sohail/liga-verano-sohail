@@ -67,3 +67,85 @@ html[data-theme=dark] .px-pill.is-win{background:#163b2a;color:#b5ebc8;border-co
 .px-receipt{border-left:4px solid #237b45!important}.px-receipt-score{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.px-receipt-score>strong{font-size:19px;font-variant-numeric:tabular-nums}
 .px-h2h-bar{display:flex;gap:3px;height:10px;border-radius:999px;overflow:hidden;margin:14px 0 8px}.px-h2h-bar span:first-child{background:var(--px-action,#1b4f9c)}.px-h2h-bar span:last-child{background:var(--brand-accent,#e9b900)}
 .px-preview-dialog{width:min(650px,calc(100vw - 24px));max-height:85dvh;padding:20px;margin:auto;border:1px solid var(--border,#dce3ed);border-radius:18px;background:var(--surface,#fff);color:var(--text,#172033);overflow:auto;box-shadow:0 20px 80px #0004}.px-preview-dialog::backdrop{background:#17203380}.px-preview-dialog h2{font-size:19px;margin:0}.px-preview-dialog footer{margin-top:14px;display:flex;justify-content:flex-end}.px-preview-list{margin-top:16px}.px-preview-list>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(55px,auto) minmax(80px,auto);gap:12px;align-items:center;border-bottom:1px solid var(--border,#dce3ed);padding:11px 0;font-size:12px;overflow-wrap:anywhere}
+
+/* UI vNext — one hierarchy, independent sporting tabs, unchanged data/actions. */
+.ui-v3 .card{box-shadow:0 1px 3px rgba(15,35,67,.045)}
+.ui-v3 .app-sticky-nav{padding-top:8px;padding-bottom:8px;margin-bottom:12px}
+.ui-v3 .app-sticky-nav>.hdr{padding-block:10px;margin-bottom:8px;border-radius:12px}
+.ui-v3 .ui-page-head{gap:12px;margin-bottom:16px}
+.ui-v3 .ui-page-head h1{font-size:clamp(21px,3vw,25px);margin:1px 0 5px;letter-spacing:-.025em}
+.ui-v3 .ui-page-head .ui-eyebrow{font-size:10px;margin-bottom:4px}
+.ui-v3 .ui-section-heading{gap:12px;margin-bottom:10px}
+.ui-v3 .ui-section-heading h2{line-height:1.3;letter-spacing:-.015em}
+.ui-v3 .px-card,.mh-player-view .px-card,#stat-total .px-card{box-shadow:none;border-radius:12px;padding:16px}
+.px-slot{gap:12px;margin-bottom:12px}
+.px-heading{margin-bottom:9px}.px-heading p{margin-top:3px}
+.px-metric{background:var(--surface,#fff);padding:11px;border-radius:9px}
+.px-metrics{gap:8px;margin:9px 0}
+.px-hero{padding:18px;border-radius:14px;box-shadow:none}.px-hero h2{margin:10px 0 12px}
+.px-hero .px-metric{border-color:#ffffff35;background:#ffffff14}
+.px-move{padding:12px;background:var(--surface,#fff);border:1px solid var(--border);border-left:3px solid var(--brand-accent,#f5c518)}
+.px-fixture{padding:12px;border-radius:10px;box-shadow:none}
+.px-segments{background:var(--surface,#fff);border:1px solid var(--border);gap:0;padding:3px}
+.px-segments button[aria-pressed=true]{background:var(--soft,#e6f1fb);color:var(--link);box-shadow:none;border-color:transparent}
+.px-ranking-find{padding:10px 12px;gap:8px;border-radius:10px}
+.px-ranking-find label{flex:0 0 auto;font-weight:650}.px-ranking-find input{min-height:42px}
+.px-ranking-find [role=status]:empty{display:none}
+.px-group-progress{background:var(--surface);border:0;border-bottom:1px solid var(--border);border-radius:0;padding:6px 0 11px}
+.px-admin-group{padding:10px 0}.px-actions .btn{min-height:40px}
+/* Scope the tab treatment to history. Page filters and action buttons remain available. */
+.mh-player-sheet .mh-clean-tabs,.ui-v3 #view-partidos>.mh-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:0 0 14px;padding:0;background:var(--surface);border-bottom:1px solid var(--border)}
+.ui-v3 #view-partidos>.mh-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mh-player-sheet .mh-clean-tabs>button,.ui-v3 #view-partidos>.mh-tabs>button{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--text2);font-size:12px;padding:10px 3px;min-height:46px;box-shadow:none;overflow-wrap:anywhere}
+.mh-player-sheet .mh-clean-tabs>button[aria-selected=true],.ui-v3 #view-partidos>.mh-tabs>button[aria-selected=true]{border-bottom-color:var(--action);background:transparent;color:var(--link);font-weight:750}
+.mh-player-sheet .mh-clean-tabs>button:focus-visible,.ui-v3 #view-partidos>.mh-tabs>button:focus-visible{outline-offset:-3px}
+.mh-player-sheet [data-mhp-panel][hidden]{display:none!important}
+.mh-player-sheet .mh-my-h2h{margin:0 0 10px;min-height:36px;padding:4px 0;color:var(--link);text-align:left}
+.mh-player-sheet .mh-player-filter{margin-bottom:12px}
+.mh-player-sheet .mh-player-filter[hidden]{display:none!important}
+.mh-player-sheet .mh-player-rating{border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin:0 0 10px}
+.mh-profile-sync{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--border);padding:8px 0 0;margin:12px 0 4px;font-size:11px;color:var(--text2)}
+.mh-profile-sync button{min-height:36px;color:var(--link);font-size:12px}
+.mh-player-sheet .mh-h2h-controls{gap:5px;margin:0 0 12px}
+.mh-player-sheet .mh-h2h-controls select{height:auto;min-height:44px;border-radius:9px}
+.mh-player-sheet .mh-h2h-hint{font-size:11px;color:var(--text2);margin:0;line-height:1.45}
+.mh-player-sheet .mh-h2h-summary{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin:0 0 12px}
+.mh-player-sheet .mh-h2h-caption{font-size:11px;margin-bottom:12px;text-transform:none;letter-spacing:0}
+.mh-player-sheet .mh-h2h-score{gap:10px;margin-bottom:8px}
+.mh-player-sheet .mh-h2h-score>div{gap:4px}.mh-player-sheet .mh-h2h-score b{font-size:40px;letter-spacing:-.035em}
+.mh-player-sheet .mh-h2h-score>div:first-child b{color:var(--link)}
+.mh-player-sheet .px-h2h-bar{margin:9px 0;height:7px}
+.mh-player-sheet .mh-h2h-summary .mh-note{margin:6px 0}
+.mh-h2h-method{font-size:11px;color:var(--text2);margin-top:8px}.mh-h2h-method summary{min-height:32px;cursor:pointer;color:var(--link);font-weight:650;display:list-item;padding:5px 0}
+.mh-player-sheet .mh-h2h-title{margin:14px 0 8px}.mh-player-sheet .mh-list-heading{margin-bottom:8px}
+.mh-player-sheet .mh-section{border-radius:12px;padding:14px}
+#modal-bg:has(.mh-player-sheet) #modal-title{margin-bottom:10px;font-size:clamp(20px,4vw,24px)}
+#modal-bg:has(.mh-player-sheet) #modal-actions{margin-top:9px!important;padding-top:9px}
+/* Keep the full standings table. Distinct column families without extra boxes. */
+.ui-v3 #view-grupos table.cls-table{min-width:100%}
+.ui-v3 #view-grupos table.cls-table .clg-head th{position:static;width:auto;min-width:0;max-width:none;box-shadow:none;padding:7px 8px;background:var(--surface2);color:var(--text2);border-right:1px solid var(--border);font-size:10px;letter-spacing:.035em;text-align:center}
+.ui-v3 #view-grupos table.cls-table .clg-head th:last-child{border-right:0}
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-last-child(9),.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-last-child(6),.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-last-child(3){border-left:1px solid var(--border2)}
+.ui-v3 #view-grupos .cls-table tr:not(.clg-head)>:last-child{font-weight:750}
+.ui-v3 #view-grupos .cls-table td{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ui-v3 #view-grupos .cls-table .nm-link{white-space:normal!important}
+.ui-v3 #view-grupos .cls-table .dest{padding-inline:8px}
+.ui-v3 #view-grupos .ui-scroll-note{font-size:11px;line-height:1.45;margin:8px 0 0}
+.ui-v3 #view-grupos .ui-table-shortcuts{gap:7px;margin-top:10px}
+/* Consistent density for result forms and admin lists without hiding controls. */
+.ui-v3 .re-card,.ui-v3 .result-editor{box-shadow:none}
+.ui-v3 .ui-admin-section{border-radius:10px;margin-bottom:10px}
+.ui-v3 .ui-admin-section>summary{padding:13px 15px;min-height:46px}
+body.sohail-ui-modern .ui-login-card .login-body{padding-top:18px;padding-bottom:20px}
+body.sohail-ui-modern .ui-login-card .login-head{padding-bottom:18px}
+.ui-login-intro{margin-bottom:14px}
+@media(max-width:600px){
+ .ui-v3 .app-sticky-nav{padding-bottom:6px;margin-bottom:9px}
+ .ui-v3 .app-sticky-nav>.hdr{padding-block:8px;margin-bottom:6px}
+ .ui-v3 .px-card,.mh-player-view .px-card,#stat-total .px-card{padding:12px}
+ .mh-player-sheet .mh-clean-tabs>button{font-size:11px;padding-inline:2px}
+ .mh-player-sheet .mh-h2h-summary{padding:12px}
+ .px-ranking-find label{flex-basis:100%}
+}
+@media print{.ui-v3 #view-grupos table.cls-table{min-width:0}.ui-v3 #view-grupos table.cls-table .clg-head th{position:static}}
+.ui-v3 #view-grupos .ui-stat-key{font-size:11px;color:var(--text2);margin-top:5px}.ui-v3 #view-grupos .ui-stat-key summary{cursor:pointer;padding:7px 0;color:var(--link);font-weight:650}.ui-v3 #view-grupos .ui-stat-key p{line-height:1.6;margin:4px 0 0}
