@@ -43,7 +43,9 @@ button.liga-tab{cursor:pointer}
 <link rel="stylesheet" href="rating-v440.css?v=sohail-v460-unified-experience">
 <link rel="stylesheet" href="experience-v460.css?v=sohail-v460-unified-experience">
 <link rel="stylesheet" href="security-account.css?v=sohail-v490-auth">
-<meta name="sohail-security-part3" content="sohail-v500"><link rel="stylesheet" href="performance-v510.css?v=sohail-v510"><meta name="sohail-performance" content="v5.1.0"></head><body>
+<meta name="sohail-security-part3" content="sohail-v500"><link rel="stylesheet" href="performance-v510.css?v=sohail-v510"><meta name="sohail-performance" content="v5.1.0"><link rel="stylesheet" href="league-consultation.css?v=sohail-consulta-1">
+<link rel="stylesheet" href="import-results.css?v=import-review-1">
+</head><body>
 <div id="login-screen">
   <!-- Header editable de la pantalla de login. El admin configura color y
        links desde el panel Admin. Aparece SOLO en el login (no en la app).
@@ -58,19 +60,13 @@ button.liga-tab{cursor:pointer}
       <div class="ball"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M6 5c6 4 6 10 0 14M18 5c-6 4-6 10 0 14"/></svg></div><h1 id="login-title"></h1><p id="login-sub"></p>
     </div>
     <div class="login-body"><div class="ui-login-intro"><p class="ui-eyebrow" data-ui-login-text="ui_login_eyebrow">Tu liga, en un solo lugar</p><h2 data-ui-login-text="ui_login_title">Entrá a tu competición</h2><p data-ui-login-text="ui_login_step">Elegí tu usuario y continuá con tu contraseña o tu dispositivo.</p></div><div class="login-err" id="login-err" role="alert"></div>
-      <div class="login-search">
-        <label id="login-search-label" for="login-user-search">Buscá tu nombre</label>
-        <input type="text" id="login-user-search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="login-user-suggestions" aria-describedby="login-search-help login-search-status" placeholder="Escribí tu nombre o apellido…" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="120">
-        <ul id="login-user-suggestions" class="login-suggestions" role="listbox" hidden></ul>
-        <p id="login-search-help" class="login-search-help">Elegí una sugerencia o usá la lista completa de abajo.</p>
-        <p id="login-search-status" class="login-search-status" role="status" aria-live="polite" aria-atomic="true"></p>
-      </div>
       <label id="lbl-user" for="login-user">Seleccioná tu usuario</label><select id="login-user"><option value=""></option></select>
       <div class="ui-login-password-label"><label id="lbl-pass" for="login-pass">Contraseña</label></div>
       <div class="ui-password-field"><input type="password" id="login-pass" placeholder="••••••" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')doLogin()"><button type="button" id="ui-password-visibility" aria-controls="login-pass" aria-pressed="false" aria-label="Mostrar contraseña" title="Mostrar contraseña"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
       <button class="login-btn" id="login-btn" onclick="doLogin()">Entrar</button>
       <button class="login-btn login-btn-pk" id="login-btn-pk" onclick="loginConPasskey()" style="display:none"><i class="ti ti-face-id"></i> <span id="login-btn-pk-txt">Entrar con Face ID</span></button>
       <p class="ui-session-note" id="session-note">La sesión se conserva 24 horas en este navegador. Salí al terminar en dispositivos compartidos.</p>
+      <div class="login-consult"><button type="button" id="login-consult-league" aria-haspopup="dialog">Consultar liga</button><p id="login-consult-hint">Sin iniciar sesión · Resultados y clasificación · Solo lectura</p></div>
       <button type="button" class="login-forgot" id="login-forgot-btn" onclick="mostrarResetRequest()">Olvidé mi contraseña</button>
     </div>
   </div>
@@ -214,7 +210,10 @@ button.liga-tab{cursor:pointer}
 <script src="result-policy.js?v=sohail-v395-result-guard"></script>
 <script src="result-editor.js?v=sohail-v520-wo-zero"></script>
 <script src="login-search.js?v=sohail-v410-login-bulk"></script>
+<script src="league-consultation.js?v=sohail-consulta-1"></script>
 <script src="import-security.js?v=sohail-security-v500"></script>
+<script src="operation-feedback.js?v=import-review-1"></script>
+<script src="import-results-review.js?v=import-review-1"></script>
 <script src="excel-loader.js?v=sohail-v410-login-bulk"></script>
 <script src="session-client.js?v=sohail-v460-unified-experience"></script>
 <script src="security-account.js?v=sohail-v491-passwords-injury-access"></script>
