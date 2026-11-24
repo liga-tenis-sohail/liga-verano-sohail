@@ -85,3 +85,43 @@ test('CONSULT no closed/unpublished result reveals club palette',()=>{
 test('CONSULT theme tokens are scoped to dialog, not the login or root theme',()=>{
  const src=fs.readFileSync(path.join(__dirname,'../public/league-consultation.js'),'utf8');assert.ok(src.includes('dialog.style.setProperty(k,v)'));assert.doesNotMatch(src,/\.setBrand\s*\(/);assert.doesNotMatch(src,/documentElement\.style/);assert.equal(Client.initials('José Fernández de la Torre'),'JF');
 });
+
+// The full matrix is presentation only: a match occupies two cells with
+// opposite perspectives, but the result list/count still contains it once.
+function renderMatrixFixture(results,names=['A','B','C','D']){
+ const src=fs.readFileSync(path.join(__dirname,'../public/league-consultation.js'),'utf8');
+ const start=src.indexOf('  function renderResults(c,g){'),end=src.indexOf('\n  function render(){',start);
+ assert.ok(start>=0&&end>start,'Use the real renderer');
+ const node=(tag,text,cls)=>({tag,textContent:text==null?'':String(text),className:cls||'',children:[],append(...items){this.children.push(...items);},setAttribute(){}});
+ const ctx=vm.createContext({node,T:(es)=>es,heading:(a,b)=>node('h3',a+' · '+b),playerName:n=>node('span',n),score:Client.score,clubColor:n=>n,setClubColor:(el,color)=>{el.club=color;},clubBadge:n=>node('span',n),table:(h,rows)=>{const t=node('list');t.rows=rows;return t;}});
+ vm.runInContext(src.slice(start,end),ctx);
+ const section=ctx.renderResults({}, {number:1,rows:names.map(name=>({name})),results});
+ const matrix=section.children.find(n=>n.className==='consult-table-scroll').children[0];
+ return {cells:matrix.children.find(n=>n.tag==='tbody').children.map(r=>r.children.slice(1)),section};
+}
+test('CONSULT full matrix mirrors normal matches and supertiebreak, never duplicates records',()=>{
+ const results=[{a:'A',b:'B',kind:'played',sets:[[6,2],[4,6],[1,0]],winner:'A',club:'Sohail',date:'2026-11-24'},{a:'C',b:'A',kind:'played',sets:[[6,1],[6,3]],winner:'C',club:'Haza'}];
+ const before=JSON.stringify(results),{cells,section}=renderMatrixFixture(results);
+ assert.equal(cells[0][1].textContent,'6–2 / 4–6 / 1–0');assert.equal(cells[1][0].textContent,'2–6 / 6–4 / 0–1');
+ assert.equal(cells[0][2].textContent,'1–6 / 3–6');assert.equal(cells[2][0].textContent,'6–1 / 6–3');
+ assert.equal(cells[0][1].club,'Sohail');assert.equal(cells[1][0].club,'Sohail');assert.equal(cells[0][1].title,cells[1][0].title);
+ for(let i=0;i<4;i++)assert.equal(cells[i][i].className,'consult-diagonal');
+ assert.equal(cells[0][3].textContent,'·');assert.equal(cells[3][0].textContent,'·');
+ assert.equal(cells.flat().filter(c=>c.className==='consult-result').length,4);
+ assert.equal(section.children.find(n=>n.tag==='list').rows.length,2);assert.match(section.children[0].textContent,/2 confirmados/);assert.equal(JSON.stringify(results),before);
+});
+test('CONSULT full matrix mirrors W.O., no-play and retirements without changing winners',()=>{
+ const results=[{a:'A',b:'B',kind:'walkover',sets:[],winner:'A',club:'Sohail'}, {a:'C',b:'A',kind:'not-played',sets:[],winner:''}, {a:'D',b:'A',kind:'retired',sets:[[6,2],[3,4]],winner:'A',club:'Haza'}];
+ const {cells}=renderMatrixFixture(results);for(const [i,j]of [[0,1],[1,0],[0,2],[2,0]])assert.equal(cells[i][j].className,'consult-result consult-special');
+ assert.equal(cells[0][1].textContent,'W.O.');assert.equal(cells[1][0].textContent,'W.O.');assert.equal(cells[0][2].textContent,'—');assert.equal(cells[2][0].textContent,'—');
+ assert.equal(cells[3][0].textContent,'6–2 / 3–4 · RET');assert.equal(cells[0][3].textContent,'2–6 / 4–3 · RET');assert.equal(cells[3][0].title,cells[0][3].title);assert.match(cells[3][0].title,/Ganador: A/);
+});
+test('CONSULT classification padding is separate from restored original matrix sizing',()=>{
+ const css=fs.readFileSync(path.join(__dirname,'../public/league-consultation.css'),'utf8');
+ assert.doesNotMatch(css,/\.ui-v3 #view-grupos table\.res-table tr>:first-child/);
+ assert.doesNotMatch(css,/:is\(\.cls-table,\.res-table\) \.nm-link/);
+ assert.match(css,/\.consult-matrix tr>:first-child\{width:150px;min-width:132px;max-width:160px/);
+ assert.match(css,/\.consult-group-table tr>:first-child\{padding-inline:12px 14px\}/);
+ assert.match(css,/\.consult-group-table tr>:nth-child\(2\)\{padding-inline:14px\}/);
+ assert.doesNotMatch(css,/\.consult-upper/);
+});

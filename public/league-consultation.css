@@ -4,17 +4,16 @@
 :root[data-sohail-table-size="100"]{--sohail-table-zoom:1}
 .ui-v3 #view-grupos table.cls-table,.ui-v3 #view-grupos table.res-table{zoom:var(--sohail-table-zoom);width:100%;table-layout:auto}
 .ui-v3 #view-grupos table.cls-table{min-width:820px}
-.ui-v3 #view-grupos .cls-table th,.ui-v3 #view-grupos .cls-table td{padding:8px 6px}
+.ui-v3 #view-grupos .cls-table th,.ui-v3 #view-grupos .cls-table td{padding:9px 12px}
 /* A 1% preferred width in auto table layout makes these columns follow their
    intrinsic content. Only very long labels wrap, not the whole table. */
-.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:first-child{width:1%;min-width:0;max-width:none;padding-left:6px;padding-right:6px;white-space:nowrap!important}
-.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(2),.ui-v3 #view-grupos table.res-table tr>:first-child{width:1%;min-width:0;max-width:none;white-space:nowrap!important;overflow-wrap:normal}
-.ui-v3 #view-grupos :is(.cls-table,.res-table) .nm-link{display:inline-block;vertical-align:middle;width:max-content;max-width:var(--sohail-name-max);white-space:normal!important;overflow-wrap:anywhere}
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:first-child{width:1%;min-width:0;max-width:none;padding-left:12px;padding-right:14px;white-space:nowrap!important}
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(2){width:1%;min-width:0;max-width:none;padding-left:14px;padding-right:14px;white-space:nowrap!important;overflow-wrap:normal}
+.ui-v3 #view-grupos .cls-table .nm-link{display:inline-block;vertical-align:middle;width:max-content;max-width:var(--sohail-name-max);white-space:normal!important;overflow-wrap:anywhere}
 .ui-v3 #view-grupos .cls-table .dest{font-size:11px;padding:3px 5px;white-space:nowrap}
-.ui-v3 #view-grupos .cls-table .avatar{width:22px;height:22px;min-width:22px;font-size:10px;margin-right:5px;vertical-align:middle}
-.ui-v3 #view-grupos table.res-table{min-width:590px}
-.ui-v3 #view-grupos table.res-table th,.ui-v3 #view-grupos table.res-table td{min-width:76px;padding:9px 7px}
-.ui-v3 #view-grupos table.res-table tr>:first-child{min-width:0}
+.ui-v3 #view-grupos .cls-table .avatar{width:22px;height:22px;min-width:22px;font-size:10px;margin-right:7px;vertical-align:middle}
+/* Result matrix: defer its name column, cell padding and widths to the
+   original league styles in estilos.css and ui-modern.css. Only zoom above. */
 .sohail-table-size{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
 .sohail-table-size button{min-height:36px;padding:6px 10px;font-size:12px;font-family:inherit;font-weight:650;border:1px solid var(--border2,#c8d0dc);border-radius:8px;background:var(--surface,#fff);color:var(--text,#17243a);cursor:pointer}
 .sohail-table-size button[aria-pressed="true"]{background:var(--action,#1b4f9c);color:var(--on-action,#fff);border-color:var(--action,#1b4f9c)}
@@ -74,19 +73,27 @@
 /* Width depends on the longest displayed player in that table, not the viewport.
    The header is included in the measurement; exceptionally long names wrap. */
 .consult-group-table tr>:first-child,.consult-general tr>:first-child,.consult-general tr>:nth-child(3){width:1%;min-width:0;white-space:nowrap}
-.consult-group-table tr>:nth-child(2),.consult-general tr>:nth-child(2),.consult-matrix tr>:first-child{width:1%;min-width:0;max-width:none;white-space:nowrap;text-align:left;position:sticky;left:0;background:var(--surface,#fff);z-index:2;box-shadow:6px 0 9px -8px #546b85}
+.consult-group-table tr>:nth-child(2),.consult-general tr>:nth-child(2){width:1%;min-width:0;max-width:none;white-space:nowrap;text-align:left;position:sticky;left:0;background:var(--surface,#fff);z-index:2;box-shadow:6px 0 9px -8px #546b85}
 .consult-group-table thead tr>:nth-child(2),.consult-general thead tr>:nth-child(2){background:var(--soft,#e6f1fb);z-index:3}
 .consult-group-table tbody tr>:nth-child(2),.consult-general tbody tr>:nth-child(2){font-weight:650;color:var(--link,#1b4f9c)}
 .consult-group-table td:nth-child(3),.consult-group-table td:last-child,.consult-general td:last-child{font-weight:750}
 .consult-group-table .dest{font-size:11px;padding:4px 7px}
+/* Leave visible breathing room between the destination chip and the player. */
+.consult-group-table th,.consult-group-table td{padding-inline:12px}
+.consult-group-table tr>:first-child{padding-inline:12px 14px}
+.consult-group-table tr>:nth-child(2){padding-inline:14px}
+.consult-group-table .consult-player{gap:7px}
 .consult-matrix{min-width:0}
+/* Same comfortable first-column sizing as the original league matrix. */
+.consult-matrix tr>:first-child{width:150px;min-width:132px;max-width:160px;white-space:normal;text-align:left;position:sticky;left:0;background:var(--surface,#fff);z-index:2;box-shadow:6px 0 9px -8px #546b85}
+.consult-matrix tr>:first-child .consult-name{max-inline-size:132px}
+.consult-matrix tr>:first-child .consult-player{display:inline-block;white-space:normal}
 .consult-matrix thead th{background:var(--brand-bg,#1b4f9c);color:var(--brand-ink,#fff);border-right:1px solid color-mix(in srgb,var(--brand-ink,#fff) 22%,transparent);font-weight:650;white-space:normal}
 .consult-matrix thead th:not(:first-child) .consult-name{max-inline-size:148px}
 .consult-matrix thead tr>:first-child{background:var(--brand-bg,#1b4f9c);color:var(--brand-ink,#fff);z-index:3}
 .consult-matrix tbody tr>:first-child{background:var(--soft,#e6f1fb);color:var(--link,#1b4f9c);font-weight:650;border-bottom:1px solid var(--border,#d6dfeb)}
 .consult-matrix td{white-space:nowrap;min-width:85px;border-right:1px solid var(--border,#d6dfeb);font-variant-numeric:tabular-nums}
 .consult-matrix td:last-child{border-right:0}
-.consult-matrix .consult-upper{background:var(--surface2,#edf1f6)}
 .consult-matrix .consult-diagonal{background:var(--consult-diagonal);color:#e2e7ef;font-weight:600}
 .consult-matrix .consult-result{background:var(--consult-club-bg,var(--soft,#e6f1fb));color:var(--consult-club-ink,var(--text,#17243a));font-weight:700}
 .consult-matrix .consult-special{background:var(--league-highlight,var(--warnBg,#fef3c7));color:var(--league-highlight-ink,var(--warnT,#92400e))}
@@ -106,5 +113,8 @@
  .sohail-consultation select{font-size:16px}.consult-tabs .consult-tab{flex:1;min-width:0}
  .consult-filters{gap:10px}.consult-filters>div{flex:1;min-width:100px}.consult-filters .sohail-table-size{flex:1 0 100%;margin-left:0;padding:0}
  .consult-section-title h3{font-size:16px}.consult-table th,.consult-table td{padding:9px 7px}
+ .consult-group-table th,.consult-group-table td{padding-inline:10px}
+ .consult-group-table tr>:first-child{padding-inline:12px 14px}
+ .consult-group-table tr>:nth-child(2){padding-inline:14px}
 }
 @media print{.ui-v3 #view-grupos table.cls-table,.ui-v3 #view-grupos table.res-table,.consult-table{zoom:1}.sohail-table-size{display:none!important}}
