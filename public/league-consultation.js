@@ -150,11 +150,11 @@
   function renderResults(c,g){
    const section=node('section',null,'card consult-card');section.append(heading(T('Resultados · Grupo ','Results · Group ')+g.number,g.results.length+' '+T('confirmados','confirmed')));
    const names=g.rows.map(r=>r.name),wrap=node('div',null,'consult-table-scroll');wrap.tabIndex=0;wrap.setAttribute('role','region');wrap.setAttribute('aria-label',T('Cuadro de resultados','Results matrix'));
-   const matrix=node('table',null,'consult-table consult-matrix');matrix.append(node('caption',T('Marcador desde la perspectiva del jugador de la fila.','Score from the row player’s perspective.'),'consult-matrix-caption'));
+   const matrix=node('table',null,'consult-table consult-matrix');matrix.append(node('caption',T('Cada fila muestra todos sus cruces. Marcador desde la perspectiva del jugador de la fila.','Each row shows all its matchups. Scores are from the row player’s perspective.'),'consult-matrix-caption'));
    const thead=node('thead'),header=node('tr');for(const name of [T('Jugador','Player'),...names]){const th=node('th');th.scope='col';th.append(playerName(name));header.append(th);}thead.append(header);matrix.append(thead);
    const tbody=node('tbody');for(let i=0;i<names.length;i++){const tr=node('tr'),th=node('th');th.scope='row';th.append(playerName(names[i]));tr.append(th);
     for(let j=0;j<names.length;j++){const td=node('td');if(i===j){td.textContent='—';td.className='consult-diagonal';}
-     else if(j>i){td.className='consult-upper';td.setAttribute('aria-label',T('Ver la casilla simétrica','See the mirrored cell'));}
+     // Both perspectives refer to the same confirmed match; only the display is mirrored.
      else{const m=g.results.find(m=>m.a===names[i]&&m.b===names[j]||m.b===names[i]&&m.a===names[j]);td.textContent=m?score(m,names[i]):'·';if(m){td.className='consult-result'+(['walkover','not-played'].includes(m.kind)?' consult-special':'');if(m.kind==='played'||m.kind==='retired')setClubColor(td,clubColor(m.club));td.title=[m.winner?T('Ganador: ','Winner: ')+m.winner:'',m.club,m.date].filter(Boolean).join(' · ');}}
      tr.append(td);
     }tbody.append(tr);
