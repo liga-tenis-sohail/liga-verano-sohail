@@ -69,7 +69,7 @@ function project(state,entry,now=Date.now()){
    const total=base+extra+adjustment;add(s.name,c.n,total);
    return {name:text(s.name),position:pos+1,destination:destination(state,c,gid,s.name,pos),points:number(s.pts),
     played:number(s.g)+number(s.p),wins:number(s.g),losses:number(s.p),notPlayed:number(s.nj),
-    setsWon:number(s.sg),setsLost:number(s.sp),setsBalance:number(s.sg)-number(s.sp),base,extra,adjustment,total};
+    setsWon:number(s.sg),setsLost:number(s.sp),setsBalance:number(s.sg)-number(s.sp),gamesWon:number(s.gw),gamesLost:number(s.gl),gamesBalance:number(s.gw)-number(s.gl),base,extra,adjustment,total};
   });
   const names=new Set(Array.isArray(g?.players)?g.players:[]);
   return {number:gid,rows,results:confirmed.filter(m=>!m.po&&m.cycle===c.n&&m.g===gid&&names.has(m.aName)&&names.has(m.bName)).map(matchResult).filter(Boolean)};

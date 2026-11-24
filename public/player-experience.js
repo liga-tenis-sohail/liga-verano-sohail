@@ -65,7 +65,7 @@
    if(filter.key!==key)filter={key,tab:c?.status==='finished'?'done':'todo'};
    const tabs=[['todo',T('Sin resultado','No result'),p.todo],['review',T('Por revisar','To review'),p.review],['done',T('Confirmados','Confirmed'),p.done]];
    const wanted=rows.filter(r=>D.bucket(r)===filter.tab);
-   const html=card('px-matches',title(T('Mis cruces del ciclo','My cycle fixtures'),cyc(s.activeN)+' · '+group(g))+'<div class="px-segments" role="group" aria-label="'+e(T('Estado de partidos','Fixture status'))+'">'+tabs.map(([id,l,v])=>'<button type="button" aria-pressed="'+(id===filter.tab)+'" data-px-action="filter" data-px-value="'+id+'">'+e(l)+' <b>'+v+'</b></button>').join('')+'</div><div class="px-fixtures">'+(wanted.length?wanted.map(r=>groupRow(s,n,r)).join(''):note(T('No hay cruces en esta categoría.','No fixtures in this category.')))+'</div>'+note(T('El historial de todas las temporadas sigue disponible debajo.','All-season history remains available below.')));
+   const html=card('px-matches',title(T('Mis cruces del ciclo','My cycle fixtures'),cyc(s.activeN)+' · '+group(g))+'<div class="px-segments" role="group" aria-label="'+e(T('Estado de partidos','Fixture status'))+'">'+tabs.map(([id,l,v])=>'<button type="button" aria-pressed="'+(id===filter.tab)+'" data-px-action="filter" data-px-value="'+id+'">'+e(l)+' <b>'+v+'</b></button>').join('')+'</div><div class="px-fixtures">'+(wanted.length?wanted.map(r=>groupRow(s,n,r)).join(''):note(T('No hay cruces en esta categoría.','No fixtures in this category.')))+'</div>'+note(T('Historial de todas las temporadas ↓','All-season history ↓')));
    const box=cardAt(host,'fixtures',html);const head=host.querySelector(':scope > .mh-page-head');if(head&&box&&head.nextElementSibling!==box)head.after(box);
   }
   function closure(s,n){
@@ -114,8 +114,9 @@
   function mountEvolution(host,options){
    if(!host||!options?.name||!sportSession())return;safe(palette,null);
    // Only the established sporting profile view may call this. No extra request.
-   const html=evolutionHTML(options),box=cardAt(host,'evolution',html);
-   const context=host.querySelector(':scope > .mh-player-context');if(context&&box&&context.nextElementSibling!==box)context.after(box);
+   const target=host.querySelector(':scope > [data-mhp-panel=summary]')||host;
+   const html=evolutionHTML(options),box=cardAt(target,'evolution',html);
+   const context=host.querySelector(':scope > .mh-player-context');if(target===host&&context&&box&&context.nextElementSibling!==box)context.after(box);
   }
   function mountSummary(host,options){if(!player()||options?.name!==name())return;mountEvolution(host,options);}
   function profile(){const host=doc.getElementById('view-perfil');if(!player()||!host)return;
@@ -145,7 +146,7 @@
    for(const section of doc.querySelectorAll('#view-grupos .ui-group-card')){const g=Number(section.id.replace('ui-group-',''));if(!c.groups?.[g-1])continue;const panel=section.querySelector('.ui-standings-section');if(!panel)continue;const p=D.progress(D.fixtures(c,g,s.matches,s.users));const box=cardAt(panel,'group-progress','<div class="px-group-progress"><strong>'+e(T('Cruces confirmados entre activos','Confirmed active-player fixtures'))+' · '+p.done+'/'+p.total+'</strong>'+meter(p.done,p.total)+'<span>'+p.todo+' '+e(T('sin resultado','no result'))+' · '+p.review+' '+e(T('por revisar','to review'))+'</span></div>');const head=panel.querySelector('.ui-muted');if(head&&box&&head.nextElementSibling!==box)head.after(box);}
   }
   function rankingSearch(){const host=doc.getElementById('view-general');if(!session()||!host)return;const table=host.querySelector('.gen-table');if(!table)return;
-   const box=cardAt(host,'ranking-find','<div class="px-ranking-find"><label for="px-rank-query">'+e(T('Localizar jugador en la clasificación','Find a player in standings'))+'</label><input id="px-rank-query" type="search" autocomplete="off" placeholder="'+e(T('Nombre o apellido','Name or surname'))+'"><div class="px-actions">'+button(T('Buscar','Find'),'rank-find')+(player()?button(T('Mi posición','My position'),'rank-self'):'')+'</div><p role="status" class="px-note" data-px-rank-status></p></div>');
+   const box=cardAt(host,'ranking-find','<div class="px-ranking-find"><label for="px-rank-query">'+e(T('Buscar en clasificación','Find in standings'))+'</label><input id="px-rank-query" type="search" autocomplete="off" placeholder="'+e(T('Nombre o apellido','Name or surname'))+'"><div class="px-actions">'+button(T('Buscar','Find'),'rank-find')+(player()?button(T('Mi posición','My position'),'rank-self'):'')+'</div><p role="status" class="px-note" data-px-rank-status></p></div>');
    if(box)box.onkeydown=ev=>{if(ev.key==='Enter'&&ev.target.id==='px-rank-query'){ev.preventDefault();findRanking(ev.target.value);}};
   }
   function findRanking(query){const normalized=D.normalized(query),rows=[...doc.querySelectorAll('#gen-body tr')];let first=null,count=0;

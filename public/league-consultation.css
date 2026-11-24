@@ -118,3 +118,33 @@
  .consult-group-table tr>:nth-child(2){padding-inline:14px}
 }
 @media print{.ui-v3 #view-grupos table.cls-table,.ui-v3 #view-grupos table.res-table,.consult-table{zoom:1}.sohail-table-size{display:none!important}}
+
+/* Overall standings have no cycle/group filters. Keep table size available. */
+.consult-general-tools{justify-content:flex-end;padding-bottom:10px}
+@media(max-width:600px){.consult-general-tools .sohail-table-size{flex:0 1 auto;margin-left:auto}}
+
+/* Compact sporting viewer: preserve the complete matrix and every column. */
+.sohail-consultation.ui-v3 .consult-head{padding-block:12px}
+.sohail-consultation.ui-v3 .consult-toolbar{padding:10px 12px 8px;margin-bottom:13px;box-shadow:none}
+.consult-league-intro{margin-bottom:8px}.consult-league-name{font-size:clamp(18px,3vw,22px)}
+.consult-tabs{gap:0;padding:0;margin-bottom:12px}
+.sohail-consultation .consult-tab{border:0;border-bottom:3px solid transparent;border-radius:0;background:transparent;color:var(--text2);box-shadow:none;min-height:44px}
+.sohail-consultation .consult-tab[aria-selected=true]{border-color:var(--action);color:var(--link);background:transparent}
+.consult-filters{padding-bottom:11px}
+.sohail-consultation.ui-v3 .consult-card{border-radius:12px;padding:14px;box-shadow:none;margin-bottom:12px}
+.consult-section-title{margin-bottom:10px}.consult-status{margin-top:7px;font-size:11px}
+.consult-group-table{min-width:1100px}
+.consult-group-table thead .consult-colgroups th{position:static;min-width:0;width:auto;max-width:none;box-shadow:none;text-align:center;background:var(--surface2);color:var(--text2);border-right:1px solid var(--border);font-size:11px;letter-spacing:.035em;padding:7px 8px}
+.consult-group-table thead .consult-colgroups th:last-child{border-right:0}
+.consult-group-table tr:not(.consult-colgroups)>:nth-last-child(10),.consult-group-table tr:not(.consult-colgroups)>:nth-last-child(7),.consult-group-table tr:not(.consult-colgroups)>:nth-last-child(4){border-left:1px solid var(--border2)}
+.consult-group-table td{font-variant-numeric:tabular-nums;white-space:nowrap}
+.consult-group-table .consult-name{white-space:normal}
+.consult-group-table .consult-player{gap:8px}
+.consult-hint{font-size:11px;margin:6px 0 8px}
+@media(max-width:600px){.sohail-consultation.ui-v3 .consult-head{padding-block:9px}.sohail-consultation.ui-v3 .consult-card{padding:10px}.consult-body{padding-top:10px}.consult-tabs .consult-tab{font-size:12px}}
+@media print{.consult-group-table{min-width:0}}
+/* Grouped headers must not participate in percentage-based column sizing. */
+.ui-v3 #view-grupos table.cls-table,.consult-table.consult-group-table{width:max-content;min-width:100%;table-layout:auto}
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:first-child,.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(2),.consult-group-table tr:not(.consult-colgroups)>:first-child,.consult-group-table tr:not(.consult-colgroups)>:nth-child(2){width:auto}
+.ui-v3 #view-grupos table.cls-table tr:not(.clg-head)>:nth-child(n+3),.consult-group-table tr:not(.consult-colgroups)>:nth-child(n+3){width:auto;min-width:42px;white-space:nowrap}
+@media print{.ui-v3 #view-grupos table.cls-table,.consult-table.consult-group-table{width:100%;min-width:0}}

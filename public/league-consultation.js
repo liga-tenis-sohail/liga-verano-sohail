@@ -95,6 +95,7 @@
   function table(headings,rows,label,cls=''){
    const wrap=node('div',null,'consult-table-scroll');wrap.setAttribute('role','region');wrap.setAttribute('aria-label',label);wrap.tabIndex=0;
    const tbl=node('table',null,'consult-table '+cls),caption=node('caption',label,'ui-sr-only'),thead=node('thead'),tr=node('tr');
+   if(cls==='consult-group-table'){const groups=node('tr',null,'consult-colgroups');for(const [title,span] of [[T('Jugadores','Players'),2],[T('Partidos','Matches'),5],['Sets',3],['Games',3],[T('Puntos generales','Overall points'),4]]){const th=node('th',title);th.scope='colgroup';th.colSpan=span;groups.append(th);}thead.append(groups);}
    for(const h of headings){const th=node('th',Array.isArray(h)?h[0]:h);th.scope='col';if(Array.isArray(h))th.title=h[1];tr.append(th);}thead.append(tr);tbl.append(caption,thead);
    const tbody=node('tbody');for(const row of rows){const r=node('tr');row.forEach((v,i)=>{const td=node('td');
     if(cls==='consult-group-table'&&i===0)td.append(v);
@@ -144,8 +145,9 @@
   function destination(row,gid){const d=row.destination;return d==null?'—':(d<gid?'↑ ':d>gid?'↓ ':'= ')+'G'+d;}
   function renderGroup(c,g){
    const section=node('section',null,'card consult-card');section.append(heading(T('Clasificación · Grupo ','Standings · Group ')+g.number,g.rows.length+' '+T('jugadores','players')));
-   section.append(table([T('Destino','Next group'),T('Jugador','Player'),'Pts','PJ',T('Gan.','Won'),T('Perd.','Lost'),['NJ',T('No jugados','Not played')],['SG',T('Sets ganados','Sets won')],['SP',T('Sets perdidos','Sets lost')],['± Sets',T('Balance de sets','Set difference')],T('Puesto','Position pts'),'Extra',T('Ajuste','Adjustment'),'Total'],g.rows.map(r=>[destinationBadge(r,g.number),r.name,r.points,r.played,r.wins,r.losses,r.notPlayed,r.setsWon,r.setsLost,r.setsBalance,r.base,r.extra,r.adjustment,r.total]),T('Clasificación del grupo ','Group standings ')+g.number,'consult-group-table'));
-   section.append(node('p',T('Pts: puntos de partidos. Total: puntos que este grupo aporta a la clasificación general.','Pts: match points. Total: points contributed by this group to the overall standings.'),'consult-hint'));return section;
+   const num=n=>typeof n==='number'&&Number.isFinite(n)?n:'—';
+   section.append(table([T('Destino','Next group'),T('Jugador','Player'),['Pts',T('Puntos del grupo','Group points')],['PJ',T('Partidos computados','Credited matches')],[T('PG','W'),T('Partidos ganados','Matches won')],[T('PP','L'),T('Partidos perdidos','Matches lost')],['NJ',T('No jugados','Not played')],['SG',T('Sets ganados','Sets won')],['SP',T('Sets perdidos','Sets lost')],['±',T('Balance de sets','Set difference')],['GG',T('Games ganados','Games won')],['GP',T('Games perdidos','Games lost')],['±',T('Balance de games','Game difference')],T('Puesto','Position pts'),'Extra',T('Ajuste','Adjustment'),'Total'],g.rows.map(r=>[destinationBadge(r,g.number),r.name,r.points,r.played,r.wins,r.losses,r.notPlayed,r.setsWon,r.setsLost,r.setsBalance,num(r.gamesWon),num(r.gamesLost),num(r.gamesBalance),r.base,r.extra,r.adjustment,r.total]),T('Clasificación del grupo ','Group standings ')+g.number,'consult-group-table'));
+   section.append(node('p',T('PJ: partidos computados · NJ: no jugados · ±: balance. Total: aporte a la general.','PJ: credited matches · NJ: not played · ±: difference. Total: contribution to overall standings.'),'consult-hint'));return section;
   }
   function renderResults(c,g){
    const section=node('section',null,'card consult-card');section.append(heading(T('Resultados · Grupo ','Results · Group ')+g.number,g.results.length+' '+T('confirmados','confirmed')));
@@ -167,19 +169,22 @@
   }
   function render(){
    if(!content||!data)return;applyAppearance();content.replaceChildren();
-   const intro=node('div',null,'consult-league-intro'),title=node('h2',data.league.name,'consult-league-name');intro.append(node('p',T('Competición','Competition'),'consult-eyebrow'),title);content.append(intro);
+   const intro=node('div',null,'consult-league-intro'),title=node('h2',data.league.name,'consult-league-name');intro.append(title);content.append(intro);
    const nav=node('div',null,'consult-tabs');nav.setAttribute('role','tablist');nav.setAttribute('aria-label',T('Consulta deportiva','Sporting view'));
-   for(const [value,label]of [['results',T('Resultados','Results')],['standings',T('Clasificación','Standings')]]){const b=button(label,()=>{tab=value;render();},'btn consult-tab'+(tab===value?' btn-primary':''));b.id='consult-tab-'+value;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(tab===value));b.setAttribute('aria-controls','consult-sporting-panel');b.tabIndex=tab===value?0:-1;b.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();tab=tab==='results'?'standings':'results';render();doc.getElementById('consult-tab-'+tab)?.focus();}});nav.append(b);}content.append(nav);
+   for(const [value,label]of [['results',T('Resultados','Results')],['standings',T('Clasificación general','Overall standings')]]){const b=button(label,()=>{tab=value;render();doc.getElementById('consult-tab-'+tab)?.focus({preventScroll:true});},'btn consult-tab'+(tab===value?' btn-primary':''));b.id='consult-tab-'+value;b.setAttribute('role','tab');b.setAttribute('aria-selected',String(tab===value));b.setAttribute('aria-controls','consult-sporting-panel');b.tabIndex=tab===value?0:-1;b.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();tab=tab==='results'?'standings':'results';render();doc.getElementById('consult-tab-'+tab)?.focus();}});nav.append(b);}content.append(nav);
    const panel=node('div');panel.id='consult-sporting-panel';panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby','consult-tab-'+tab);content.append(panel);
-   if(data.cycles.length){const filters=node('div',null,'consult-filters'),cyLabel=node('label',T('Ciclo','Cycle')),cy=node('select'),gLabel=node('label',T('Grupo','Group')),gs=node('select');cy.id='consult-cycle';gs.id='consult-group';cyLabel.htmlFor=cy.id;gLabel.htmlFor=gs.id;
+   if(tab==='results'&&data.cycles.length){const filters=node('div',null,'consult-filters'),cyLabel=node('label',T('Ciclo','Cycle')),cy=node('select'),gLabel=node('label',T('Grupo','Group')),gs=node('select');cy.id='consult-cycle';gs.id='consult-group';cyLabel.htmlFor=cy.id;gLabel.htmlFor=gs.id;
     for(const c of data.cycles){const o=node('option',T('Ciclo ','Cycle ')+c.n+(c.status==='finished'?T(' · Cerrado',' · Closed'):T(' · En curso',' · Active')));o.value=String(c.n);cy.append(o);}cy.value=String(cycle);
-    const c=data.cycles.find(c=>c.n===cycle)||data.cycles[0];cycle=c.n;
+    const c=data.cycles.find(c=>c.n===cycle)||data.cycles[0];cycle=c.n;cy.value=String(cycle);
+    if(!c.groups.some(g=>g.number===group))group=c.groups[0]?.number||1;
     for(const g of c.groups){const o=node('option',T('Grupo ','Group ')+g.number);o.value=String(g.number);gs.append(o);}gs.value=String(group);
     cy.addEventListener('change',()=>{cycle=Number(cy.value);group=1;render();});gs.addEventListener('change',()=>{group=Number(gs.value);render();});
     const a=node('div',null,'consult-select-field'),b=node('div',null,'consult-select-field');a.append(cyLabel,cy);b.append(gLabel,gs);filters.append(a,b,sizeControl());panel.append(filters);
-    const g=c.groups.find(g=>g.number===group)||c.groups[0];if(g)panel.append(tab==='results'?renderResults(c,g):renderGroup(c,g));
+    const g=c.groups.find(g=>g.number===group);if(g)panel.append(renderGroup(c,g),renderResults(c,g));
+    else panel.append(node('p',T('Este ciclo todavía no tiene grupos publicados.','This cycle has no published groups yet.')));
    }
    if(tab==='standings'){
+    const filters=node('div',null,'consult-filters consult-general-tools');filters.append(sizeControl());panel.append(filters);
     const section=node('section',null,'card consult-card');section.append(heading(T('Clasificación general acumulada','Overall standings')));
     if(data.standings.length)section.append(table(['#',T('Jugador','Player'),T('Grupo','Group'),...data.cycles.map(c=>'C'+c.n),'Total'],data.standings.map(r=>[r.position,r.name,r.group?'G'+r.group:'—',...data.cycles.map(c=>r.cycles.find(p=>p.n===c.n)?.points||0),r.total]),T('Clasificación general','Overall standings'),'consult-general'));
     else section.append(node('p',T('Todavía no hay clasificación disponible.','No standings available yet.')));panel.append(section);

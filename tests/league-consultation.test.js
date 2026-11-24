@@ -125,3 +125,51 @@ test('CONSULT classification padding is separate from restored original matrix s
  assert.match(css,/\.consult-group-table tr>:nth-child\(2\)\{padding-inline:14px\}/);
  assert.doesNotMatch(css,/\.consult-upper/);
 });
+
+// The anonymous sporting viewer has exactly one purpose per tab. Exercise
+// the real render() with synthetic DOM nodes, without issuing any requests.
+function renderTabFixture(tab, cycles, standings=[], selection={cycle:1,group:1}){
+ const src=fs.readFileSync(path.join(__dirname,'../public/league-consultation.js'),'utf8');
+ const start=src.indexOf('  function render(){'),end=src.indexOf('\n  function open(){',start);
+ assert.ok(start>=0&&end>start);
+ const node=(tag,txt,cls)=>({tag,textContent:txt==null?'':String(txt),className:cls||'',children:[],attrs:{},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(k,v){this.attrs[k]=v;},addEventListener(){}});
+ const content=node('div');const state={league:{name:'Test'},cycles,standings,playoffResults:[]};const before=JSON.stringify(state);
+ const ctx=vm.createContext({content,data:state,tab,...selection,applyAppearance(){},T:es=>es,node,button:(label)=>node('button',label),doc:{getElementById:()=>null},sizeControl:()=>node('size'),heading:title=>node('heading',title),table:(heads,rows,label,cls)=>Object.assign(node('table',label,cls),{heads,rows}),renderGroup:(c,g)=>node('group',g.number),renderResults:(c,g)=>node('matrix',g.number)});
+ vm.runInContext(src.slice(start,end)+'\nrender();',ctx);
+ const panel=content.children.find(n=>n.id==='consult-sporting-panel');assert.equal(JSON.stringify(state),before);
+ return {panel,ctx};
+}
+test('CONSULT Results puts the selected group standings above its full matrix',()=>{
+ const cycles=[{n:1,status:'active',groups:[{number:1},{number:2}]}];const {panel}=renderTabFixture('results',cycles,[],{cycle:1,group:2});
+ assert.deepEqual(panel.children.map(n=>n.tag),['div','group','matrix']);assert.equal(panel.children[1].textContent,'2');assert.equal(panel.children[2].textContent,'2');
+});
+test('CONSULT Overall standings contains only the complete league table with size control',()=>{
+ const cycles=[{n:1,status:'finished',groups:[{number:1}]},{n:2,status:'active',groups:[{number:2}]}];
+ const standings=[{position:1,name:'A',group:1,cycles:[{n:1,points:10},{n:2,points:8}],total:18},{position:2,name:'B',group:2,cycles:[{n:1,points:7},{n:2,points:9}],total:16}];
+ const {panel,ctx}=renderTabFixture('standings',cycles,standings,{cycle:2,group:2});assert.deepEqual(panel.children.map(n=>n.tag),['div','section']);assert.equal(panel.children[0].children[0].tag,'size');
+ const table=panel.children[1].children[1];assert.equal(table.className,'consult-general');assert.deepEqual(JSON.parse(JSON.stringify(table.rows)),[[1,'A','G1',10,8,18],[2,'B','G2',7,9,16]]);assert.equal(ctx.cycle,2);assert.equal(ctx.group,2);
+});
+test('CONSULT empty groups remain readable and overall table is independent of cycle selection',()=>{
+ const cycles=[{n:3,status:'active',groups:[]}];const {panel}=renderTabFixture('results',cycles);assert.equal(panel.children[1].tag,'p');assert.match(panel.children[1].textContent,/no tiene grupos/);
+ const out=renderTabFixture('standings',[]);assert.deepEqual(out.panel.children.map(n=>n.tag),['div','section']);assert.match(out.panel.children[1].children[1].textContent,/no hay clasificación/);
+});
+
+test('CONSULT games and all sports columns are exact shared standings values',()=>{
+ const s=fixture();s.matches=[match({id:1,status:'confirmed',sets:[[6,3],[4,6],[1,0]]}),match({id:2,status:'confirmed',sets:[[6,2],[3,4]],wo:true,winner:'Ciro',retiroDe:'Alicia',aName:'Alicia',bName:'Ciro'}),match({id:3,status:'pending',sets:[[6,0],[6,0]],aName:'Beto',bName:'Ciro'})];
+ const out=snapshot(s),actual=out.cycles[0].groups[0].rows,expected=Score.standings(1,1,s.cycles,s.matches);
+ assert.equal(actual.length,expected.length);
+ for(const row of actual){const r=expected.find(x=>x.name===row.name);assert.deepEqual([row.points,row.played,row.wins,row.losses,row.notPlayed,row.setsWon,row.setsLost,row.setsBalance,row.gamesWon,row.gamesLost,row.gamesBalance],[r.pts,r.g+r.p,r.g,r.p,r.nj,r.sg,r.sp,r.sg-r.sp,r.gw,r.gl,r.gw-r.gl]);}
+ prohibited(out);
+});
+test('CONSULT no-play and pure W.O. add no games, even with credited PJ',()=>{
+ const s=fixture();s.matches=[match({status:'confirmed',sets:[],wo:true,winner:'Alicia',retiroDe:'Beto',woPolicy:{loserPoints:true,loserPlayed:true}})];
+ for(const row of snapshot(s).cycles[0].groups[0].rows)assert.deepEqual([row.gamesWon,row.gamesLost,row.gamesBalance],[0,0,0]);
+});
+test('CONSULT group columns include games and preserve zero rather than showing missing data',()=>{
+ const src=fs.readFileSync(path.join(__dirname,'../public/league-consultation.js'),'utf8'),start=src.indexOf('  function renderGroup('),end=src.indexOf('  function renderResults(',start);assert.ok(start>=0&&end>start);
+ const node=(tag,txt,cls)=>({tag,txt,cls,children:[],append(...a){this.children.push(...a)}});
+ const row={name:'A',destination:2,points:4,played:2,wins:1,losses:1,notPlayed:0,setsWon:2,setsLost:2,setsBalance:0,gamesWon:12,gamesLost:12,gamesBalance:0,base:7,extra:2,adjustment:-1,total:8};
+ const context=vm.createContext({node,heading:(...a)=>node('h',a),T:a=>a,table:(heads,rows)=>({heads,rows}),destinationBadge:r=>r.destination,row});
+ const data=vm.runInContext(src.slice(start,end)+'\nrenderGroup({n:1},{number:1,rows:[row,{...row,gamesWon:undefined,gamesLost:undefined,gamesBalance:undefined}]})',context).children[1];
+ assert.equal(data.heads.length,17);assert.deepEqual(JSON.parse(JSON.stringify(data.rows[0])),[2,'A',4,2,1,1,0,2,2,0,12,12,0,7,2,-1,8]);assert.deepEqual(JSON.parse(JSON.stringify(data.rows[1].slice(10,13))),['—','—','—']);
+});
