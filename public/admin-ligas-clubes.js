@@ -455,6 +455,18 @@ function leagueTextPreview(mode,draft){
     ok:mode==='header'?palette.headerAccepted:palette.accepted,
     ratio:mode==='header'?palette.headerRatio:palette.ratio};
 }
+// Optional Signature palette. Only populate existing draft controls; the user
+// must use the existing preview/save actions, and the server retains its checks.
+function stageSignatureColors(){
+  if(!currentUser||!esAdmin(currentUser)||_ligaReadOnly||_leagueAppearanceSaving)return false;
+  const pri=document.getElementById('sa-color-pri'),acc=document.getElementById('sa-color-acc');
+  if(!pri||!acc||!document.getElementById('sa-pri-hex')||!document.getElementById('sa-acc-hex'))return false;
+  pri.value='#08264c';acc.value='#d9ef28';
+  syncHex('pri','picker');syncHex('acc','picker');
+  const status=document.getElementById('sig-preset-status');
+  if(status)status.textContent=LANG==='en'?'Palette loaded in the fields. Preview or save when ready.':'Paleta cargada en los campos. Previsualizá o guardá cuando quieras.';
+  return true;
+}
 function leagueTextEditorHTML(){
   const colors=SohailAppearance.normalizeTextColors(LEAGUE_TEXT_COLORS);
   const escape=v=>attr(String(v));
@@ -468,7 +480,8 @@ function leagueTextEditorHTML(){
       '<div class="lt-sample" id="lt-sample-'+mode+'" style="--lt-ink:'+escape(v.ink)+';--lt-bg:'+escape(v.bg)+'"><strong>'+t('lt_sample_title')+'</strong><span>'+t('lt_sample_copy')+'</span></div>'+
       '<p id="lt-status-'+mode+'" class="lt-status" role="status" aria-live="polite">'+t('lt_auto_note')+'</p></fieldset>';
   }).join('');
-  return '<section id="league-text-editor" class="lt-editor" aria-labelledby="lt-title"><h3 id="lt-title">'+t('lt_title')+'</h3><p class="lt-intro">'+t('lt_intro')+'</p><div class="lt-grid">'+cards+'</div><p class="lt-note">'+t('lt_scope')+'</p></section>';
+  const signature='<div class="sig-preset"><div class="sig-preset-samples" aria-hidden="true"><span style="background:#08264c"></span><span style="background:#124fb5"></span><span style="background:#d9ef28"></span></div><div class="sig-preset-copy"><strong>Sohail Signature</strong><p>'+(LANG==='en'?'Navy, sport blue and tennis lime · optional palette. Your other colours stay unchanged.':'Azul noche, azul deportivo y lima tenis · paleta opcional. Conserva tus demás colores.')+'</p></div><button type="button" class="btn" onclick="stageSignatureColors()">'+(LANG==='en'?'Load palette':'Cargar paleta')+'</button><p id="sig-preset-status" role="status" aria-live="polite"></p></div>';
+  return '<section id="league-text-editor" class="lt-editor" aria-labelledby="lt-title">'+signature+'<h3 id="lt-title">'+t('lt_title')+'</h3><p class="lt-intro">'+t('lt_intro')+'</p><div class="lt-grid">'+cards+'</div><p class="lt-note">'+t('lt_scope')+'</p></section>';
 }
 function syncLeagueText(mode,source){
   if(!['light','dark','header'].includes(mode))return;

@@ -5,6 +5,7 @@
 (function(global){
  'use strict';
  const defaults={p:'#1B4F9C',a:'#F5C518',hl:'#FFEDD5'};
+ const signature={p:'#08264c',a:'#d9ef28',action:'#124fb5',ink:'#101d30'};
  function hex(value,fallback){
   let v=String(value||'').trim();
   if(/^#[\da-f]{3}$/i.test(v))v='#'+[...v.slice(1)].map(c=>c+c).join('');
@@ -31,6 +32,7 @@
  }
  function actionFor(bg){
   bg=hex(bg,defaults.p);
+  if(bg===signature.p)return signature.action;
   // Color del botón diferente de la marca cuando la marca es demasiado clara.
   for(let r=0;r<=1;r+=0.025){const c=mix(bg,'#000000',r);if(contrast(c,'#ffffff')>=4.6)return c;}
   return '#1b4f9c';
@@ -47,14 +49,22 @@
   }
   return out;
  }
+ // Use the Signature action blue when its primary is selected, and retain
+ // the previous contrast-safe dark action for other palettes.
+ function interactivePalette(mode,primary){
+  const p=hex(primary,defaults.p),dark=mode==='dark',isSignature=p===signature.p;
+  const action=dark&&!isSignature?'#245edb':actionFor(p);
+  return {action,hover:dark&&!isSignature?'#1e4fbb':mix(action,'#000000',.16),
+   link:dark?'#9bc7ff':action,pri:dark?'#93c5fd':action,priD:dark?'#bfdbfe':mix(action,'#000000',.2)};
+ }
  function textPalette(mode,requested,p,a){
   const dark=mode==='dark',colors=normalizeTextColors(requested);
   p=hex(p,defaults.p);a=hex(a,defaults.a);
-  const surfaces=dark?['#121212','#1b1b1b','#242424','#20334d','#403318','#302919']:
-   ['#eef2f7','#ffffff','#edf1f6',mix(p,'#ffffff',.90),mix(a,'#ffffff',.92),mix(a,'#ffffff',.95)];
+  const surfaces=dark?['#121212','#1b1b1b','#242424','#20334d','#403318','#302919','#121923','#19232f','#202b39']:
+   ['#eef2f7','#ffffff','#edf1f6','#f4f7fb','#edf2f7',mix(p,'#ffffff',.90),mix(a,'#ffffff',.92),mix(a,'#ffffff',.95)];
   const wanted=colors[dark?'dark':'light'];
   const min=c=>Math.min(...surfaces.map(bg=>contrast(bg,c)));
-  const fallback=dark?'#f3f3f3':'#1b2433';
+  const fallback=dark?'#f3f3f3':p===signature.p?signature.ink:'#1b2433';
   const accepted=!wanted||min(wanted)>=4.5;
   const main=accepted&&wanted?wanted:fallback;
   const mutedCandidate=wanted&&accepted?mix(main,dark?'#1b1b1b':'#ffffff',.22):(dark?'#b9c0c9':'#5b6675');
@@ -70,7 +80,7 @@
  const mq=global.matchMedia?global.matchMedia('(prefers-color-scheme: dark)'):null;
  function effective(){return preference==='system'?(mq&&mq.matches?'dark':'light'):preference;}
  function paint(notify){
-  const root=global.document.documentElement,dark=effective()==='dark',p=brand.p,a=brand.a,action=actionFor(p);
+  const root=global.document.documentElement,dark=effective()==='dark',p=brand.p,a=brand.a,interactive=interactivePalette(dark?'dark':'light',p);
   root.setAttribute('data-theme',dark?'dark':'light');
   root.setAttribute('data-theme-preference',preference);
   root.style.colorScheme=dark?'dark':'light';
@@ -78,9 +88,9 @@
   const tokens={
    '--text':ink.main,'--text2':ink.muted,
    '--brand-bg':p,'--brand-ink':ink.header,'--brand-accent':a,'--brand-accent-ink':textOn(a),
-   '--action':dark?'#245edb':action,'--action-hover':dark?'#1e4fbb':mix(action,'#000000',.16),'--on-action':'#ffffff',
-   '--link':dark?'#9bc7ff':action,'--acc':a,'--accD':mix(a,'#000000',.15),'--accT':textOn(a),
-   '--pri':dark?'#93c5fd':action,'--priD':dark?'#bfdbfe':mix(action,'#000000',.2),
+   '--action':interactive.action,'--action-hover':interactive.hover,'--on-action':'#ffffff',
+   '--link':interactive.link,'--acc':a,'--accD':mix(a,'#000000',.15),'--accT':textOn(a),
+   '--pri':interactive.pri,'--priD':interactive.priD,
    '--soft':dark?'#20334d':mix(p,'#ffffff',.90),'--winrow':dark?'#403318':mix(a,'#ffffff',.92),
    '--cream':dark?'#302919':mix(a,'#ffffff',.95),'--hl':dark?'#403016':brand.hl,
    '--hl-ink':dark?'#ffe2a8':textOn(brand.hl),'--league-highlight':brand.hl,
@@ -101,7 +111,7 @@
   return true;
  }
  function setTextColors(value){textColors=normalizeTextColors(value);paint(false);return {...textColors};}
- global.SohailAppearance=Object.freeze({hex,luminance,contrast,mix,textOn,actionFor,normalizeTextColors,textPalette,setTextColors,preference:()=>preference,effective,setPreference,setBrand});
+ global.SohailAppearance=Object.freeze({hex,luminance,contrast,mix,textOn,actionFor,interactivePalette,normalizeTextColors,textPalette,setTextColors,preference:()=>preference,effective,setPreference,setBrand});
  paint(false);
  const listener=()=>{if(preference==='system')paint(true);};
  if(mq){if(mq.addEventListener)mq.addEventListener('change',listener);else if(mq.addListener)mq.addListener(listener);}

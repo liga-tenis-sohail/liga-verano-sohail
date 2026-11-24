@@ -159,10 +159,23 @@
   function shareImage(titleText,main,lines){
    // Generated locally from confirmed sporting data only, never profile contacts.
    const canvas=doc.createElement('canvas');canvas.width=1080;canvas.height=1080;const ctx=canvas.getContext('2d');if(!ctx)return;
-   const theme=global.SohailAppearance,p=safe(()=>theme?.hex?.(LEAGUE_COLOR_PRI)||'#1b4f9c','#1b4f9c');
-   const ink=safe(()=>theme?.textOn?.(p)||'#ffffff','#ffffff');ctx.fillStyle=p;ctx.fillRect(0,0,1080,1080);ctx.fillStyle='#f5c518';ctx.fillRect(64,60,100,12);ctx.fillStyle=ink;
-   function write(text,y,size,weight='600'){ctx.font=weight+' '+size+'px sans-serif';ctx.textAlign='left';ctx.fillText(String(text).slice(0,180),64,y,952);}
-   write('SOHAIL  /  TENIS',140,40);write(league(),210,31,'400');write(titleText,320,52);write(main,458,76);let y=570;for(const line of lines){write(line,y,44,'500');y+=82;}write(T('Resumen deportivo · Datos confirmados','Sporting summary · Confirmed data'),1000,26,'400');
+   const theme=global.SohailAppearance;
+   const p=safe(()=>theme?.hex?.(LEAGUE_COLOR_PRI)||'#1b4f9c','#1b4f9c');
+   const accent=safe(()=>theme?.hex?.(LEAGUE_COLOR_ACC)||'#f5c518','#f5c518');
+   const preferred=safe(()=>LEAGUE_TEXT_COLORS.header,undefined);
+   const ink=safe(()=>theme?.textOn?.(p,preferred||'#ffffff')||'#ffffff','#ffffff');
+   const accentInk=safe(()=>theme?.textOn?.(accent)||'#172033','#172033');
+   ctx.fillStyle=p;ctx.fillRect(0,0,1080,1080);
+   // Tennis court lines are decorative, separate from text. No external asset.
+   ctx.strokeStyle=ink;ctx.globalAlpha=.10;ctx.lineWidth=3;
+   ctx.strokeRect(750,105,270,185);ctx.strokeRect(770,125,230,145);ctx.beginPath();ctx.moveTo(885,105);ctx.lineTo(885,290);ctx.moveTo(750,197);ctx.lineTo(1020,197);ctx.stroke();ctx.globalAlpha=1;
+   ctx.fillStyle=accent;ctx.fillRect(64,60,112,9);ctx.fillRect(64,950,952,5);
+   ctx.beginPath();ctx.arc(970,72,31,0,Math.PI*2);ctx.fill();ctx.strokeStyle=accentInk;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(951,48);ctx.quadraticCurveTo(976,72,951,96);ctx.moveTo(989,48);ctx.quadraticCurveTo(964,72,989,96);ctx.stroke();
+   ctx.fillStyle=ink;
+   function write(text,y,size,weight='600'){ctx.font=weight+' '+size+'px system-ui, sans-serif';ctx.textAlign='left';ctx.fillText(String(text).slice(0,180),64,y,952);}
+   write('CLUB DE TENIS SOHAIL',137,34,'700');write('FUENGIROLA',181,24,'500');write(league(),238,28,'400');
+   write(titleText,339,49);write(main,466,76,'800');let y=580;for(const line of lines){write(line,y,38,'500');y+=79;}
+   write(T('Resumen deportivo · Datos confirmados','Sporting summary · Confirmed data'),1003,25,'400');
    const a=doc.createElement('a');a.download='sohail-resumen.png';a.href=canvas.toDataURL('image/png');a.click();
    // Keep the choice to send the image with the user; never send to WhatsApp automatically.
    if(typeof toast==='function')toast(T('Imagen preparada. Podés compartirla por WhatsApp.','Image ready. You can share it on WhatsApp.'));
